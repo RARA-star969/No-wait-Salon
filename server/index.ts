@@ -407,6 +407,8 @@ function profileResponse(row: Record<string, string | number>) {
 
 function upsertBooking(salonId: string, item: QueueItem) {
   if (!item.customerId) return;
+  const customerExists = db.prepare('SELECT 1 FROM customer_account WHERE id = ?').get(item.customerId);
+  if (!customerExists) return;
   const now = Date.now();
   db.prepare(`
     INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, created_at, updated_at)
