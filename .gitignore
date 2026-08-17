@@ -5,6 +5,11 @@ coverage/
 data/*.db*
 data/backups/
 *.sqlite*
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
 .DS_Store
 *.log
 .env*
