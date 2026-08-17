@@ -55,6 +55,7 @@ export interface Salon {
   defaultBarberCount: number;
   latitude: number;
   longitude: number;
+  openingHours: string;
 }
 
 export interface NearbySalon extends Salon {

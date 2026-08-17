@@ -50,7 +50,6 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
     setError('');
     try {
       const result = await salonDiscoveryService.byArea(search);
-      if (!result.salons.length) return setError(`No onboarded salons found near “${search}”. Try Bengaluru or Indiranagar.`);
       onLocated(result.salons, search);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to search this area.');

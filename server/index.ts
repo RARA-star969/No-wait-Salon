@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { INITIAL_BARBERS, INITIAL_QUEUE, SALONS } from '../src/data/mockData.ts';
-import type { Barber, QueueItem } from '../src/types.ts';
+import type { Barber, QueueItem, Salon } from '../src/types.ts';
 
 type SalonState = {
   salonId: string;
@@ -40,6 +40,79 @@ db.exec(`
     updated_at INTEGER NOT NULL
   )
 `);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS salon (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    address TEXT NOT NULL,
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    rating REAL NOT NULL,
+    review_count INTEGER NOT NULL,
+    is_open INTEGER NOT NULL DEFAULT 1,
+    opening_hours TEXT NOT NULL,
+    services_json TEXT NOT NULL,
+    barbers_json TEXT NOT NULL,
+    onboarded INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL
+  )
+`);
+
+const insertSalon = db.prepare(`
+  INSERT OR IGNORE INTO salon
+  (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json, onboarded, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+`);
+const demoBarbers: Record<string, Barber[]> = {
+  'salon-1': [
+    { id: 'b1', name: 'Arjun', status: 'available' },
+    { id: 'b2', name: 'Sameer', status: 'available' },
+  ],
+  'salon-2': [
+    { id: 'b1', name: 'Kabir', status: 'available' },
+    { id: 'b2', name: 'Rohan', status: 'available' },
+  ],
+};
+for (const salon of SALONS) {
+  insertSalon.run(
+    salon.id, salon.name, salon.address, salon.latitude, salon.longitude, salon.rating,
+    salon.reviewCount, salon.isOpen ? 1 : 0, salon.openingHours, JSON.stringify(salon.services),
+    JSON.stringify(demoBarbers[salon.id] || []), Date.now(),
+  );
+}
+
+type SalonRow = {
+  id: string; name: string; address: string; latitude: number; longitude: number; rating: number;
+  review_count: number; is_open: number; opening_hours: string; services_json: string; barbers_json: string;
+};
+
+function rowToSalon(row: SalonRow): Salon {
+  const barbers = JSON.parse(row.barbers_json) as Barber[];
+  return {
+    id: row.id,
+    name: row.name,
+    address: row.address,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    rating: row.rating,
+    reviewCount: row.review_count,
+    isOpen: row.is_open === 1,
+    openingHours: row.opening_hours,
+    services: JSON.parse(row.services_json),
+    defaultBarberCount: barbers.length || 1,
+    distanceKm: 0,
+  };
+}
+
+function readOnboardedSalons(): Salon[] {
+  const rows = db.prepare('SELECT * FROM salon WHERE onboarded = 1 ORDER BY created_at, id').all() as unknown as SalonRow[];
+  return rows.map(rowToSalon);
+}
+
+function readSalonBarbers(salonId: string): Barber[] {
+  const row = db.prepare('SELECT barbers_json FROM salon WHERE id = ? AND onboarded = 1').get(salonId) as { barbers_json: string } | undefined;
+  return row ? JSON.parse(row.barbers_json) as Barber[] : [];
+}
 db.exec(`
   CREATE TABLE IF NOT EXISTS otp_challenge (
     id TEXT PRIMARY KEY,
@@ -90,10 +163,11 @@ const hashCode = (value: string) => Buffer.from(value).toString('base64url');
 
 function seedState(salonId: string): SalonState {
   const now = Date.now();
-  const isPrimaryDemoSalon = salonId === SALONS[0].id;
-  const barberCount = SALONS.find((salon) => salon.id === salonId)?.defaultBarberCount || 2;
-  const seededBarbers = Array.from({ length: barberCount }, (_, index) => {
-    const existing = INITIAL_BARBERS[index];
+  const isPrimaryDemoSalon = salonId === 'salon-1';
+  const configuredBarbers = readSalonBarbers(salonId);
+  const baseBarbers = configuredBarbers.length ? configuredBarbers : INITIAL_BARBERS;
+  const seededBarbers = baseBarbers.map((configured, index) => {
+    const existing = isPrimaryDemoSalon ? INITIAL_BARBERS[index] : configured;
     if (existing) {
       return isPrimaryDemoSalon ? structuredClone(existing) : { ...structuredClone(existing), status: 'available' as const, currentCustomerName: undefined };
     }
@@ -242,7 +316,7 @@ app.get('/api/salons/nearby', (request, response) => {
     return response.status(400).json({ error: 'Share your location or enter a city or area.' });
   }
 
-  const matches = SALONS
+  const matches = readOnboardedSalons()
     .filter((salon) => !area || `${salon.name} ${salon.address}`.toLocaleLowerCase().includes(area))
     .map((salon) => {
       const state = readState(salon.id);
@@ -336,7 +410,7 @@ app.use(express.static(path.join(projectRoot, 'dist')));
 app.get('*', (_request, response) => response.sendFile(path.join(projectRoot, 'dist', 'index.html')));
 
 setInterval(() => {
-  for (const salon of SALONS) {
+  for (const salon of readOnboardedSalons()) {
     const state = readState(salon.id);
     const expired = state.queue.filter((item) => item.status === 'Called' && item.calledAt && Date.now() - item.calledAt > 10 * 60_000);
     if (expired.length === 0) continue;

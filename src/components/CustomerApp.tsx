@@ -202,6 +202,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             <div className="space-y-3">
+              {nearbySalons.length === 0 && (
+                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
+                  <MapPin className="mx-auto h-6 w-6 text-[#7EA7A2]" />
+                  <h3 className="mt-3 text-sm font-bold text-[#25302F]">No salons available in your area yet.</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more salon partners.</p>
+                  <button type="button" onClick={() => setNearbySalons(null)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
+                </div>
+              )}
               {nearbySalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
                 const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
