@@ -23,10 +23,18 @@ const tables:Record<string,string[]>={
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();
 
+function includeReferencedTables(selected:string[]){
+  const expanded=new Set(selected);
+  if(expanded.has('customer_account'))['customer_profile','customer_session','customer_booking'].forEach(table=>expanded.add(table));
+  if(expanded.has('admin_user'))expanded.add('admin_session');
+  return insertOrder.filter(table=>expanded.has(table));
+}
+
 const placeholders=(count:number)=>Array.from({length:count},()=>'?').join(',');
 const sqliteRows=(db:DatabaseSync,table:string)=>db.prepare(`SELECT * FROM ${table}`).all() as Record<string,unknown>[];
 
 async function replacePostgres(sqlite:DatabaseSync,postgres:Database,selected=insertOrder){
+  selected=includeReferencedTables(selected);
   const counts:Record<string,number>={};
   await postgres.transaction(async tx=>{
     for(const table of deleteOrder.filter(table=>selected.includes(table)))await tx.run(`DELETE FROM ${table}`);
