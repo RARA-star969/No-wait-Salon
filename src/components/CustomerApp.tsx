@@ -23,6 +23,9 @@ import {
 import { Salon, QueueItem, Barber, CustomerScreen } from '../types';
 import { SALONS, AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
+import { CustomerOnboarding } from './CustomerOnboarding';
+
+const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
 interface CustomerAppProps {
   currentScreen: CustomerScreen;
@@ -62,6 +65,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onTestPush,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
+    () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
+  );
+
+  const completeOnboarding = () => {
+    localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
+    setHasCompletedOnboarding(true);
+  };
 
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
@@ -86,6 +97,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       : peopleAhead === 0
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+
+  if (!hasCompletedOnboarding) {
+    return <CustomerOnboarding onComplete={completeOnboarding} />;
+  }
 
   return (
     <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
