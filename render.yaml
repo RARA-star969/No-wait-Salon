@@ -11,4 +11,8 @@ services:
       - key: DATA_DIR
         value: /tmp/no-wait-salon-data
       - key: ALLOWED_ORIGINS
-        value: capacitor://localhost,http://localhost
+        value: capacitor://localhost,http://localhost,https://no-wait-salon-admin.onrender.com
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
