@@ -3,6 +3,8 @@ build/
 dist/
 coverage/
 data/*.db*
+data/backups/
+*.sqlite*
 .DS_Store
 *.log
 .env*

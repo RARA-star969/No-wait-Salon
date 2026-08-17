@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { INITIAL_BARBERS, INITIAL_QUEUE, SALONS } from '../src/data/mockData.ts';
 import type { Barber, QueueItem, Salon } from '../src/types.ts';
+import {initPostgresPersistence} from './postgresPersistence.ts';
 
 type SalonState = {
   salonId: string;
@@ -286,6 +287,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS customer_booking_customer_idx ON customer_booking(customer_id, created_at DESC);
 `);
 
+const postgresPersistence=await initPostgresPersistence(db,dataDir);
+if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from ${postgresPersistence.source}. SQLite safety backup: ${postgresPersistence.backupPath}`);
+
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -320,6 +324,10 @@ app.use((_request, response, next) => {
 });
 app.use(express.json({ limit: '3mb' }));
 app.use('/salon-media', express.static(salonMediaDir, { immutable: true, maxAge: '7d' }));
+app.use((request,response,next)=>{
+  if(!['GET','HEAD','OPTIONS'].includes(request.method))response.on('finish',()=>postgresPersistence?.scheduleFlush());
+  next();
+});
 
 const subscribers = new Map<string, Set<express.Response>>();
 const hashCode = (value: string) => createHash('sha256').update(value).digest('base64url');
@@ -643,7 +651,7 @@ app.get('/api/admin/salons/:id', requireAdmin, (request, response) => {
   response.json({ salon });
 });
 
-app.post('/api/admin/salons', requireAdmin, (request, response) => {
+app.post('/api/admin/salons', requireAdmin, async (request, response) => {
   try {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
@@ -655,11 +663,12 @@ app.post('/api/admin/salons', requireAdmin, (request, response) => {
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
         cleanText(body.category,100),cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now);
     saveSalonRelations(id, body, now); db.exec('COMMIT');
+    await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media']);
     response.status(201).json({ salon: adminSalonDetail(id) });
   } catch (error) { try { db.exec('ROLLBACK'); } catch {} response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create salon.' }); }
 });
 
-app.put('/api/admin/salons/:id', requireAdmin, (request, response) => {
+app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
   try {
     const existing = adminSalonDetail(request.params.id); if (!existing) return response.status(404).json({ error: 'Salon not found.' });
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name,150); if (!name) throw new Error('Salon name is required.');
@@ -669,14 +678,15 @@ app.put('/api/admin/salons/:id', requireAdmin, (request, response) => {
       is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,updated_at=? WHERE id=?`)
       .run(name,cleanText(body.short_description,300),cleanText(body.description,3000),cleanText(body.category,100),cleanText(body.phone_number,30),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.address,500),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',cleanText(body.logo_image_url,1000),cleanText(body.cover_image_url,1000),cleanText(body.promotional_banner_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),cleanText(body.status,20)||'draft',now,request.params.id);
     saveSalonRelations(request.params.id,body,now); db.exec('COMMIT'); publish(readState(request.params.id));
+    await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media']);
     response.json({ salon: adminSalonDetail(request.params.id) });
   } catch(error){ try{db.exec('ROLLBACK');}catch{} response.status(400).json({error:error instanceof Error?error.message:'Unable to save salon.'}); }
 });
 
-app.patch('/api/admin/salons/:id/status', requireAdmin, (request,response) => {
+app.patch('/api/admin/salons/:id/status', requireAdmin, async (request,response) => {
   const status=cleanText(request.body?.status,20); if(!['draft','active','inactive','suspended'].includes(status)) return response.status(400).json({error:'Invalid salon status.'});
   const result=db.prepare('UPDATE salon SET platform_status=?, updated_at=? WHERE id=?').run(status,Date.now(),request.params.id);
-  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); response.json({ok:true,status});
+  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); await postgresPersistence?.flushNow(['salon']); response.json({ok:true,status});
 });
 
 app.post('/api/admin/media/upload', requireAdmin, (request,response) => {
@@ -764,7 +774,7 @@ app.get('/api/salons/:salonId/events', (request, response) => {
   });
 });
 
-app.post('/api/salons/:salonId/commands', (request, response) => {
+app.post('/api/salons/:salonId/commands', async (request, response) => {
   try {
     db.exec('BEGIN IMMEDIATE');
     const current = readState(request.params.salonId);
@@ -790,6 +800,7 @@ app.post('/api/salons/:salonId/commands', (request, response) => {
     }
     db.exec('COMMIT');
     publish(next);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state']);
     response.json(next);
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* transaction was not active */ }
@@ -807,7 +818,7 @@ app.post('/api/otp/request', (request, response) => {
   response.json({ challengeId: id, demoCode: code, expiresInSeconds: 300 });
 });
 
-app.post('/api/otp/verify', (request, response) => {
+app.post('/api/otp/verify', async (request, response) => {
   const challenge = db.prepare('SELECT * FROM otp_challenge WHERE id = ?').get(String(request.body?.challengeId || '')) as
     | { id: string; phone: string; code_hash: string; expires_at: number; attempts: number; verified_at?: number }
     | undefined;
@@ -831,6 +842,7 @@ app.post('/api/otp/verify', (request, response) => {
   const token = `${randomUUID()}${randomUUID().replaceAll('-', '')}`;
   db.prepare('INSERT INTO customer_session (token_hash, customer_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
     .run(hashCode(token), account.id, now + 30 * 24 * 60 * 60_000, now);
+  await postgresPersistence?.flushNow(['otp_challenge','customer_account','customer_profile','customer_session']);
   response.json({ verified: true, phone: challenge.phone, token, customerId: account.id });
 });
 
@@ -839,7 +851,7 @@ app.get('/api/me/profile', requireCustomer, (request: AuthenticatedRequest, resp
   response.json(profileResponse(readCustomerProfile(request.customerId!)));
 });
 
-app.put('/api/me/profile', requireCustomer, (request: AuthenticatedRequest, response) => {
+app.put('/api/me/profile', requireCustomer, async (request: AuthenticatedRequest, response) => {
   const name = String(request.body?.name || '').trim();
   const email = String(request.body?.email || '').trim().toLowerCase();
   const dateOfBirth = String(request.body?.dateOfBirth || '').trim();
@@ -860,6 +872,7 @@ app.put('/api/me/profile', requireCustomer, (request: AuthenticatedRequest, resp
   db.prepare(`UPDATE customer_profile SET name = ?, email = ?, date_of_birth = ?, gender = ?, anniversary = ?, city = ?, updated_at = ? WHERE customer_id = ?`)
     .run(name, email, dateOfBirth, gender, anniversary, city, now, request.customerId!);
   db.prepare('UPDATE customer_account SET updated_at = ? WHERE id = ?').run(now, request.customerId!);
+  await postgresPersistence?.flushNow(['customer_account','customer_profile']);
   response.json(profileResponse(readCustomerProfile(request.customerId!)));
 });
 
@@ -919,6 +932,7 @@ setInterval(() => {
     state.queue = state.queue.filter((item) => !expiredIds.has(item.id));
     writeState(state);
     publish(state);
+    postgresPersistence?.scheduleFlush();
   }
 }, 15_000).unref();
 
@@ -927,7 +941,8 @@ const server = app.listen(port, '0.0.0.0', () => console.log(`No-Wait Salon serv
 
 function shutdown(signal: string) {
   console.log(`${signal} received; closing server.`);
-  server.close(() => {
+  server.close(async () => {
+    try{await postgresPersistence?.close()}catch(error){console.error('Final PostgreSQL flush failed',error)}
     db.close();
     process.exit(0);
   });

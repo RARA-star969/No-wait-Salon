@@ -10,6 +10,10 @@ services:
         value: production
       - key: DATA_DIR
         value: /tmp/no-wait-salon-data
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_POOL_MAX
+        value: 10
       - key: ALLOWED_ORIGINS
         value: capacitor://localhost,http://localhost,https://no-wait-salon-admin.onrender.com
       - key: ADMIN_EMAIL
