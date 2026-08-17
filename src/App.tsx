@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification } from './types';
+import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
 import { Header } from './components/Header';
 import { CustomerApp } from './components/CustomerApp';
@@ -13,6 +13,7 @@ import {
   dispatchWebPushNotification,
 } from './services/notificationService';
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
+import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
@@ -40,6 +41,10 @@ export default function App() {
   }, []);
 
   const [queueAlert, setQueueAlert] = useState<string>('');
+  const [customerAuth, setCustomerAuth] = useState<CustomerAuthSession | null>(() => loadCustomerAuth());
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
 
   // OTP Modal State
   const [isOtpOpen, setIsOtpOpen] = useState(false);
@@ -64,6 +69,18 @@ export default function App() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(() =>
     getNotificationPermissionStatus()
   );
+
+  const loadProfile = async () => {
+    if (!loadCustomerAuth()) return;
+    setProfileLoading(true); setProfileError('');
+    try { setCustomerProfile(await customerAccountService.getProfile()); }
+    catch (error) {
+      setProfileError(error instanceof Error ? error.message : 'Unable to load your profile.');
+      if (error instanceof Error && error.message.includes('verify')) { saveCustomerAuth(null); setCustomerAuth(null); }
+    } finally { setProfileLoading(false); }
+  };
+
+  useEffect(() => { if (customerAuth) void loadProfile(); }, [customerAuth?.token]);
 
   // Set of already fired notification trigger keys to prevent repeated spam
   const sentNotificationsRef = useRef<Set<string>>(new Set());
@@ -289,16 +306,24 @@ export default function App() {
     setIsOtpOpen(true);
   };
 
-  const handleOtpVerifySuccess = async (verifiedPhone: string) => {
+  const handleOtpVerifySuccess = async (auth: CustomerAuthSession) => {
     if (!pendingOtpAction) return;
     const action = pendingOtpAction;
+    saveCustomerAuth(auth);
+    setCustomerAuth(auth);
+    if (action.type === 'profile') {
+      setIsOtpOpen(false);
+      setPendingOtpAction(null);
+      setCurrentScreen('profile');
+      return;
+    }
     const snapshot = await runCommand({
       type: 'join',
       item: {
         id: '',
         name: 'You',
-        phone: verifiedPhone,
-        service: action.serviceName,
+        phone: auth.phoneNumber,
+        service: action.serviceName!,
         status: action.type === 'slot' ? 'Reserved' : 'Waiting',
         reservedFor: action.type === 'slot' ? action.slot : undefined,
         isUser: true,
@@ -422,6 +447,16 @@ export default function App() {
                   permissionStatus={permissionStatus}
                   onRequestPermission={handleRequestPermission}
                   onTestPush={handleTestNotification}
+                  customerAuth={customerAuth}
+                  customerProfile={customerProfile}
+                  profileLoading={profileLoading}
+                  profileError={profileError}
+                  onProfileLogin={() => { setPendingOtpAction({ type: 'profile' }); setIsOtpOpen(true); }}
+                  onProfileSaved={(profile) => { setCustomerProfile(profile); setProfileError(''); }}
+                  onProfileLogout={async () => {
+                    try { await customerAccountService.logout(); } catch { /* local logout still completes */ }
+                    saveCustomerAuth(null); setCustomerAuth(null); setCustomerProfile(null); setCurrentScreen('home');
+                  }}
                 />
               </div>
             </section>

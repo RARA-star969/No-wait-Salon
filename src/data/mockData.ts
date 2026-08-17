@@ -22,6 +22,12 @@ export const SALONS: Salon[] = [
     latitude: 12.9719,
     longitude: 77.6412,
     openingHours: 'Mon–Sun · 9:00 AM–9:00 PM',
+    category: "Men's grooming studio",
+    description: 'A modern neighbourhood grooming studio focused on precise cuts, thoughtful service, and a calm experience without unnecessary waiting.',
+    amenities: ['Air conditioned', 'Wi-Fi', 'Digital payments'],
+    offers: [],
+    gallery: [],
+    brandKey: 'sharpcut',
   },
   {
     id: 'salon-2',
@@ -36,6 +42,12 @@ export const SALONS: Salon[] = [
     latitude: 12.9674,
     longitude: 77.6492,
     openingHours: 'Mon–Sun · 9:30 AM–9:30 PM',
+    category: 'Premium unisex salon',
+    description: 'Contemporary hair and grooming services delivered by an experienced team in a comfortable, welcoming space.',
+    amenities: ['Air conditioned', 'Digital payments'],
+    offers: [],
+    gallery: [],
+    brandKey: 'royal-man',
   },
 ];
 

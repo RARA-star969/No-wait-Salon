@@ -20,11 +20,14 @@ import {
   Star,
   LocateFixed,
 } from 'lucide-react';
-import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon } from '../types';
+import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { CustomerOnboarding } from './CustomerOnboarding';
 import { LocationDiscovery } from './LocationDiscovery';
+import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from './CustomerHomeComponents';
+import { CustomerProfileScreen } from './CustomerProfile';
+import { SalonDetailPage } from './SalonDetailPage';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
@@ -45,6 +48,13 @@ interface CustomerAppProps {
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
+  customerAuth: CustomerAuthSession | null;
+  customerProfile: CustomerProfile | null;
+  profileLoading: boolean;
+  profileError: string;
+  onProfileLogin: () => void;
+  onProfileSaved: (profile: CustomerProfile) => void;
+  onProfileLogout: () => void;
 }
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({
@@ -64,6 +74,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   permissionStatus,
   onRequestPermission,
   onTestPush,
+  customerAuth,
+  customerProfile,
+  profileLoading,
+  profileError,
+  onProfileLogin,
+  onProfileSaved,
+  onProfileLogout,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
@@ -71,6 +88,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   );
   const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(null);
   const [locationLabel, setLocationLabel] = useState('');
+  const [salonSearch, setSalonSearch] = useState('');
 
   const completeOnboarding = () => {
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
@@ -101,6 +119,16 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
 
+  const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
+  const visibleSalons = nearbySalons?.filter((salon) => {
+    if (!normalizedSearch) return true;
+    return [
+      salon.name,
+      salon.address,
+      ...salon.services.flatMap((service) => [service.name, service.description || '']),
+    ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
+  }) || [];
+
   if (!hasCompletedOnboarding) {
     return <CustomerOnboarding onComplete={completeOnboarding} />;
   }
@@ -117,34 +145,51 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     );
   }
 
+  if (currentScreen === 'profile' || currentScreen === 'edit-profile') {
+    return (
+      <CustomerProfileScreen
+        mode={currentScreen === 'edit-profile' ? 'edit' : 'profile'}
+        auth={customerAuth}
+        profile={customerProfile}
+        loading={profileLoading}
+        error={profileError}
+        onBack={() => setScreen(currentScreen === 'edit-profile' ? 'profile' : 'home')}
+        onEdit={() => setScreen('edit-profile')}
+        onLogin={onProfileLogin}
+        onSaved={(profile) => { onProfileSaved(profile); setScreen('profile'); }}
+        onLogout={onProfileLogout}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
         <div id="customer-home-screen" className="min-h-full bg-[#F8FAFA] animate-in fade-in duration-300">
-          <div className="border-b border-[#E7ECEB] bg-white px-5 pb-6 pt-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Grooming, without the wait
+          <div className="border-b border-[#E7ECEB] bg-[#F8FAFA] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F766E] text-white">
+                    <Scissors className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-[17px] font-bold tracking-[-0.025em] text-[#17201F]">No-Wait Salon</p>
+                    <p className="truncate text-[10px] font-medium text-[#71807E]">Find your chair, skip the wait</p>
+                  </div>
                 </div>
-                <h1 className="max-w-[310px] text-[27px] font-bold leading-[1.12] tracking-[-0.035em] text-[#17201F]">
-                  Your chair is closer than you think.
-                </h1>
-                <p className="mt-2 max-w-[340px] text-xs leading-relaxed text-[#667371]">
-                  See live wait times and join the queue before you leave home.
-                </p>
               </div>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D9E6E4] bg-[#F0F8F7]">
-                <Scissors className="h-4.5 w-4.5 text-[#0F766E]" />
+              <div className="flex shrink-0 items-center gap-2">
+                <WalletButton />
+                <ProfileButton onClick={() => setScreen('profile')} />
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => setNearbySalons(null)}
-              className="mt-5 flex w-full items-center justify-between rounded-xl border border-[#DCE4E3] bg-[#F8FAFA] px-3.5 py-3 text-left transition hover:border-[#A8C9C5] hover:bg-[#F4F9F8]"
+              className="mt-4 flex w-full items-center justify-between rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
               aria-label="Change current location"
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -158,9 +203,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               </span>
               <LocateFixed className="h-4 w-4 shrink-0 text-[#0F766E]" />
             </button>
+
+            <div className="mt-3">
+              <SalonSearchBar value={salonSearch} onChange={setSalonSearch} />
+            </div>
           </div>
 
-          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-6 pt-5">
+          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:px-5">
+
+          <PromotionalBanner />
 
           {userEntry && (
             <div
@@ -210,7 +261,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <button type="button" onClick={() => setNearbySalons(null)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
                 </div>
               )}
-              {nearbySalons.map((salon) => {
+              {nearbySalons.length > 0 && visibleSalons.length === 0 && (
+                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
+                  <h3 className="text-sm font-bold text-[#25302F]">No matching salons found.</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try a salon name, area, or service.</p>
+                  <button type="button" onClick={() => setSalonSearch('')} className="mt-4 text-xs font-bold text-[#0F766E]">Clear search</button>
+                </div>
+              )}
+              {visibleSalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
                 const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
                 return (
@@ -276,8 +334,23 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         </div>
       )}
 
-      {/* 2. SALON DETAILS & SERVICES */}
       {currentScreen === 'salon' && (
+        <SalonDetailPage
+          salon={selectedSalon}
+          nearbySalons={nearbySalons}
+          queue={queue}
+          barbers={barbers}
+          selectedService={selectedService}
+          setSelectedService={setSelectedService}
+          onBack={() => setScreen('home')}
+          onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
+          onReserve={() => setScreen('slots')}
+          userEntry={userEntry}
+        />
+      )}
+
+      {/* Legacy salon layout retained temporarily for parity checks; it is not rendered. */}
+      {false && currentScreen === 'salon' && (
         <div id="customer-salon-screen" className="min-h-full space-y-5 bg-[#F8FAFA] p-5 animate-in fade-in duration-200">
           <div>
             <button

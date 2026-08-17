@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "build:customer": "VITE_APP_MODE=customer vite build",
     "build:staff": "VITE_APP_MODE=staff vite build",
+    "build:admin": "VITE_APP_MODE=admin vite build",
+    "dev:admin": "VITE_APP_MODE=admin vite --port=3010 --host=0.0.0.0",
     "android:sync:customer": "pnpm build:customer && CAPACITOR_APP_TARGET=customer cap sync android",
     "android:sync:staff": "pnpm build:staff && CAPACITOR_APP_TARGET=staff cap sync android",
     "android:apk:customer": "pnpm android:sync:customer && cd android-customer && ./gradlew assembleDebug",

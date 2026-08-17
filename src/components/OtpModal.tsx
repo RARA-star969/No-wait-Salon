@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Smartphone, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
-import { OtpAction } from '../types';
+import { CustomerAuthSession, OtpAction } from '../types';
 import { ui } from './ui';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 
@@ -8,7 +8,7 @@ interface OtpModalProps {
   isOpen: boolean;
   onClose: () => void;
   pendingAction: OtpAction | null;
-  onVerifySuccess: (phone: string) => void;
+  onVerifySuccess: (auth: CustomerAuthSession) => void;
 }
 
 export const OtpModal: React.FC<OtpModalProps> = ({
@@ -147,7 +147,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
     setIsVerifying(true);
     try {
       const result = await realtimeQueueService.verifyOtp(challengeId, entered);
-      onVerifySuccess(result.phone);
+      onVerifySuccess({ token: result.token, customerId: result.customerId, phoneNumber: result.phone });
     } catch (error) {
       setCodeError(error instanceof Error ? error.message : 'Unable to verify OTP.');
     } finally {
@@ -188,7 +188,9 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           </h2>
           <p className="text-xs text-[#6F7C7A] mt-1 max-w-[260px] leading-relaxed">
             {step === 'phone'
-              ? pendingAction?.type === 'slot'
+              ? pendingAction?.type === 'profile'
+                ? 'Verify once to securely access your personal profile.'
+                : pendingAction?.type === 'slot'
                 ? `Hold your slot for ${pendingAction.slot} with instant SMS verification.`
                 : 'Join live queue and receive turn alerts on your phone.'
               : `We sent a 4-digit OTP to +91 ${phone.slice(0, 5)} ${phone.slice(5)}`}
@@ -310,7 +312,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
               className={`${ui.primaryButton} flex w-full items-center justify-center gap-2`}
             >
               {isVerifying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              <span>{isVerifying ? 'Verifying…' : 'Confirm & Join Queue'}</span>
+              <span>{isVerifying ? 'Verifying…' : pendingAction?.type === 'profile' ? 'Verify & Open Profile' : 'Confirm & Join Queue'}</span>
             </button>
 
             <div className="flex items-center justify-between text-xs pt-1">

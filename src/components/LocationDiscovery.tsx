@@ -1,4 +1,4 @@
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AlertCircle, LoaderCircle, LocateFixed, MapPin, Navigation, Search } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
@@ -13,7 +13,7 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
   const [loading, setLoading] = useState<'gps' | 'manual' | null>(null);
   const [error, setError] = useState('');
 
-  const useLocation = () => {
+  const useLocation = useCallback(() => {
     setError('');
     if (!navigator.geolocation) {
       setManualMode(true);
@@ -40,7 +40,14 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
       },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
     );
-  };
+  }, [onLocated]);
+
+  useEffect(() => {
+    if (!navigator.permissions?.query) return;
+    navigator.permissions.query({ name: 'geolocation' }).then((permission) => {
+      if (permission.state === 'granted') useLocation();
+    }).catch(() => undefined);
+  }, [useLocation]);
 
   const searchArea = async (event: FormEvent) => {
     event.preventDefault();

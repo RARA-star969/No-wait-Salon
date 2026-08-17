@@ -1,4 +1,5 @@
 import type { Barber, QueueItem } from '../types';
+import { authHeaders } from './customerAccountService';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
@@ -46,6 +47,7 @@ export const realtimeQueueService = {
   command: (salonId: string, command: QueueCommand) =>
     request<SalonSnapshot>(apiUrl(`/api/salons/${encodeURIComponent(salonId)}/commands`), {
       method: 'POST',
+      headers: authHeaders(),
       body: JSON.stringify(command),
     }),
 
@@ -66,7 +68,7 @@ export const realtimeQueueService = {
     }),
 
   verifyOtp: (challengeId: string, code: string) =>
-    request<{ verified: true; phone: string }>(apiUrl('/api/otp/verify'), {
+    request<{ verified: true; phone: string; token: string; customerId: string }>(apiUrl('/api/otp/verify'), {
       method: 'POST',
       body: JSON.stringify({ challengeId, code }),
     }),

@@ -2,7 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string;
-  readonly VITE_APP_MODE?: 'customer' | 'staff' | 'combined';
+  readonly VITE_APP_MODE?: 'customer' | 'staff' | 'admin' | 'combined';
 }
 
 interface ImportMeta {
