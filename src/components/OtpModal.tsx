@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Smartphone, CheckCircle2, ShieldCheck, ArrowRight, RefreshCw } from 'lucide-react';
 import { OtpAction } from '../types';
+import { ui } from './ui';
+import { realtimeQueueService } from '../services/realtimeQueueService';
 
 interface OtpModalProps {
   isOpen: boolean;
@@ -21,7 +23,11 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   const [otpDigits, setOtpDigits] = useState(['', '', '', '']);
   const [codeError, setCodeError] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
+  const [challengeId, setChallengeId] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
   const phoneInputRef = useRef<HTMLInputElement>(null);
   const digitInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -34,24 +40,43 @@ export const OtpModal: React.FC<OtpModalProps> = ({
       setCodeError('');
       setOtpDigits(['', '', '', '']);
       setGeneratedOtp('');
+      setChallengeId('');
+      setIsSending(false);
+      setIsVerifying(false);
+      setResendTimer(0);
       setTimeout(() => phoneInputRef.current?.focus(), 150);
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const timer = window.setInterval(() => setResendTimer((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendTimer]);
+
   if (!isOpen) return null;
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length !== 10) {
       setPhoneError('Please enter a valid 10-digit mobile number.');
       return;
     }
     setPhoneError('');
-    const randomOtp = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedOtp(randomOtp);
-    setStep('code');
-    setOtpDigits(['', '', '', '']);
-    setTimeout(() => digitInputRefs.current[0]?.focus(), 150);
+    setIsSending(true);
+    try {
+      const result = await realtimeQueueService.requestOtp(cleanPhone);
+      setChallengeId(result.challengeId);
+      setGeneratedOtp(result.demoCode);
+      setResendTimer(30);
+      setStep('code');
+      setOtpDigits(['', '', '', '']);
+      setTimeout(() => digitInputRefs.current[0]?.focus(), 150);
+    } catch (error) {
+      setPhoneError(error instanceof Error ? error.message : 'Unable to send OTP. Please try again.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleDigitChange = (index: number, val: string) => {
@@ -94,43 +119,53 @@ export const OtpModal: React.FC<OtpModalProps> = ({
     setCodeError('');
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
+    if (resendTimer > 0) return;
     setIsResending(true);
-    const newOtp = String(Math.floor(1000 + Math.random() * 9000));
-    setGeneratedOtp(newOtp);
-    setOtpDigits(['', '', '', '']);
-    setCodeError('');
-    setTimeout(() => {
+    try {
+      const result = await realtimeQueueService.requestOtp(phone);
+      setChallengeId(result.challengeId);
+      setGeneratedOtp(result.demoCode);
+      setOtpDigits(['', '', '', '']);
+      setCodeError('');
+      setResendTimer(30);
+    } catch (error) {
+      setCodeError(error instanceof Error ? error.message : 'Unable to resend OTP.');
+    } finally {
       setIsResending(false);
       digitInputRefs.current[0]?.focus();
-    }, 400);
+    }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const entered = otpDigits.join('');
     if (entered.length < 4) {
       setCodeError('Please enter all 4 digits.');
       return;
     }
-    if (entered !== generatedOtp) {
-      setCodeError('Incorrect OTP. Please check the demo code.');
-      return;
-    }
     setCodeError('');
-    onVerifySuccess(phone);
+    setIsVerifying(true);
+    try {
+      const result = await realtimeQueueService.verifyOtp(challengeId, entered);
+      onVerifySuccess(result.phone);
+    } catch (error) {
+      setCodeError(error instanceof Error ? error.message : 'Unable to verify OTP.');
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
     <div
       id="otp-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1A1A]/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#17201F]/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         id="otp-modal-dialog"
-        className="relative w-full max-w-sm rounded-3xl bg-[#FAF9F6] p-6 sm:p-7 shadow-2xl border border-[#E5E5DF] text-[#1A1A1A] transition-all transform scale-100"
+        className="relative w-full max-w-sm rounded-2xl bg-[#F8FAFA] p-6 sm:p-7 shadow-xl border border-[#E1E7E6] text-[#17201F] transition-all transform scale-100"
         role="dialog"
         aria-modal="true"
       >
@@ -138,20 +173,20 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           id="otp-close-btn"
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute right-4 top-4 rounded-full p-1.5 text-[#7A7A70] hover:bg-[#E5E5DF] hover:text-[#1A1A1A] transition cursor-pointer"
+          className="absolute right-4 top-4 rounded-full p-1.5 text-[#6F7C7A] hover:bg-[#E1E7E6] hover:text-[#17201F] transition cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex flex-col items-center text-center mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-[#5A5A40]/10 border border-[#5A5A40]/20 flex items-center justify-center text-[#5A5A40] mb-3 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-[#0F766E]/10 border border-[#0F766E]/20 flex items-center justify-center text-[#0F766E] mb-3">
             <Smartphone className="w-6 h-6" />
           </div>
-          <h2 className="font-serif text-2xl font-bold text-[#1A1A1A] tracking-tight">
+          <h2 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
             {step === 'phone' ? 'Verify Mobile' : 'Enter 4-Digit Code'}
           </h2>
-          <p className="text-xs text-[#7A7A70] mt-1 max-w-[260px] leading-relaxed">
+          <p className="text-xs text-[#6F7C7A] mt-1 max-w-[260px] leading-relaxed">
             {step === 'phone'
               ? pendingAction?.type === 'slot'
                 ? `Hold your slot for ${pendingAction.slot} with instant SMS verification.`
@@ -163,11 +198,11 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         {step === 'phone' ? (
           <div className="space-y-4">
             <div>
-              <label htmlFor="otp-phone-input" className="block text-xs font-semibold text-[#1A1A1A] mb-1.5">
+              <label htmlFor="otp-phone-input" className="block text-xs font-semibold text-[#17201F] mb-1.5">
                 Mobile Number
               </label>
-              <div className="flex rounded-2xl border border-[#E5E5DF] bg-white focus-within:border-[#5A5A40] transition overflow-hidden">
-                <span className="flex items-center px-3.5 text-xs font-bold text-[#5A5A40] border-r border-[#E5E5DF] bg-[#FAF9F6]">
+              <div className="flex overflow-hidden rounded-xl border border-[#DCE5E3] bg-white transition focus-within:border-[#62AAA3] focus-within:ring-2 focus-within:ring-[#0F766E]/10">
+                <span className="flex items-center px-3.5 text-xs font-bold text-[#0F766E] border-r border-[#E1E7E6] bg-[#F8FAFA]">
                   +91
                 </span>
                 <input
@@ -186,7 +221,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSendOtp();
                   }}
-                  className="w-full px-3.5 py-3 text-sm text-[#1A1A1A] bg-transparent outline-none placeholder:text-[#7A7A70] font-medium"
+                  className="w-full px-3.5 py-3 text-sm text-[#17201F] bg-transparent outline-none placeholder:text-[#6F7C7A] font-medium"
                 />
               </div>
               {phoneError && (
@@ -196,9 +231,9 @@ export const OtpModal: React.FC<OtpModalProps> = ({
               )}
             </div>
 
-            <div className="p-3.5 bg-white border border-[#E5E5DF] rounded-2xl flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-[#5A5A40] shrink-0 mt-0.5" />
-              <p className="text-[11px] text-[#1A1A1A] leading-relaxed">
+            <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
+              <p className="text-[11px] text-[#17201F] leading-relaxed">
                 No spam. You'll only receive live alerts when 1 person is ahead of you.
               </p>
             </div>
@@ -206,19 +241,20 @@ export const OtpModal: React.FC<OtpModalProps> = ({
             <button
               id="otp-send-code-btn"
               onClick={handleSendOtp}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#5A5A40] hover:bg-[#4A4A34] text-white font-bold text-sm shadow-lg shadow-[#5A5A40]/20 transition active:scale-[0.99] cursor-pointer"
+              disabled={isSending}
+              className={`${ui.primaryButton} flex w-full items-center justify-center gap-2`}
             >
-              <span>Get Verification OTP</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{isSending ? 'Sending OTP…' : 'Get Verification OTP'}</span>
+              {isSending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
             </button>
           </div>
         ) : (
           <div className="space-y-4">
             {/* Demo Helper Banner */}
-            <div className="p-3.5 bg-[#5A5A40]/10 border border-[#5A5A40]/20 rounded-2xl flex items-center justify-between shadow-xs">
+            <div className="p-3.5 bg-[#0F766E]/10 border border-[#0F766E]/20 rounded-2xl flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#5A5A40]">Demo Code:</span>
-                <span className="text-sm font-mono font-bold text-[#1A1A1A] tracking-widest bg-white px-2 py-0.5 rounded-lg border border-[#E5E5DF]">
+                <span className="text-xs font-semibold text-[#0F766E]">Demo Code:</span>
+                <span className="text-sm font-mono font-bold text-[#17201F] tracking-widest bg-white px-2 py-0.5 rounded-lg border border-[#E1E7E6]">
                   {generatedOtp}
                 </span>
               </div>
@@ -226,14 +262,14 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 type="button"
                 id="otp-autofill-btn"
                 onClick={handleAutoFill}
-                className="text-[11px] font-bold text-[#5A5A40] bg-white hover:bg-[#FAF9F6] px-3 py-1 rounded-xl border border-[#E5E5DF] transition cursor-pointer shadow-2xs"
+                className="text-[11px] font-bold text-[#0F766E] bg-white hover:bg-[#F8FAFA] px-3 py-1 rounded-xl border border-[#E1E7E6] transition cursor-pointer"
               >
                 Auto-fill
               </button>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#1A1A1A] mb-2 text-center">
+              <label className="block text-xs font-semibold text-[#17201F] mb-2 text-center">
                 Enter 4-Digit Code
               </label>
               <div className="flex justify-center gap-2.5" onPaste={handlePaste}>
@@ -250,12 +286,12 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                     value={digit}
                     onChange={(e) => handleDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
-                    className={`w-12 h-14 text-center font-serif text-2xl font-bold rounded-2xl border transition-all outline-none ${
+                    className={`h-14 w-12 rounded-xl border text-center font-sans text-2xl font-bold outline-none transition-all ${
                       codeError
                         ? 'border-rose-400 bg-rose-50/50 text-rose-900'
                         : digit
-                          ? 'border-[#5A5A40] bg-white text-[#1A1A1A] shadow-xs'
-                          : 'border-[#E5E5DF] bg-white text-[#1A1A1A] focus:border-[#5A5A40]'
+                          ? 'border-[#0F766E] bg-white text-[#17201F]'
+                          : 'border-[#E1E7E6] bg-white text-[#17201F] focus:border-[#0F766E]'
                     }`}
                   />
                 ))}
@@ -270,10 +306,11 @@ export const OtpModal: React.FC<OtpModalProps> = ({
             <button
               id="otp-confirm-btn"
               onClick={handleVerify}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#5A5A40] hover:bg-[#4A4A34] text-white font-bold text-sm shadow-lg shadow-[#5A5A40]/20 transition active:scale-[0.99] cursor-pointer"
+              disabled={isVerifying}
+              className={`${ui.primaryButton} flex w-full items-center justify-center gap-2`}
             >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Confirm &amp; Join Queue</span>
+              {isVerifying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              <span>{isVerifying ? 'Verifying…' : 'Confirm & Join Queue'}</span>
             </button>
 
             <div className="flex items-center justify-between text-xs pt-1">
@@ -281,7 +318,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 type="button"
                 id="otp-change-number-btn"
                 onClick={() => setStep('phone')}
-                className="text-[#7A7A70] hover:text-[#1A1A1A] font-medium transition cursor-pointer"
+                className="text-[#6F7C7A] hover:text-[#17201F] font-medium transition cursor-pointer"
               >
                 Change number
               </button>
@@ -289,11 +326,11 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 type="button"
                 id="otp-resend-btn"
                 onClick={handleResend}
-                disabled={isResending}
-                className="flex items-center gap-1 text-[#5A5A40] hover:text-[#4A4A34] font-semibold transition disabled:opacity-50 cursor-pointer"
+                disabled={isResending || resendTimer > 0}
+                className="flex items-center gap-1 text-[#0F766E] hover:text-[#0B665F] font-semibold transition disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
-                <span>Resend OTP</span>
+                <span>{resendTimer > 0 ? `Resend in 0:${String(resendTimer).padStart(2, '0')}` : 'Resend OTP'}</span>
               </button>
             </div>
           </div>

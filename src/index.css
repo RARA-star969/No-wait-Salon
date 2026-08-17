@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
 @theme {
-  --font-serif: 'Playfair Display', Georgia, Cambria, serif;
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --color-natural-bg: #F5F5F0;
+  --font-serif: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-natural-bg: #F4F7F6;
   --color-natural-card: #FFFFFF;
-  --color-natural-sub: #FAF9F6;
-  --color-natural-text: #1A1A1A;
-  --color-natural-muted: #7A7A70;
-  --color-natural-border: #E5E5DF;
-  --color-natural-olive: #5A5A40;
-  --color-natural-olive-hover: #4A4A34;
+  --color-natural-sub: #F8FAFA;
+  --color-natural-text: #17201F;
+  --color-natural-muted: #6F7C7A;
+  --color-natural-border: #E1E7E6;
+  --color-natural-olive: #0F766E;
+  --color-natural-olive-hover: #0B665F;
 }
 
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  background-color: #F5F5F0;
-  color: #1A1A1A;
+  background-color: #F4F7F6;
+  color: #17201F;
   margin: 0;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 2px;
 }

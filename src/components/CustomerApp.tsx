@@ -17,6 +17,8 @@ import {
   Volume2,
   Check,
   Sparkles,
+  Star,
+  LocateFixed,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen } from '../types';
 import { SALONS, AVAILABLE_TIME_SLOTS } from '../data/mockData';
@@ -32,6 +34,7 @@ interface CustomerAppProps {
   queue: QueueItem[];
   barbers: Barber[];
   userEntry: QueueItem | null;
+  completedEntry: QueueItem | null;
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
   onCancelQueue: () => void;
@@ -50,6 +53,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   queue,
   barbers,
   userEntry,
+  completedEntry,
   onJoinClick,
   onSelectSlotClick,
   onCancelQueue,
@@ -84,38 +88,64 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
 
   return (
-    <div className="flex flex-col h-full bg-[#FAF9F6] text-[#1A1A1A] overflow-y-auto">
+    <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
-          <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#7A7A70] mb-1">
-              Select Salon
+        <div id="customer-home-screen" className="min-h-full bg-[#F8FAFA] animate-in fade-in duration-300">
+          <div className="border-b border-[#E7ECEB] bg-white px-5 pb-6 pt-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Grooming, without the wait
+                </div>
+                <h1 className="max-w-[310px] text-[27px] font-bold leading-[1.12] tracking-[-0.035em] text-[#17201F]">
+                  Your chair is closer than you think.
+                </h1>
+                <p className="mt-2 max-w-[340px] text-xs leading-relaxed text-[#667371]">
+                  See live wait times and join the queue before you leave home.
+                </p>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#D9E6E4] bg-[#F0F8F7]">
+                <Scissors className="h-4.5 w-4.5 text-[#0F766E]" />
+              </div>
             </div>
-            <h1 className="font-serif text-2xl font-bold tracking-tight text-[#1A1A1A]">
-              Find a salon nearby
-            </h1>
-            <div className="flex items-center gap-1.5 text-xs text-[#7A7A70] mt-1 font-medium">
-              <MapPin className="w-3.5 h-3.5 text-[#5A5A40] shrink-0" />
-              <span>Indiranagar, Bengaluru</span>
-            </div>
+
+            <button
+              type="button"
+              className="mt-5 flex w-full items-center justify-between rounded-xl border border-[#DCE4E3] bg-[#F8FAFA] px-3.5 py-3 text-left transition hover:border-[#A8C9C5] hover:bg-[#F4F9F8]"
+              aria-label="Change current location"
+            >
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E5F3F1] text-[#0F766E]">
+                  <MapPin className="h-4 w-4" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">Your location</span>
+                  <span className="block truncate text-xs font-semibold text-[#25302F]">Indiranagar, Bengaluru</span>
+                </span>
+              </span>
+              <LocateFixed className="h-4 w-4 shrink-0 text-[#0F766E]" />
+            </button>
           </div>
+
+          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-6 pt-5">
 
           {userEntry && (
             <div
               id="active-queue-banner"
               onClick={() => setScreen('tracking')}
-              className="p-4 rounded-2xl bg-[#5A5A40] text-white flex items-center justify-between shadow-md shadow-[#5A5A40]/15 cursor-pointer hover:bg-[#4A4A34] transition"
+              className="flex cursor-pointer items-center justify-between rounded-2xl border border-[#B9DAD6] bg-[#EAF6F4] p-4 text-[#164E49] transition hover:bg-[#E1F1EF]"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center font-bold text-white text-base">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white font-bold text-[#0F766E] ring-1 ring-[#C9E3E0]">
                   {userEntry.status === 'Called' ? '!' : userEntry.status === 'Serving' ? '✂' : '#'}
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-widest font-bold text-white/70">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#4F7F7A]">
                     Active Queue Status
                   </div>
-                  <div className="text-sm font-bold text-white">
+                  <div className="text-sm font-bold text-[#164E49]">
                     {userEntry.status === 'Called'
                       ? 'Your turn now! Arrive at counter'
                       : userEntry.status === 'Serving'
@@ -124,23 +154,26 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   </div>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-white/80" />
+              <ChevronRight className="h-5 w-5 text-[#0F766E]" />
             </div>
           )}
 
           <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A7A70]">
-                Popular Near You
-              </span>
-              <span className="text-[10px] font-bold text-[#3D6B37] bg-[#E8F0E6] px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Live Queue Active
+            <div className="mb-3 flex items-end justify-between gap-4 px-1">
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]">Nearby salons</span>
+                <h2 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-[#17201F]">Choose your chair</h2>
+              </div>
+              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-[#0F766E]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
+                Live now
               </span>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {SALONS.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
+                const salonWait = isSelected ? waitDisplay : `${salon.distanceKm * 20 > 30 ? '30–40' : '15–25'} min`;
                 return (
                   <button
                     key={salon.id}
@@ -149,105 +182,139 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       setSelectedSalon(salon);
                       setScreen('salon');
                     }}
-                    className={`w-full p-4 rounded-2xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
+                    className={`group w-full overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 ${
                       isSelected
-                        ? 'border-2 border-[#5A5A40] bg-[#5A5A40]/5 shadow-xs'
-                        : 'border-[#E5E5DF] bg-white hover:border-[#5A5A40]/40 hover:bg-white'
+                        ? 'border-[#62AAA3] ring-1 ring-[#62AAA3]'
+                        : 'border-[#E1E7E6] hover:border-[#9CCBC6]'
                     }`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-xl bg-[#5A5A40] text-white flex items-center justify-center shrink-0 shadow-xs font-bold text-lg">
-                        <Scissors className="w-5 h-5" />
+                    <div className="flex items-start gap-3.5 p-4">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E8F5F3] text-[#0F766E]">
+                        <Scissors className="h-5 w-5" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <b className="font-serif text-base font-bold text-[#1A1A1A] truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <b className="truncate text-[15px] font-bold text-[#202A29]">
                             {salon.name}
                           </b>
-                          {isSelected && (
-                            <span className="text-[9px] font-bold bg-[#5A5A40]/10 text-[#5A5A40] px-1.5 py-0.5 rounded uppercase">
-                              Active
-                            </span>
-                          )}
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#A1ADAB] transition group-hover:translate-x-0.5 group-hover:text-[#0F766E]" />
                         </div>
-                        <p className="text-xs text-[#7A7A70] mt-0.5 truncate">
-                          {salon.distanceKm} km · {activeBarbersCount} barbers available
+                        <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-[#77746B]">
+                          <span className="flex items-center gap-1 text-[#475351]">
+                            <Star className="h-3 w-3 fill-[#5A8F89] text-[#5A8F89]" />
+                            {salon.rating}
+                          </span>
+                          <span className="text-[#C7C3B8]">•</span>
+                          <span>{salon.distanceKm} km</span>
+                          <span className="text-[#C7C3B8]">•</span>
+                          <span>{activeBarbersCount} barbers</span>
+                        </div>
+                        <p className="mt-2 truncate text-[11px] text-[#969289]">
+                          {salon.address}
                         </p>
                       </div>
                     </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="text-xs font-bold text-[#5A5A40] bg-[#5A5A40]/10 px-2.5 py-1 rounded-lg">
-                        {isSelected ? waitDisplay : `${salon.distanceKm * 20 > 30 ? '30-40' : '15-25'} min`}
-                      </div>
-                      <span className="block text-[10px] text-[#7A7A70] font-medium mt-0.5">
+                    <div className="flex items-center justify-between border-t border-[#E8EDEC] bg-[#FBFCFC] px-4 py-2.5">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-[#77746B]">
+                        <Clock className="h-3.5 w-3.5 text-[#0F766E]" />
                         Current wait
                       </span>
+                      <div className="flex items-center gap-2">
+                        {isSelected && (
+                          <span className="rounded-full bg-[#E6F4F2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">
+                            Selected
+                          </span>
+                        )}
+                        <span className="text-xs font-bold text-[#0F766E]">{salonWait}</span>
+                      </div>
                     </div>
                   </button>
                 );
               })}
             </div>
           </div>
+          </div>
         </div>
       )}
 
       {/* 2. SALON DETAILS & SERVICES */}
       {currentScreen === 'salon' && (
-        <div id="customer-salon-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
-          <button
-            id="back-to-salons-btn"
-            onClick={() => setScreen('home')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A7A70] hover:text-[#1A1A1A] transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Nearby salons</span>
-          </button>
+        <div id="customer-salon-screen" className="min-h-full space-y-5 bg-[#F8FAFA] p-5 animate-in fade-in duration-200">
+          <div>
+            <button
+              id="back-to-salons-btn"
+              onClick={() => setScreen('home')}
+              className="mb-4 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#60706E] transition hover:text-[#0F766E]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Nearby salons</span>
+            </button>
 
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-bold text-[#7A7A70]">
-                Currently Viewing
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-[#475351]">
+                    <Star className="h-3 w-3 fill-[#5A8F89] text-[#5A8F89]" />
+                    {selectedSalon.rating}
+                  </span>
+                  <span className="text-[10px] text-[#879391]">({selectedSalon.reviewCount} reviews)</span>
+                </div>
+                <h1 className="truncate text-[25px] font-bold leading-tight tracking-[-0.035em] text-[#17201F]">
+                  {selectedSalon.name}
+                </h1>
+                <p className="mt-1 flex items-start gap-1.5 text-[11px] leading-relaxed text-[#6F7C7A]">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0F766E]" />
+                  <span>{selectedSalon.address}</span>
+                </p>
               </div>
-              <h1 className="font-serif text-2xl font-bold text-[#1A1A1A] tracking-tight">
-                {selectedSalon.name}
-              </h1>
-              <p className="text-xs text-[#7A7A70] mt-0.5">
-                {selectedSalon.distanceKm} km away · {activeBarbersCount} barbers available
-              </p>
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E7F5F2] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
+                Open
+              </span>
             </div>
-            <span className="text-[10px] font-bold text-[#3D6B37] bg-[#E8F0E6] px-2.5 py-1 rounded-full uppercase tracking-wider">
-              OPEN
-            </span>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-xl border border-[#E1E8E7] bg-white px-3 py-2.5">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#85918F]">Distance</span>
+                <span className="mt-0.5 block text-xs font-semibold text-[#2E3A38]">{selectedSalon.distanceKm} km away</span>
+              </div>
+              <div className="rounded-xl border border-[#E1E8E7] bg-white px-3 py-2.5">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#85918F]">Team available</span>
+                <span className="mt-0.5 block text-xs font-semibold text-[#2E3A38]">{activeBarbersCount} barbers</span>
+              </div>
+            </div>
           </div>
 
-          {/* Natural Tones Live Wait Card */}
-          <div className="bg-[#5A5A40] text-white p-5 rounded-3xl text-center shadow-lg shadow-[#5A5A40]/20">
-            <div className="text-[10px] uppercase tracking-widest font-bold text-white/70">
-              ESTIMATED WAIT
+          {/* Live wait summary */}
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#BFE0DC] bg-[#EDF8F6] p-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#4C7772]">
+                <Clock className="h-3.5 w-3.5" />
+                Live estimated wait
+              </div>
+              <div className="mt-1 text-xl font-bold tracking-[-0.025em] text-[#135F58]">{waitDisplay}</div>
+              <div className="mt-0.5 text-[10px] text-[#5E7774]">
+                {peopleAhead === 0
+                  ? 'No one ahead · You can walk right in'
+                  : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} currently ahead`}
+              </div>
             </div>
-            <div className="font-serif text-3xl sm:text-4xl font-bold py-1 tracking-tight">
-              {waitDisplay}
-            </div>
-            <div className="text-xs text-white/80 italic mt-0.5">
-              {peopleAhead === 0
-                ? 'No line ahead · Walk right in'
-                : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} ahead in live queue`}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#0F766E] ring-1 ring-[#C9E5E1]">
+              <Users className="h-4.5 w-4.5" />
             </div>
           </div>
 
           {/* Service Selection */}
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#7A7A70]">
-                Select Grooming Service
-              </span>
-              <span className="text-[11px] font-bold text-[#5A5A40]">
-                Selected: {selectedService}
-              </span>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]">Services</span>
+                <h2 className="mt-0.5 text-lg font-bold tracking-[-0.02em] text-[#17201F]">What do you need?</h2>
+              </div>
+              <span className="mb-0.5 text-[10px] font-semibold text-[#0F766E]">1 selected</span>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {selectedSalon.services.map((srv) => {
                 const isActive = selectedService === srv.name;
                 return (
@@ -255,36 +322,26 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     key={srv.id}
                     id={`service-opt-${srv.id}`}
                     onClick={() => setSelectedService(srv.name)}
-                    className={`w-full p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                    className={`flex w-full cursor-pointer items-center justify-between rounded-xl border p-3.5 text-left transition-all ${
                       isActive
-                        ? 'border-2 border-[#5A5A40] bg-[#5A5A40]/10 shadow-xs ring-1 ring-[#5A5A40]'
-                        : 'border-[#E5E5DF] bg-white hover:border-[#5A5A40]/40'
+                        ? 'border-[#55A59D] bg-[#F0F9F7] ring-1 ring-[#55A59D]'
+                        : 'border-[#E1E7E6] bg-white hover:border-[#9CCBC6]'
                     }`}
                   >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${isActive ? 'text-[#5A5A40] font-bold' : 'text-[#1A1A1A]'}`}>
+                    <div className="flex min-w-0 items-start gap-3 pr-2">
+                      <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${isActive ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C5CECC] bg-white text-transparent'}`}>
+                        <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                      </span>
+                      <div className="min-w-0">
+                        <span className={`block text-[13px] font-semibold ${isActive ? 'text-[#135F58]' : 'text-[#273230]'}`}>
                           {srv.name}
                         </span>
-                        {isActive && (
-                          <span className="text-[9px] font-bold uppercase bg-[#5A5A40] text-white px-1.5 py-0.5 rounded">
-                            Selected
-                          </span>
-                        )}
+                        {srv.description && <span className="mt-0.5 block truncate text-[10px] text-[#7A8785]">{srv.description}</span>}
                       </div>
-                      {srv.description && (
-                        <div className="text-[11px] text-[#7A7A70] truncate mt-0.5">
-                          {srv.description}
-                        </div>
-                      )}
                     </div>
-                    <div className="text-right shrink-0">
-                      <span className="block font-serif text-sm italic font-bold text-[#1A1A1A]">
-                        ₹{srv.priceInr}
-                      </span>
-                      <span className="block text-[11px] text-[#7A7A70]">
-                        {srv.durationMin} min
-                      </span>
+                    <div className="shrink-0 text-right">
+                      <span className="block text-xs font-bold text-[#273230]">₹{srv.priceInr}</span>
+                      <span className="mt-0.5 block text-[10px] text-[#7A8785]">{srv.durationMin} min</span>
                     </div>
                   </button>
                 );
@@ -293,11 +350,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-2 pt-2">
+          <div className="space-y-2 border-t border-[#E2E8E7] pt-4">
             <button
               id="join-live-queue-btn"
               onClick={onJoinClick}
-              className="w-full py-4 px-4 rounded-2xl bg-[#5A5A40] hover:bg-[#4A4A34] text-white font-bold text-sm shadow-lg shadow-[#5A5A40]/20 transition active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer"
+              className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-[#0B665F] active:scale-[0.99]"
             >
               <Users className="w-4 h-4" />
               <span>{userEntry ? 'View Live Queue Status' : `Join Queue for ${selectedService}`}</span>
@@ -306,9 +363,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <button
               id="reserve-slot-btn"
               onClick={() => setScreen('slots')}
-              className="w-full py-2.5 px-4 rounded-xl bg-[#E5E5DF]/50 hover:bg-[#E5E5DF] text-[#1A1A1A] font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+              className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[#DCE5E3] bg-white px-4 py-2.5 text-xs font-semibold text-[#43504E] transition hover:border-[#A9CECA] hover:text-[#0F766E]"
             >
-              <Calendar className="w-3.5 h-3.5 text-[#5A5A40]" />
+              <Calendar className="h-3.5 w-3.5 text-[#0F766E]" />
               <span>Reserve a future queue window</span>
             </button>
           </div>
@@ -321,33 +378,33 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           <button
             id="back-to-salon-btn"
             onClick={() => setScreen('salon')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A7A70] hover:text-[#1A1A1A] transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Salon details</span>
           </button>
 
           <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#7A7A70]">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
               Advance Reservation
             </div>
-            <h1 className="font-serif text-2xl font-bold text-[#1A1A1A] tracking-tight">
+            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
               Reserve your queue time
             </h1>
-            <p className="text-xs text-[#7A7A70] mt-1 leading-relaxed">
+            <p className="text-xs text-[#6F7C7A] mt-1 leading-relaxed">
               This reserves an estimated arrival window in the queue for today with SMS notifications.
             </p>
           </div>
 
-          <div className="p-3.5 bg-white border border-[#E5E5DF] rounded-2xl flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-[#5A5A40] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#1A1A1A] leading-snug">
-              Selected service: <b className="font-bold text-[#5A5A40]">{selectedService}</b> at {selectedSalon.name}.
+          <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
+            <p className="text-xs text-[#17201F] leading-snug">
+              Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
             </p>
           </div>
 
           <div>
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#7A7A70] mb-2.5">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A] mb-2.5">
               Available Windows Today
             </span>
 
@@ -357,20 +414,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   key={slot}
                   id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
                   onClick={() => onSelectSlotClick(slot)}
-                  className="w-full p-3.5 rounded-2xl border border-[#E5E5DF] bg-white hover:border-[#5A5A40] hover:bg-[#5A5A40]/5 text-left flex items-center justify-between transition cursor-pointer group"
+                  className="w-full p-3.5 rounded-2xl border border-[#E1E7E6] bg-white hover:border-[#0F766E] hover:bg-[#0F766E]/5 text-left flex items-center justify-between transition cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#FAF9F6] border border-[#E5E5DF] group-hover:bg-[#5A5A40] group-hover:text-white text-[#5A5A40] flex items-center justify-center font-bold text-xs transition">
+                    <div className="w-9 h-9 rounded-xl bg-[#F8FAFA] border border-[#E1E7E6] group-hover:bg-[#0F766E] group-hover:text-white text-[#0F766E] flex items-center justify-center font-bold text-xs transition">
                       <Clock className="w-4 h-4" />
                     </div>
                     <div>
-                      <b className="font-serif text-sm font-bold text-[#1A1A1A]">{slot}</b>
-                      <span className="block text-[11px] text-[#7A7A70]">
+                      <b className="font-sans text-sm font-bold text-[#17201F]">{slot}</b>
+                      <span className="block text-[11px] text-[#6F7C7A]">
                         Estimated arrival window
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[#5A5A40] group-hover:text-[#4A4A34] bg-[#5A5A40]/10 px-3 py-1 rounded-lg">
+                  <span className="text-xs font-bold text-[#0F766E] group-hover:text-[#0B665F] bg-[#0F766E]/10 px-3 py-1 rounded-lg">
                     Select Slot
                   </span>
                 </button>
@@ -386,37 +443,37 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           <button
             id="back-to-home-btn"
             onClick={() => setScreen('home')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#7A7A70] hover:text-[#1A1A1A] transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Find another salon</span>
           </button>
 
           <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#7A7A70]">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
               Live Ticket
             </div>
-            <h1 className="font-serif text-2xl font-bold text-[#1A1A1A] tracking-tight">
+            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
               Your live queue
             </h1>
-            <p className="text-xs text-[#7A7A70] mt-0.5">
+            <p className="text-xs text-[#6F7C7A] mt-0.5">
               {selectedSalon.name} · {userEntry?.service || selectedService}
             </p>
           </div>
 
           {/* Main Tracking Card in Natural Tones */}
-          <div className="p-6 rounded-3xl bg-white border border-[#E5E5DF] shadow-sm space-y-4">
+          <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
             <div className="flex items-center gap-4">
               <div
                 id="tracking-position-badge"
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center font-serif font-bold text-2xl shadow-sm shrink-0 ${
+                className={`w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 ${
                   userEntry?.status === 'Called'
                     ? 'bg-[#FAF0E6] text-[#A66020] border-2 border-[#A66020] animate-pulse'
                     : userEntry?.status === 'Serving'
-                      ? 'bg-[#E8F0E6] text-[#3D6B37] border-2 border-[#3D6B37]'
+                      ? 'bg-[#E7F5F2] text-[#0F766E] border-2 border-[#0F766E]'
                       : userEntry?.status === 'Reserved'
-                        ? 'bg-[#5A5A40]/10 text-[#5A5A40]'
-                        : 'bg-[#5A5A40] text-white'
+                        ? 'bg-[#0F766E]/10 text-[#0F766E]'
+                        : 'bg-[#0F766E] text-white'
                 }`}
               >
                 {userEntry?.status === 'Reserved'
@@ -429,7 +486,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               </div>
 
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#7A7A70]">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">
                   {userEntry?.status === 'Reserved'
                     ? 'RESERVED WINDOW'
                     : userEntry?.status === 'Called'
@@ -438,7 +495,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                         ? 'IN SERVICE'
                         : 'YOUR POSITION'}
                 </span>
-                <b id="tracking-main-status" className="block font-serif text-xl font-bold text-[#1A1A1A] mt-0.5">
+                <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
                   {userEntry?.status === 'Reserved'
                     ? `Reserved for ${userEntry.reservedFor}`
                     : userEntry?.status === 'Called'
@@ -459,16 +516,16 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 userEntry?.status === 'Called'
                   ? 'bg-[#FAF0E6] text-[#A66020] border border-[#A66020]/30'
                   : userEntry?.status === 'Serving'
-                    ? 'bg-[#E8F0E6] text-[#3D6B37] border border-[#3D6B37]/30'
+                    ? 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/30'
                     : userEntry?.status === 'Reserved'
-                      ? 'bg-[#FAF9F6] text-[#5A5A40] border border-[#E5E5DF]'
-                      : 'bg-[#FAF9F6] text-[#1A1A1A] border border-[#E5E5DF]'
+                      ? 'bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]'
+                      : 'bg-[#F8FAFA] text-[#17201F] border border-[#E1E7E6]'
               }`}
             >
               {userEntry?.status === 'Called' ? (
                 <AlertCircle className="w-4 h-4 text-[#A66020] shrink-0 mt-0.5" />
               ) : (
-                <CheckCircle2 className="w-4 h-4 text-[#3D6B37] shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
               )}
               <div>
                 {userEntry?.status === 'Called' && (
@@ -497,12 +554,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             {/* Queue Details Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E5E5DF] text-xs">
+            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E1E7E6] text-xs">
               <div>
-                <span className="text-[#7A7A70] text-[10px] uppercase font-bold tracking-wider block">
+                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
                   Estimated Wait
                 </span>
-                <span className="font-serif font-bold text-[#5A5A40] text-base">
+                <span className="font-sans font-bold text-[#0F766E] text-base">
                   {userEntry?.status === 'Called'
                     ? 'Ready Now'
                     : userEntry?.status === 'Serving'
@@ -511,10 +568,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </span>
               </div>
               <div>
-                <span className="text-[#7A7A70] text-[10px] uppercase font-bold tracking-wider block">
+                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
                   Active Barbers
                 </span>
-                <span className="font-bold text-[#1A1A1A] text-sm mt-0.5 block">
+                <span className="font-bold text-[#17201F] text-sm mt-0.5 block">
                   {activeBarbersCount} available
                 </span>
               </div>
@@ -524,25 +581,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           {/* Push Notifications Status & Alert Settings Card */}
           <div
             id="tracking-push-notification-card"
-            className="p-4 rounded-2xl bg-white border border-[#E5E5DF] space-y-2.5 shadow-2xs"
+            className="p-4 rounded-2xl bg-white border border-[#E1E7E6] space-y-2.5"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-[#5A5A40]" />
-                <span className="text-xs font-bold text-[#1A1A1A]">Live Push Notifications</span>
+                <BellRing className="w-4 h-4 text-[#0F766E]" />
+                <span className="text-xs font-bold text-[#17201F]">Live Push Notifications</span>
               </div>
               <span
                 className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                   permissionStatus === 'granted'
-                    ? 'bg-[#E8F0E6] text-[#3D6B37]'
-                    : 'bg-[#5A5A40]/10 text-[#5A5A40]'
+                    ? 'bg-[#E7F5F2] text-[#0F766E]'
+                    : 'bg-[#0F766E]/10 text-[#0F766E]'
                 }`}
               >
                 {permissionStatus === 'granted' ? 'Alerts Enabled' : 'Simulated Push Active'}
               </span>
             </div>
 
-            <p className="text-[11px] text-[#7A7A70] leading-relaxed">
+            <p className="text-[11px] text-[#6F7C7A] leading-relaxed">
               {userEntry?.status === 'Reserved'
                 ? `Push alert will notify your device 15 minutes before your reserved arrival window (${userEntry.reservedFor}).`
                 : 'Push notification will sound and alert your screen when 10–15 minutes remain (1 person ahead) and when your counter is ready.'}
@@ -553,7 +610,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 <button
                   id="tracking-enable-push-btn"
                   onClick={onRequestPermission}
-                  className="flex-1 py-2 px-3 rounded-xl bg-[#5A5A40] hover:bg-[#4A4A34] text-white text-[11px] font-bold shadow-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="flex-1 py-2 px-3 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Bell className="w-3 h-3" />
                   <span>Enable Device Notifications</span>
@@ -565,7 +622,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 onClick={() =>
                   onTestPush(userEntry?.status === 'Reserved' ? 'reserved_nearing' : 'approaching')
                 }
-                className="py-2 px-3 rounded-xl bg-[#FAF9F6] hover:bg-[#E5E5DF] border border-[#E5E5DF] text-[#5A5A40] text-[11px] font-bold shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
+                className="py-2 px-3 rounded-xl bg-[#F8FAFA] hover:bg-[#E1E7E6] border border-[#E1E7E6] text-[#0F766E] text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
                 title="Test Push Alert"
               >
                 <Volume2 className="w-3 h-3" />
@@ -581,17 +638,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               href={`https://maps.google.com/?q=${encodeURIComponent(selectedSalon.name + ' ' + selectedSalon.address)}`}
               target="_blank"
               rel="noreferrer"
-              className="p-3 rounded-2xl border border-[#E5E5DF] bg-white hover:bg-[#FAF9F6] text-[#1A1A1A] font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+              className="p-3 rounded-2xl border border-[#E1E7E6] bg-white hover:bg-[#F8FAFA] text-[#17201F] font-semibold text-xs flex items-center justify-center gap-1.5 transition"
             >
-              <Navigation className="w-3.5 h-3.5 text-[#5A5A40]" />
+              <Navigation className="w-3.5 h-3.5 text-[#0F766E]" />
               <span>Get Directions</span>
             </a>
             <button
               id="call-salon-action-btn"
               onClick={() => setIsCallModalOpen(true)}
-              className="p-3 rounded-2xl border border-[#E5E5DF] bg-white hover:bg-[#FAF9F6] text-[#1A1A1A] font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              className="p-3 rounded-2xl border border-[#E1E7E6] bg-white hover:bg-[#F8FAFA] text-[#17201F] font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-[#7A7A70]" />
+              <PhoneCall className="w-3.5 h-3.5 text-[#6F7C7A]" />
               <span>Call Salon</span>
             </button>
           </div>
@@ -607,6 +664,41 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         </div>
       )}
 
+      {/* 5. SERVICE COMPLETE SCREEN */}
+      {currentScreen === 'complete' && (
+        <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[#F8FAFA] p-5 animate-in fade-in duration-200">
+          <div className="rounded-2xl border border-[#C8E3DF] bg-white p-6 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E] ring-1 ring-[#C8E3DF]">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <span className="mt-4 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">Service complete</span>
+            <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#17201F]">Looking sharp.</h1>
+            <p className="mx-auto mt-2 max-w-[300px] text-xs leading-relaxed text-[#6F7C7A]">
+              Your {completedEntry?.service || selectedService} at {selectedSalon.name} is complete. Thanks for visiting us today.
+            </p>
+
+            <div className="mt-5 grid grid-cols-2 gap-2 text-left">
+              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Service</span>
+                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.service || selectedService}</span>
+              </div>
+              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
+                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Stylist</span>
+                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.barberName || 'Salon team'}</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setScreen('home')}
+              className="mt-5 w-full rounded-xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B665F] active:scale-[0.99]"
+            >
+              Find another service
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Call Salon In-App Modal */}
       <CallSalonModal
         isOpen={isCallModalOpen}
@@ -616,4 +708,3 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     </div>
   );
 };
-

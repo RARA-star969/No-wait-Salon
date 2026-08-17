@@ -13,6 +13,7 @@ export interface QueueItem {
   reservedFor?: string;
   createdAt: number;
   estimatedDurationMin?: number;
+  sessionId?: string;
 }
 
 export interface PushNotification {
@@ -55,7 +56,7 @@ export interface Salon {
 }
 
 export type ViewMode = 'split' | 'customer' | 'staff';
-export type CustomerScreen = 'home' | 'salon' | 'slots' | 'tracking';
+export type CustomerScreen = 'home' | 'salon' | 'slots' | 'tracking' | 'complete';
 
 export interface OtpAction {
   type: 'join' | 'slot';

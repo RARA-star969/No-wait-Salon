@@ -12,56 +12,29 @@ import {
   requestPushPermission,
   dispatchWebPushNotification,
 } from './services/notificationService';
+import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 
-const STORAGE_KEY = 'no_wait_salon_mvp_v2';
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
+const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
 
 export default function App() {
-  // State Initialization from LocalStorage or Defaults
+  // UI state is local; queue state is hydrated from the salon-scoped real-time service.
   const [salons] = useState<Salon[]>(SALONS);
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
 
-  const [queue, setQueue] = useState<QueueItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.queue)) return parsed.queue;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_QUEUE;
-  });
+  const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
+  const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
+  const [completedList, setCompletedList] = useState<QueueItem[]>([]);
+  const customerSessionId = useRef<string>(
+    localStorage.getItem(SESSION_STORAGE_KEY) || crypto.randomUUID()
+  );
 
-  const [barbers, setBarbers] = useState<Barber[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.barbers)) return parsed.barbers;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return INITIAL_BARBERS;
-  });
-
-  const [completedList, setCompletedList] = useState<QueueItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.completedList)) return parsed.completedList;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
+  useEffect(() => {
+    localStorage.setItem(SESSION_STORAGE_KEY, customerSessionId.current);
+  }, []);
 
   const [queueAlert, setQueueAlert] = useState<string>('');
 
@@ -92,22 +65,30 @@ export default function App() {
   // Set of already fired notification trigger keys to prevent repeated spam
   const sentNotificationsRef = useRef<Set<string>>(new Set());
 
-  // Sync state changes to localStorage
+  const applySnapshot = (snapshot: SalonSnapshot) => {
+    setQueue(snapshot.queue);
+    setBarbers(snapshot.barbers);
+    setCompletedList(snapshot.completedList);
+    setQueueAlert('');
+  };
+
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          queue,
-          barbers,
-          completedList,
-          selectedService,
-        })
-      );
-    } catch (e) {
-      console.error(e);
-    }
-  }, [queue, barbers, completedList, selectedService]);
+    let disposed = false;
+    realtimeQueueService.getState(selectedSalon.id)
+      .then((snapshot) => !disposed && applySnapshot(snapshot))
+      .catch((error) => !disposed && setQueueAlert(error instanceof Error ? error.message : 'Unable to load the live queue.'));
+    const unsubscribe = realtimeQueueService.subscribe(
+      selectedSalon.id,
+      (snapshot) => !disposed && applySnapshot(snapshot),
+      (connected) => {
+        if (!disposed && !connected) setQueueAlert('Live connection interrupted. Reconnecting…');
+      }
+    );
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [selectedSalon.id]);
 
   // Sync notifications to localStorage
   useEffect(() => {
@@ -119,7 +100,7 @@ export default function App() {
   }, [notifications]);
 
   // Find user's active entry in queue if any
-  const userEntry = queue.find((item) => item.isUser) || null;
+  const userEntry = queue.find((item) => item.sessionId === customerSessionId.current) || null;
 
   // Auto-redirect to tracking screen if user is in queue and on salon/slots
   useEffect(() => {
@@ -127,6 +108,13 @@ export default function App() {
       setCurrentScreen('tracking');
     }
   }, [userEntry]);
+
+  useEffect(() => {
+    const completedEntry = completedList.find((item) => item.sessionId === customerSessionId.current);
+    if (!userEntry && completedEntry && currentScreen === 'tracking') {
+      setCurrentScreen('complete');
+    }
+  }, [completedList, userEntry, currentScreen]);
 
   // Dispatch push notification helper
   const triggerPushNotification = (
@@ -213,66 +201,31 @@ export default function App() {
     }
   }, [queue, userEntry, selectedSalon]);
 
-  // Periodic check for expired called customers (10 min timeout)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setQueue((prevQueue) => {
-        let hasChanges = false;
-        const updated = prevQueue.filter((item) => {
-          if (item.status === 'Called' && item.calledAt && now - item.calledAt > 10 * 60 * 1000) {
-            hasChanges = true;
-            // Free the barber
-            if (item.barberIndex !== undefined) {
-              setBarbers((prevB) => {
-                const bCopy = [...prevB];
-                if (bCopy[item.barberIndex!]) {
-                  bCopy[item.barberIndex!].status = 'available';
-                  bCopy[item.barberIndex!].currentCustomerName = undefined;
-                }
-                return bCopy;
-              });
-            }
-            return false; // remove as no-show
-          }
-          return true;
-        });
-        return hasChanges ? updated : prevQueue;
-      });
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   // --- Handlers ---
-  const handleReset = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    sentNotificationsRef.current.clear();
-    setQueue(INITIAL_QUEUE);
-    setBarbers(INITIAL_BARBERS);
-    setCompletedList([]);
-    setSelectedService('Haircut');
-    setCurrentScreen('home');
-    setQueueAlert('');
-    triggerPushNotification(
-      '🔄 Salon State Reset',
-      'Initial demo queue restored with live push notification triggers.',
-      'general'
-    );
+  const runCommand = async (command: Parameters<typeof realtimeQueueService.command>[1]) => {
+    try {
+      const snapshot = await realtimeQueueService.command(selectedSalon.id, command);
+      applySnapshot(snapshot);
+      return snapshot;
+    } catch (error) {
+      setQueueAlert(error instanceof Error ? error.message : 'Unable to update the live queue.');
+      return null;
+    }
   };
 
-  const handleBarberToggle = (barberIndex: number) => {
-    setBarbers((prev) => {
-      const updated = [...prev];
-      const barber = updated[barberIndex];
-      if (!barber || barber.status === 'busy') return prev;
+  const handleReset = async () => {
+    const snapshot = await runCommand({ type: 'reset' });
+    if (!snapshot) return;
+    sentNotificationsRef.current.clear();
+    setSelectedService('Haircut');
+    setCurrentScreen('home');
+    triggerPushNotification('🔄 Salon State Reset', 'Initial demo queue restored with live push notification triggers.', 'general');
+  };
 
-      updated[barberIndex] = {
-        ...barber,
-        status: barber.status === 'available' ? 'unavailable' : 'available',
-      };
-      return updated;
-    });
+  const handleBarberToggle = async (barberIndex: number) => {
+    const barber = barbers[barberIndex];
+    if (!barber) return;
+    await runCommand({ type: 'toggle_barber', barberId: barber.id });
   };
 
   const handleAddWalkin = (
@@ -282,63 +235,17 @@ export default function App() {
     startImmediately = false,
     selectedBarberIndex?: number
   ) => {
-    let assignedIndex = selectedBarberIndex;
-    if (assignedIndex === undefined || barbers[assignedIndex]?.status !== 'available') {
-      assignedIndex = barbers.findIndex((b) => b.status === 'available');
-    }
-
-    if (startImmediately && assignedIndex >= 0) {
-      const assignedBarber = barbers[assignedIndex];
-      // Set barber to busy
-      setBarbers((prev) => {
-        const updated = [...prev];
-        updated[assignedIndex!] = {
-          ...assignedBarber,
-          status: 'busy',
-          currentCustomerName: name,
-        };
-        return updated;
-      });
-
-      const newServingEntry: QueueItem = {
-        id: `walkin-${Date.now()}`,
-        name,
-        phone,
-        service,
-        status: 'Serving',
-        barberIndex: assignedIndex,
-        barberName: assignedBarber.name,
-        isUser: false,
-        createdAt: Date.now(),
-        estimatedDurationMin: 30,
-      };
-
-      setQueue((prev) => [...prev, newServingEntry]);
-      setQueueAlert('');
-      triggerPushNotification(
-        `✂️ ${assignedBarber.name} Started Service`,
-        `Directly seated ${name} for ${service}.`,
-        'serving'
-      );
-      return;
-    }
-
-    const preferredBarber =
-      selectedBarberIndex !== undefined ? barbers[selectedBarberIndex]?.name : undefined;
-
-    const newEntry: QueueItem = {
-      id: `walkin-${Date.now()}`,
-      name,
-      phone,
-      service,
-      status: 'Waiting',
-      barberName: preferredBarber,
-      isUser: false,
-      createdAt: Date.now(),
-      estimatedDurationMin: 30,
-    };
-    setQueue((prev) => [...prev, newEntry]);
-    setQueueAlert('');
+    const preferredBarber = selectedBarberIndex !== undefined ? barbers[selectedBarberIndex] : undefined;
+    void runCommand({
+      type: 'add_walkin',
+      item: { id: '', name, phone, service, status: 'Waiting', isUser: false, createdAt: Date.now(), estimatedDurationMin: 30 },
+      startImmediately,
+      preferredBarberId: preferredBarber?.id,
+    }).then((snapshot) => {
+      if (snapshot && startImmediately) {
+        triggerPushNotification(`✂️ Service Started`, `Directly seated ${name} for ${service}.`, 'serving');
+      }
+    });
   };
 
   const handleQueueAction = (
@@ -346,150 +253,19 @@ export default function App() {
     action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove',
     specificBarberIndex?: number
   ) => {
-    if (action === 'Call') {
-      let availableIndex = specificBarberIndex;
-      if (availableIndex === undefined || barbers[availableIndex]?.status !== 'available') {
-        availableIndex = barbers.findIndex((b) => b.status === 'available');
+    const barberId = specificBarberIndex !== undefined ? barbers[specificBarberIndex]?.id : undefined;
+    void runCommand({ type: 'queue_action', itemId: item.id, action, barberId }).then((snapshot) => {
+      if (!snapshot || item.sessionId !== customerSessionId.current) return;
+      if (action === 'Call') {
+        const updated = snapshot.queue.find((entry) => entry.id === item.id);
+        triggerPushNotification(`🔔 ${selectedSalon.name}: Barber ${updated?.barberName || 'Ready'} is Ready!`, 'Your styling station is open. Please step inside to be seated.', 'called');
+      } else if (action === 'Start') {
+        triggerPushNotification(`✂️ ${selectedSalon.name}: Service In Progress`, 'You are now being served. Enjoy your cut!', 'serving');
+      } else if (action === 'Complete') {
+        setCurrentScreen('complete');
+        triggerPushNotification(`🎉 ${selectedSalon.name}: Service Complete!`, `Your ${item.service} is finished. Thank you for visiting!`, 'general');
       }
-
-      if (availableIndex < 0) {
-        setQueueAlert('No barber is currently available. Please toggle a barber to available or finish an in-progress service.');
-        return;
-      }
-      setQueueAlert('');
-
-      const assignedBarber = barbers[availableIndex];
-
-      // Update Barber to busy
-      setBarbers((prev) => {
-        const updated = [...prev];
-        updated[availableIndex!] = {
-          ...assignedBarber,
-          status: 'busy',
-          currentCustomerName: item.name,
-        };
-        return updated;
-      });
-
-      // Update Queue item to Called
-      setQueue((prev) =>
-        prev.map((q) =>
-          q.id === item.id
-            ? {
-                ...q,
-                status: 'Called',
-                barberIndex: availableIndex,
-                barberName: assignedBarber.name,
-                calledAt: Date.now(),
-              }
-            : q
-        )
-      );
-
-      // If called customer is the user, trigger instant push notification
-      if (item.isUser) {
-        triggerPushNotification(
-          `🔔 ${selectedSalon.name}: Barber ${assignedBarber.name} is Ready!`,
-          `Your styling station is open. Please step inside to be seated.`,
-          'called'
-        );
-      }
-    } else if (action === 'Start') {
-      // If item was in Waiting state and has no barber assigned yet, assign an available barber
-      let barberIndex = item.barberIndex;
-      let barberName = item.barberName;
-
-      if (barberIndex === undefined) {
-        const availIdx = barbers.findIndex((b) => b.status === 'available');
-        if (availIdx < 0) {
-          setQueueAlert('No barber is currently available. Free a chair first to start service.');
-          return;
-        }
-        barberIndex = availIdx;
-        barberName = barbers[availIdx].name;
-
-        // Set barber to busy
-        setBarbers((prev) => {
-          const updated = [...prev];
-          updated[availIdx] = {
-            ...updated[availIdx],
-            status: 'busy',
-            currentCustomerName: item.name,
-          };
-          return updated;
-        });
-      }
-
-      setQueueAlert('');
-      setQueue((prev) =>
-        prev.map((q) =>
-          q.id === item.id
-            ? {
-                ...q,
-                status: 'Serving',
-                barberIndex,
-                barberName,
-              }
-            : q
-        )
-      );
-
-      if (item.isUser) {
-        triggerPushNotification(
-          `✂️ ${selectedSalon.name}: Service In Progress`,
-          `You are now being served by Barber ${barberName || 'Arjun'}. Enjoy your cut!`,
-          'serving'
-        );
-      }
-    } else if (action === 'Complete') {
-      setQueueAlert('');
-      // Free the barber
-      if (item.barberIndex !== undefined) {
-        setBarbers((prev) => {
-          const updated = [...prev];
-          if (updated[item.barberIndex!]) {
-            updated[item.barberIndex!] = {
-              ...updated[item.barberIndex!],
-              status: 'available',
-              currentCustomerName: undefined,
-            };
-          }
-          return updated;
-        });
-      }
-
-      // Remove from queue and add to completedList
-      setQueue((prev) => prev.filter((q) => q.id !== item.id));
-      setCompletedList((prev) => [
-        { ...item, status: 'Completed' },
-        ...prev.slice(0, 19),
-      ]);
-
-      if (item.isUser) {
-        triggerPushNotification(
-          `🎉 ${selectedSalon.name}: Service Complete!`,
-          `Your ${item.service} is finished. Thank you for visiting! Have a wonderful day.`,
-          'general'
-        );
-      }
-    } else if (action === 'No-show' || action === 'Remove') {
-      setQueueAlert('');
-      // Free the barber if one was occupied
-      if (item.barberIndex !== undefined) {
-        setBarbers((prev) => {
-          const updated = [...prev];
-          if (updated[item.barberIndex!]) {
-            updated[item.barberIndex!] = {
-              ...updated[item.barberIndex!],
-              status: 'available',
-              currentCustomerName: undefined,
-            };
-          }
-          return updated;
-        });
-      }
-      setQueue((prev) => prev.filter((q) => q.id !== item.id));
-    }
+    });
   };
 
   const handleJoinClick = () => {
@@ -510,70 +286,38 @@ export default function App() {
     setIsOtpOpen(true);
   };
 
-  const handleOtpVerifySuccess = (verifiedPhone: string) => {
-    setIsOtpOpen(false);
+  const handleOtpVerifySuccess = async (verifiedPhone: string) => {
     if (!pendingOtpAction) return;
-
-    if (pendingOtpAction.type === 'join') {
-      const newUserEntry: QueueItem = {
-        id: `user-${Date.now()}`,
+    const action = pendingOtpAction;
+    const snapshot = await runCommand({
+      type: 'join',
+      item: {
+        id: '',
         name: 'You',
         phone: verifiedPhone,
-        service: pendingOtpAction.serviceName,
-        status: 'Waiting',
+        service: action.serviceName,
+        status: action.type === 'slot' ? 'Reserved' : 'Waiting',
+        reservedFor: action.type === 'slot' ? action.slot : undefined,
         isUser: true,
+        sessionId: customerSessionId.current,
         createdAt: Date.now(),
         estimatedDurationMin: 30,
-      };
-      setQueue((prev) => [...prev, newUserEntry]);
-
-      // Push notification for ticket confirmation
-      triggerPushNotification(
-        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
-        `You've joined the queue for ${pendingOtpAction.serviceName}. We'll notify you 10–15 mins before your turn!`,
-        'confirmed'
-      );
-    } else if (pendingOtpAction.type === 'slot') {
-      const newSlotEntry: QueueItem = {
-        id: `user-slot-${Date.now()}`,
-        name: 'You',
-        phone: verifiedPhone,
-        service: pendingOtpAction.serviceName,
-        status: 'Reserved',
-        reservedFor: pendingOtpAction.slot,
-        isUser: true,
-        createdAt: Date.now(),
-        estimatedDurationMin: 30,
-      };
-      setQueue((prev) => [...prev, newSlotEntry]);
-
-      // Push notification for slot reservation
-      triggerPushNotification(
-        `⏰ ${selectedSalon.name}: Slot Reserved (${pendingOtpAction.slot})`,
-        `Your reservation for ${pendingOtpAction.serviceName} is locked. We'll send a push reminder 15 minutes prior!`,
-        'reserved_nearing'
-      );
-    }
-
+      },
+    });
+    if (!snapshot) return;
+    setIsOtpOpen(false);
+    triggerPushNotification(
+      action.type === 'slot' ? `⏰ ${selectedSalon.name}: Slot Reserved (${action.slot})` : `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
+      action.type === 'slot' ? `Your reservation for ${action.serviceName} is locked.` : `You've joined the queue for ${action.serviceName}. We'll notify you before your turn!`,
+      action.type === 'slot' ? 'reserved_nearing' : 'confirmed'
+    );
     setPendingOtpAction(null);
     setCurrentScreen('tracking');
   };
 
-  const handleCancelUserQueue = () => {
-    if (userEntry?.barberIndex !== undefined && userEntry.status !== 'Waiting') {
-      setBarbers((prev) => {
-        const updated = [...prev];
-        if (updated[userEntry.barberIndex!]) {
-          updated[userEntry.barberIndex!] = {
-            ...updated[userEntry.barberIndex!],
-            status: 'available',
-            currentCustomerName: undefined,
-          };
-        }
-        return updated;
-      });
-    }
-    setQueue((prev) => prev.filter((item) => !item.isUser));
+  const handleCancelUserQueue = async () => {
+    const snapshot = await runCommand({ type: 'cancel_customer', sessionId: customerSessionId.current });
+    if (!snapshot) return;
     setCurrentScreen('salon');
     triggerPushNotification(
       `ℹ️ ${selectedSalon.name}: Queue Cancelled`,
@@ -605,7 +349,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F0] text-[#1A1A1A] flex flex-col justify-between selection:bg-[#5A5A40]/20 selection:text-[#1A1A1A] font-sans">
+    <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
         {/* Top Header */}
         <Header
@@ -629,24 +373,24 @@ export default function App() {
           {(viewMode === 'split' || viewMode === 'customer') && (
             <section
               id="customer-app-window"
-              className="flex flex-col bg-white rounded-3xl border border-[#E5E5DF] shadow-md overflow-hidden min-h-[640px] max-h-[820px] transition-all"
+              className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
             >
               {/* Window Header */}
-              <div className="px-5 py-4 border-b border-[#E5E5DF] flex items-center justify-between bg-[#FAF9F6]">
+              <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#5A5A40]"></span>
-                  <h2 className="font-serif text-sm font-bold text-[#1A1A1A] tracking-tight">
+                  <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
+                  <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
                     Customer Experience
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
                   {permissionStatus === 'granted' && (
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#5A5A40]/10 text-[#5A5A40] flex items-center gap-1">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-[#0F766E]/10 text-[#0F766E] flex items-center gap-1">
                       Push Active
                     </span>
                   )}
-                  <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#E8F0E6] text-[#3D6B37] tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#3D6B37] animate-ping"></span>
+                  <span className="flex items-center gap-1.5 rounded-full bg-[#E7F5F2] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#0F766E]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]"></span>
                     Live Queue
                   </span>
                 </div>
@@ -664,6 +408,7 @@ export default function App() {
                   queue={queue}
                   barbers={barbers}
                   userEntry={userEntry}
+                  completedEntry={completedList.find((item) => item.sessionId === customerSessionId.current) || null}
                   onJoinClick={handleJoinClick}
                   onSelectSlotClick={handleSelectSlotClick}
                   onCancelQueue={handleCancelUserQueue}
@@ -679,17 +424,17 @@ export default function App() {
           {(viewMode === 'split' || viewMode === 'staff') && (
             <section
               id="staff-dashboard-window"
-              className="flex flex-col bg-white rounded-3xl border border-[#E5E5DF] shadow-md overflow-hidden min-h-[640px] max-h-[820px] transition-all"
+              className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
             >
               {/* Window Header */}
-              <div className="px-5 py-4 border-b border-[#E5E5DF] flex items-center justify-between bg-[#FAF9F6]">
+              <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
                 <div className="flex items-center gap-2.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#5A5A40]"></span>
-                  <h2 className="font-serif text-sm font-bold text-[#1A1A1A] tracking-tight">
+                  <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
+                  <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
                     Salon Staff Dashboard
                   </h2>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#5A5A40]/10 text-[#5A5A40] tracking-wider">
+                <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#0F766E]/10 text-[#0F766E] tracking-wider">
                   Sync Active
                 </span>
               </div>
@@ -717,7 +462,7 @@ export default function App() {
         notification={activeToast}
         onDismiss={() => setActiveToast(null)}
         onView={() => {
-          setCurrentScreen('tracking');
+          setCurrentScreen(userEntry ? 'tracking' : completedList.some((item) => item.sessionId === customerSessionId.current) ? 'complete' : 'home');
           if (viewMode === 'staff') setViewMode('split');
         }}
       />
