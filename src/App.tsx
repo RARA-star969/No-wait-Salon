@@ -355,16 +355,18 @@ export default function App() {
     <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
         {/* Top Header */}
-        <Header
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          onReset={handleReset}
-          notificationCount={notifications.filter((n) => !n.read).length}
-          onOpenNotifications={() => setIsNotificationCenterOpen(true)}
-          permissionStatus={permissionStatus}
-          lockedMode={PACKAGED_MODE || undefined}
-          showNotifications={PACKAGED_MODE !== 'staff'}
-        />
+        {PACKAGED_MODE !== 'customer' && (
+          <Header
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            onReset={handleReset}
+            notificationCount={notifications.filter((n) => !n.read).length}
+            onOpenNotifications={() => setIsNotificationCenterOpen(true)}
+            permissionStatus={permissionStatus}
+            lockedMode={PACKAGED_MODE || undefined}
+            showNotifications={PACKAGED_MODE !== 'staff'}
+          />
+        )}
 
         {/* Main Workspaces Display */}
         <div
@@ -380,8 +382,8 @@ export default function App() {
               id="customer-app-window"
               className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
             >
-              {/* Window Header */}
-              <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
+              {/* Development workspace chrome is hidden in the customer app. */}
+              {PACKAGED_MODE !== 'customer' && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
                   <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
@@ -399,7 +401,7 @@ export default function App() {
                     Live Queue
                   </span>
                 </div>
-              </div>
+              </div>}
 
               {/* Customer Body */}
               <div className="flex-1 overflow-hidden flex flex-col">
