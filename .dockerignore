@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+android-customer
+android-staff
+.git
+.env*
+*.apk
+*.aab

@@ -10,6 +10,8 @@ interface HeaderProps {
   notificationCount: number;
   onOpenNotifications: () => void;
   permissionStatus: NotificationPermission | 'unsupported';
+  lockedMode?: Exclude<ViewMode, 'split'>;
+  showNotifications?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   notificationCount,
   onOpenNotifications,
   permissionStatus,
+  lockedMode,
+  showNotifications = true,
 }) => {
   return (
     <header className="mb-6 flex flex-col items-start justify-between gap-4 border-b border-[#E1E7E6] pb-4 sm:flex-row sm:items-center">
@@ -43,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Controls */}
       <div className="flex items-center gap-2.5 self-stretch sm:self-auto justify-between sm:justify-end">
         {/* Notifications Bell */}
-        <button
+        {showNotifications && <button
           id="header-notification-btn"
           onClick={onOpenNotifications}
           className={`${ui.secondaryButton} relative flex items-center gap-1.5 px-3 py-2 text-xs`}
@@ -62,10 +66,10 @@ export const Header: React.FC<HeaderProps> = ({
           {permissionStatus === 'granted' && notificationCount === 0 && (
             <span className="w-2 h-2 rounded-full bg-[#0F766E]" title="Push enabled" />
           )}
-        </button>
+        </button>}
 
         {/* Mode Selector */}
-        <div className="inline-flex rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
+        {!lockedMode && <div className="inline-flex rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
           <button
             id="viewmode-split-btn"
             onClick={() => setViewMode('split')}
@@ -107,7 +111,7 @@ export const Header: React.FC<HeaderProps> = ({
             <Store className="w-3.5 h-3.5" />
             <span>Staff</span>
           </button>
-        </div>
+        </div>}
 
         {/* Reset Demo Button */}
         <button

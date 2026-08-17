@@ -16,6 +16,9 @@ import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQue
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
+const PACKAGED_MODE = import.meta.env.VITE_APP_MODE === 'customer' || import.meta.env.VITE_APP_MODE === 'staff'
+  ? import.meta.env.VITE_APP_MODE
+  : null;
 
 export default function App() {
   // UI state is local; queue state is hydrated from the salon-scoped real-time service.
@@ -23,7 +26,7 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
-  const [viewMode, setViewMode] = useState<ViewMode>('split');
+  const [viewMode, setViewMode] = useState<ViewMode>(PACKAGED_MODE || 'split');
 
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
@@ -359,6 +362,8 @@ export default function App() {
           notificationCount={notifications.filter((n) => !n.read).length}
           onOpenNotifications={() => setIsNotificationCenterOpen(true)}
           permissionStatus={permissionStatus}
+          lockedMode={PACKAGED_MODE || undefined}
+          showNotifications={PACKAGED_MODE !== 'staff'}
         />
 
         {/* Main Workspaces Display */}
@@ -463,7 +468,7 @@ export default function App() {
         onDismiss={() => setActiveToast(null)}
         onView={() => {
           setCurrentScreen(userEntry ? 'tracking' : completedList.some((item) => item.sessionId === customerSessionId.current) ? 'complete' : 'home');
-          if (viewMode === 'staff') setViewMode('split');
+          if (!PACKAGED_MODE && viewMode === 'staff') setViewMode('split');
         }}
       />
 

@@ -1,5 +1,8 @@
 import type { Barber, QueueItem } from '../types';
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
+
 export interface SalonSnapshot {
   salonId: string;
   version: number;
@@ -38,16 +41,16 @@ const request = async <T>(url: string, init?: RequestInit): Promise<T> => {
 };
 
 export const realtimeQueueService = {
-  getState: (salonId: string) => request<SalonSnapshot>(`/api/salons/${encodeURIComponent(salonId)}/state`),
+  getState: (salonId: string) => request<SalonSnapshot>(apiUrl(`/api/salons/${encodeURIComponent(salonId)}/state`)),
 
   command: (salonId: string, command: QueueCommand) =>
-    request<SalonSnapshot>(`/api/salons/${encodeURIComponent(salonId)}/commands`, {
+    request<SalonSnapshot>(apiUrl(`/api/salons/${encodeURIComponent(salonId)}/commands`), {
       method: 'POST',
       body: JSON.stringify(command),
     }),
 
   subscribe(salonId: string, onState: (snapshot: SalonSnapshot) => void, onConnectionChange: (connected: boolean) => void) {
-    const source = new EventSource(`/api/salons/${encodeURIComponent(salonId)}/events`);
+    const source = new EventSource(apiUrl(`/api/salons/${encodeURIComponent(salonId)}/events`));
     source.addEventListener('state', (event) => {
       onConnectionChange(true);
       onState(JSON.parse((event as MessageEvent).data) as SalonSnapshot);
@@ -57,13 +60,13 @@ export const realtimeQueueService = {
   },
 
   requestOtp: (phone: string) =>
-    request<{ challengeId: string; demoCode: string; expiresInSeconds: number }>('/api/otp/request', {
+    request<{ challengeId: string; demoCode: string; expiresInSeconds: number }>(apiUrl('/api/otp/request'), {
       method: 'POST',
       body: JSON.stringify({ phone }),
     }),
 
   verifyOtp: (challengeId: string, code: string) =>
-    request<{ verified: true; phone: string }>('/api/otp/verify', {
+    request<{ verified: true; phone: string }>(apiUrl('/api/otp/verify'), {
       method: 'POST',
       body: JSON.stringify({ challengeId, code }),
     }),

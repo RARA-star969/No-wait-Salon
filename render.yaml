@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: no-wait-salon-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: ALLOWED_ORIGINS
+        value: capacitor://localhost,http://localhost
+    disk:
+      name: no-wait-salon-data
+      mountPath: /data
+      sizeGB: 1

@@ -53,6 +53,36 @@ db.exec(`
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+const configuredOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+
+app.use((request, response, next) => {
+  const origin = request.headers.origin;
+  const isLocalOrigin = origin && (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin === 'capacitor://localhost');
+  if (origin && (isLocalOrigin || configuredOrigins.has(origin))) {
+    response.set('Access-Control-Allow-Origin', origin);
+    response.set('Vary', 'Origin');
+    response.set('Access-Control-Allow-Headers', 'Content-Type');
+    response.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  }
+  if (request.method === 'OPTIONS') return response.sendStatus(204);
+  next();
+});
+app.use((_request, response, next) => {
+  response.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  });
+  next();
+});
 app.use(express.json({ limit: '64kb' }));
 
 const subscribers = new Map<string, Set<express.Response>>();
@@ -186,7 +216,11 @@ function applyCommand(state: SalonState, command: QueueCommand) {
   return state;
 }
 
-app.get('/api/health', (_request, response) => response.json({ ok: true, timestamp: Date.now() }));
+app.get('/api/health', (_request, response) => {
+  db.prepare('SELECT 1').get();
+  response.set('Cache-Control', 'no-store');
+  response.json({ ok: true, timestamp: Date.now() });
+});
 
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
@@ -195,7 +229,12 @@ app.get('/api/salons/:salonId/state', (request, response) => {
 
 app.get('/api/salons/:salonId/events', (request, response) => {
   const salonId = request.params.salonId;
-  response.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive' });
+  response.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
   response.flushHeaders();
   response.write(`retry: 1500\nevent: state\ndata: ${JSON.stringify(readState(salonId))}\n\n`);
   const salonSubscribers = subscribers.get(salonId) || new Set<express.Response>();
@@ -266,4 +305,16 @@ setInterval(() => {
 }, 15_000).unref();
 
 const port = Number(process.env.PORT || 8787);
-app.listen(port, () => console.log(`No-Wait Salon server listening on http://localhost:${port}`));
+const server = app.listen(port, '0.0.0.0', () => console.log(`No-Wait Salon server listening on http://0.0.0.0:${port}`));
+
+function shutdown(signal: string) {
+  console.log(`${signal} received; closing server.`);
+  server.close(() => {
+    db.close();
+    process.exit(0);
+  });
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));
