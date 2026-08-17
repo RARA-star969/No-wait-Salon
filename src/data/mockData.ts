@@ -19,6 +19,8 @@ export const SALONS: Salon[] = [
     isOpen: true,
     services: SERVICES,
     defaultBarberCount: 2,
+    latitude: 12.9719,
+    longitude: 77.6412,
   },
   {
     id: 'salon-2',
@@ -30,6 +32,8 @@ export const SALONS: Salon[] = [
     isOpen: true,
     services: SERVICES,
     defaultBarberCount: 1,
+    latitude: 12.9701,
+    longitude: 77.6471,
   },
   {
     id: 'salon-3',
@@ -41,6 +45,8 @@ export const SALONS: Salon[] = [
     isOpen: true,
     services: SERVICES,
     defaultBarberCount: 3,
+    latitude: 12.9784,
+    longitude: 77.6408,
   },
 ];
 

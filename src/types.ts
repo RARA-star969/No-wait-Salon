@@ -53,6 +53,14 @@ export interface Salon {
   isOpen: boolean;
   services: ServiceItem[];
   defaultBarberCount: number;
+  latitude: number;
+  longitude: number;
+}
+
+export interface NearbySalon extends Salon {
+  travelTimeMinutes: number;
+  liveWaitMinutes: number;
+  waitingCustomers: number;
 }
 
 export type ViewMode = 'split' | 'customer' | 'staff';

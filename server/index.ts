@@ -222,6 +222,50 @@ app.get('/api/health', (_request, response) => {
   response.json({ ok: true, timestamp: Date.now() });
 });
 
+const toRadians = (degrees: number) => degrees * Math.PI / 180;
+const distanceBetweenKm = (latitude: number, longitude: number, salonLatitude: number, salonLongitude: number) => {
+  const earthRadiusKm = 6371;
+  const latitudeDelta = toRadians(salonLatitude - latitude);
+  const longitudeDelta = toRadians(salonLongitude - longitude);
+  const value = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(toRadians(latitude)) * Math.cos(toRadians(salonLatitude)) * Math.sin(longitudeDelta / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+};
+
+app.get('/api/salons/nearby', (request, response) => {
+  const latitude = Number(request.query.lat);
+  const longitude = Number(request.query.lng);
+  const area = String(request.query.area || '').trim().toLocaleLowerCase();
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
+    && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+  if (!hasCoordinates && area.length < 2) {
+    return response.status(400).json({ error: 'Share your location or enter a city or area.' });
+  }
+
+  const matches = SALONS
+    .filter((salon) => !area || `${salon.name} ${salon.address}`.toLocaleLowerCase().includes(area))
+    .map((salon) => {
+      const state = readState(salon.id);
+      const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
+      const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
+      const liveWaitMinutes = activeBarbers > 0 ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
+      const distanceKm = hasCoordinates
+        ? Number(distanceBetweenKm(latitude, longitude, salon.latitude, salon.longitude).toFixed(1))
+        : salon.distanceKm;
+      return {
+        ...salon,
+        distanceKm,
+        travelTimeMinutes: Math.max(3, Math.round(distanceKm * 4)),
+        liveWaitMinutes,
+        waitingCustomers,
+      };
+    })
+    .sort((first, second) => first.distanceKm - second.distanceKm);
+
+  response.set('Cache-Control', 'no-store');
+  response.json({ salons: matches, source: hasCoordinates ? 'gps' : 'manual' });
+});
+
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(readState(request.params.salonId));

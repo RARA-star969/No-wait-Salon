@@ -20,10 +20,11 @@ import {
   Star,
   LocateFixed,
 } from 'lucide-react';
-import { Salon, QueueItem, Barber, CustomerScreen } from '../types';
-import { SALONS, AVAILABLE_TIME_SLOTS } from '../data/mockData';
+import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon } from '../types';
+import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { CustomerOnboarding } from './CustomerOnboarding';
+import { LocationDiscovery } from './LocationDiscovery';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
@@ -68,6 +69,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
+  const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(null);
+  const [locationLabel, setLocationLabel] = useState('');
 
   const completeOnboarding = () => {
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
@@ -102,6 +105,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return <CustomerOnboarding onComplete={completeOnboarding} />;
   }
 
+  if (!nearbySalons) {
+    return (
+      <LocationDiscovery
+        onLocated={(salons, label) => {
+          setNearbySalons(salons);
+          setLocationLabel(label);
+          if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
@@ -128,6 +143,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
             <button
               type="button"
+              onClick={() => setNearbySalons(null)}
               className="mt-5 flex w-full items-center justify-between rounded-xl border border-[#DCE4E3] bg-[#F8FAFA] px-3.5 py-3 text-left transition hover:border-[#A8C9C5] hover:bg-[#F4F9F8]"
               aria-label="Change current location"
             >
@@ -137,7 +153,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </span>
                 <span className="min-w-0">
                   <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">Your location</span>
-                  <span className="block truncate text-xs font-semibold text-[#25302F]">Indiranagar, Bengaluru</span>
+                  <span className="block truncate text-xs font-semibold text-[#25302F]">{locationLabel}</span>
                 </span>
               </span>
               <LocateFixed className="h-4 w-4 shrink-0 text-[#0F766E]" />
@@ -186,9 +202,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             <div className="space-y-3">
-              {SALONS.map((salon) => {
+              {nearbySalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
-                const salonWait = isSelected ? waitDisplay : `${salon.distanceKm * 20 > 30 ? '30–40' : '15–25'} min`;
+                const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
                 return (
                   <button
                     key={salon.id}
@@ -222,7 +238,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                           <span className="text-[#C7C3B8]">•</span>
                           <span>{salon.distanceKm} km</span>
                           <span className="text-[#C7C3B8]">•</span>
-                          <span>{activeBarbersCount} barbers</span>
+                          <span>{salon.travelTimeMinutes} min away</span>
                         </div>
                         <p className="mt-2 truncate text-[11px] text-[#969289]">
                           {salon.address}
