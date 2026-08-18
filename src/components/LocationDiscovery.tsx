@@ -6,11 +6,9 @@ import { readGeolocationPermission, type StoredLocationPreference } from '../ser
 
 type Props = {
   onLocated: (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => void;
-  /** Shown when the customer reopens the picker to change an existing location. */
-  onCancel?: () => void;
 };
 
-export const LocationDiscovery: React.FC<Props> = ({ onLocated, onCancel }) => {
+export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
   const [area, setArea] = useState('');
   const [manualMode, setManualMode] = useState(false);
   const [loading, setLoading] = useState<'gps' | 'manual' | null>(null);
@@ -30,7 +28,13 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onCancel }) => {
         try {
           const result = await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude);
           setPermissionDenied(false);
-          onLocated(result.salons, 'Current location', { mode: 'gps', label: 'Current location' });
+          onLocated(result.salons, 'Current location', {
+            setupCompleted: true,
+            mode: 'gps',
+            label: 'Current location',
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+          });
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : 'Unable to load nearby salons.');
           setManualMode(true);
@@ -73,7 +77,7 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onCancel }) => {
     setError('');
     try {
       const result = await salonDiscoveryService.byArea(search);
-      onLocated(result.salons, search, { mode: 'manual', label: search, area: search });
+      onLocated(result.salons, search, { setupCompleted: true, mode: 'manual', label: search, area: search });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to search this area.');
     } finally {
@@ -108,12 +112,6 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onCancel }) => {
           Choose city or area manually
         </button>
 
-        {onCancel && (
-          <button type="button" onClick={onCancel}
-            className="mt-3 h-11 w-full rounded-xl text-sm font-semibold text-[#667371] transition hover:text-[#25302F]">
-            Keep my current location
-          </button>
-        )}
 
         {manualMode && (
           <form onSubmit={searchArea} className="mt-5 rounded-2xl border border-[#DCE5E3] bg-white p-4">

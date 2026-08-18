@@ -21,12 +21,13 @@
     "android:release:staff": "pnpm android:sync:staff && cd android-staff && ./gradlew assembleRelease",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test server/*.test.ts"
+    "test": "node --import tsx --test server/*.test.ts src/services/*.test.ts"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.1.0",
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/preferences": "^8.0.1",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",

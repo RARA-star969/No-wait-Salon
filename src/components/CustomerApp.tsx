@@ -36,10 +36,37 @@ import { salonDiscoveryService } from '../services/salonDiscoveryService';
 import {
   locationPreference,
   readGeolocationPermission,
+  resolveStartupPlan,
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
+import { LocationSelectorSheet } from './LocationSelectorSheet';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
+
+/**
+ * Background discovery refresh for an already-configured location. Uses GPS
+ * only when the plan allows it, so a revoked permission never raises a prompt.
+ */
+async function refreshDiscovery(
+  stored: StoredLocationPreference,
+  mode: 'gps' | 'area' | 'last-known',
+): Promise<NearbySalon[] | null> {
+  if (mode === 'area' && stored.area) {
+    return (await salonDiscoveryService.byArea(stored.area)).salons;
+  }
+  if (mode === 'last-known' && stored.latitude !== undefined && stored.longitude !== undefined) {
+    return (await salonDiscoveryService.byCoordinates(stored.latitude, stored.longitude)).salons;
+  }
+  if (mode !== 'gps') return null;
+  const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve(position.coords),
+      reject,
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
+    );
+  });
+  return (await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude)).salons;
+}
 
 interface CustomerAppProps {
   currentScreen: CustomerScreen;
@@ -100,13 +127,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
-  const [storedLocation, setStoredLocation] = useState(() => locationPreference.read());
-  // Returning customers skip the picker entirely; it only reappears on request.
+  // Storage is async on device, so nothing renders until it has been read.
+  // Rendering before hydration would flash first-time setup at returning users.
+  const [locationHydrated, setLocationHydrated] = useState(false);
+  const [storedLocation, setStoredLocation] = useState<StoredLocationPreference | null>(null);
   const [isChangingLocation, setIsChangingLocation] = useState(false);
-  const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(
-    () => (locationPreference.read() ? [] : null)
-  );
-  const [locationLabel, setLocationLabel] = useState(() => locationPreference.read()?.label || '');
+  const [nearbySalons, setNearbySalons] = useState<NearbySalon[]>([]);
+  const [locationLabel, setLocationLabel] = useState('');
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
@@ -136,7 +163,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   };
 
   const applyLocation = (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => {
-    locationPreference.save(preference);
+    void locationPreference.save(preference);
     setStoredLocation(preference);
     setNearbySalons(salons);
     setLocationLabel(label);
@@ -144,44 +171,29 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
   };
 
-  // Silently restore discovery for a configured location so returning customers
-  // land on home. GPS is reused only when the OS still reports permission.
+  // Hydrate persisted setup, then refresh discovery in the background. Home is
+  // never blocked, and the OS permission is only ever read, never requested.
   useEffect(() => {
-    if (!storedLocation || isChangingLocation) return;
-    if (nearbySalons && nearbySalons.length > 0) return;
     let cancelled = false;
-    setIsRestoringLocation(true);
     (async () => {
+      const stored = await locationPreference.read();
+      if (cancelled) return;
+      setStoredLocation(stored);
+      if (stored) setLocationLabel(stored.label);
+      setLocationHydrated(true);
+      if (!stored) return;
+
+      const permission = await readGeolocationPermission();
+      if (cancelled) return;
+      const plan = resolveStartupPlan(stored, permission);
+      if (plan.refresh === 'none') return;
+
+      setIsRestoringLocation(true);
       try {
-        if (storedLocation.mode === 'manual' && storedLocation.area) {
-          const result = await salonDiscoveryService.byArea(storedLocation.area);
-          if (!cancelled) setNearbySalons(result.salons);
-          return;
-        }
-        const permission = await readGeolocationPermission();
-        if (cancelled) return;
-        if (permission !== 'granted') {
-          // Permission was revoked outside the app: fall back to the picker
-          // instead of silently prompting again on startup.
-          locationPreference.clear();
-          if (!cancelled) {
-            setStoredLocation(null);
-            setNearbySalons(null);
-          }
-          return;
-        }
-        const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(
-            (position) => resolve(position.coords),
-            reject,
-            { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
-          );
-        });
-        if (cancelled) return;
-        const result = await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude);
-        if (!cancelled) setNearbySalons(result.salons);
+        const salons = await refreshDiscovery(stored, plan.refresh);
+        if (!cancelled && salons) setNearbySalons(salons);
       } catch {
-        // Keep the customer on home; they can retry from the location header.
+        // Home stays usable; the customer can retry from the location row.
       } finally {
         if (!cancelled) setIsRestoringLocation(false);
       }
@@ -189,7 +201,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [storedLocation, isChangingLocation]);
+  }, []);
 
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
@@ -229,15 +241,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return <CustomerOnboarding onComplete={completeOnboarding} />;
   }
 
-  // Only show location onboarding when nothing is configured yet, or when the
-  // customer explicitly asked to change it.
-  if (!nearbySalons || isChangingLocation) {
+  // Wait for persisted setup to load so returning customers never see a flash
+  // of the first-time location screen.
+  if (!locationHydrated) {
     return (
-      <LocationDiscovery
-        onLocated={applyLocation}
-        onCancel={storedLocation ? () => setIsChangingLocation(false) : undefined}
-      />
+      <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
+        <LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" />
+      </div>
     );
+  }
+
+  // First-time setup only. Returning customers go straight to Home and change
+  // their location through the header row instead.
+  if (!storedLocation?.setupCompleted) {
+    return <LocationDiscovery onLocated={applyLocation} />;
   }
 
   if (currentScreen === 'profile' || currentScreen === 'edit-profile') {
@@ -287,7 +304,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <button
               type="button"
               onClick={() => setIsChangingLocation(true)}
-              className="mt-4 flex w-full items-center justify-between rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
+              className="mt-4 flex w-full items-center justify-between gap-2 rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
               aria-label="Change current location"
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -299,7 +316,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <span className="block truncate text-xs font-semibold text-[#25302F]">{locationLabel}</span>
                 </span>
               </span>
-              <LocateFixed className="h-4 w-4 shrink-0 text-[#0F766E]" />
+              <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#E5F3F1] px-2.5 py-1.5 text-[10px] font-bold text-[#0F766E]">
+                <LocateFixed className="h-3.5 w-3.5" />
+                Change
+              </span>
             </button>
 
             <div className="mt-3">
@@ -459,6 +479,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+
+      <LocationSelectorSheet
+        open={isChangingLocation}
+        currentLabel={locationLabel}
+        onClose={() => setIsChangingLocation(false)}
+        onSelected={applyLocation}
+      />
 
       {/* Legacy salon layout retained temporarily for parity checks; it is not rendered. */}
       {false && currentScreen === 'salon' && (
