@@ -20,6 +20,25 @@ body {
   margin: 0;
 }
 
+body.barcode-scanner-active,
+body.barcode-scanner-active #root {
+  background: transparent !important;
+}
+
+body.barcode-scanner-active #root > div {
+  visibility: hidden;
+}
+
+body.barcode-scanner-active #qr-scanner-modal,
+body.barcode-scanner-active #qr-scanner-modal * {
+  visibility: visible;
+}
+
+body.barcode-scanner-active #qr-scanner-modal,
+body.barcode-scanner-active #qr-scanner-modal .aspect-square {
+  background: transparent;
+}
+
 button,
 a,
 input,
