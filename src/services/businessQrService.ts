@@ -19,5 +19,7 @@ export function businessQrToken(rawValue:string){
 
 export const businessQrService={
   resolve:(token:string)=>request<{business:QrBusiness}>(`/api/business-qr/${encodeURIComponent(token)}`),
-  join:(token:string,serviceId:string,sessionId:string)=>request<{joined:boolean;reason?:'already_in_queue';entry:unknown;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceId,sessionId,requestId:crypto.randomUUID()})}),
+  join:(token:string,serviceId:string,sessionId:string,source:'qr_walk_in'|'qr_web'='qr_walk_in')=>request<{joined:boolean;reason?:'already_in_queue';entry:any;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceId,sessionId,source,requestId:crypto.randomUUID()})}),
+  recordVisit:(token:string,payload:{appCtaShown?:boolean;appCtaClicked?:boolean}={})=>request<{recorded:boolean}>(`/api/business-qr/${encodeURIComponent(token)}/visit`,{method:'POST',body:JSON.stringify(payload)}).catch(()=>({recorded:false})),
+  setMarketingConsent:(consent:boolean)=>request<{marketingConsent:boolean}>('/api/me/marketing-consent',{method:'PUT',body:JSON.stringify({consent})}).catch(()=>({marketingConsent:false})),
 };

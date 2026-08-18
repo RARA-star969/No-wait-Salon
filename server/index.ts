@@ -292,6 +292,28 @@ db.exec(`
 
 const customerBookingColumns = new Set((db.prepare('PRAGMA table_info(customer_booking)').all() as Array<{ name: string }>).map((column) => column.name));
 if (!customerBookingColumns.has('source')) db.exec("ALTER TABLE customer_booking ADD COLUMN source TEXT NOT NULL DEFAULT 'customer_app'");
+
+const customerProfileColumns = new Set((db.prepare('PRAGMA table_info(customer_profile)').all() as Array<{ name: string }>).map((column) => column.name));
+if (!customerProfileColumns.has('marketing_consent')) db.exec('ALTER TABLE customer_profile ADD COLUMN marketing_consent INTEGER NOT NULL DEFAULT 0');
+
+// Lightweight attribution for customers acquired by scanning a salon QR with a
+// plain phone camera. Deliberately minimal: no marketing engine, just fields.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS web_qr_attribution (
+    id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    qr_token_id TEXT NOT NULL,
+    customer_id TEXT,
+    acquisition_source TEXT NOT NULL DEFAULT 'salon_qr_web',
+    first_visit_at INTEGER NOT NULL,
+    joined_at INTEGER,
+    app_cta_shown INTEGER NOT NULL DEFAULT 0,
+    app_cta_clicked INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS web_qr_attribution_business_idx ON web_qr_attribution(business_id, created_at DESC);
+`);
 db.exec(`
   CREATE TABLE IF NOT EXISTS business_qr (
     id TEXT PRIMARY KEY,
@@ -780,6 +802,36 @@ app.get('/api/business-qr/:token',(request,response)=>{
   response.json({business:{...resolved.salon,businessType:resolved.qr.business_type,qrStatus:resolved.qr.status,liveWaitMinutes,waitingCustomers,queueAccepting:resolved.salon.isOpen&&activeBarbers>0}});
 });
 
+function markWebAttributionJoined(businessId:string,qrId:string,customerId:string,at:number){
+  const existing=db.prepare('SELECT id FROM web_qr_attribution WHERE business_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 1').get(businessId,customerId) as {id:string}|undefined;
+  if(existing)db.prepare('UPDATE web_qr_attribution SET joined_at=?,updated_at=? WHERE id=?').run(at,at,existing.id);
+  else db.prepare('INSERT INTO web_qr_attribution (id,business_id,qr_token_id,customer_id,acquisition_source,first_visit_at,joined_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(randomUUID(),businessId,qrId,customerId,'salon_qr_web',at,at,at,at);
+}
+
+// Records that a plain-camera visitor landed on a public salon page. Anonymous:
+// no customer is attached until they authenticate and join.
+app.post('/api/business-qr/:token/visit',async(request,response)=>{
+  const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
+  if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
+  const now=Date.now();
+  const ctaShown=asBoolean(request.body?.appCtaShown)?1:0;
+  const ctaClicked=asBoolean(request.body?.appCtaClicked)?1:0;
+  db.prepare('INSERT INTO web_qr_attribution (id,business_id,qr_token_id,customer_id,acquisition_source,first_visit_at,app_cta_shown,app_cta_clicked,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(randomUUID(),resolved.salon.id,resolved.qr.id,null,'salon_qr_web',now,ctaShown,ctaClicked,now,now);
+  await postgresPersistence?.flushNow(['web_qr_attribution']);
+  response.status(201).json({recorded:true});
+});
+
+// Marketing consent is explicit and separate from joining a queue. Queue access
+// never depends on it.
+app.put('/api/me/marketing-consent',requireCustomer,async(request:AuthenticatedRequest,response)=>{
+  const consent=asBoolean(request.body?.consent)?1:0;
+  db.prepare('UPDATE customer_profile SET marketing_consent=?,updated_at=? WHERE customer_id=?').run(consent,Date.now(),request.customerId);
+  await postgresPersistence?.flushNow(['customer_profile']);
+  response.json({marketingConsent:consent===1});
+});
+
 app.post('/api/business-qr/:token/join',requireCustomer,async(request:AuthenticatedRequest,response)=>{
   const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
   if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
@@ -789,6 +841,9 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   if(!service)return response.status(400).json({error:'Please choose an available service.',code:'SERVICE_UNAVAILABLE'});
   const sessionId=cleanText(request.body?.sessionId,160);
   if(!sessionId)return response.status(400).json({error:'Unable to continue this scan. Please scan again.',code:'INVALID_SCAN_SESSION'});
+  // Only the two QR-originated sources may be claimed by this endpoint; never
+  // trust an arbitrary source string from the client.
+  const requestedSource:QueueItem['source']=cleanText(request.body?.source,32)==='qr_web'?'qr_web':'qr_walk_in';
   const current=readState(resolved.salon.id);
   const existing=current.queue.find(item=>item.customerId===request.customerId);
   if(existing)return response.json({joined:false,reason:'already_in_queue',entry:existing,state:current});
@@ -796,14 +851,16 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   if(attempt&&attempt.resetAt>now&&attempt.count>=6)return response.status(429).json({error:'Too many attempts. Please wait a moment and try again.',code:'RATE_LIMITED'});
   qrJoinAttempts.set(rateKey,{count:attempt&&attempt.resetAt>now?attempt.count+1:1,resetAt:attempt&&attempt.resetAt>now?attempt.resetAt:now+60_000});
   const profile=readCustomerProfile(request.customerId!);
-  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:'qr_walk_in'};
+  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:requestedSource};
   try{
     db.exec('BEGIN IMMEDIATE');
     const latest=readState(resolved.salon.id);
     const duplicate=latest.queue.find(entry=>entry.customerId===request.customerId);
     if(duplicate){db.exec('ROLLBACK');return response.json({joined:false,reason:'already_in_queue',entry:duplicate,state:latest})}
-    latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);db.exec('COMMIT');publish(latest);
-    await postgresPersistence?.flushNow(['customer_booking','salon_state']);
+    latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);
+    if(requestedSource==='qr_web')markWebAttributionJoined(resolved.salon.id,resolved.qr.id,request.customerId!,now);
+    db.exec('COMMIT');publish(latest);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state','web_qr_attribution']);
     response.status(201).json({joined:true,entry:item,state:latest});
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to join this queue right now. Please try again.',code:'QUEUE_JOIN_FAILED'})}
 });

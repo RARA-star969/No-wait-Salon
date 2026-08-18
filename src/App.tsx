@@ -3,6 +3,7 @@ import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNoti
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
 import { Header } from './components/Header';
 import { CustomerApp } from './components/CustomerApp';
+import { PublicSalonPage } from './components/PublicSalonPage';
 import { StaffDashboard } from './components/StaffDashboard';
 import { OtpModal } from './components/OtpModal';
 import { PushNotificationToast } from './components/PushNotificationToast';
@@ -43,7 +44,11 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
-  const isQrRoute = /^\/q\/[^/]+\/?$/.test(window.location.pathname);
+  const qrRouteMatch = window.location.pathname.match(/^\/q\/([^/]+)\/?$/);
+  const isQrRoute = Boolean(qrRouteMatch);
+  // A plain phone camera lands here in a browser: serve the public salon page.
+  // The packaged Android app keeps its existing in-app scanner flow.
+  const publicQrToken = !PACKAGED_MODE && qrRouteMatch ? decodeURIComponent(qrRouteMatch[1]) : null;
   const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || 'split');
   const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
 
@@ -418,6 +423,16 @@ export default function App() {
       );
     }
   };
+
+  // Scanned with a plain phone camera: render the standalone public salon page
+  // instead of the full app shell, so no install or onboarding is required.
+  if (publicQrToken) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFA] font-sans text-[#17201F]">
+        <PublicSalonPage token={publicQrToken} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">

@@ -15,7 +15,7 @@ export interface QueueItem {
   estimatedDurationMin?: number;
   sessionId?: string;
   customerId?: string;
-  source?: 'customer_app' | 'qr_walk_in' | 'staff_walk_in' | 'appointment';
+  source?: 'customer_app' | 'qr_walk_in' | 'qr_web' | 'staff_walk_in' | 'appointment';
 }
 
 export interface CustomerProfile {

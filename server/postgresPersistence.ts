@@ -13,13 +13,14 @@ const tables:Record<string,string[]>={
   salon_media:['id','salon_id','media_type','url','caption','featured','sort_order','created_at','updated_at'],
   otp_challenge:['id','phone','code_hash','expires_at','attempts','verified_at'],
   customer_account:['id','phone_number','created_at','updated_at'],
-  customer_profile:['customer_id','name','email','date_of_birth','gender','anniversary','city','profile_photo_url','created_at','updated_at'],
+  customer_profile:['customer_id','name','email','date_of_birth','gender','anniversary','city','profile_photo_url','marketing_consent','created_at','updated_at'],
   customer_session:['token_hash','customer_id','expires_at','created_at'],
   customer_booking:['id','queue_entry_id','customer_id','salon_id','service','status','reserved_for','source','created_at','updated_at'],
   admin_user:['id','email','password_hash','created_at','updated_at'],
   admin_session:['token_hash','admin_id','expires_at','created_at'],
   salon_state:['salon_id','version','state_json','updated_at'],
   business_qr:['id','business_id','business_type','public_token','status','version','created_at','updated_at','revoked_at'],
+  web_qr_attribution:['id','business_id','qr_token_id','customer_id','acquisition_source','first_visit_at','joined_at','app_cta_shown','app_cta_clicked','created_at','updated_at'],
 };
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();

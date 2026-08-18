@@ -56,6 +56,27 @@ const migrations=[{
     CREATE UNIQUE INDEX IF NOT EXISTS business_qr_active_business_idx ON business_qr(business_id,business_type) WHERE status = 'active';
     CREATE INDEX IF NOT EXISTS business_qr_token_status_idx ON business_qr(public_token,status);
   `
+},{
+  version:3,
+  name:'public_qr_web_join',
+  sql:`
+    ALTER TABLE customer_profile ADD COLUMN IF NOT EXISTS marketing_consent INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE IF NOT EXISTS web_qr_attribution (
+      id TEXT PRIMARY KEY,
+      business_id TEXT NOT NULL,
+      qr_token_id TEXT NOT NULL,
+      customer_id TEXT,
+      acquisition_source TEXT NOT NULL DEFAULT 'salon_qr_web',
+      first_visit_at BIGINT NOT NULL,
+      joined_at BIGINT,
+      app_cta_shown INTEGER NOT NULL DEFAULT 0,
+      app_cta_clicked INTEGER NOT NULL DEFAULT 0,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS web_qr_attribution_business_idx ON web_qr_attribution(business_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS web_qr_attribution_customer_idx ON web_qr_attribution(customer_id);
+  `
 }];
 
 export async function runMigrations(db:Database){
