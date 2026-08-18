@@ -18,6 +18,21 @@ import { businessQrService } from './services/businessQrService';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
+
+const createCustomerSessionId = (): string => {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'customer-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+};
+
+const loadCustomerSessionId = (): string => {
+  try {
+    return localStorage.getItem(SESSION_STORAGE_KEY) || createCustomerSessionId();
+  } catch {
+    return createCustomerSessionId();
+  }
+};
 const PACKAGED_MODE = import.meta.env.VITE_APP_MODE === 'customer' || import.meta.env.VITE_APP_MODE === 'staff'
   ? import.meta.env.VITE_APP_MODE
   : null;
@@ -35,12 +50,14 @@ export default function App() {
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
   const [completedList, setCompletedList] = useState<QueueItem[]>([]);
-  const customerSessionId = useRef<string>(
-    localStorage.getItem(SESSION_STORAGE_KEY) || crypto.randomUUID()
-  );
+  const customerSessionId = useRef<string>(loadCustomerSessionId());
 
   useEffect(() => {
-    localStorage.setItem(SESSION_STORAGE_KEY, customerSessionId.current);
+    try {
+      localStorage.setItem(SESSION_STORAGE_KEY, customerSessionId.current);
+    } catch {
+      // Keep using the in-memory ID when storage is unavailable.
+    }
   }, []);
 
   const [queueAlert, setQueueAlert] = useState<string>('');
