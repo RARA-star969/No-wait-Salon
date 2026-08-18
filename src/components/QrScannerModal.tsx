@@ -79,7 +79,6 @@ export function QrScannerModal({
       return;
     }
     nativeRef.current = true;
-    document.body.classList.add('barcode-scanner-active');
     await BarcodeScanner.addListener('barcodesScanned', (event) => {
       const raw = event.barcodes[0]?.rawValue;
       if (raw) void resolve(raw);
@@ -90,6 +89,10 @@ export function QrScannerModal({
     });
     setState('scanning');
     await BarcodeScanner.startScan({ formats: [BarcodeFormat.QrCode], lensFacing: LensFacing.Back });
+    // Go transparent only once the native preview is actually running. Doing it
+    // earlier leaves a window where the WebView is see-through but no camera
+    // plane exists yet, which composites the stale Home frame as a ghost flash.
+    document.body.classList.add('barcode-scanner-active');
     try {
       const { available } = await BarcodeScanner.isTorchAvailable();
       setTorchAvailable(available);
@@ -176,7 +179,10 @@ export function QrScannerModal({
   const scanning = state === 'scanning';
 
   return (
-    <div id="qr-scanner-modal" className="fixed inset-0 z-[80] flex flex-col bg-[#070C0C] text-white">
+    <div
+      id="qr-scanner-modal"
+      className="fixed inset-0 z-[80] flex animate-[qr-modal-in_180ms_ease-out] flex-col bg-[#070C0C] text-white"
+    >
       {/* Live camera sits behind this layer: native preview on device, video element on web. */}
       {!isNative && (
         <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Scissors,
   MapPin,
@@ -40,6 +40,7 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
+import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
@@ -137,6 +138,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const homeScrollRef = useRef<HTMLDivElement>(null);
 
   const openQrBusiness = (token: string, business: QrBusiness) => {
     setSelectedSalon(business);
@@ -275,7 +277,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
+    <div ref={homeScrollRef} className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
         <div id="customer-home-screen" className="min-h-full bg-[#F8FAFA] animate-in fade-in duration-300">
@@ -327,7 +329,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
-          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:px-5">
+          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-4 sm:px-5">
 
           <PromotionalBanner />
 
@@ -476,6 +478,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           userEntry={userEntry}
         />
         </div>
+      )}
+
+      {currentScreen === 'home' && !isQrScannerOpen && (
+        <StickyScanQrButton scrollRef={homeScrollRef} onScan={() => setIsQrScannerOpen(true)} />
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
