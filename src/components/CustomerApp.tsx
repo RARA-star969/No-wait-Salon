@@ -19,6 +19,7 @@ import {
   Sparkles,
   Star,
   LocateFixed,
+  LoaderCircle,
   QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
@@ -31,6 +32,12 @@ import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { QrScannerModal } from './QrScannerModal';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
+import { salonDiscoveryService } from '../services/salonDiscoveryService';
+import {
+  locationPreference,
+  readGeolocationPermission,
+  type StoredLocationPreference,
+} from '../services/locationPreferenceService';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
@@ -93,8 +100,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
-  const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(null);
-  const [locationLabel, setLocationLabel] = useState('');
+  const [storedLocation, setStoredLocation] = useState(() => locationPreference.read());
+  // Returning customers skip the picker entirely; it only reappears on request.
+  const [isChangingLocation, setIsChangingLocation] = useState(false);
+  const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(
+    () => (locationPreference.read() ? [] : null)
+  );
+  const [locationLabel, setLocationLabel] = useState(() => locationPreference.read()?.label || '');
+  const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
 
@@ -121,6 +134,62 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
     setHasCompletedOnboarding(true);
   };
+
+  const applyLocation = (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => {
+    locationPreference.save(preference);
+    setStoredLocation(preference);
+    setNearbySalons(salons);
+    setLocationLabel(label);
+    setIsChangingLocation(false);
+    if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
+  };
+
+  // Silently restore discovery for a configured location so returning customers
+  // land on home. GPS is reused only when the OS still reports permission.
+  useEffect(() => {
+    if (!storedLocation || isChangingLocation) return;
+    if (nearbySalons && nearbySalons.length > 0) return;
+    let cancelled = false;
+    setIsRestoringLocation(true);
+    (async () => {
+      try {
+        if (storedLocation.mode === 'manual' && storedLocation.area) {
+          const result = await salonDiscoveryService.byArea(storedLocation.area);
+          if (!cancelled) setNearbySalons(result.salons);
+          return;
+        }
+        const permission = await readGeolocationPermission();
+        if (cancelled) return;
+        if (permission !== 'granted') {
+          // Permission was revoked outside the app: fall back to the picker
+          // instead of silently prompting again on startup.
+          locationPreference.clear();
+          if (!cancelled) {
+            setStoredLocation(null);
+            setNearbySalons(null);
+          }
+          return;
+        }
+        const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (position) => resolve(position.coords),
+            reject,
+            { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
+          );
+        });
+        if (cancelled) return;
+        const result = await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude);
+        if (!cancelled) setNearbySalons(result.salons);
+      } catch {
+        // Keep the customer on home; they can retry from the location header.
+      } finally {
+        if (!cancelled) setIsRestoringLocation(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [storedLocation, isChangingLocation]);
 
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
@@ -160,14 +229,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return <CustomerOnboarding onComplete={completeOnboarding} />;
   }
 
-  if (!nearbySalons) {
+  // Only show location onboarding when nothing is configured yet, or when the
+  // customer explicitly asked to change it.
+  if (!nearbySalons || isChangingLocation) {
     return (
       <LocationDiscovery
-        onLocated={(salons, label) => {
-          setNearbySalons(salons);
-          setLocationLabel(label);
-          if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
-        }}
+        onLocated={applyLocation}
+        onCancel={storedLocation ? () => setIsChangingLocation(false) : undefined}
       />
     );
   }
@@ -218,7 +286,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
             <button
               type="button"
-              onClick={() => setNearbySalons(null)}
+              onClick={() => setIsChangingLocation(true)}
               className="mt-4 flex w-full items-center justify-between rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
               aria-label="Change current location"
             >
@@ -283,12 +351,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             <div className="space-y-3">
-              {nearbySalons.length === 0 && (
+              {nearbySalons.length === 0 && isRestoringLocation && (
+                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
+                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-[#0F766E]" />
+                  <p className="mt-3 text-xs leading-5 text-[#788582]">Refreshing salons near {locationLabel || 'you'}…</p>
+                </div>
+              )}
+
+              {nearbySalons.length === 0 && !isRestoringLocation && (
                 <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
                   <MapPin className="mx-auto h-6 w-6 text-[#7EA7A2]" />
                   <h3 className="mt-3 text-sm font-bold text-[#25302F]">No salons available in your area yet.</h3>
                   <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more salon partners.</p>
-                  <button type="button" onClick={() => setNearbySalons(null)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
+                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
                 </div>
               )}
               {nearbySalons.length > 0 && visibleSalons.length === 0 && (

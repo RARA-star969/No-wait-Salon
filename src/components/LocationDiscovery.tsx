@@ -2,16 +2,20 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { AlertCircle, LoaderCircle, LocateFixed, MapPin, Navigation, Search } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
+import { readGeolocationPermission, type StoredLocationPreference } from '../services/locationPreferenceService';
 
 type Props = {
-  onLocated: (salons: NearbySalon[], label: string) => void;
+  onLocated: (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => void;
+  /** Shown when the customer reopens the picker to change an existing location. */
+  onCancel?: () => void;
 };
 
-export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
+export const LocationDiscovery: React.FC<Props> = ({ onLocated, onCancel }) => {
   const [area, setArea] = useState('');
   const [manualMode, setManualMode] = useState(false);
   const [loading, setLoading] = useState<'gps' | 'manual' | null>(null);
   const [error, setError] = useState('');
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const useLocation = useCallback(() => {
     setError('');
@@ -25,7 +29,8 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
       async ({ coords }) => {
         try {
           const result = await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude);
-          onLocated(result.salons, 'Current location');
+          setPermissionDenied(false);
+          onLocated(result.salons, 'Current location', { mode: 'gps', label: 'Current location' });
         } catch (reason) {
           setError(reason instanceof Error ? reason.message : 'Unable to load nearby salons.');
           setManualMode(true);
@@ -36,17 +41,28 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
       () => {
         setLoading(null);
         setManualMode(true);
+        setPermissionDenied(true);
         setError('Location permission was not granted. Search by city or area instead.');
       },
       { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
     );
   }, [onLocated]);
 
+  // Check the real OS permission before touching GPS. Only auto-locate when the
+  // OS already granted access, so reopening the app never triggers a new prompt.
   useEffect(() => {
-    if (!navigator.permissions?.query) return;
-    navigator.permissions.query({ name: 'geolocation' }).then((permission) => {
-      if (permission.state === 'granted') useLocation();
-    }).catch(() => undefined);
+    let cancelled = false;
+    void readGeolocationPermission().then((permission) => {
+      if (cancelled) return;
+      if (permission === 'granted') useLocation();
+      else if (permission === 'denied') {
+        setPermissionDenied(true);
+        setManualMode(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [useLocation]);
 
   const searchArea = async (event: FormEvent) => {
@@ -57,7 +73,7 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
     setError('');
     try {
       const result = await salonDiscoveryService.byArea(search);
-      onLocated(result.salons, search);
+      onLocated(result.salons, search, { mode: 'manual', label: search, area: search });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to search this area.');
     } finally {
@@ -80,13 +96,24 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
         <button type="button" onClick={useLocation} disabled={loading !== null}
           className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60">
           {loading === 'gps' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
-          {loading === 'gps' ? 'Finding nearby salons…' : 'Use my current location'}
+          {loading === 'gps'
+            ? 'Finding nearby salons…'
+            : permissionDenied
+              ? 'Enable location'
+              : 'Use my current location'}
         </button>
 
         <button type="button" onClick={() => { setManualMode(true); setError(''); }}
           className="mt-3 h-11 w-full rounded-xl border border-[#D7E2E0] bg-white text-sm font-semibold text-[#35504D] transition hover:border-[#9CCBC6]">
           Choose city or area manually
         </button>
+
+        {onCancel && (
+          <button type="button" onClick={onCancel}
+            className="mt-3 h-11 w-full rounded-xl text-sm font-semibold text-[#667371] transition hover:text-[#25302F]">
+            Keep my current location
+          </button>
+        )}
 
         {manualMode && (
           <form onSubmit={searchArea} className="mt-5 rounded-2xl border border-[#DCE5E3] bg-white p-4">

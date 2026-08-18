@@ -20,6 +20,8 @@ body {
   margin: 0;
 }
 
+/* While the native ML Kit scanner runs, the WebView must be see-through so the
+   device camera preview behind it is visible. Only the scanner chrome stays. */
 body.barcode-scanner-active,
 body.barcode-scanner-active #root {
   background: transparent !important;
@@ -34,9 +36,34 @@ body.barcode-scanner-active #qr-scanner-modal * {
   visibility: visible;
 }
 
-body.barcode-scanner-active #qr-scanner-modal,
-body.barcode-scanner-active #qr-scanner-modal .aspect-square {
-  background: transparent;
+body.barcode-scanner-active #qr-scanner-modal {
+  background: transparent !important;
+}
+
+/* The dimming scrim would otherwise hide the native camera plane entirely. */
+body.barcode-scanner-active #qr-scanner-scrim {
+  background: transparent !important;
+}
+
+@keyframes qr-scan-sweep {
+  0% {
+    transform: translateY(0.75rem);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(17.25rem);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\] {
+    animation: none;
+  }
 }
 
 button,
