@@ -20,23 +20,22 @@ body {
   margin: 0;
 }
 
-/* While the native ML Kit scanner runs, the WebView must be see-through so the
-   device camera preview behind it is visible. Only the scanner chrome stays. */
-body.barcode-scanner-active,
-body.barcode-scanner-active #root {
-  background: transparent !important;
-}
-
-body.barcode-scanner-active #root > div {
+/* Phase 1. The scanner renders in a portal on <body>, outside #root, so Home
+   can be hidden the moment the scanner opens - before any camera work or
+   WebView transparency begins. Nothing can composite Home through the shell. */
+body.scanner-open #root {
   visibility: hidden;
 }
 
-body.barcode-scanner-active #qr-scanner-modal,
-body.barcode-scanner-active #qr-scanner-modal * {
-  visibility: visible;
+body.scanner-open {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
-body.barcode-scanner-active #qr-scanner-modal {
+/* Phase 3. While the native ML Kit preview runs the WebView must be
+   see-through so the camera plane behind it is visible. */
+body.barcode-scanner-active,
+body.barcode-scanner-active #root {
   background: transparent !important;
 }
 
@@ -47,19 +46,15 @@ body.barcode-scanner-active #qr-scanner-scrim {
 
 /* Scanner opens as a dedicated surface: fade the dark field in, then let the
    transparency swap happen once the native preview is live. */
-@keyframes qr-modal-in {
+@keyframes qr-shell-in {
   from {
     opacity: 0;
-    transform: scale(1.015);
+    transform: scale(0.94);
   }
   to {
     opacity: 1;
     transform: scale(1);
   }
-}
-
-#qr-scanner-modal {
-  transition: background-color 200ms ease-out;
 }
 
 @keyframes qr-scan-sweep {
@@ -79,7 +74,7 @@ body.barcode-scanner-active #qr-scanner-scrim {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
-  .animate-\[qr-modal-in_180ms_ease-out\] {
+  .animate-\[qr-shell-in_220ms_ease-out\] {
     animation: none;
   }
 

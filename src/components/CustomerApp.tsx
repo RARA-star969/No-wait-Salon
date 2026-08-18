@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Scissors,
   MapPin,
@@ -139,6 +139,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
+
+  // Single scanner controller shared by the header icon and the sticky CTA.
+  // Setting it while already open is a no-op, and once open the portal cover
+  // hides Home, so neither entry point can be tapped into a second mount.
+  const openScanner = useCallback(() => setIsQrScannerOpen(true), []);
 
   const openQrBusiness = (token: string, business: QrBusiness) => {
     setSelectedSalon(business);
@@ -295,7 +300,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button type="button" onClick={() => setIsQrScannerOpen(true)} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
+                <button type="button" onClick={openScanner} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
                   <QrCode className="h-[18px] w-[18px]" />
                 </button>
                 <WalletButton />
@@ -481,7 +486,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       {currentScreen === 'home' && !isQrScannerOpen && (
-        <StickyScanQrButton scrollRef={homeScrollRef} onScan={() => setIsQrScannerOpen(true)} />
+        <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} />
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
