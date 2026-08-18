@@ -269,7 +269,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           </b>
                           {item.isUser && (
                             <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                              App User
+                              {item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
                             </span>
                           )}
                           {item.phone && (
@@ -434,7 +434,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
                       {item.isUser && (
                         <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                          App User
+                          {item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
                         </span>
                       )}
                     </div>

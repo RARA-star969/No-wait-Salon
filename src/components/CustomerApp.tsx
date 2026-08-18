@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Scissors,
   MapPin,
@@ -19,6 +19,7 @@ import {
   Sparkles,
   Star,
   LocateFixed,
+  QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
@@ -28,6 +29,8 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
+import { QrScannerModal } from './QrScannerModal';
+import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 
@@ -55,6 +58,8 @@ interface CustomerAppProps {
   onProfileLogin: () => void;
   onProfileSaved: (profile: CustomerProfile) => void;
   onProfileLogout: () => void;
+  onQrContextChange: (token: string | null) => void;
+  queueError: string;
 }
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({
@@ -81,6 +86,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onProfileLogin,
   onProfileSaved,
   onProfileLogout,
+  onQrContextChange,
+  queueError,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
@@ -89,6 +96,26 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(null);
   const [locationLabel, setLocationLabel] = useState('');
   const [salonSearch, setSalonSearch] = useState('');
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+
+  const openQrBusiness = (token: string, business: QrBusiness) => {
+    setSelectedSalon(business);
+    setSelectedService(business.services[0]?.name || '');
+    setNearbySalons((current) => current?.some((salon) => salon.id === business.id) ? current : [business, ...(current || [])]);
+    onQrContextChange(token);
+    setScreen('salon');
+    setIsQrScannerOpen(false);
+  };
+
+  useEffect(() => {
+    const token = businessQrToken(window.location.href);
+    if (!token) return;
+    let disposed = false;
+    businessQrService.resolve(token).then(({business}) => {
+      if (!disposed) openQrBusiness(token, business);
+    }).catch(() => { if (!disposed) setIsQrScannerOpen(true); });
+    return () => { disposed = true; };
+  }, []);
 
   const completeOnboarding = () => {
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
@@ -181,6 +208,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                <button type="button" onClick={() => setIsQrScannerOpen(true)} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
+                  <QrCode className="h-[18px] w-[18px]" />
+                </button>
                 <WalletButton />
                 <ProfileButton onClick={() => setScreen('profile')} />
               </div>
@@ -277,6 +307,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     id={`salon-item-${salon.id}`}
                     onClick={() => {
                       setSelectedSalon(salon);
+                      onQrContextChange(null);
                       setScreen('salon');
                     }}
                     className={`group w-full overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 ${
@@ -335,6 +366,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       {currentScreen === 'salon' && (
+        <div className="relative min-h-full">
+        {queueError && <div role="alert" className="absolute left-4 right-4 top-4 z-20 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{queueError}</div>}
         <SalonDetailPage
           salon={selectedSalon}
           nearbySalons={nearbySalons}
@@ -347,7 +380,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           onReserve={() => setScreen('slots')}
           userEntry={userEntry}
         />
+        </div>
       )}
+
+      <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
 
       {/* Legacy salon layout retained temporarily for parity checks; it is not rendered. */}
       {false && currentScreen === 'salon' && (

@@ -7,6 +7,8 @@ import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from
 import { INITIAL_BARBERS, INITIAL_QUEUE, SALONS } from '../src/data/mockData.ts';
 import type { Barber, QueueItem, Salon } from '../src/types.ts';
 import {initPostgresPersistence} from './postgresPersistence.ts';
+import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
+import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
 
 type SalonState = {
   salonId: string;
@@ -280,6 +282,7 @@ db.exec(`
     service TEXT NOT NULL,
     status TEXT NOT NULL,
     reserved_for TEXT,
+    source TEXT NOT NULL DEFAULT 'customer_app',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY(customer_id) REFERENCES customer_account(id)
@@ -287,8 +290,29 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS customer_booking_customer_idx ON customer_booking(customer_id, created_at DESC);
 `);
 
+const customerBookingColumns = new Set((db.prepare('PRAGMA table_info(customer_booking)').all() as Array<{ name: string }>).map((column) => column.name));
+if (!customerBookingColumns.has('source')) db.exec("ALTER TABLE customer_booking ADD COLUMN source TEXT NOT NULL DEFAULT 'customer_app'");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS business_qr (
+    id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    business_type TEXT NOT NULL,
+    public_token TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL DEFAULT 'active',
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    revoked_at INTEGER
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS business_qr_active_business_idx ON business_qr(business_id,business_type) WHERE status = 'active';
+  CREATE INDEX IF NOT EXISTS business_qr_token_status_idx ON business_qr(public_token,status);
+`);
+
 const postgresPersistence=await initPostgresPersistence(db,dataDir);
 if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from ${postgresPersistence.source}. SQLite safety backup: ${postgresPersistence.backupPath}`);
+const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
+(db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
+if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
 
 const app = express();
 app.disable('x-powered-by');
@@ -318,7 +342,7 @@ app.use((_request, response, next) => {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'no-referrer',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=(self)',
   });
   next();
 });
@@ -411,10 +435,10 @@ function upsertBooking(salonId: string, item: QueueItem) {
   if (!customerExists) return;
   const now = Date.now();
   db.prepare(`
-    INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(queue_entry_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
-  `).run(randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null, item.createdAt, now);
+    INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(queue_entry_id) DO UPDATE SET status = excluded.status, source = excluded.source, updated_at = excluded.updated_at
+  `).run(randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null, item.source || 'customer_app', item.createdAt, now);
 }
 
 function seedState(salonId: string): SalonState {
@@ -485,12 +509,12 @@ function applyCommand(state: SalonState, command: QueueCommand) {
   if (command.type === 'join') {
     if (!command.item.sessionId) throw new Error('Customer session is required.');
     if (state.queue.some((item) => item.sessionId === command.item.sessionId)) throw new Error('You already have an active booking at this salon.');
-    state.queue.push({ ...command.item, id: randomUUID(), createdAt: Date.now() });
+    state.queue.push({ ...command.item, source: command.item.source || 'customer_app', id: randomUUID(), createdAt: Date.now() });
     return state;
   }
 
   if (command.type === 'add_walkin') {
-    const item = { ...command.item, id: randomUUID(), createdAt: Date.now(), isUser: false };
+    const item = { ...command.item, source: command.item.source || 'staff_walk_in' as const, id: randomUUID(), createdAt: Date.now(), isUser: false };
     if (command.startImmediately) {
       const barberIndex = findAvailableBarber(state, command.preferredBarberId);
       if (barberIndex < 0) throw new Error('No barber is currently available.');
@@ -653,6 +677,35 @@ app.get('/api/admin/salons/:id', requireAdmin, (request, response) => {
   response.json({ salon });
 });
 
+function qrPayload(request:express.Request,qr:BusinessQrRow,businessName:string){
+  const configuredBase=String(process.env.PUBLIC_CUSTOMER_URL||'').replace(/\/$/,'');
+  const base=configuredBase||`${request.protocol}://${request.get('host')}`;
+  const publicUrl=`${base}/q/${encodeURIComponent(qr.public_token)}`;
+  return{id:qr.id,businessId:qr.business_id,businessType:qr.business_type,businessName,publicToken:qr.public_token,status:qr.status,version:qr.version,createdAt:qr.created_at,updatedAt:qr.updated_at,publicUrl,previewImageUrl:qrSvgDataUrl(publicUrl),downloadImageUrl:qrPngDataUrl(publicUrl)};
+}
+
+app.get('/api/admin/businesses/:businessId/qr',requireAdmin,(request,response)=>{
+  const salon=db.prepare('SELECT id,name FROM salon WHERE id=?').get(request.params.businessId) as {id:string;name:string}|undefined;
+  if(!salon)return response.status(404).json({error:'Business not found.'});
+  const qr=ensureBusinessQr(db,salon.id,'salon');
+  response.set('Cache-Control','no-store');
+  response.json({qr:qrPayload(request,qr,salon.name)});
+});
+
+app.post('/api/admin/businesses/:businessId/qr/regenerate',requireAdmin,async(request,response)=>{
+  const salon=db.prepare('SELECT id,name FROM salon WHERE id=?').get(request.params.businessId) as {id:string;name:string}|undefined;
+  if(!salon)return response.status(404).json({error:'Business not found.'});
+  const now=Date.now();
+  try{
+    db.exec('BEGIN IMMEDIATE');
+    db.prepare("UPDATE business_qr SET status='revoked',revoked_at=?,updated_at=? WHERE business_id=? AND business_type='salon' AND status='active'").run(now,now,salon.id);
+    const qr=ensureBusinessQr(db,salon.id,'salon');
+    db.exec('COMMIT');
+    await postgresPersistence?.flushNow(['business_qr']);
+    response.status(201).json({qr:qrPayload(request,qr,salon.name)});
+  }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to replace this QR right now. Please try again.'})}
+});
+
 app.post('/api/admin/salons', requireAdmin, async (request, response) => {
   try {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
@@ -664,8 +717,8 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
       VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
         cleanText(body.category,100),cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now);
-    saveSalonRelations(id, body, now); db.exec('COMMIT');
-    await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media']);
+    saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
+    await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
     response.status(201).json({ salon: adminSalonDetail(id) });
   } catch (error) { try { db.exec('ROLLBACK'); } catch {} response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create salon.' }); }
 });
@@ -688,7 +741,7 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
 app.patch('/api/admin/salons/:id/status', requireAdmin, async (request,response) => {
   const status=cleanText(request.body?.status,20); if(!['draft','active','inactive','suspended'].includes(status)) return response.status(400).json({error:'Invalid salon status.'});
   const result=db.prepare('UPDATE salon SET platform_status=?, updated_at=? WHERE id=?').run(status,Date.now(),request.params.id);
-  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); await postgresPersistence?.flushNow(['salon']); response.json({ok:true,status});
+  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); if(status==='active')ensureBusinessQr(db,request.params.id,'salon'); await postgresPersistence?.flushNow(['salon','business_qr']); response.json({ok:true,status});
 });
 
 app.post('/api/admin/media/upload', requireAdmin, (request,response) => {
@@ -705,6 +758,54 @@ app.get('/api/health', (_request, response) => {
   db.prepare('SELECT 1').get();
   response.set('Cache-Control', 'no-store');
   response.json({ ok: true, timestamp: Date.now() });
+});
+
+const qrJoinAttempts=new Map<string,{count:number;resetAt:number}>();
+function resolvedBusinessQr(token:string){
+  const qr=findActiveBusinessQr(db,token);
+  if(!qr||qr.business_type!=='salon')return undefined;
+  const salonRow=db.prepare("SELECT * FROM salon WHERE id=? AND onboarded=1 AND platform_status='active'").get(qr.business_id) as SalonRow|undefined;
+  if(!salonRow)return undefined;
+  return{qr,salonRow,salon:rowToSalon(salonRow)};
+}
+
+app.get('/api/business-qr/:token',(request,response)=>{
+  const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
+  if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
+  const state=readState(resolved.salon.id);
+  const waitingCustomers=state.queue.filter(item=>['Waiting','Called'].includes(item.status)).length;
+  const activeBarbers=state.barbers.filter(barber=>barber.status!=='unavailable').length;
+  const liveWaitMinutes=activeBarbers?Math.max(0,Math.ceil(waitingCustomers*15/activeBarbers)):0;
+  response.set('Cache-Control','no-store');
+  response.json({business:{...resolved.salon,businessType:resolved.qr.business_type,qrStatus:resolved.qr.status,liveWaitMinutes,waitingCustomers,queueAccepting:resolved.salon.isOpen&&activeBarbers>0}});
+});
+
+app.post('/api/business-qr/:token/join',requireCustomer,async(request:AuthenticatedRequest,response)=>{
+  const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
+  if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
+  if(!resolved.salon.isOpen)return response.status(409).json({error:'This business is not accepting queue entries right now.',code:'QUEUE_CLOSED'});
+  const serviceId=cleanText(request.body?.serviceId,120);
+  const service=db.prepare('SELECT id,name,duration_min FROM salon_service WHERE id=? AND salon_id=? AND active=1').get(serviceId,resolved.salon.id) as {id:string;name:string;duration_min:number}|undefined;
+  if(!service)return response.status(400).json({error:'Please choose an available service.',code:'SERVICE_UNAVAILABLE'});
+  const sessionId=cleanText(request.body?.sessionId,160);
+  if(!sessionId)return response.status(400).json({error:'Unable to continue this scan. Please scan again.',code:'INVALID_SCAN_SESSION'});
+  const current=readState(resolved.salon.id);
+  const existing=current.queue.find(item=>item.customerId===request.customerId);
+  if(existing)return response.json({joined:false,reason:'already_in_queue',entry:existing,state:current});
+  const rateKey=`${request.customerId}:${resolved.qr.id}`;const now=Date.now();const attempt=qrJoinAttempts.get(rateKey);
+  if(attempt&&attempt.resetAt>now&&attempt.count>=6)return response.status(429).json({error:'Too many attempts. Please wait a moment and try again.',code:'RATE_LIMITED'});
+  qrJoinAttempts.set(rateKey,{count:attempt&&attempt.resetAt>now?attempt.count+1:1,resetAt:attempt&&attempt.resetAt>now?attempt.resetAt:now+60_000});
+  const profile=readCustomerProfile(request.customerId!);
+  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:'qr_walk_in'};
+  try{
+    db.exec('BEGIN IMMEDIATE');
+    const latest=readState(resolved.salon.id);
+    const duplicate=latest.queue.find(entry=>entry.customerId===request.customerId);
+    if(duplicate){db.exec('ROLLBACK');return response.json({joined:false,reason:'already_in_queue',entry:duplicate,state:latest})}
+    latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);db.exec('COMMIT');publish(latest);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state']);
+    response.status(201).json({joined:true,entry:item,state:latest});
+  }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to join this queue right now. Please try again.',code:'QUEUE_JOIN_FAILED'})}
 });
 
 const toRadians = (degrees: number) => degrees * Math.PI / 180;

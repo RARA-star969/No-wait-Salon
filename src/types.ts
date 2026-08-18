@@ -15,6 +15,7 @@ export interface QueueItem {
   estimatedDurationMin?: number;
   sessionId?: string;
   customerId?: string;
+  source?: 'customer_app' | 'qr_walk_in' | 'staff_walk_in' | 'appointment';
 }
 
 export interface CustomerProfile {
@@ -127,4 +128,5 @@ export interface OtpAction {
   type: 'join' | 'slot' | 'profile';
   slot?: string;
   serviceName?: string;
+  qrToken?: string;
 }

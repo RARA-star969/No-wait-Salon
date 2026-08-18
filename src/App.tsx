@@ -14,6 +14,7 @@ import {
 } from './services/notificationService';
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
+import { businessQrService } from './services/businessQrService';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
@@ -27,7 +28,9 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
-  const [viewMode, setViewMode] = useState<ViewMode>(PACKAGED_MODE || 'split');
+  const isQrRoute = /^\/q\/[^/]+\/?$/.test(window.location.pathname);
+  const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || 'split');
+  const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
 
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
@@ -288,12 +291,27 @@ export default function App() {
     });
   };
 
+  const joinQrQueue = async (token: string) => {
+    const service = selectedSalon.services.find((item) => item.name === selectedService);
+    if (!service) { setQueueAlert('Please select an available service.'); return false; }
+    try {
+      const result = await businessQrService.join(token, service.id, customerSessionId.current);
+      applySnapshot(result.state);
+      setCurrentScreen('tracking');
+      return true;
+    } catch (error) {
+      setQueueAlert(error instanceof Error ? error.message : 'Unable to join this queue.');
+      return false;
+    }
+  };
+
   const handleJoinClick = () => {
     if (userEntry) {
       setCurrentScreen('tracking');
       return;
     }
-    setPendingOtpAction({ type: 'join', serviceName: selectedService });
+    if (activeQrToken && customerAuth) { void joinQrQueue(activeQrToken); return; }
+    setPendingOtpAction({ type: 'join', serviceName: selectedService, qrToken: activeQrToken || undefined });
     setIsOtpOpen(true);
   };
 
@@ -315,6 +333,14 @@ export default function App() {
       setIsOtpOpen(false);
       setPendingOtpAction(null);
       setCurrentScreen('profile');
+      return;
+    }
+    if (action.qrToken) {
+      const joined = await joinQrQueue(action.qrToken);
+      if (!joined) return;
+      setIsOtpOpen(false);
+      setPendingOtpAction(null);
+      triggerPushNotification(`🎟️ ${selectedSalon.name}: Live Ticket Confirmed`, `You've joined the queue for ${action.serviceName}. We'll notify you before your turn!`, 'confirmed');
       return;
     }
     const snapshot = await runCommand({
@@ -380,7 +406,7 @@ export default function App() {
     <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
         {/* Top Header */}
-        {PACKAGED_MODE !== 'customer' && (
+        {PACKAGED_MODE !== 'customer' && !isQrRoute && (
           <Header
             viewMode={viewMode}
             setViewMode={setViewMode}
@@ -408,7 +434,7 @@ export default function App() {
               className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
             >
               {/* Development workspace chrome is hidden in the customer app. */}
-              {PACKAGED_MODE !== 'customer' && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
+              {PACKAGED_MODE !== 'customer' && !isQrRoute && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
                 <div className="flex items-center gap-2.5">
                   <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
                   <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
@@ -457,6 +483,8 @@ export default function App() {
                     try { await customerAccountService.logout(); } catch { /* local logout still completes */ }
                     saveCustomerAuth(null); setCustomerAuth(null); setCustomerProfile(null); setCurrentScreen('home');
                   }}
+                  onQrContextChange={setActiveQrToken}
+                  queueError={queueAlert}
                 />
               </div>
             </section>

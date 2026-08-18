@@ -37,6 +37,25 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS customer_booking_salon_idx ON customer_booking(salon_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS customer_booking_status_idx ON customer_booking(status,updated_at DESC);
   `
+},{
+  version:2,
+  name:'universal_business_qr',
+  sql:`
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'customer_app';
+    CREATE TABLE IF NOT EXISTS business_qr (
+      id TEXT PRIMARY KEY,
+      business_id TEXT NOT NULL,
+      business_type TEXT NOT NULL,
+      public_token TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      revoked_at BIGINT
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS business_qr_active_business_idx ON business_qr(business_id,business_type) WHERE status = 'active';
+    CREATE INDEX IF NOT EXISTS business_qr_token_status_idx ON business_qr(public_token,status);
+  `
 }];
 
 export async function runMigrations(db:Database){
