@@ -3,9 +3,17 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+// The packaged Android bundles are loaded from the Capacitor WebView rather
+// than a web server, so they need relative asset paths. Web deployments must
+// use an absolute base: with './' a nested route such as /q/<token> resolves
+// assets to /q/assets/..., which the SPA fallback answers with index.html, so
+// the browser gets HTML where JavaScript was expected and renders a blank page.
+const isCapacitorBundle =
+  process.env.VITE_APP_MODE === 'customer' || process.env.VITE_APP_MODE === 'staff';
+
 export default defineConfig(() => {
   return {
-    base: './',
+    base: isCapacitorBundle ? './' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
