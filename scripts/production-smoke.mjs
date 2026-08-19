@@ -1,6 +1,7 @@
 /**
- * Post-deploy smoke test, run against the REAL production service from CI
- * (the only place with network access to it).
+ * Post-deploy smoke test, run from CI against a deployed service (the only
+ * place with network access to it). Works for production and for the isolated
+ * test service alike — the host is a parameter.
  *
  * Read-only by default. Pass --with-booking to additionally run one full
  * booking round-trip through the live queue; the script cancels whatever it
@@ -37,12 +38,12 @@ const get = async (path, init) => {
 /* ------------------------------- health -------------------------------- */
 
 const health = await get('/api/health');
-check('production API answers /api/health', health.status === 200 && health.body.ok === true, `status ${health.status}`);
+check('the service answers /api/health', health.status === 200 && health.body.ok === true, `status ${health.status}`);
 console.log(`      deployed commit: ${health.body.commit || 'not reported'} | datastore: ${health.body.database || 'unknown'}`);
 if (commitToMatch) {
   const live = String(health.body.commit || '');
   check(
-    'production is running the expected commit',
+    'the service is running the expected commit',
     Boolean(live) && (live.startsWith(commitToMatch.slice(0, 12)) || commitToMatch.startsWith(live.slice(0, 12))),
     `expected ${commitToMatch.slice(0, 12)}, live ${live.slice(0, 12) || 'unknown'}`,
   );
@@ -119,7 +120,7 @@ if (withBooking && salonId) {
     item: { name: 'Release smoke test', service: 'Haircut', status: 'Waiting', sessionId, source: 'customer_app' },
   });
   const entry = joined.body.queue?.find((item) => item.sessionId === sessionId);
-  check('a booking can be created on production', joined.status === 200 && Boolean(entry));
+  check('a booking can be created', joined.status === 200 && Boolean(entry));
 
   if (entry) {
     const called = await post({ type: 'queue_action', itemId: entry.id, action: 'Call' });
@@ -136,5 +137,5 @@ if (withBooking && salonId) {
   }
 }
 
-console.log(`\n${failures === 0 ? 'ALL PRODUCTION SMOKE CHECKS PASSED' : `${failures} PRODUCTION SMOKE CHECK(S) FAILED`}`);
+console.log(`\n${failures === 0 ? 'ALL SMOKE CHECKS PASSED' : `${failures} SMOKE CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);
