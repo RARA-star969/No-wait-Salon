@@ -433,3 +433,86 @@ test('admin routes reject an unauthenticated caller', async () => {
   assert.equal((await api('GET', '/api/admin/salons')).status, 401);
   assert.equal((await api('GET', '/api/admin/summary', undefined, 'not-a-token')).status, 401);
 });
+
+/* ============= Stylist selection and source attribution regression ======== */
+
+test('a stylist chosen at join is preserved and honoured when the chair is given', async () => {
+  const staff = await new Stream('salon-1').open();
+  const session = `stylist-${Date.now()}`;
+  try {
+    const roster = (await state('salon-1')).barbers;
+    const wanted = roster[1];
+    assert.ok(wanted, 'the salon has more than one stylist to choose between');
+
+    await command('salon-1', {
+      type: 'join',
+      item: {
+        name: 'Stylist Picker', service: 'Haircut', status: 'Waiting',
+        sessionId: session, source: 'customer_app', preferredBarberId: wanted.id,
+      },
+    });
+
+    const arrived = await staff.until((snapshot) => Boolean(find(snapshot, session)), 'stylist booking');
+    const entry = find(arrived, session)!;
+    assert.equal(entry.preferredBarberId, wanted.id, 'the preference is stored on the booking');
+    assert.equal(entry.barberName, wanted.name, 'and is shown to staff');
+
+    // The chair is only bound at Call time, and it must be the requested one.
+    const called = await command('salon-1', { type: 'queue_action', itemId: entry.id, action: 'Call' });
+    const seated = find(called.body as SalonSnapshot, session)!;
+    assert.equal(seated.barberName, wanted.name, 'the requested stylist takes the customer');
+
+    await command('salon-1', { type: 'cancel_customer', sessionId: session, reasonCode: 'other' });
+  } finally {
+    staff.close();
+  }
+});
+
+test('an unknown stylist id never fails the join, it falls back to any available', async () => {
+  const session = `stylist-bogus-${Date.now()}`;
+  const response = await command('salon-1', {
+    type: 'join',
+    item: {
+      name: 'Bogus Stylist', service: 'Haircut', status: 'Waiting',
+      sessionId: session, source: 'customer_app', preferredBarberId: 'no-such-barber',
+    },
+  });
+  assert.equal(response.status, 200, 'a stale client cannot be locked out of the queue');
+  const entry = find(response.body as SalonSnapshot, session)!;
+  assert.equal(entry.preferredBarberId, undefined, 'the bad preference is dropped rather than stored');
+  await command('salon-1', { type: 'cancel_customer', sessionId: session, reasonCode: 'other' });
+});
+
+test('app and web bookings stay distinct and correctly ordered on one dashboard', async () => {
+  const staff = await new Stream('salon-1').open();
+  const appSession = `mix-app-${Date.now()}`;
+  const webSession = `mix-web-${Date.now()}`;
+  try {
+    await command('salon-1', {
+      type: 'join',
+      item: { name: 'From App', service: 'Haircut', status: 'Waiting', sessionId: appSession, source: 'customer_app' },
+    });
+    await command('salon-1', {
+      type: 'join',
+      item: { name: 'From Web QR', service: 'Haircut', status: 'Waiting', sessionId: webSession, source: 'qr_web' },
+    });
+
+    const snapshot = await staff.until((current) => Boolean(find(current, webSession)), 'both bookings');
+    const fromApp = find(snapshot, appSession)!;
+    const fromWeb = find(snapshot, webSession)!;
+    assert.equal(fromApp.source, 'customer_app');
+    assert.equal(fromWeb.source, 'qr_web');
+    assert.ok(fromApp.createdAt <= fromWeb.createdAt, 'the app booking holds the earlier place');
+
+    // Acting on one must never touch the other.
+    await command('salon-1', { type: 'queue_action', itemId: fromApp.id, action: 'Call' });
+    const afterCall = await staff.until((current) => find(current, appSession)?.status === 'Called', 'call reaches the right customer');
+    assert.equal(find(afterCall, webSession)!.status, 'Waiting', 'the web customer is untouched');
+
+    for (const session of [appSession, webSession]) {
+      await command('salon-1', { type: 'cancel_customer', sessionId: session, reasonCode: 'other' });
+    }
+  } finally {
+    staff.close();
+  }
+});

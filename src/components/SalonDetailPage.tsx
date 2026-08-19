@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Users, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronRight, Clock3, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Users, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
 import { toSalonProfile, waitLabel as sharedWaitLabel } from '../shared/salonProfile';
+import {
+  SalonAbout,
+  SalonGallery,
+  SalonLocationHours,
+  SalonServiceMenu,
+  SalonOffers,
+  SalonStylists,
+} from './SalonSections';
 
 type Props = {
   salon: Salon;
@@ -28,7 +36,6 @@ const serviceCategory = (name: string) => {
 export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, onBack, onJoin, onReserve, userEntry }) => {
   const [saved, setSaved] = useState(false);
   const [visited, setVisited] = useState(false);
-  const [aboutExpanded, setAboutExpanded] = useState(false);
   const [payBillOpen, setPayBillOpen] = useState(false);
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
@@ -100,17 +107,26 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
         </section>
 
-        {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
+        {/* Shared with the public QR web page. Both render these sections from
+            the same salon profile, so an Admin edit lands identically on each
+            and neither can drift in layout or hierarchy. */}
+        <SalonOffers profile={profile} />
 
-        <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]"><Scissors className="h-4 w-4" /></span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
+        <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#salon-service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]"><Scissors className="h-4 w-4" /></span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
 
-        <section id="service-menu"><SectionTitle eyebrow="Choose your service" title="Service menu" secondary="Select one service" /><div className="space-y-2.5">{profile.services.map((service) => { const active = service.name === selectedService; return <button key={service.id} id={`service-opt-${service.id}`} onClick={() => setSelectedService(service.name)} className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95]' : 'border-[#E0E7E6]'}`}><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{service.durationMin} min</span></span><span className="self-start text-sm font-bold">₹{service.priceInr}</span></button>; })}</div></section>
+        <SalonServiceMenu
+          profile={profile}
+          selectedServiceName={selectedService}
+          onSelect={(_id, name) => setSelectedService(name)}
+        />
 
-        {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
+        <SalonStylists barbers={barbers} />
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#0F766E]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
+        <SalonGallery profile={profile} />
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
+        <SalonAbout profile={profile} />
+
+        <SalonLocationHours profile={profile} />
 
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>

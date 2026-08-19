@@ -14,12 +14,24 @@ import {
   Star,
   Users,
 } from 'lucide-react';
-import type { CustomerAuthSession, QueueItem } from '../types';
+import type { Barber, CustomerAuthSession, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../services/customerAccountService';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
+import { LiveTicket } from './LiveTicket';
+import { workingChairs } from '../shared/liveTicket';
+import {
+  SalonAbout,
+  SalonGallery,
+  SalonIdentity,
+  SalonLiveQueue,
+  SalonLocationHours,
+  SalonServiceMenu,
+  SalonOffers,
+  SalonStylists,
+} from './SalonSections';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
 import {
   fireTurnAlert,
@@ -73,7 +85,9 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [error, setError] = useState('');
   const [entry, setEntry] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [barbersActive, setBarbersActive] = useState(1);
+  // Full roster, not just a count: the shared live ticket derives waits and
+  // chair availability from the same barber data the app uses.
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [showTurnPopup, setShowTurnPopup] = useState(false);
   const [notifyState, setNotifyState] = useState(notificationPermission());
   const [now, setNow] = useState(() => Date.now());
@@ -102,9 +116,9 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   // Live queue for this salon only, over the existing SSE stream.
   useEffect(() => {
     if (!business) return;
-    const apply = (state: { queue: QueueItem[]; barbers?: Array<{ status: string }>; completedList?: QueueItem[] }) => {
+    const apply = (state: { queue: QueueItem[]; barbers?: Barber[]; completedList?: QueueItem[] }) => {
       setQueue(state.queue);
-      if (state.barbers) setBarbersActive(state.barbers.filter((b) => b.status !== 'unavailable').length || 1);
+      if (state.barbers) setBarbers(state.barbers);
       setEntry((current) => {
         if (!current) return current;
         // Complete moves the entry out of `queue` and into `completedList`, so
@@ -148,9 +162,9 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   const estimatedWait = useMemo(() => {
     if (peopleAhead === 0) return 'Ready now';
-    const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / Math.max(1, barbersActive)));
+    const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / workingChairs(barbers)));
     return `${Math.max(5, minutes - 5)}–${minutes + 5} min`;
-  }, [peopleAhead, barbersActive]);
+  }, [peopleAhead, barbers]);
 
   const acknowledgeTurn = () => {
     setShowTurnPopup(false);
@@ -357,43 +371,10 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           </div>
         </header>
 
-        {/* Identity card overlapping the hero keeps the fold tight. */}
+        {/* Identity card overlapping the hero keeps the fold tight. Shared
+            with the Customer app salon screen. */}
         <div className="-mt-10 px-4">
-          <div className="rounded-3xl border border-[#E2EAE9] bg-white p-4 shadow-[0_8px_24px_-12px_rgba(15,32,31,0.18)]">
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#E5F3F1] ring-1 ring-[#D3E7E4]">
-                {profile.logoImageUrl ? (
-                  <img src={profile.logoImageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Scissors className="h-5 w-5 text-[#0F766E]" />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-[19px] font-bold leading-tight tracking-[-0.02em]">{profile.name}</h1>
-                {profile.category && <p className="mt-0.5 truncate text-[11px] font-semibold text-[#0F766E]">{profile.category}</p>}
-                <p className="mt-1 flex items-start gap-1.5 text-xs leading-5 text-[#667371]">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span className="line-clamp-2">{profile.address}</span>
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                {profile.rating > 0 && (
-                  <span className="flex items-center gap-1 rounded-lg bg-[#FFF8EC] px-2 py-1 text-xs font-bold text-[#8A6516]">
-                    <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
-                    {profile.rating}
-                    {profile.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({profile.reviewCount})</span>}
-                  </span>
-                )}
-                <span
-                  className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                    profile.isOpen ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-[#F3F0EE] text-[#8A6A62]'
-                  }`}
-                >
-                  {profile.isOpen ? 'Open now' : 'Closed'}
-                </span>
-              </div>
-            </div>
-          </div>
+          <SalonIdentity profile={profile} />
         </div>
 
         <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-4">
@@ -409,107 +390,29 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
             </div>
           )}
 
-          {/* ---------------- Salon / service selection ---------------- */}
+          {/* ---------------- Salon / service selection ----------------
+              Rendered from the SAME shared sections the Customer app salon
+              screen uses, fed by the same salon record the Admin panel edits,
+              so the two pages match in content, hierarchy and spacing. */}
           {step === 'salon' && (
-            <>
-              {profile.offers.length > 0 && (
-                <div className="mt-5 rounded-2xl border border-[#F2E2C9] bg-[#FFFBF3] p-4">
-                  <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9A7327]">
-                    <Sparkles className="h-3.5 w-3.5" /> Offers
-                  </p>
-                  {profile.offers.map((offer) => (
-                    <div key={offer.id} className="mt-2">
-                      {offer.discount && <p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p>}
-                      <p className="text-sm font-semibold leading-5 text-[#5C4713]">{offer.title}</p>
-                      {offer.minimumBill && <p className="mt-0.5 text-[10px] text-[#9A7327]">Minimum bill {offer.minimumBill}</p>}
-                      {offer.validity && <p className="text-[10px] text-[#9A7327]">{offer.validity}</p>}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <h2 className="mt-6 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Choose a service</h2>
-              <div className="mt-3 space-y-2.5">
-                {services.map((service) => {
-                  const active = serviceId === service.id;
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      onClick={() => setServiceId(service.id)}
-                      aria-pressed={active}
-                      className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
-                        active
-                          ? 'border-[#0F766E] bg-[#F1FAF9] shadow-[0_4px_14px_-8px_rgba(15,118,110,0.5)]'
-                          : 'border-[#E2EAE9] bg-white'
-                      }`}
-                    >
-                      <span
-                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${
-                          active ? 'border-[#0F766E] bg-[#0F766E]' : 'border-[#CBD8D6]'
-                        }`}
-                      >
-                        {active && <Check className="h-3 w-3 text-white" />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-bold">{service.name}</span>
-                        {service.description && (
-                          <span className="mt-0.5 block text-[11px] leading-4 text-[#788582]">{service.description}</span>
-                        )}
-                        <span className="mt-0.5 flex items-center gap-1 text-xs text-[#667371]">
-                          <Clock className="h-3 w-3" /> {service.durationMin} min
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-[15px] font-bold">₹{service.priceInr}</span>
-                    </button>
-                  );
-                })}
-                {services.length === 0 && (
-                  <p className="rounded-2xl border border-[#E2EAE9] bg-white p-5 text-center text-xs text-[#788582]">No services listed yet.</p>
-                )}
-              </div>
-
-              <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">About</h2>
-              <div className="mt-2 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-                <p className="text-sm leading-6 text-[#4C5A58]">{profile.description}</p>
-                {profile.amenities.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {profile.amenities.map((amenity) => (
-                      <span key={amenity} className="rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">
-                        {amenity}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Location &amp; hours</h2>
-              <div className="mt-2 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-                <p className="text-sm leading-6 text-[#4C5A58]">{profile.address}</p>
-                {profile.openingHours && <p className="mt-1 text-xs font-semibold text-[#25302F]">{profile.openingHours}</p>}
-                <a
-                  href={profile.directionsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"
-                >
-                  <MapPin className="h-4 w-4" /> View directions
-                </a>
-              </div>
-
-              {profile.gallery.length > 0 && (
-                <>
-                  <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Inside the salon</h2>
-                  <div className="mt-2 flex snap-x gap-3 overflow-x-auto pb-1">
-                    {profile.gallery.map((item) => (
-                      <div key={item.id} className="aspect-[4/5] min-w-[150px] shrink-0 snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]">
-                        <img src={item.imageUrl} alt={item.label || profile.name} className="h-full w-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
+            <div className="mt-5 space-y-6">
+              <SalonLiveQueue
+                profile={profile}
+                peopleAhead={waiting}
+                openChairs={barbers.filter((barber) => barber.status === 'available').length}
+                workingChairs={workingChairs(barbers)}
+              />
+              <SalonOffers profile={profile} />
+              <SalonServiceMenu
+                profile={profile}
+                selectedServiceId={serviceId}
+                onSelect={(id) => setServiceId(id)}
+              />
+              <SalonStylists barbers={barbers} />
+              <SalonGallery profile={profile} />
+              <SalonAbout profile={profile} />
+              <SalonLocationHours profile={profile} />
+            </div>
           )}
 
           {/* ---------------- Auth + profile ---------------- */}
@@ -599,125 +502,22 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           {/* ---------------- Live queue status ---------------- */}
           {isQueued && entry && (
             <div className="mt-5">
-              <div
-                className={`rounded-3xl border p-5 text-center ${
-                  completed
-                    ? 'border-[#CBD8D6] bg-white'
-                    : entry.status === 'Called'
-                      ? 'border-[#F3C79A] bg-[#FFF6EA]'
-                      : 'border-[#B9DAD6] bg-[#EDF7F5]'
-                }`}
-              >
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white text-[#0F766E] ring-1 ring-[#D3E7E4]">
-                  {completed ? <CheckCircle2 className="h-6 w-6" /> : entry.status === 'Called' ? <BellRing className="h-6 w-6 text-[#B4761C]" /> : <Check className="h-6 w-6" />}
-                </div>
-                <h2 className="mt-3 text-[17px] font-bold">
-                  {cancelledByStaff
-                    ? 'The salon cancelled your booking'
-                    : cancelledByCustomer
-                      ? 'Booking cancelled'
-                      : completed
-                    ? 'Service complete'
-                    : noShow
-                      ? 'You missed your turn'
-                      : arrivalExpired
-                        ? 'Your arrival window has ended'
-                        : phase === 'called'
-                          ? acknowledged
-                            ? 'On your way'
-                            : "It's your turn"
-                          : inService
-                            ? 'In service'
-                            : "You're in the queue"}
-                </h2>
-                <p className="mt-1 text-xs text-[#4F7F7A]">
-                  {business.name} · {entry.service}
-                </p>
+              {/* Shared with the Customer app: identical status hierarchy,
+                  position, countdown and actions from one view model. */}
+              <LiveTicket
+                surface="web"
+                entry={entry}
+                queue={queue}
+                barbers={barbers}
+                salonName={business.name}
+                now={now}
+                busy={busy}
+                onAcknowledge={acknowledgeTurn}
+                onCancel={() => setCancelOpen(true)}
+                onRejoin={rejoin}
+              />
 
-                {phase === 'called' && (
-                  <div className="mt-4 rounded-2xl bg-white p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8785]">
-                      {acknowledged ? 'Please reach the salon within' : 'Please arrive within'}
-                    </p>
-                    <p className="mt-1 text-3xl font-bold tabular-nums text-[#B4761C]">{countdown}</p>
-                    {(entry.callAttempt || 0) > 1 && (
-                      <p className="mt-1 text-[11px] font-semibold text-[#8A6516]">Call attempt {entry.callAttempt}</p>
-                    )}
-                  </div>
-                )}
-
-                {arrivalExpired && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
-                    Your booking is still waiting for salon action.
-                  </div>
-                )}
-
-                {noShow && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
-                    Your queue entry was closed because you could not reach the salon within the arrival window.
-                  </div>
-                )}
-
-                {!completed && !noShow && phase !== 'called' && (
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-left">
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Position</p>
-                      <p className="mt-0.5 text-base font-bold">{peopleAhead + 1}</p>
-                    </div>
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Ahead</p>
-                      <p className="mt-0.5 text-base font-bold">{peopleAhead}</p>
-                    </div>
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Status</p>
-                      <p className="mt-0.5 text-base font-bold">{inService ? 'In service' : 'Waiting'}</p>
-                    </div>
-                  </div>
-                )}
-
-                {cancelled && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
-                    {cancelledByStaff
-                      ? 'The salon could not keep this booking. You can join the queue again or call them.'
-                      : 'Your booking was cancelled and removed from the queue.'}
-                  </div>
-                )}
-
-                {(arrivalExpired || noShow || cancelled) && (
-                  <div className="mt-4 flex flex-col gap-2">
-                    {business.phoneNumber && (
-                      <a href={`tel:${business.phoneNumber}`} className="flex h-11 items-center justify-center rounded-xl border border-[#CDE3E0] bg-white text-sm font-bold text-[#0F766E]">
-                        Call salon
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => (arrivalExpired && !cancelled && !noShow ? void cancelBooking('changed_mind') : rejoin())}
-                      disabled={busy}
-                      className="flex h-11 items-center justify-center rounded-xl bg-[#0F766E] text-sm font-bold text-white disabled:opacity-60"
-                    >
-                      {noShow || cancelled ? 'Join queue again' : 'Leave this queue & join again'}
-                    </button>
-                  </div>
-                )}
-
-                {!completed && !noShow && !cancelled && (
-                  <>
-                    <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>
-                    {canCancel(entry.status) && (
-                      <button
-                        type="button"
-                        onClick={() => setCancelOpen(true)}
-                        className="mt-3 text-xs font-bold text-[#8A3E35] underline underline-offset-2"
-                      >
-                        Cancel booking
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Optional, never blocking. */}
+              {/* Web-only extras below. */}
               {!completed && notifyState === 'default' && (
                 <button
                   type="button"
@@ -728,7 +528,10 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 </button>
               )}
 
-              <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[#E2EAE9] bg-white p-4">
+              {/* App-download CTA is deliberately WEB ONLY. The installed
+                  Customer app must never render it, which is why it lives here
+                  and not inside the shared LiveTicket. */}
+              <div id="web-get-app-cta" className="mt-3 flex items-start gap-3 rounded-2xl border border-[#E2EAE9] bg-white p-4">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[#0F766E]">
                   <Smartphone className="h-5 w-5" />
                 </span>

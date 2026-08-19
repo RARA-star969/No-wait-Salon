@@ -1,9 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeFormat, BarcodeScanner, LensFacing } from '@capacitor-mlkit/barcode-scanning';
 import { CameraOff, Flashlight, LoaderCircle, QrCode, RefreshCw, Settings, X } from 'lucide-react';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
+import {
+  beginScannerSurface,
+  endScannerSurface,
+  hideNativePreview,
+  revealNativePreview,
+} from '../services/scannerSurface';
 
 type DetectorResult = { rawValue: string };
 type DetectorInstance = { detect: (source: HTMLVideoElement) => Promise<DetectorResult[]> };
@@ -68,7 +74,7 @@ export function QrScannerModal({
     streamRef.current = null;
     if (nativeRef.current) {
       nativeRef.current = false;
-      document.body.classList.remove('barcode-scanner-active');
+      hideNativePreview();
       void BarcodeScanner.stopScan().catch(() => undefined);
       void BarcodeScanner.removeAllListeners().catch(() => undefined);
     }
@@ -121,7 +127,7 @@ export function QrScannerModal({
     // Go transparent only once the native preview is actually running. The
     // opaque shell stays up until revealWhenReady() promotes the phase, so the
     // WebView is never see-through while Home is still painted underneath.
-    document.body.classList.add('barcode-scanner-active');
+    revealNativePreview();
     revealWhenReady();
     try {
       const { available } = await BarcodeScanner.isTorchAvailable();
@@ -199,22 +205,31 @@ export function QrScannerModal({
     stopRef.current = stop;
   }, [start, stop]);
 
-  // Phase 1: hide Home the instant the scanner opens, before any camera or
-  // WebView transparency work begins, so Home can never be composited through.
-  useEffect(() => {
+  // Home is already hidden by the entry point that opened us (see
+  // scannerSurface). Claiming it again here is idempotent and covers any entry
+  // point that forgets to, and useLayoutEffect guarantees it lands before the
+  // browser paints this commit rather than a frame later.
+  useLayoutEffect(() => {
     if (!open) return;
     openedAt.current = Date.now();
     setPhase('covering');
     setTorchOn(false);
     setTorchAvailable(false);
-    document.body.classList.add('scanner-open');
-    void startRef.current();
+    beginScannerSurface();
     return () => {
       if (revealTimer.current !== null) clearTimeout(revealTimer.current);
       if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-      document.body.classList.remove('scanner-open');
-      stopRef.current();
+      endScannerSurface();
     };
+  }, [open]);
+
+  // Camera work is deliberately separated from the surface swap above: it must
+  // not run until after the opaque shell has been committed, or the native
+  // preview can become visible while Home is still on screen.
+  useEffect(() => {
+    if (!open) return;
+    void startRef.current();
+    return () => stopRef.current();
   }, [open]);
 
   const toggleTorch = async () => {
@@ -232,8 +247,9 @@ export function QrScannerModal({
     // the screen back to Home under a fade instead of snapping to it.
     setPhase('closing');
     stop();
-    document.body.classList.remove('scanner-open');
     if (closeTimer.current !== null) clearTimeout(closeTimer.current);
+    // Home is handed back by the unmount cleanup, once the shell has faded, so
+    // there is no window where Home and the dying camera surface overlap.
     closeTimer.current = setTimeout(onClose, CLOSE_FADE_MS);
   };
 
@@ -242,12 +258,16 @@ export function QrScannerModal({
   const scanning = state === 'scanning';
   const shellOpaque = phase !== 'live';
 
+  // No inbound opacity transition anywhere on the shell: a freshly inserted
+  // element that carries one can composite a translucent first frame, which
+  // reads on device as a flash of Home behind the scanner. The fade is applied
+  // only while closing.
   return createPortal(
     <div
       id="qr-scanner-modal"
       data-phase={phase}
-      className={`fixed inset-0 z-[80] flex flex-col text-white transition-opacity duration-200 ease-out ${
-        phase === 'closing' ? 'opacity-0' : 'opacity-100'
+      className={`fixed inset-0 z-[80] flex flex-col text-white ${
+        phase === 'closing' ? 'opacity-0 transition-opacity duration-200 ease-out' : 'opacity-100'
       }`}
     >
       {/* Opaque cover. Present at full opacity from the first frame so Home is
@@ -255,8 +275,8 @@ export function QrScannerModal({
       <div
         id="qr-scanner-cover"
         aria-hidden
-        className={`absolute inset-0 bg-[#070C0C] transition-opacity duration-200 ease-out ${
-          shellOpaque ? 'opacity-100' : 'opacity-0'
+        className={`absolute inset-0 bg-[#070C0C] ${
+          shellOpaque ? 'opacity-100' : 'opacity-0 transition-opacity duration-200 ease-out'
         }`}
       />
 
@@ -269,7 +289,7 @@ export function QrScannerModal({
       {/* Phase 2: dedicated transition screen while the camera spins up. */}
       {phase === 'covering' && (
         <div className="absolute inset-0 z-20 grid place-items-center bg-[#070C0C]">
-          <div className="animate-[qr-shell-in_220ms_ease-out] text-center">
+          <div className="text-center">
             <span className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-white/10 ring-1 ring-white/15">
               <QrCode className="h-8 w-8 animate-pulse text-[#2DD4BF]" />
             </span>

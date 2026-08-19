@@ -39,6 +39,8 @@ export interface QueueItem {
   estimatedDurationMin?: number;
   sessionId?: string;
   customerId?: string;
+  /** Stylist the customer asked for at join time. Empty means "any available". */
+  preferredBarberId?: string;
   source?: 'customer_app' | 'qr_walk_in' | 'qr_web' | 'staff_walk_in' | 'appointment';
 }
 
@@ -153,4 +155,8 @@ export interface OtpAction {
   slot?: string;
   serviceName?: string;
   qrToken?: string;
+  /** Stylist chosen before verification was required, replayed after it. */
+  preferredBarberId?: string;
+  /** Reopen the queue-join sheet once verification completes. */
+  resumeJoinSheet?: boolean;
 }

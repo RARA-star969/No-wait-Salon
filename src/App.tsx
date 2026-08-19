@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
 import { fetchSalonProfile } from './services/salonDiscoveryService';
+import { resolveJoinGate } from './shared/profileReadiness';
+import { QueueJoinSheet } from './components/QueueJoinSheet';
 import { Header } from './components/Header';
 import { CustomerApp } from './components/CustomerApp';
 import { PublicSalonPage } from './components/PublicSalonPage';
@@ -97,6 +99,12 @@ export default function App() {
   // OTP Modal State
   const [isOtpOpen, setIsOtpOpen] = useState(false);
   const [pendingOtpAction, setPendingOtpAction] = useState<OtpAction | null>(null);
+
+  // Queue-join sheet. Only ever shown to a customer we have already verified;
+  // anyone else is sent through verification first and returned here.
+  const [joinSheetOpen, setJoinSheetOpen] = useState(false);
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [joinError, setJoinError] = useState('');
 
   // Push Notifications State
   const [notifications, setNotifications] = useState<PushNotification[]>(() => {
@@ -359,11 +367,17 @@ export default function App() {
     });
   };
 
-  const joinQrQueue = async (token: string) => {
+  const joinQrQueue = async (token: string, preferredBarberId = '') => {
     const service = selectedSalon.services.find((item) => item.name === selectedService);
     if (!service) { setQueueAlert('Please select an available service.'); return false; }
     try {
-      const result = await businessQrService.join(token, service.id, customerSessionId.current);
+      const result = await businessQrService.join(
+        token,
+        service.id,
+        customerSessionId.current,
+        'qr_walk_in',
+        preferredBarberId || undefined,
+      );
       applySnapshot(result.state);
       setCurrentScreen('tracking');
       return true;
@@ -373,14 +387,85 @@ export default function App() {
     }
   };
 
+  /**
+   * Joining is a two-part decision: do we already know this customer, and if so
+   * show them what joining means before they commit. We only fall back to the
+   * verification/profile flow when something we genuinely need is missing, and
+   * we come straight back to the sheet afterwards.
+   */
   const handleJoinClick = () => {
     if (userEntry) {
       setCurrentScreen('tracking');
       return;
     }
-    if (activeQrToken && customerAuth) { void joinQrQueue(activeQrToken); return; }
-    setPendingOtpAction({ type: 'join', serviceName: selectedService, qrToken: activeQrToken || undefined });
+    const gate = resolveJoinGate(customerAuth, customerProfile, { profileLoading });
+    if (gate.kind === 'loading') return;
+
+    if (gate.kind === 'ready') {
+      setJoinError('');
+      setJoinSheetOpen(true);
+      return;
+    }
+
+    // Missing something. Ask once, remembering to resume the sheet after.
+    setPendingOtpAction({
+      type: 'join',
+      serviceName: selectedService,
+      qrToken: activeQrToken || undefined,
+      resumeJoinSheet: true,
+    });
     setIsOtpOpen(true);
+  };
+
+  /** Confirmed from the queue-join sheet by an already-verified customer. */
+  const handleConfirmJoin = async (preferredBarberId: string) => {
+    setJoinBusy(true);
+    setJoinError('');
+    try {
+      const joined = activeQrToken
+        ? await joinQrQueue(activeQrToken, preferredBarberId)
+        : await joinAppQueue(preferredBarberId);
+      if (!joined) return;
+      setJoinSheetOpen(false);
+      triggerPushNotification(
+        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
+        `You've joined the queue for ${selectedService}. We'll notify you before your turn!`,
+        'confirmed',
+      );
+    } finally {
+      setJoinBusy(false);
+    }
+  };
+
+  /** Direct (non-QR) join for a verified customer. */
+  const joinAppQueue = async (preferredBarberId: string): Promise<boolean> => {
+    const gate = resolveJoinGate(customerAuth, customerProfile);
+    if (gate.kind !== 'ready') {
+      setJoinError('Please finish verification before joining.');
+      return false;
+    }
+    const snapshot = await runCommand({
+      type: 'join',
+      item: {
+        id: '',
+        name: gate.name,
+        phone: gate.phone,
+        service: selectedService,
+        status: 'Waiting',
+        isUser: true,
+        sessionId: customerSessionId.current,
+        createdAt: Date.now(),
+        estimatedDurationMin: selectedSalon.services.find((item) => item.name === selectedService)?.durationMin || 30,
+        preferredBarberId: preferredBarberId || undefined,
+        source: 'customer_app',
+      },
+    });
+    if (!snapshot) {
+      setJoinError(queueAlert || 'Unable to join this queue right now.');
+      return false;
+    }
+    setCurrentScreen('tracking');
+    return true;
   };
 
   const handleSelectSlotClick = (slot: string) => {
@@ -403,6 +488,17 @@ export default function App() {
       setCurrentScreen('profile');
       return;
     }
+    // Verification was only ever a detour: hand the customer back to the
+    // queue-join sheet so they still choose a stylist and see the live queue,
+    // rather than being silently joined by the act of verifying.
+    if (action.resumeJoinSheet) {
+      setIsOtpOpen(false);
+      setPendingOtpAction(null);
+      setJoinError('');
+      setJoinSheetOpen(true);
+      return;
+    }
+
     if (action.qrToken) {
       const joined = await joinQrQueue(action.qrToken);
       if (!joined) return;
@@ -553,6 +649,9 @@ export default function App() {
                   onJoinClick={handleJoinClick}
                   onSelectSlotClick={handleSelectSlotClick}
                   onCancelQueue={handleCancelUserQueue}
+                  onAcknowledgeCall={() => {
+                    if (userEntry) void runCommand({ type: 'queue_action', itemId: userEntry.id, action: 'Acknowledge' });
+                  }}
                   permissionStatus={permissionStatus}
                   onRequestPermission={handleRequestPermission}
                   onTestPush={handleTestNotification}
@@ -659,6 +758,21 @@ export default function App() {
         }}
         pendingAction={pendingOtpAction}
         onVerifySuccess={handleOtpVerifySuccess}
+      />
+
+      {/* Queue-join sheet. Only reachable once we already hold a verified
+          mobile and the details we need, so it never asks for them again. */}
+      <QueueJoinSheet
+        open={joinSheetOpen}
+        salon={selectedSalon}
+        service={selectedSalon.services.find((item) => item.name === selectedService)}
+        barbers={barbers}
+        queue={queue}
+        busy={joinBusy}
+        error={joinError}
+        customerName={customerProfile?.name || undefined}
+        onClose={() => { setJoinSheetOpen(false); setJoinError(''); }}
+        onConfirm={(preferredBarberId) => void handleConfirmJoin(preferredBarberId)}
       />
     </div>
   );

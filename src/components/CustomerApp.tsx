@@ -31,6 +31,7 @@ import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from '
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { QrScannerModal } from './QrScannerModal';
+import { beginScannerSurface, endScannerSurface } from '../services/scannerSurface';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
 import {
@@ -42,6 +43,7 @@ import {
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
+import { LiveTicket } from './LiveTicket';
 import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
@@ -85,6 +87,8 @@ interface CustomerAppProps {
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
   onCancelQueue: (reason?: { code: string; text: string }) => void;
+  /** "I'm on my way" — records intent, never extends the salon's deadline. */
+  onAcknowledgeCall: () => void;
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
@@ -113,6 +117,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onJoinClick,
   onSelectSlotClick,
   onCancelQueue,
+  onAcknowledgeCall,
   permissionStatus,
   onRequestPermission,
   onTestPush,
@@ -153,10 +158,24 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return () => clearInterval(id);
   }, [countdownActive]);
 
-  // Single scanner controller shared by the header icon and the sticky CTA.
-  // Setting it while already open is a no-op, and once open the portal cover
-  // hides Home, so neither entry point can be tapped into a second mount.
-  const openScanner = useCallback(() => setIsQrScannerOpen(true), []);
+  // Single scanner controller shared by the header icon and the sticky CTA, so
+  // both entry points are identical by construction rather than by convention.
+  //
+  // Home is hidden HERE, synchronously inside the tap handler, before React is
+  // asked to render the scanner. Doing it in the modal's effect instead leaves
+  // one painted frame where Home is still on screen while the scanner surface
+  // comes up, which is the blink seen on device.
+  const openScanner = useCallback(() => {
+    beginScannerSurface();
+    setIsQrScannerOpen(true);
+  }, []);
+
+  // Pairs with the beginScannerSurface() above: the modal's own cleanup ends
+  // the surface it claimed on mount, and this ends the one the tap claimed.
+  const closeScanner = useCallback(() => {
+    setIsQrScannerOpen(false);
+    endScannerSurface();
+  }, []);
 
   // Stable identity: this is handed to the QR scanner, and a new closure each
   // render used to restart its camera.
@@ -167,6 +186,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     onQrContextChange(token);
     setScreen('salon');
     setIsQrScannerOpen(false);
+    // Releases the claim the tap took; the modal releases its own on unmount.
+    endScannerSurface();
   }, [onQrContextChange, setScreen, setSelectedSalon, setSelectedService]);
 
   useEffect(() => {
@@ -175,9 +196,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     let disposed = false;
     businessQrService.resolve(token).then(({business}) => {
       if (!disposed) openQrBusiness(token, business);
-    }).catch(() => { if (!disposed) setIsQrScannerOpen(true); });
+    }).catch(() => { if (!disposed) openScanner(); });
     return () => { disposed = true; };
-  }, []);
+  }, [openQrBusiness, openScanner]);
 
   const completeOnboarding = () => {
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
@@ -506,7 +527,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} />
       )}
 
-      <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+      <QrScannerModal open={isQrScannerOpen} onClose={closeScanner} onResolved={openQrBusiness} />
 
       <LocationSelectorSheet
         open={isChangingLocation}
@@ -739,122 +760,22 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </p>
           </div>
 
-          {/* Main Tracking Card in Natural Tones */}
-          <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
-            <div className="flex items-center gap-4">
-              <div
-                id="tracking-position-badge"
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 ${
-                  userEntry?.status === 'Called'
-                    ? 'bg-[#FAF0E6] text-[#A66020] border-2 border-[#A66020] animate-pulse'
-                    : userEntry?.status === 'Serving'
-                      ? 'bg-[#E7F5F2] text-[#0F766E] border-2 border-[#0F766E]'
-                      : userEntry?.status === 'Reserved'
-                        ? 'bg-[#0F766E]/10 text-[#0F766E]'
-                        : 'bg-[#0F766E] text-white'
-                }`}
-              >
-                {userEntry?.status === 'Reserved'
-                  ? '✓'
-                  : userEntry?.status === 'Called'
-                    ? '!'
-                    : userEntry?.status === 'Serving'
-                      ? '✂'
-                      : peopleAhead + 1}
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">
-                  {userEntry?.status === 'Reserved'
-                    ? 'RESERVED WINDOW'
-                    : userEntry?.status === 'Called'
-                      ? 'COUNTER READY'
-                      : userEntry?.status === 'Serving'
-                        ? 'IN SERVICE'
-                        : 'YOUR POSITION'}
-                </span>
-                <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
-                  {userEntry?.status === 'Reserved'
-                    ? `Reserved for ${userEntry.reservedFor}`
-                    : userEntry?.status === 'Called'
-                      ? 'Please arrive at salon'
-                      : userEntry?.status === 'Serving'
-                        ? `Chair: ${userEntry.barberName || 'Barber ready'}`
-                        : peopleAhead === 0
-                          ? 'You are next in line'
-                          : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} ahead`}
-                </b>
-              </div>
-            </div>
-
-            {/* Notice Box */}
-            <div
-              id="tracking-notice-box"
-              className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 ${
-                userEntry?.status === 'Called'
-                  ? 'bg-[#FAF0E6] text-[#A66020] border border-[#A66020]/30'
-                  : userEntry?.status === 'Serving'
-                    ? 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/30'
-                    : userEntry?.status === 'Reserved'
-                      ? 'bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]'
-                      : 'bg-[#F8FAFA] text-[#17201F] border border-[#E1E7E6]'
-              }`}
-            >
-              {userEntry?.status === 'Called' ? (
-                <AlertCircle className="w-4 h-4 text-[#A66020] shrink-0 mt-0.5" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-              )}
-              <div>
-                {userEntry?.status === 'Called' && (
-                  <span>
-                    <b>Barber {userEntry.barberName || 'Staff'} is ready!</b> Please step in within 10 minutes.
-                  </span>
-                )}
-                {userEntry?.status === 'Serving' && (
-                  <span>
-                    Currently in grooming chair with <b>{userEntry.barberName}</b>. Relax and enjoy your cut!
-                  </span>
-                )}
-                {userEntry?.status === 'Reserved' && (
-                  <span>
-                    Your slot at <b>{userEntry.reservedFor}</b> is held. We will update you with live notifications.
-                  </span>
-                )}
-                {(!userEntry || userEntry.status === 'Waiting') && (
-                  <span>
-                    {peopleAhead === 0
-                      ? 'You are next in line! Head over to the salon entrance now.'
-                      : "You're confirmed in live queue. Relax—we'll alert your mobile when it's your turn."}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Queue Details Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E1E7E6] text-xs">
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Estimated Wait
-                </span>
-                <span className="font-sans font-bold text-[#0F766E] text-base">
-                  {userEntry?.status === 'Called'
-                    ? 'Ready Now'
-                    : userEntry?.status === 'Serving'
-                      ? 'In Progress'
-                      : waitDisplay}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Active Barbers
-                </span>
-                <span className="font-bold text-[#17201F] text-sm mt-0.5 block">
-                  {activeBarbersCount} available
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Shared with the public QR web page: same view model, same status
+              hierarchy, position, countdown and actions. The app-download CTA
+              is web-only and is deliberately absent here. */}
+          {userEntry && (
+            <LiveTicket
+              surface="app"
+              entry={userEntry}
+              queue={queue}
+              barbers={barbers}
+              salonName={selectedSalon.name}
+              now={nowTick}
+              onAcknowledge={onAcknowledgeCall}
+              onCancel={() => setCancelSheetOpen(true)}
+              onRejoin={() => setScreen('salon')}
+            />
+          )}
 
           {/* Push Notifications Status & Alert Settings Card */}
           <div
