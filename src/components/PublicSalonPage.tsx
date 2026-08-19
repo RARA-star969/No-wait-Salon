@@ -18,6 +18,7 @@ import type { CustomerAuthSession, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../services/customerAccountService';
+import { callPhase, formatCountdown, remainingMs } from '../shared/queueTiming';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -73,6 +74,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [barbersActive, setBarbersActive] = useState(1);
   const [showTurnPopup, setShowTurnPopup] = useState(false);
   const [notifyState, setNotifyState] = useState(notificationPermission());
+  const [now, setNow] = useState(() => Date.now());
   const sessionId = useRef(webSessionId());
   const lastStatus = useRef<string | null>(null);
 
@@ -116,6 +118,12 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     return unsubscribe;
   }, [business]);
 
+  // One ticking clock drives the arrival countdown.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // Staff pressing Call Next flips this customer to "Called"; alert on the edge.
   useEffect(() => {
     if (!entry || !business) return;
@@ -140,6 +148,27 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / Math.max(1, barbersActive)));
     return `${Math.max(5, minutes - 5)}–${minutes + 5} min`;
   }, [peopleAhead, barbersActive]);
+
+  const acknowledgeTurn = () => {
+    setShowTurnPopup(false);
+    // Server records the acknowledgement; the deadline staff set is unchanged.
+    if (business && entry) void businessQrService.acknowledgeCall(business.id, entry.id);
+  };
+
+  const leaveAndRejoin = async () => {
+    if (!business) return;
+    setBusy(true);
+    try {
+      await businessQrService.leaveQueue(business.id, sessionId.current);
+      setEntry(null);
+      lastStatus.current = null;
+      setStep('salon');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not leave the queue.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const persistAuth = (session: CustomerAuthSession) => {
     saveCustomerAuth(session);
@@ -271,8 +300,13 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const services = business.services || [];
   const selectedService = services.find((service) => service.id === serviceId);
   const isQueued = step === 'queued' && entry;
-  const completed = entry?.status === 'Completed';
-  const inService = entry?.status === 'Serving';
+  const phase = entry ? callPhase(entry, now) : 'waiting';
+  const completed = phase === 'completed';
+  const inService = phase === 'in_service';
+  const noShow = phase === 'no_show';
+  const arrivalExpired = phase === 'call_again';
+  const countdown = formatCountdown(remainingMs(entry || {}, now));
+  const acknowledged = Boolean(entry?.acknowledgedAt);
 
   return (
     <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
@@ -512,13 +546,49 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   {completed ? <CheckCircle2 className="h-6 w-6" /> : entry.status === 'Called' ? <BellRing className="h-6 w-6 text-[#B4761C]" /> : <Check className="h-6 w-6" />}
                 </div>
                 <h2 className="mt-3 text-[17px] font-bold">
-                  {completed ? 'Service complete' : entry.status === 'Called' ? "It's your turn" : inService ? 'In service' : "You're in the queue"}
+                  {completed
+                    ? 'Service complete'
+                    : noShow
+                      ? 'You missed your turn'
+                      : arrivalExpired
+                        ? 'Your arrival window has ended'
+                        : phase === 'called'
+                          ? acknowledged
+                            ? 'On your way'
+                            : "It's your turn"
+                          : inService
+                            ? 'In service'
+                            : "You're in the queue"}
                 </h2>
                 <p className="mt-1 text-xs text-[#4F7F7A]">
                   {business.name} · {entry.service}
                 </p>
 
-                {!completed && (
+                {phase === 'called' && (
+                  <div className="mt-4 rounded-2xl bg-white p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8785]">
+                      {acknowledged ? 'Please reach the salon within' : 'Please arrive within'}
+                    </p>
+                    <p className="mt-1 text-3xl font-bold tabular-nums text-[#B4761C]">{countdown}</p>
+                    {(entry.callAttempt || 0) > 1 && (
+                      <p className="mt-1 text-[11px] font-semibold text-[#8A6516]">Call attempt {entry.callAttempt}</p>
+                    )}
+                  </div>
+                )}
+
+                {arrivalExpired && (
+                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
+                    Your booking is still waiting for salon action.
+                  </div>
+                )}
+
+                {noShow && (
+                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
+                    Your queue entry was closed because you could not reach the salon within the arrival window.
+                  </div>
+                )}
+
+                {!completed && !noShow && phase !== 'called' && (
                   <div className="mt-4 grid grid-cols-3 gap-2 text-left">
                     <div className="rounded-xl bg-white p-2.5">
                       <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Position</p>
@@ -530,12 +600,30 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                     </div>
                     <div className="rounded-xl bg-white p-2.5">
                       <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Status</p>
-                      <p className="mt-0.5 text-base font-bold">{entry.status}</p>
+                      <p className="mt-0.5 text-base font-bold">{inService ? 'In service' : 'Waiting'}</p>
                     </div>
                   </div>
                 )}
 
-                {!completed && <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>}
+                {(arrivalExpired || noShow) && (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {business.phoneNumber && (
+                      <a href={`tel:${business.phoneNumber}`} className="flex h-11 items-center justify-center rounded-xl border border-[#CDE3E0] bg-white text-sm font-bold text-[#0F766E]">
+                        Call salon
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void leaveAndRejoin()}
+                      disabled={busy}
+                      className="flex h-11 items-center justify-center rounded-xl bg-[#0F766E] text-sm font-bold text-white disabled:opacity-60"
+                    >
+                      {noShow ? 'Join queue again' : 'Leave this queue & join again'}
+                    </button>
+                  </div>
+                )}
+
+                {!completed && !noShow && <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>}
               </div>
 
               {/* Optional, never blocking. */}
@@ -604,13 +692,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
             </div>
             <h2 className="mt-4 text-xl font-bold tracking-[-0.01em]">It's your turn!</h2>
             <p className="mt-2 text-sm leading-6 text-[#5A6866]">Please proceed to the salon counter.</p>
+            <p className="mt-2 text-sm font-bold text-[#B4761C]">Please arrive within {countdown}</p>
             <div className="mt-4 rounded-2xl bg-[#F6F9F8] p-3">
               <p className="text-sm font-bold">{business.name}</p>
               <p className="mt-0.5 text-xs text-[#667371]">{entry.service}</p>
             </div>
             <button
               type="button"
-              onClick={() => setShowTurnPopup(false)}
+              onClick={acknowledgeTurn}
               className="mt-5 h-12 w-full rounded-xl bg-[#0F766E] text-sm font-bold text-white active:scale-[0.99]"
             >
               I'm on my way

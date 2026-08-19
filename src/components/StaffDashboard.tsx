@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { callPhase, formatCountdown, remainingMs } from '../shared/queueTiming';
 import {
   Users,
   UserCheck,
@@ -36,7 +37,7 @@ interface StaffDashboardProps {
   ) => void;
   onQueueAction: (
     item: QueueItem,
-    action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove',
+    action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove',
     specificBarberIndex?: number
   ) => void;
   queueAlert: string;
@@ -52,6 +53,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onQueueAction,
   queueAlert,
 }) => {
+  // Single ticking clock so every CALLED countdown re-renders each second.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'live' | 'history'>('live');
 
@@ -269,7 +277,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           </b>
                           {item.isUser && (
                             <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                              {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
+                              {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}{(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                             </span>
                           )}
                           {item.phone && (
@@ -348,27 +356,53 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                         </div>
                       )}
 
-                      {isCalled && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            id={`action-start-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Start')}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
-                            title="Seat customer in chair and begin service"
-                          >
-                            <Play className="w-3 h-3" />
-                            <span>Start Service</span>
-                          </button>
-                          <button
-                            id={`action-noshow-${item.id}`}
-                            onClick={() => onQueueAction(item, 'No-show')}
-                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200/50 transition cursor-pointer"
-                            title="Mark customer as no-show and free barber"
-                          >
-                            No-show
-                          </button>
-                        </div>
-                      )}
+                      {isCalled && (() => {
+                        // Inside the arrival window staff only see the countdown
+                        // and Start Service. No-show and Call Again unlock once
+                        // the server deadline has passed.
+                        const windowOpen = callPhase(item, now) === 'called';
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            {windowOpen ? (
+                              <span
+                                id={`arrival-countdown-${item.id}`}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-bold tabular-nums"
+                                title="Arrival window remaining"
+                              >
+                                {formatCountdown(remainingMs(item, now))} remaining
+                              </span>
+                            ) : (
+                              <button
+                                id={`action-callagain-${item.id}`}
+                                onClick={() => onQueueAction(item, 'Call')}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
+                                title="Call this customer again and restart the arrival window"
+                              >
+                                Call Again
+                              </button>
+                            )}
+                            <button
+                              id={`action-start-${item.id}`}
+                              onClick={() => onQueueAction(item, 'Start')}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
+                              title="Seat customer in chair and begin service"
+                            >
+                              <Play className="w-3 h-3" />
+                              <span>Start Service</span>
+                            </button>
+                            {!windowOpen && (
+                              <button
+                                id={`action-noshow-${item.id}`}
+                                onClick={() => onQueueAction(item, 'No-show')}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200/50 transition cursor-pointer"
+                                title="Mark customer as no-show and free barber"
+                              >
+                                No-show
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {isServing && (
                         <button
@@ -434,7 +468,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
                       {item.isUser && (
                         <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                          {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
+                          {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}{(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                         </span>
                       )}
                     </div>
@@ -442,10 +476,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       {item.service} {item.barberName ? `· Served by ${item.barberName}` : ''}
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-[#0F766E] bg-[#E7F5F2] px-2.5 py-1 rounded-full flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    <span>Done</span>
-                  </span>
+                  {item.outcome === 'no_show' || item.status === 'NoShow' ? (
+                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200/60 px-2.5 py-1 rounded-full">
+                      NO SHOW
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-bold text-[#0F766E] bg-[#E7F5F2] px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      <span>Done</span>
+                    </span>
+                  )}
                 </div>
               ))
             )}

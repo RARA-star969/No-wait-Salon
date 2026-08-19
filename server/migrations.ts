@@ -77,6 +77,20 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS web_qr_attribution_business_idx ON web_qr_attribution(business_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS web_qr_attribution_customer_idx ON web_qr_attribution(customer_id);
   `
+},{
+  version:4,
+  name:'call_grace_period_outcomes',
+  sql:`
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS outcome TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS first_called_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS call_attempts INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS acknowledged_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS grace_expires_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS no_show_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS service_started_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS service_completed_at BIGINT;
+    CREATE INDEX IF NOT EXISTS customer_booking_outcome_idx ON customer_booking(outcome,updated_at DESC);
+  `
 }];
 
 export async function runMigrations(db:Database){

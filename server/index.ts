@@ -9,6 +9,10 @@ import type { Barber, QueueItem, Salon } from '../src/types.ts';
 import {initPostgresPersistence} from './postgresPersistence.ts';
 import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
+import {graceMinutes,graceWindowMs,shouldStartNewCall} from '../src/shared/queueTiming.ts';
+
+// Configurable arrival grace period; a future per-salon setting can override this.
+const GRACE_WINDOW_MS = graceWindowMs(graceMinutes(process.env.QUEUE_GRACE_MINUTES));
 
 type SalonState = {
   salonId: string;
@@ -24,7 +28,7 @@ type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove'; barberId?: string }
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove'; barberId?: string }
   | { type: 'cancel_customer'; sessionId: string };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -292,6 +296,19 @@ db.exec(`
 
 const customerBookingColumns = new Set((db.prepare('PRAGMA table_info(customer_booking)').all() as Array<{ name: string }>).map((column) => column.name));
 if (!customerBookingColumns.has('source')) db.exec("ALTER TABLE customer_booking ADD COLUMN source TEXT NOT NULL DEFAULT 'customer_app'");
+// Additive booking analytics for the call / arrival grace period.
+for (const [column, ddl] of [
+  ['outcome', 'outcome TEXT'],
+  ['first_called_at', 'first_called_at INTEGER'],
+  ['call_attempts', 'call_attempts INTEGER NOT NULL DEFAULT 0'],
+  ['acknowledged_at', 'acknowledged_at INTEGER'],
+  ['grace_expires_at', 'grace_expires_at INTEGER'],
+  ['no_show_at', 'no_show_at INTEGER'],
+  ['service_started_at', 'service_started_at INTEGER'],
+  ['service_completed_at', 'service_completed_at INTEGER'],
+] as const) {
+  if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
+}
 
 const customerProfileColumns = new Set((db.prepare('PRAGMA table_info(customer_profile)').all() as Array<{ name: string }>).map((column) => column.name));
 if (!customerProfileColumns.has('marketing_consent')) db.exec('ALTER TABLE customer_profile ADD COLUMN marketing_consent INTEGER NOT NULL DEFAULT 0');
@@ -457,10 +474,27 @@ function upsertBooking(salonId: string, item: QueueItem) {
   if (!customerExists) return;
   const now = Date.now();
   db.prepare(`
-    INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(queue_entry_id) DO UPDATE SET status = excluded.status, source = excluded.source, updated_at = excluded.updated_at
-  `).run(randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null, item.source || 'customer_app', item.createdAt, now);
+    INSERT INTO customer_booking (
+      id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
+      outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(queue_entry_id) DO UPDATE SET
+      status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
+      outcome = COALESCE(excluded.outcome, customer_booking.outcome),
+      first_called_at = COALESCE(customer_booking.first_called_at, excluded.first_called_at),
+      call_attempts = MAX(customer_booking.call_attempts, excluded.call_attempts),
+      acknowledged_at = COALESCE(excluded.acknowledged_at, customer_booking.acknowledged_at),
+      grace_expires_at = excluded.grace_expires_at,
+      no_show_at = COALESCE(excluded.no_show_at, customer_booking.no_show_at),
+      service_started_at = COALESCE(customer_booking.service_started_at, excluded.service_started_at),
+      service_completed_at = COALESCE(excluded.service_completed_at, customer_booking.service_completed_at)
+  `).run(
+    randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
+    item.source || 'customer_app', item.createdAt, now,
+    item.outcome || null, item.calledAt || null, item.callAttempt || 0, item.acknowledgedAt || null,
+    item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
+  );
 }
 
 function seedState(salonId: string): SalonState {
@@ -563,12 +597,35 @@ function applyCommand(state: SalonState, command: QueueCommand) {
   const item = state.queue[itemIndex];
 
   if (command.action === 'Call') {
-    if (!['Waiting', 'Reserved'].includes(item.status)) throw new Error(`Cannot call a customer with status ${item.status}.`);
-    const barberIndex = findAvailableBarber(state, command.barberId);
-    if (barberIndex < 0) throw new Error('No barber is currently available.');
+    if (!['Waiting', 'Reserved', 'Called'].includes(item.status)) throw new Error(`Cannot call a customer with status ${item.status}.`);
+    // Pressing Call again inside a live arrival window is a no-op, so a double
+    // tap cannot start a second timer or re-notify the customer.
+    if (!shouldStartNewCall(item)) return state;
+    const now = Date.now();
+    let barberIndex = item.barberIndex;
+    if (barberIndex === undefined || !state.barbers[barberIndex] || state.barbers[barberIndex].status === 'unavailable') {
+      barberIndex = findAvailableBarber(state, command.barberId);
+    }
+    if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
     state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
-    state.queue[itemIndex] = { ...item, status: 'Called', barberIndex, barberName: barber.name, calledAt: Date.now() };
+    state.queue[itemIndex] = {
+      ...item,
+      status: 'Called',
+      barberIndex,
+      barberName: barber.name,
+      calledAt: now,
+      graceExpiresAt: now + GRACE_WINDOW_MS,
+      callAttempt: (item.callAttempt || 0) + 1,
+      // A new call clears the previous acknowledgement.
+      acknowledgedAt: undefined,
+    };
+  } else if (command.action === 'Acknowledge') {
+    // Customer tapped "I'm on my way". Records intent only; the deadline that
+    // staff set is never extended by it.
+    if (item.status !== 'Called') return state;
+    if (item.acknowledgedAt) return state;
+    state.queue[itemIndex] = { ...item, acknowledgedAt: Date.now() };
   } else if (command.action === 'Start') {
     if (!['Waiting', 'Called', 'Reserved'].includes(item.status)) throw new Error(`Cannot start a customer with status ${item.status}.`);
     let barberIndex = item.barberIndex;
@@ -578,12 +635,24 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
     state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
-    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name };
+    // Clearing the deadline makes expiry idempotent: an in-service booking can
+    // never later flip to CALL AGAIN or NO SHOW because of a stale timer.
+    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name, graceExpiresAt: undefined, serviceStartedAt: item.serviceStartedAt || Date.now() };
   } else if (command.action === 'Complete') {
     if (item.status !== 'Serving') throw new Error('Only an in-service customer can be completed.');
     releaseBarber(state, item);
     state.queue.splice(itemIndex, 1);
-    state.completedList = [{ ...item, status: 'Completed' as const }, ...state.completedList].slice(0, 100);
+    state.completedList = [{ ...item, status: 'Completed' as const, outcome: 'completed' as const, serviceCompletedAt: Date.now() }, ...state.completedList].slice(0, 100);
+  } else if (command.action === 'No-show') {
+    if (item.status === 'Serving') throw new Error('Complete the active service before marking a no-show.');
+    releaseBarber(state, item);
+    state.queue.splice(itemIndex, 1);
+    // Preserved in history with its real outcome so it is never counted as a
+    // completed service.
+    state.completedList = [
+      { ...item, status: 'NoShow' as const, outcome: 'no_show' as const, noShowAt: Date.now() } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
   } else {
     if (item.status === 'Serving' && command.action === 'Remove') throw new Error('Complete the active service before removing this customer.');
     releaseBarber(state, item);
@@ -951,12 +1020,19 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
       const cancelled = [...previousItems.values()].find((item) => item.sessionId === command.sessionId);
       if (cancelled?.customerId) {
         upsertBooking(next.salonId, { ...cancelled, status: 'Completed' });
-        db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?').run('Cancelled', Date.now(), cancelled.id);
+        db.prepare("UPDATE customer_booking SET status = ?, outcome = 'cancelled', updated_at = ? WHERE queue_entry_id = ?")
+          .run('Cancelled', Date.now(), cancelled.id);
       }
     } else if (command.type === 'queue_action' && ['No-show', 'Remove'].includes(command.action)) {
       const removed = previousItems.get(command.itemId);
-      if (removed?.customerId) db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?')
-        .run(command.action, Date.now(), removed.id);
+      // A no-show is recorded as its own outcome so reporting never counts it
+      // as a completed service.
+      const outcome = command.action === 'No-show' ? 'no_show' : 'removed';
+      const stamp = Date.now();
+      if (removed?.customerId) {
+        db.prepare('UPDATE customer_booking SET status = ?, outcome = ?, no_show_at = ?, updated_at = ? WHERE queue_entry_id = ?')
+          .run(command.action, outcome, command.action === 'No-show' ? stamp : null, stamp, removed.id);
+      }
     }
     db.exec('COMMIT');
     publish(next);
@@ -1082,17 +1158,21 @@ app.post('/api/me/logout', requireCustomer, (request, response) => {
 app.use(express.static(path.join(projectRoot, 'dist')));
 app.get('*', (_request, response) => response.sendFile(path.join(projectRoot, 'dist', 'index.html')));
 
+// Arrival-window expiry is DERIVED from graceExpiresAt, never mutated here: the
+// booking stays in the queue and simply presents as "call again available" so
+// staff decide explicitly between Call Again, Start Service and No-show. This
+// sweep only re-publishes so open dashboards cross the boundary promptly.
 setInterval(() => {
   for (const salon of readOnboardedSalons()) {
     const state = readState(salon.id);
-    const expired = state.queue.filter((item) => item.status === 'Called' && item.calledAt && Date.now() - item.calledAt > 10 * 60_000);
-    if (expired.length === 0) continue;
-    expired.forEach((item) => releaseBarber(state, item));
-    const expiredIds = new Set(expired.map((item) => item.id));
-    state.queue = state.queue.filter((item) => !expiredIds.has(item.id));
-    writeState(state);
-    publish(state);
-    postgresPersistence?.scheduleFlush();
+    const justExpired = state.queue.some(
+      (item) =>
+        item.status === 'Called' &&
+        item.graceExpiresAt !== undefined &&
+        Date.now() >= item.graceExpiresAt &&
+        Date.now() - item.graceExpiresAt < 30_000,
+    );
+    if (justExpired) publish(state);
   }
 }, 15_000).unref();
 

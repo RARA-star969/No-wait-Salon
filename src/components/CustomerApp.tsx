@@ -40,6 +40,7 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
+import { callPhase, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
@@ -139,6 +140,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
+  // Drives the server-authoritative arrival countdown once staff call the customer.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Single scanner controller shared by the header icon and the sticky CTA.
   // Setting it while already open is a no-op, and once open the portal cover
@@ -353,11 +360,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     Active Queue Status
                   </div>
                   <div className="text-sm font-bold text-[#164E49]">
-                    {userEntry.status === 'Called'
-                      ? 'Your turn now! Arrive at counter'
-                      : userEntry.status === 'Serving'
-                        ? 'Currently in grooming service'
-                        : `${peopleAhead} ahead · ${waitDisplay}`}
+                    {callPhase(userEntry, nowTick) === 'called'
+                      ? `Your turn! Arrive within ${formatCountdown(remainingMs(userEntry, nowTick))}`
+                      : callPhase(userEntry, nowTick) === 'call_again'
+                        ? 'Arrival window ended · waiting for salon'
+                        : userEntry.status === 'Serving'
+                          ? 'Currently in grooming service'
+                          : `${peopleAhead} ahead · ${waitDisplay}`}
                   </div>
                 </div>
               </div>
