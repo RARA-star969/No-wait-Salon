@@ -21,6 +21,8 @@ import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../s
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
+import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -44,13 +46,6 @@ const webSessionId = (): string => {
   }
 };
 
-const Field: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-2xl border border-[#E2EAE9] bg-white p-3.5">
-    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8785]">{label}</p>
-    <p className="mt-1 text-[17px] font-bold leading-tight text-[#17201F]">{value}</p>
-  </div>
-);
-
 /**
  * Public mobile page reached by scanning a salon QR with a plain phone camera.
  * No app install: view the salon, authenticate with the existing OTP system,
@@ -61,7 +56,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [loadError, setLoadError] = useState('');
   const [step, setStep] = useState<Step>('salon');
   const [auth, setAuth] = useState<CustomerAuthSession | null>(() => loadCustomerAuth());
-  const [serviceId, setServiceId] = useState('');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
   const [phone, setPhone] = useState('');
   const [challengeId, setChallengeId] = useState('');
   const [demoCode, setDemoCode] = useState('');
@@ -73,7 +69,10 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [error, setError] = useState('');
   const [entry, setEntry] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [completedList, setCompletedList] = useState<QueueItem[]>([]);
   const [barbersActive, setBarbersActive] = useState(1);
+  const [barbersAvailable, setBarbersAvailable] = useState(1);
+  const [restoring, setRestoring] = useState(true);
   const [showTurnPopup, setShowTurnPopup] = useState(false);
   const [notifyState, setNotifyState] = useState(notificationPermission());
   const [now, setNow] = useState(() => Date.now());
@@ -88,7 +87,6 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       .then(({ business: resolved }) => {
         if (cancelled) return;
         setBusiness(resolved);
-        setServiceId(resolved.services?.[0]?.id || '');
         void businessQrService.recordVisit(token, { appCtaShown: false });
       })
       .catch((reason: unknown) => {
@@ -104,7 +102,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     if (!business) return;
     const apply = (state: { queue: QueueItem[]; barbers?: Array<{ status: string }>; completedList?: QueueItem[] }) => {
       setQueue(state.queue);
-      if (state.barbers) setBarbersActive(state.barbers.filter((b) => b.status !== 'unavailable').length || 1);
+      setCompletedList(state.completedList || []);
+      if (state.barbers) {
+        setBarbersActive(state.barbers.filter((b) => b.status !== 'unavailable').length || 1);
+        setBarbersAvailable(state.barbers.filter((b) => b.status === 'available').length);
+      }
       setEntry((current) => {
         if (!current) return current;
         // Complete moves the entry out of `queue` and into `completedList`, so
@@ -115,11 +117,27 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           current
         );
       });
+      setRestoring(false);
     };
-    realtimeQueueService.getState(business.id).then(apply).catch(() => undefined);
+    realtimeQueueService.getState(business.id).then(apply).catch(() => setRestoring(false));
     const unsubscribe = realtimeQueueService.subscribe(business.id, apply, () => undefined);
     return unsubscribe;
   }, [business]);
+
+  // Restores an active booking across a refresh/reopen: this browser's local
+  // session id (persisted in localStorage) or, once logged in, this exact
+  // verified customer, is matched against the live queue for this salon — the
+  // server-authoritative source of truth — so the customer lands back on
+  // their live ticket instead of the salon picker, and never files a second
+  // booking through the picker below.
+  useEffect(() => {
+    if (!business || entry || step !== 'salon') return;
+    const mine = queue.find((item) => item.sessionId === sessionId.current || (auth && item.customerId === auth.customerId));
+    if (!mine) return;
+    setEntry(mine);
+    lastStatus.current = mine.status;
+    setStep('queued');
+  }, [business, entry, queue, auth, step]);
 
   // One ticking clock drives the arrival countdown.
   useEffect(() => {
@@ -151,6 +169,15 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / Math.max(1, barbersActive)));
     return `${Math.max(5, minutes - 5)}–${minutes + 5} min`;
   }, [peopleAhead, barbersActive]);
+
+  // Trend arrows on the live queue hero card: a lightweight client-side read
+  // of "did this number move since the last snapshot", nothing more.
+  const previousAhead = useRef(peopleAhead);
+  const [aheadTrend, setAheadTrend] = useState<QueueTrend>('steady');
+  useEffect(() => {
+    setAheadTrend(peopleAhead < previousAhead.current ? 'down' : peopleAhead > previousAhead.current ? 'up' : 'steady');
+    previousAhead.current = peopleAhead;
+  }, [peopleAhead]);
 
   const acknowledgeTurn = () => {
     setShowTurnPopup(false);
@@ -192,7 +219,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       setBusy(true);
       setError('');
       try {
-        const result = await businessQrService.join(token, serviceId, sessionId.current, 'qr_web');
+        const result = await businessQrService.join(token, selectedServiceIds, sessionId.current, 'qr_web');
         const joined = result.entry as QueueItem;
         setEntry(joined);
         lastStatus.current = joined?.status || null;
@@ -206,7 +233,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         setBusy(false);
       }
     },
-    [business, consent, serviceId, token],
+    [business, consent, selectedServiceIds, token],
   );
 
   const requestOtp = async () => {
@@ -269,10 +296,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   };
 
   // Runs inside the tap, which is the only moment browsers allow audio priming.
+  const toggleService = (id: string) => {
+    setSelectedServiceIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
+  };
+
   const startJoin = () => {
     setError('');
     primeTurnAlert();
-    if (!serviceId) return setError('Please choose a service.');
+    if (!selectedServiceIds.length) return setError('Please choose at least one service.');
     if (auth) {
       void joinQueue(auth);
       return;
@@ -300,7 +331,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  if (!business) {
+  if (!business || restoring) {
     return (
       <div className="grid min-h-dvh place-items-center bg-[#F6F9F8]">
         <LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" />
@@ -310,7 +341,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   const profile = toSalonProfile(business as never);
   const services = profile.services;
-  const selectedService = services.find((service) => service.id === serviceId);
+  const filteredServices = filterServices(services, serviceFilter);
+  const totals = selectionTotals(services, selectedServiceIds);
   const isQueued = step === 'queued' && entry;
   const phase = entry ? callPhase(entry, now) : 'waiting';
   const completed = phase === 'completed';
@@ -396,12 +428,17 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           </div>
         </div>
 
-        <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-4">
-          {/* Live status row */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Live wait" value={isQueued ? estimatedWait : waitLabel(profile.liveWaitMinutes)} />
-            <Field label={isQueued ? 'People ahead' : 'In queue'} value={String(isQueued ? peopleAhead : waiting)} />
-          </div>
+        <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-4">
+          {/* Live queue hero: the strongest visual signal on the page. */}
+          <LiveQueueCard
+            waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? waitLabel(profile.liveWaitMinutes) : 'Ready now'}
+            peopleAhead={isQueued ? peopleAhead : waiting}
+            peopleAheadTrend={aheadTrend}
+            readyChairs={barbersAvailable}
+            totalChairs={barbersActive}
+            live={business.queueAccepting}
+            activityLabel={isQueued ? `${business.name} · ${entry?.service || ''}` : `${waiting} ${waiting === 1 ? 'person' : 'people'} waiting`}
+          />
 
           {error && (
             <div role="alert" className="mt-4 flex items-start gap-2 rounded-2xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs leading-5 text-[#8A3E35]">
@@ -428,15 +465,32 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 </div>
               )}
 
-              <h2 className="mt-6 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Choose a service</h2>
+              <div className="mt-6 flex items-end justify-between gap-3">
+                <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Choose your services</h2>
+                {totals.count > 0 && <span className="text-[11px] font-bold text-[#0F766E]">{totals.count} selected</span>}
+              </div>
+              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                {SERVICE_FILTERS.map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setServiceFilter(filter)}
+                    className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold transition ${
+                      serviceFilter === filter ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#DDE7E5] bg-white text-[#536966]'
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
               <div className="mt-3 space-y-2.5">
-                {services.map((service) => {
-                  const active = serviceId === service.id;
+                {filteredServices.map((service) => {
+                  const active = selectedServiceIds.includes(service.id);
                   return (
                     <button
                       key={service.id}
                       type="button"
-                      onClick={() => setServiceId(service.id)}
+                      onClick={() => toggleService(service.id)}
                       aria-pressed={active}
                       className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
                         active
@@ -445,7 +499,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                       }`}
                     >
                       <span
-                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 ${
+                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border-2 ${
                           active ? 'border-[#0F766E] bg-[#0F766E]' : 'border-[#CBD8D6]'
                         }`}
                       >
@@ -464,8 +518,10 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                     </button>
                   );
                 })}
-                {services.length === 0 && (
-                  <p className="rounded-2xl border border-[#E2EAE9] bg-white p-5 text-center text-xs text-[#788582]">No services listed yet.</p>
+                {filteredServices.length === 0 && (
+                  <p className="rounded-2xl border border-[#E2EAE9] bg-white p-5 text-center text-xs text-[#788582]">
+                    {services.length === 0 ? 'No services listed yet.' : 'No services in this filter yet.'}
+                  </p>
                 )}
               </div>
 
@@ -751,24 +807,22 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
       {/* Sticky CTA: only while choosing, so the status page stays uncluttered. */}
       {step === 'salon' && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E2EAE9] bg-white/95 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E2EAE9] bg-white/95 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur">
+          {totals.count > 0 && (
+            <div className="mx-auto mb-2 flex w-full max-w-[30rem] items-center justify-between text-[11px] font-semibold text-[#5A6866]">
+              <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min</span>
+              <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
+            </div>
+          )}
           <div className="mx-auto flex w-full max-w-[30rem] items-center gap-3">
-            {selectedService && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-[#5A6866]">{selectedService.name}</p>
-                <p className="text-[15px] font-bold leading-tight">₹{selectedService.priceInr}</p>
-              </div>
-            )}
             <button
               type="button"
               onClick={startJoin}
-              disabled={!business.queueAccepting || busy || services.length === 0}
-              className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-6 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60 ${
-                selectedService ? '' : 'flex-1'
-              }`}
+              disabled={!business.queueAccepting || busy || totals.count === 0}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-6 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >
               {busy && <LoaderCircle className="h-4 w-4 animate-spin" />}
-              {business.queueAccepting ? 'Join Queue' : 'Not accepting'}
+              {!business.queueAccepting ? 'Not accepting' : totals.count === 0 ? 'Select a service' : 'Join Queue'}
             </button>
           </div>
         </div>

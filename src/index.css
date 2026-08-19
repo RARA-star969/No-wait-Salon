@@ -72,9 +72,21 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
+/* Live queue hero card: a looping waveform, translated by exactly half its
+   doubled width so the seam is invisible and no JS has to drive it per frame. */
+@keyframes queue-waveform {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
-  .animate-\[qr-shell-in_220ms_ease-out\] {
+  .animate-\[qr-shell-in_220ms_ease-out\],
+  .animate-\[queue-waveform_3\.2s_linear_infinite\] {
     animation: none;
   }
 

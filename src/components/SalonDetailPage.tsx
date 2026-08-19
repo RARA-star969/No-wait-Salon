@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Users, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
 import { toSalonProfile, waitLabel as sharedWaitLabel } from '../shared/salonProfile';
+import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 
 type Props = {
   salon: Salon;
@@ -10,6 +12,8 @@ type Props = {
   barbers: Barber[];
   selectedService: string;
   setSelectedService: (service: string) => void;
+  selectedServiceIds: string[];
+  setSelectedServiceIds: (ids: string[]) => void;
   onBack: () => void;
   onJoin: () => void;
   onReserve: () => void;
@@ -25,11 +29,12 @@ const serviceCategory = (name: string) => {
   return 'Hair Care';
 };
 
-export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, onBack, onJoin, onReserve, userEntry }) => {
+export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, onBack, onJoin, onReserve, userEntry }) => {
   const [saved, setSaved] = useState(false);
   const [visited, setVisited] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [payBillOpen, setPayBillOpen] = useState(false);
+  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((barber) => barber.status === 'available').length;
@@ -43,6 +48,36 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name)))), [profile.services]);
   const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
 
+  // Default to whatever the top-level app already had selected, so the two
+  // pickers (legacy single-service string, new multi-select ids) never fight.
+  useEffect(() => {
+    if (selectedServiceIds.length || !profile.services.length) return;
+    const match = profile.services.find((service) => service.name === selectedService) || profile.services[0];
+    if (match) setSelectedServiceIds([match.id]);
+  }, [profile.services, selectedService, selectedServiceIds.length, setSelectedServiceIds]);
+
+  const filteredServices = useMemo(() => filterServices(profile.services, serviceFilter), [profile.services, serviceFilter]);
+  const totals = useMemo(() => selectionTotals(profile.services, selectedServiceIds), [profile.services, selectedServiceIds]);
+
+  const toggleService = (id: string) => {
+    const next = selectedServiceIds.includes(id) ? selectedServiceIds.filter((value) => value !== id) : [...selectedServiceIds, id];
+    setSelectedServiceIds(next);
+    const names = profile.services.filter((service) => next.includes(service.id)).map((service) => service.name);
+    setSelectedService(names.join(' + ') || profile.services[0]?.name || '');
+  };
+
+  // Trend arrows compare against the previous render's numbers, purely a
+  // client-side visual cue layered on top of the server-authoritative queue.
+  const previousStats = useRef({ waitMinutes, waitingCount: waiting.length });
+  const [waitTrend, setWaitTrend] = useState<QueueTrend>('steady');
+  const [aheadTrend, setAheadTrend] = useState<QueueTrend>('steady');
+  useEffect(() => {
+    const prev = previousStats.current;
+    setWaitTrend(waitMinutes < prev.waitMinutes ? 'down' : waitMinutes > prev.waitMinutes ? 'up' : 'steady');
+    setAheadTrend(waiting.length < prev.waitingCount ? 'down' : waiting.length > prev.waitingCount ? 'up' : 'steady');
+    previousStats.current = { waitMinutes, waitingCount: waiting.length };
+  }, [waitMinutes, waiting.length]);
+
   const directionsUrl = `https://maps.google.com/?q=${salon.latitude},${salon.longitude}`;
   const shareSalon = async () => {
     const shareData = { title: salon.name, text: `${salon.name}\n${salon.address}`, url: directionsUrl };
@@ -51,7 +86,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   };
 
   return (
-    <div id="customer-salon-screen" className="relative min-h-full bg-[#F5F7F6] pb-[calc(6.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
+    <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
       <section className="relative min-h-[270px] overflow-hidden bg-[#173B38] text-white">
         {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#4A7C76_0,transparent_38%),linear-gradient(145deg,#102B28,#224C47_58%,#C3A66A)]" />
@@ -87,12 +122,17 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setVisited((value) => !value)} active={visited} />
         </section>
 
-        <section className="overflow-hidden rounded-2xl border border-[#BFDAD6] bg-[#E6F3F1]">
-          <div className="flex items-center justify-between gap-3 p-4">
-            <div><p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#4E7772]">No-Wait live queue</p><h2 className="mt-1 text-xl font-bold tracking-[-0.03em] text-[#125B54]">{waitLabel}</h2><p className="mt-1 text-[11px] text-[#5C7773]">{waiting.length} {waiting.length === 1 ? 'person' : 'people'} ahead · {availableBarbers} of {activeBarbers} chairs ready</p></div>
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[#0F766E] ring-1 ring-[#C6E0DC]"><Users className="h-5 w-5" /></span>
-          </div>
-          <button onClick={onReserve} className="flex w-full items-center justify-between border-t border-[#C9E2DE] bg-white/45 px-4 py-3 text-xs font-semibold text-[#235E58]"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Reserve a future queue window</span><ChevronRight className="h-4 w-4" /></button>
+        <section>
+          <LiveQueueCard
+            waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
+            waitDeltaLabel={waitTrend === 'down' ? '↓ moving' : waitTrend === 'up' ? '↑ busier' : undefined}
+            peopleAhead={waiting.length}
+            peopleAheadTrend={aheadTrend}
+            readyChairs={availableBarbers}
+            totalChairs={activeBarbers}
+            activityLabel={`${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} ahead · ${availableBarbers} of ${activeBarbers} chairs ready`}
+          />
+          <button onClick={onReserve} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#C9E2DE] bg-[#E6F3F1] px-4 py-3 text-xs font-semibold text-[#235E58]"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Reserve a future queue window</span><ChevronRight className="h-4 w-4" /></button>
         </section>
 
         <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[#173E3A] to-[#3F746D] p-5 text-white">
@@ -104,7 +144,34 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]"><Scissors className="h-4 w-4" /></span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
 
-        <section id="service-menu"><SectionTitle eyebrow="Choose your service" title="Service menu" secondary="Select one service" /><div className="space-y-2.5">{profile.services.map((service) => { const active = service.name === selectedService; return <button key={service.id} id={`service-opt-${service.id}`} onClick={() => setSelectedService(service.name)} className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95]' : 'border-[#E0E7E6]'}`}><span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span><span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{service.durationMin} min</span></span><span className="self-start text-sm font-bold">₹{service.priceInr}</span></button>; })}</div></section>
+        <section id="service-menu">
+          <SectionTitle eyebrow="Choose your services" title="Service menu" secondary={totals.count ? `${totals.count} selected` : 'Select services'} />
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+            {SERVICE_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setServiceFilter(filter)}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#DDE7E5] bg-white text-[#536966]'}`}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+          <div className="space-y-2.5">
+            {filteredServices.map((service) => {
+              const active = selectedServiceIds.includes(service.id);
+              return (
+                <button key={service.id} id={`service-opt-${service.id}`} type="button" onClick={() => toggleService(service.id)} aria-pressed={active} className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
+                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{service.durationMin} min</span></span>
+                  <span className="self-start text-sm font-bold">₹{service.priceInr}</span>
+                </button>
+              );
+            })}
+            {filteredServices.length === 0 && <p className="rounded-2xl border border-[#E0E7E6] bg-white p-5 text-center text-xs text-[#788582]">No services in this filter yet.</p>}
+          </div>
+        </section>
 
         {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
 
@@ -115,9 +182,15 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#DDE5E3] bg-white/95 px-3 pt-3 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#DDE5E3] bg-white/95 px-3 pt-2.5 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
+        {!userEntry && totals.count > 0 && (
+          <div className="mx-auto mb-2 flex max-w-xl items-center justify-between text-[11px] font-semibold text-[#4C5A58]">
+            <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min</span>
+            <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
+          </div>
+        )}
         <div className="mx-auto grid max-w-xl grid-cols-[1fr_auto] gap-2">
-          <button id="join-live-queue-btn" onClick={onJoin} className="min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white sm:text-sm">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
+          <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white sm:text-sm disabled:opacity-50">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
           <button onClick={() => setPayBillOpen(true)} className="min-h-13 rounded-xl border border-[#BFD6D2] bg-white px-4 text-xs font-bold text-[#0F766E]">Pay Bill</button>
         </div>
       </div>

@@ -310,6 +310,8 @@ for (const [column, ddl] of [
   ['cancel_reason_code', 'cancel_reason_code TEXT'],
   ['cancel_reason_text', 'cancel_reason_text TEXT'],
   ['cancelled_at', 'cancelled_at INTEGER'],
+  ['services_json', "services_json TEXT NOT NULL DEFAULT '[]'"],
+  ['total_price_inr', 'total_price_inr INTEGER'],
 ] as const) {
   if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
 }
@@ -481,9 +483,9 @@ function upsertBooking(salonId: string, item: QueueItem) {
     INSERT INTO customer_booking (
       id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
       outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at,
-      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at
+      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at, services_json, total_price_inr
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(queue_entry_id) DO UPDATE SET
       status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
       outcome = COALESCE(excluded.outcome, customer_booking.outcome),
@@ -497,13 +499,16 @@ function upsertBooking(salonId: string, item: QueueItem) {
       cancelled_by = COALESCE(excluded.cancelled_by, customer_booking.cancelled_by),
       cancel_reason_code = COALESCE(excluded.cancel_reason_code, customer_booking.cancel_reason_code),
       cancel_reason_text = COALESCE(excluded.cancel_reason_text, customer_booking.cancel_reason_text),
-      cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at)
+      cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at),
+      services_json = excluded.services_json,
+      total_price_inr = COALESCE(excluded.total_price_inr, customer_booking.total_price_inr)
   `).run(
     randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
     item.source || 'customer_app', item.createdAt, now,
     item.outcome || null, item.calledAt || null, item.callAttempt || 0, item.acknowledgedAt || null,
     item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
     item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
+    JSON.stringify(item.services || []), item.totalPriceInr ?? null,
   );
 }
 
@@ -958,9 +963,18 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
   if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
   if(!resolved.salon.isOpen)return response.status(409).json({error:'This business is not accepting queue entries right now.',code:'QUEUE_CLOSED'});
-  const serviceId=cleanText(request.body?.serviceId,120);
-  const service=db.prepare('SELECT id,name,duration_min FROM salon_service WHERE id=? AND salon_id=? AND active=1').get(serviceId,resolved.salon.id) as {id:string;name:string;duration_min:number}|undefined;
-  if(!service)return response.status(400).json({error:'Please choose an available service.',code:'SERVICE_UNAVAILABLE'});
+  // Accepts either the legacy single `serviceId` or the new multi-select
+  // `serviceIds` array; both resolve to the same validated service rows.
+  const requestedIds:string[]=Array.isArray(request.body?.serviceIds)?request.body.serviceIds.map((value:unknown)=>cleanText(value,120)).filter((value:string)=>value.length>0):[];
+  const singleId=cleanText(request.body?.serviceId,120);
+  const serviceIds:string[]=Array.from(new Set<string>(requestedIds.length?requestedIds:singleId?[singleId]:[]));
+  if(!serviceIds.length)return response.status(400).json({error:'Please choose at least one service.',code:'SERVICE_UNAVAILABLE'});
+  const placeholders=serviceIds.map(()=>'?').join(',');
+  const queryArgs:Array<string>=[resolved.salon.id,...serviceIds];
+  const rows=db.prepare(`SELECT id,name,duration_min,price_inr FROM salon_service WHERE salon_id=? AND active=1 AND id IN (${placeholders})`).all(...queryArgs) as Array<{id:string;name:string;duration_min:number;price_inr:number}>;
+  if(rows.length!==serviceIds.length)return response.status(400).json({error:'Please choose an available service.',code:'SERVICE_UNAVAILABLE'});
+  // Preserve the order the customer picked them in, not the DB row order.
+  const services=serviceIds.map(id=>rows.find(row=>row.id===id)!);
   const sessionId=cleanText(request.body?.sessionId,160);
   if(!sessionId)return response.status(400).json({error:'Unable to continue this scan. Please scan again.',code:'INVALID_SCAN_SESSION'});
   // Only the two QR-originated sources may be claimed by this endpoint; never
@@ -973,7 +987,10 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   if(attempt&&attempt.resetAt>now&&attempt.count>=6)return response.status(429).json({error:'Too many attempts. Please wait a moment and try again.',code:'RATE_LIMITED'});
   qrJoinAttempts.set(rateKey,{count:attempt&&attempt.resetAt>now?attempt.count+1:1,resetAt:attempt&&attempt.resetAt>now?attempt.resetAt:now+60_000});
   const profile=readCustomerProfile(request.customerId!);
-  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:requestedSource};
+  const serviceNames=services.map(service=>service.name);
+  const totalDurationMin=services.reduce((sum,service)=>sum+(Number(service.duration_min)||0),0)||30;
+  const totalPriceInr=services.reduce((sum,service)=>sum+(Number(service.price_inr)||0),0);
+  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:serviceNames.join(' + '),services:serviceNames,totalPriceInr,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:totalDurationMin,source:requestedSource};
   try{
     db.exec('BEGIN IMMEDIATE');
     const latest=readState(resolved.salon.id);
@@ -1218,10 +1235,14 @@ app.get('/api/me/profile/photo', requireCustomer, (request: AuthenticatedRequest
 });
 
 app.get('/api/me/bookings', requireCustomer, (request: AuthenticatedRequest, response) => {
-  const bookings = db.prepare(`
-    SELECT id, salon_id AS salonId, service, status, reserved_for AS reservedFor, created_at AS createdAt, updated_at AS updatedAt
+  const bookings = (db.prepare(`
+    SELECT id, salon_id AS salonId, service, status, reserved_for AS reservedFor, created_at AS createdAt, updated_at AS updatedAt,
+      services_json AS servicesJson, total_price_inr AS totalPriceInr
     FROM customer_booking WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100
-  `).all(request.customerId!);
+  `).all(request.customerId!) as Array<{ servicesJson?: string } & Record<string, unknown>>).map(({ servicesJson, ...rest }) => ({
+    ...rest,
+    services: servicesJson ? JSON.parse(servicesJson) : [],
+  }));
   response.set('Cache-Control', 'no-store');
   response.json({ bookings });
 });
