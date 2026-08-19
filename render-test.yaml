@@ -1,0 +1,44 @@
+# TEMPORARY TEST SERVICE — public QR web-join flow only.
+#
+# This file is intentionally separate from render.yaml. It never modifies the
+# production service, the production domain, or main.
+#
+# Safety properties:
+#   * DATABASE_URL is deliberately ABSENT. Without it the backend runs on its
+#     own local SQLite file (server/database.ts falls back automatically), so
+#     this service cannot read or write the production Neon database. It seeds
+#     its own copies of Sharpcut Studio and Royal Man Salon on first boot.
+#   * PUBLIC_CUSTOMER_URL is optional. When unset, qrPayload() derives the
+#     origin from the request behind Render's proxy, so QR codes generated here
+#     always point at THIS test host and never at production.
+#   * Pinned to the feature branch, so it never follows main.
+#   * plan: free, matching the existing production service tier.
+#
+# Delete this service once testing is finished.
+
+services:
+  - type: web
+    name: no-wait-salon-web-test
+    runtime: docker
+    plan: free
+    branch: feat/public-qr-web-join
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /tmp/no-wait-salon-test-data
+      # Same-origin: the container serves both the web page and the API, so the
+      # browser uses relative /api paths and no CORS entry is required.
+      - key: ALLOWED_ORIGINS
+        value: capacitor://localhost,http://localhost
+      # Optional. Leave unset to auto-derive this service's own https origin,
+      # or paste the full https://<this-service>.onrender.com after first deploy.
+      - key: PUBLIC_CUSTOMER_URL
+        sync: false
+      # Test-only admin credentials. Do NOT reuse the production values.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

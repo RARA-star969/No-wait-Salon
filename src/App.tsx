@@ -1,8 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
+import { fetchSalonProfile } from './services/salonDiscoveryService';
 import { Header } from './components/Header';
 import { CustomerApp } from './components/CustomerApp';
+import { PublicSalonPage } from './components/PublicSalonPage';
+import { salonDiscoveryService, type SalonDirectoryEntry } from './services/salonDiscoveryService';
+
+const STAFF_SALON_KEY = 'no_wait_salon_staff_salon_id';
 import { StaffDashboard } from './components/StaffDashboard';
 import { OtpModal } from './components/OtpModal';
 import { PushNotificationToast } from './components/PushNotificationToast';
@@ -43,14 +48,37 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
-  const isQrRoute = /^\/q\/[^/]+\/?$/.test(window.location.pathname);
+  const qrRouteMatch = window.location.pathname.match(/^\/q\/([^/]+)\/?$/);
+  const isQrRoute = Boolean(qrRouteMatch);
+  // A plain phone camera lands here in a browser: serve the public salon page.
+  // The packaged Android app keeps its existing in-app scanner flow.
+  const publicQrToken = !PACKAGED_MODE && qrRouteMatch ? decodeURIComponent(qrRouteMatch[1]) : null;
   const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || 'split');
   const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
+  // The Staff app runs as its own APK with no discovery flow, so it was pinned
+  // to the first mock salon and never saw bookings made at any other salon.
+  // It now loads the real salon directory and remembers the chosen salon.
+  const [salonDirectory, setSalonDirectory] = useState<SalonDirectoryEntry[]>([]);
+  const isStaffSurface = PACKAGED_MODE === 'staff';
 
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
   const [completedList, setCompletedList] = useState<QueueItem[]>([]);
   const customerSessionId = useRef<string>(loadCustomerSessionId());
+
+  useEffect(() => {
+    if (!isStaffSurface) return;
+    let cancelled = false;
+    void salonDiscoveryService.directory().then((entries) => {
+      if (cancelled || entries.length === 0) return;
+      setSalonDirectory(entries);
+      let savedId: string | null = null;
+      try { savedId = localStorage.getItem(STAFF_SALON_KEY); } catch { savedId = null; }
+      const chosen = entries.find((entry) => entry.id === savedId) || entries[0];
+      setSelectedSalon((current) => (current.id === chosen.id ? current : { ...current, id: chosen.id, name: chosen.name }));
+    });
+    return () => { cancelled = true; };
+  }, [isStaffSurface]);
 
   useEffect(() => {
     try {
@@ -127,6 +155,21 @@ export default function App() {
     return () => {
       disposed = true;
       unsubscribe();
+    };
+  }, [selectedSalon.id]);
+
+  // Keep the selected salon's profile identical to what the public web page
+  // would show for it: re-read the server record whenever the salon changes.
+  useEffect(() => {
+    let disposed = false;
+    fetchSalonProfile(selectedSalon.id)
+      .then((fresh) => {
+        if (disposed || !fresh) return;
+        setSelectedSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
     };
   }, [selectedSalon.id]);
 
@@ -290,11 +333,19 @@ export default function App() {
 
   const handleQueueAction = (
     item: QueueItem,
-    action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove',
+    action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
+    reason?: { code: string; text: string },
     specificBarberIndex?: number
   ) => {
     const barberId = specificBarberIndex !== undefined ? barbers[specificBarberIndex]?.id : undefined;
-    void runCommand({ type: 'queue_action', itemId: item.id, action, barberId }).then((snapshot) => {
+    void runCommand({
+      type: 'queue_action',
+      itemId: item.id,
+      action,
+      barberId,
+      reasonCode: reason?.code,
+      reasonText: reason?.text,
+    }).then((snapshot) => {
       if (!snapshot || item.sessionId !== customerSessionId.current) return;
       if (action === 'Call') {
         const updated = snapshot.queue.find((entry) => entry.id === item.id);
@@ -386,8 +437,13 @@ export default function App() {
     setCurrentScreen('tracking');
   };
 
-  const handleCancelUserQueue = async () => {
-    const snapshot = await runCommand({ type: 'cancel_customer', sessionId: customerSessionId.current });
+  const handleCancelUserQueue = async (reason?: { code: string; text: string }) => {
+    const snapshot = await runCommand({
+      type: 'cancel_customer',
+      sessionId: customerSessionId.current,
+      reasonCode: reason?.code,
+      reasonText: reason?.text,
+    });
     if (!snapshot) return;
     setCurrentScreen('salon');
     triggerPushNotification(
@@ -418,6 +474,16 @@ export default function App() {
       );
     }
   };
+
+  // Scanned with a plain phone camera: render the standalone public salon page
+  // instead of the full app shell, so no install or onboarding is required.
+  if (publicQrToken) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFA] font-sans text-[#17201F]">
+        <PublicSalonPage token={publicQrToken} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
@@ -521,9 +587,28 @@ export default function App() {
                     Salon Staff Dashboard
                   </h2>
                 </div>
-                <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#0F766E]/10 text-[#0F766E] tracking-wider">
-                  Sync Active
-                </span>
+                <div className="flex items-center gap-2">
+                  {isStaffSurface && salonDirectory.length > 0 && (
+                    <select
+                      aria-label="Select salon"
+                      value={selectedSalon.id}
+                      onChange={(event) => {
+                        const entry = salonDirectory.find((item) => item.id === event.target.value);
+                        if (!entry) return;
+                        try { localStorage.setItem(STAFF_SALON_KEY, entry.id); } catch { /* keep in memory */ }
+                        setSelectedSalon((current) => ({ ...current, id: entry.id, name: entry.name }));
+                      }}
+                      className="rounded-lg border border-[#DDE7E5] bg-white px-2 py-1 text-[11px] font-semibold text-[#17201F]"
+                    >
+                      {salonDirectory.map((entry) => (
+                        <option key={entry.id} value={entry.id}>{entry.name}</option>
+                      ))}
+                    </select>
+                  )}
+                  <span className="text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full bg-[#0F766E]/10 text-[#0F766E] tracking-wider">
+                    Sync Active
+                  </span>
+                </div>
               </div>
 
               {/* Staff Body */}

@@ -1,4 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { CancelBookingSheet } from './CancelBookingSheet';
+import {
+  BOOKING_TABS,
+  applyFilters,
+  grossSummary,
+  isCancelled,
+  isCompleted,
+  isLive,
+  isReserved,
+  isUpcoming,
+  outcomeBadge,
+  sourceLabel,
+  type BookingFilters,
+  type BookingTab,
+} from '../shared/bookingBuckets';
 import {
   Users,
   UserCheck,
@@ -36,7 +52,8 @@ interface StaffDashboardProps {
   ) => void;
   onQueueAction: (
     item: QueueItem,
-    action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove',
+    action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
+    reason?: { code: string; text: string },
     specificBarberIndex?: number
   ) => void;
   queueAlert: string;
@@ -52,6 +69,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onQueueAction,
   queueAlert,
 }) => {
+  // Single ticking clock so every CALLED countdown re-renders each second.
+  const [now, setNow] = useState(() => Date.now());
+  const [cancelTarget, setCancelTarget] = useState<QueueItem | null>(null);
+  const [bookingTab, setBookingTab] = useState<BookingTab>('live');
+  const [filters, setFilters] = useState<BookingFilters>({ range: 'today', source: 'all', search: '' });
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'live' | 'history'>('live');
 
@@ -184,7 +211,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               }`}
             >
               <History className="w-3.5 h-3.5" />
-              <span>Completed ({completedList.length})</span>
+              <span>Bookings</span>
             </button>
           </div>
 
@@ -269,7 +296,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           </b>
                           {item.isUser && (
                             <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                              {item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
+                              {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}{(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                             </span>
                           )}
                           {item.phone && (
@@ -320,6 +347,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       {isWaiting && (
                         <div className="flex items-center gap-1.5">
                           <button
+                            id={`action-cancelchair-waiting-${item.id}`}
+                            onClick={() => setCancelTarget(item)}
+                            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#F6F9F8] text-[#8A3E35] text-xs font-semibold border border-[#EBD2CD] transition cursor-pointer"
+                            title="Cancel this chair"
+                          >
+                            Cancel Chair
+                          </button>
+                          <button
                             id={`action-call-${item.id}`}
                             onClick={() => onQueueAction(item, 'Call')}
                             className="px-3 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
@@ -348,27 +383,61 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                         </div>
                       )}
 
-                      {isCalled && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            id={`action-start-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Start')}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
-                            title="Seat customer in chair and begin service"
-                          >
-                            <Play className="w-3 h-3" />
-                            <span>Start Service</span>
-                          </button>
-                          <button
-                            id={`action-noshow-${item.id}`}
-                            onClick={() => onQueueAction(item, 'No-show')}
-                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200/50 transition cursor-pointer"
-                            title="Mark customer as no-show and free barber"
-                          >
-                            No-show
-                          </button>
-                        </div>
-                      )}
+                      {isCalled && (() => {
+                        // Inside the arrival window staff only see the countdown
+                        // and Start Service. No-show and Call Again unlock once
+                        // the server deadline has passed.
+                        const windowOpen = callPhase(item, now) === 'called';
+                        return (
+                          <div className="flex items-center gap-1.5">
+                            {windowOpen ? (
+                              <span
+                                id={`arrival-countdown-${item.id}`}
+                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-bold tabular-nums"
+                                title="Arrival window remaining"
+                              >
+                                {formatCountdown(remainingMs(item, now))} remaining
+                              </span>
+                            ) : (
+                              <button
+                                id={`action-callagain-${item.id}`}
+                                onClick={() => onQueueAction(item, 'Call')}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
+                                title="Call this customer again and restart the arrival window"
+                              >
+                                Call Again
+                              </button>
+                            )}
+                            <button
+                              id={`action-start-${item.id}`}
+                              onClick={() => onQueueAction(item, 'Start')}
+                              className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
+                              title="Seat customer in chair and begin service"
+                            >
+                              <Play className="w-3 h-3" />
+                              <span>Start Service</span>
+                            </button>
+                            <button
+                              id={`action-cancelchair-${item.id}`}
+                              onClick={() => setCancelTarget(item)}
+                              className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#F6F9F8] text-[#8A3E35] text-xs font-semibold border border-[#EBD2CD] transition cursor-pointer"
+                              title="Cancel this chair"
+                            >
+                              Cancel Chair
+                            </button>
+                            {!windowOpen && (
+                              <button
+                                id={`action-noshow-${item.id}`}
+                                onClick={() => onQueueAction(item, 'No-show')}
+                                className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200/50 transition cursor-pointer"
+                                title="Mark customer as no-show and free barber"
+                              >
+                                No-show
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {isServing && (
                         <button
@@ -414,43 +483,173 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
         {/* Tab 2: Completed History */}
         {activeTab === 'history' && (
-          <div className="space-y-2">
-            {completedList.length === 0 ? (
-              <div className="p-8 text-center bg-white rounded-2xl border border-[#E1E7E6]">
-                <CheckCircle className="w-8 h-8 text-[#0F766E] mx-auto mb-2 opacity-60" />
-                <p className="text-xs text-[#6F7C7A]">No completed services yet today.</p>
-                <p className="text-[11px] text-[#6F7C7A] mt-1">
-                  Start and click "Finish" on any customer in the live queue to record completed cuts here.
-                </p>
-              </div>
-            ) : (
-              completedList.map((item, idx) => (
-                <div
-                  key={`${item.id}-${idx}`}
-                  className="p-3.5 rounded-2xl bg-white border border-[#E1E7E6] flex items-center justify-between"
+          <div className="space-y-3">
+            {/* Bookings tabs. Classification comes from shared/bookingBuckets so
+                Completed can only ever mean a real completed service. */}
+            <div className="flex flex-wrap gap-1.5">
+              {BOOKING_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  id={`bookings-tab-${tab.id}`}
+                  onClick={() => setBookingTab(tab.id)}
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
+                    bookingTab === tab.id
+                      ? 'bg-[#0F766E] text-white'
+                      : 'bg-white text-[#6F7C7A] border border-[#E1E7E6] hover:text-[#17201F]'
+                  }`}
                 >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {bookingTab !== 'gross' && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(['today', '7d', '30d', 'all'] as const).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setFilters((current) => ({ ...current, range }))}
+                    className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
+                      filters.range === range ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                    }`}
+                  >
+                    {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
+                  </button>
+                ))}
+                {(['all', 'customer_app', 'qr_web'] as const).map((source) => (
+                  <button
+                    key={source}
+                    onClick={() => setFilters((current) => ({ ...current, source }))}
+                    className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
+                      filters.source === source ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                    }`}
+                  >
+                    {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : 'App'}
+                  </button>
+                ))}
+                <input
+                  value={filters.search}
+                  onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                  placeholder="Search customer or service"
+                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-[#E1E7E6] px-2 text-[11px] outline-none focus:border-[#62AAA3]"
+                />
+              </div>
+            )}
+
+            {bookingTab === 'gross' ? (
+              (() => {
+                const summary = grossSummary(queue, completedList, now);
+                const tiles = [
+                  ['Total bookings', String(summary.total)],
+                  ['Live now', String(summary.live)],
+                  ['Completed', String(summary.completed)],
+                  ['No-shows', String(summary.noShow)],
+                  ['Cancelled (customer)', String(summary.cancelledCustomer)],
+                  ['Cancelled (salon)', String(summary.cancelledStaff)],
+                  ['Completion rate', `${summary.completionRate}%`],
+                  ['No-show rate', `${summary.noShowRate}%`],
+                  ['Avg call attempts', String(summary.averageCallAttempts)],
+                  ['From App', String(summary.fromApp)],
+                  ['From Web QR', String(summary.fromWebQr)],
+                ] as const;
+                return (
                   <div>
-                    <div className="flex items-center gap-2">
-                      <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
-                      {item.isUser && (
-                        <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                          {item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}
-                        </span>
-                      )}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                      {tiles.map(([label, value]) => (
+                        <div key={label} className="rounded-xl border border-[#E1E7E6] bg-white p-3">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">{label}</p>
+                          <p className="mt-1 text-lg font-bold text-[#17201F]">{value}</p>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-[11px] text-[#6F7C7A] mt-0.5">
-                      {item.service} {item.barberName ? `· Served by ${item.barberName}` : ''}
-                    </div>
+                    <p className="mt-2 text-[10px] leading-4 text-[#6F7C7A]">
+                      Activity counts only. Revenue is not shown because the queue does not carry a reliable
+                      per-booking price yet.
+                    </p>
                   </div>
-                  <span className="text-[10px] font-bold text-[#0F766E] bg-[#E7F5F2] px-2.5 py-1 rounded-full flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    <span>Done</span>
-                  </span>
-                </div>
-              ))
+                );
+              })()
+            ) : (
+              (() => {
+                const source =
+                  bookingTab === 'live'
+                    ? queue.filter((item) => isLive(item, now))
+                    : bookingTab === 'upcoming'
+                      ? queue.filter(isUpcoming)
+                      : bookingTab === 'reserved'
+                        ? queue.filter(isReserved)
+                        : bookingTab === 'completed'
+                          ? completedList.filter(isCompleted)
+                          : completedList.filter(isCancelled);
+                const rows = applyFilters(source, filters, now);
+                if (rows.length === 0) {
+                  return (
+                    <div className="p-8 text-center bg-white rounded-2xl border border-[#E1E7E6]">
+                      <CheckCircle className="w-8 h-8 text-[#0F766E] mx-auto mb-2 opacity-60" />
+                      <p className="text-xs text-[#6F7C7A]">
+                        {bookingTab === 'reserved'
+                          ? 'Reserved bookings are not supported yet.'
+                          : 'Nothing in this view for the selected filters.'}
+                      </p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-2">
+                    {rows.map((item, idx) => {
+                      const badge = outcomeBadge(item);
+                      const closed = bookingTab === 'completed' || bookingTab === 'cancelled';
+                      const tone =
+                        badge.tone === 'good'
+                          ? 'text-[#0F766E] bg-[#E7F5F2]'
+                          : badge.tone === 'bad'
+                            ? 'text-rose-700 bg-rose-50 border border-rose-200/60'
+                            : 'text-[#8A6516] bg-[#FFF8EC] border border-[#F0DFBE]';
+                      return (
+                        <div
+                          key={`${item.id}-${idx}`}
+                          className="p-3.5 rounded-2xl bg-white border border-[#E1E7E6] flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
+                              <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
+                                {sourceLabel(item)}
+                                {(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-[#6F7C7A] mt-0.5">
+                              {item.service}
+                              {item.barberName ? ` · ${item.barberName}` : ''}
+                              {item.cancelReasonCode ? ` · ${item.cancelReasonCode.replace(/_/g, ' ')}` : ''}
+                            </div>
+                          </div>
+                          {closed ? (
+                            <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full ${tone}`}>{badge.label}</span>
+                          ) : (
+                            <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E1E7E6]/60 text-[#6F7C7A]">
+                              {item.status}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
             )}
           </div>
         )}
+      <CancelBookingSheet
+        open={Boolean(cancelTarget)}
+        audience="staff"
+        title="Cancel chair"
+        onClose={() => setCancelTarget(null)}
+        onConfirm={(code, text) => {
+          if (cancelTarget) onQueueAction(cancelTarget, 'Cancel-chair', { code, text });
+          setCancelTarget(null);
+        }}
+      />
       </div>
 
       {/* Dedicated Walk-in Popup Modal */}

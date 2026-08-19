@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Scissors,
   MapPin,
@@ -19,6 +19,7 @@ import {
   Sparkles,
   Star,
   LocateFixed,
+  LoaderCircle,
   QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
@@ -31,8 +32,44 @@ import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { QrScannerModal } from './QrScannerModal';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
+import { salonDiscoveryService } from '../services/salonDiscoveryService';
+import {
+  locationPreference,
+  readGeolocationPermission,
+  resolveStartupPlan,
+  type StoredLocationPreference,
+} from '../services/locationPreferenceService';
+import { LocationSelectorSheet } from './LocationSelectorSheet';
+import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { CancelBookingSheet } from './CancelBookingSheet';
+import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
+
+/**
+ * Background discovery refresh for an already-configured location. Uses GPS
+ * only when the plan allows it, so a revoked permission never raises a prompt.
+ */
+async function refreshDiscovery(
+  stored: StoredLocationPreference,
+  mode: 'gps' | 'area' | 'last-known',
+): Promise<NearbySalon[] | null> {
+  if (mode === 'area' && stored.area) {
+    return (await salonDiscoveryService.byArea(stored.area)).salons;
+  }
+  if (mode === 'last-known' && stored.latitude !== undefined && stored.longitude !== undefined) {
+    return (await salonDiscoveryService.byCoordinates(stored.latitude, stored.longitude)).salons;
+  }
+  if (mode !== 'gps') return null;
+  const coords = await new Promise<GeolocationCoordinates>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve(position.coords),
+      reject,
+      { enableHighAccuracy: true, timeout: 12_000, maximumAge: 5 * 60_000 },
+    );
+  });
+  return (await salonDiscoveryService.byCoordinates(coords.latitude, coords.longitude)).salons;
+}
 
 interface CustomerAppProps {
   currentScreen: CustomerScreen;
@@ -47,7 +84,7 @@ interface CustomerAppProps {
   completedEntry: QueueItem | null;
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
-  onCancelQueue: () => void;
+  onCancelQueue: (reason?: { code: string; text: string }) => void;
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
@@ -90,22 +127,47 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   queueError,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
-  const [nearbySalons, setNearbySalons] = useState<NearbySalon[] | null>(null);
+  // Storage is async on device, so nothing renders until it has been read.
+  // Rendering before hydration would flash first-time setup at returning users.
+  const [locationHydrated, setLocationHydrated] = useState(false);
+  const [storedLocation, setStoredLocation] = useState<StoredLocationPreference | null>(null);
+  const [isChangingLocation, setIsChangingLocation] = useState(false);
+  const [nearbySalons, setNearbySalons] = useState<NearbySalon[]>([]);
   const [locationLabel, setLocationLabel] = useState('');
+  const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const homeScrollRef = useRef<HTMLDivElement>(null);
+  // Drives the server-authoritative arrival countdown. It only ticks while the
+  // customer is actually inside a call window, so the app is not re-rendering
+  // every second (which previously restarted the QR camera).
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const countdownActive = userEntry?.status === 'Called' && Boolean(userEntry.graceExpiresAt);
+  useEffect(() => {
+    if (!countdownActive) return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [countdownActive]);
 
-  const openQrBusiness = (token: string, business: QrBusiness) => {
+  // Single scanner controller shared by the header icon and the sticky CTA.
+  // Setting it while already open is a no-op, and once open the portal cover
+  // hides Home, so neither entry point can be tapped into a second mount.
+  const openScanner = useCallback(() => setIsQrScannerOpen(true), []);
+
+  // Stable identity: this is handed to the QR scanner, and a new closure each
+  // render used to restart its camera.
+  const openQrBusiness = useCallback((token: string, business: QrBusiness) => {
     setSelectedSalon(business);
     setSelectedService(business.services[0]?.name || '');
     setNearbySalons((current) => current?.some((salon) => salon.id === business.id) ? current : [business, ...(current || [])]);
     onQrContextChange(token);
     setScreen('salon');
     setIsQrScannerOpen(false);
-  };
+  }, [onQrContextChange, setScreen, setSelectedSalon, setSelectedService]);
 
   useEffect(() => {
     const token = businessQrToken(window.location.href);
@@ -121,6 +183,47 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
     setHasCompletedOnboarding(true);
   };
+
+  const applyLocation = (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => {
+    void locationPreference.save(preference);
+    setStoredLocation(preference);
+    setNearbySalons(salons);
+    setLocationLabel(label);
+    setIsChangingLocation(false);
+    if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
+  };
+
+  // Hydrate persisted setup, then refresh discovery in the background. Home is
+  // never blocked, and the OS permission is only ever read, never requested.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored = await locationPreference.read();
+      if (cancelled) return;
+      setStoredLocation(stored);
+      if (stored) setLocationLabel(stored.label);
+      setLocationHydrated(true);
+      if (!stored) return;
+
+      const permission = await readGeolocationPermission();
+      if (cancelled) return;
+      const plan = resolveStartupPlan(stored, permission);
+      if (plan.refresh === 'none') return;
+
+      setIsRestoringLocation(true);
+      try {
+        const salons = await refreshDiscovery(stored, plan.refresh);
+        if (!cancelled && salons) setNearbySalons(salons);
+      } catch {
+        // Home stays usable; the customer can retry from the location row.
+      } finally {
+        if (!cancelled) setIsRestoringLocation(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
@@ -160,16 +263,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return <CustomerOnboarding onComplete={completeOnboarding} />;
   }
 
-  if (!nearbySalons) {
+  // Wait for persisted setup to load so returning customers never see a flash
+  // of the first-time location screen.
+  if (!locationHydrated) {
     return (
-      <LocationDiscovery
-        onLocated={(salons, label) => {
-          setNearbySalons(salons);
-          setLocationLabel(label);
-          if (salons.length && !salons.some((salon) => salon.id === selectedSalon.id)) setSelectedSalon(salons[0]);
-        }}
-      />
+      <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
+        <LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" />
+      </div>
     );
+  }
+
+  // First-time setup only. Returning customers go straight to Home and change
+  // their location through the header row instead.
+  if (!storedLocation?.setupCompleted) {
+    return <LocationDiscovery onLocated={applyLocation} />;
   }
 
   if (currentScreen === 'profile' || currentScreen === 'edit-profile') {
@@ -190,7 +297,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
+    <div ref={homeScrollRef} className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
         <div id="customer-home-screen" className="min-h-full bg-[#F8FAFA] animate-in fade-in duration-300">
@@ -208,7 +315,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <button type="button" onClick={() => setIsQrScannerOpen(true)} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
+                <button type="button" onClick={openScanner} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
                   <QrCode className="h-[18px] w-[18px]" />
                 </button>
                 <WalletButton />
@@ -218,8 +325,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
             <button
               type="button"
-              onClick={() => setNearbySalons(null)}
-              className="mt-4 flex w-full items-center justify-between rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
+              onClick={() => setIsChangingLocation(true)}
+              className="mt-4 flex w-full items-center justify-between gap-2 rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
               aria-label="Change current location"
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -231,7 +338,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <span className="block truncate text-xs font-semibold text-[#25302F]">{locationLabel}</span>
                 </span>
               </span>
-              <LocateFixed className="h-4 w-4 shrink-0 text-[#0F766E]" />
+              <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#E5F3F1] px-2.5 py-1.5 text-[10px] font-bold text-[#0F766E]">
+                <LocateFixed className="h-3.5 w-3.5" />
+                Change
+              </span>
             </button>
 
             <div className="mt-3">
@@ -239,7 +349,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
-          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:px-5">
+          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-4 sm:px-5">
 
           <PromotionalBanner />
 
@@ -258,11 +368,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     Active Queue Status
                   </div>
                   <div className="text-sm font-bold text-[#164E49]">
-                    {userEntry.status === 'Called'
-                      ? 'Your turn now! Arrive at counter'
-                      : userEntry.status === 'Serving'
-                        ? 'Currently in grooming service'
-                        : `${peopleAhead} ahead · ${waitDisplay}`}
+                    {callPhase(userEntry, nowTick) === 'called'
+                      ? `Your turn! Arrive within ${formatCountdown(remainingMs(userEntry, nowTick))}`
+                      : callPhase(userEntry, nowTick) === 'call_again'
+                        ? 'Arrival window ended · waiting for salon'
+                        : userEntry.status === 'Serving'
+                          ? 'Currently in grooming service'
+                          : `${peopleAhead} ahead · ${waitDisplay}`}
                   </div>
                 </div>
               </div>
@@ -283,12 +395,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             <div className="space-y-3">
-              {nearbySalons.length === 0 && (
+              {nearbySalons.length === 0 && isRestoringLocation && (
+                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
+                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-[#0F766E]" />
+                  <p className="mt-3 text-xs leading-5 text-[#788582]">Refreshing salons near {locationLabel || 'you'}…</p>
+                </div>
+              )}
+
+              {nearbySalons.length === 0 && !isRestoringLocation && (
                 <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
                   <MapPin className="mx-auto h-6 w-6 text-[#7EA7A2]" />
                   <h3 className="mt-3 text-sm font-bold text-[#25302F]">No salons available in your area yet.</h3>
                   <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more salon partners.</p>
-                  <button type="button" onClick={() => setNearbySalons(null)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
+                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
                 </div>
               )}
               {nearbySalons.length > 0 && visibleSalons.length === 0 && (
@@ -383,7 +502,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         </div>
       )}
 
+      {currentScreen === 'home' && !isQrScannerOpen && (
+        <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} />
+      )}
+
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+
+      <LocationSelectorSheet
+        open={isChangingLocation}
+        currentLabel={locationLabel}
+        onClose={() => setIsChangingLocation(false)}
+        onSelected={applyLocation}
+      />
 
       {/* Legacy salon layout retained temporarily for parity checks; it is not rendered. */}
       {false && currentScreen === 'salon' && (
@@ -802,13 +932,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           </div>
 
           {/* Cancel Queue button */}
-          <button
-            id="cancel-queue-entry-btn"
-            onClick={onCancelQueue}
-            className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
-          >
-            Cancel my queue entry
-          </button>
+          {userEntry && canCancel(userEntry.status) && (
+            <button
+              id="cancel-queue-entry-btn"
+              onClick={() => setCancelSheetOpen(true)}
+              className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
+            >
+              Cancel my queue entry
+            </button>
+          )}
         </div>
       )}
 
@@ -852,6 +984,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         isOpen={isCallModalOpen}
         onClose={() => setIsCallModalOpen(false)}
         salon={selectedSalon}
+      />
+
+      <CancelBookingSheet
+        open={cancelSheetOpen}
+        audience="customer"
+        title="Cancel your booking?"
+        onClose={() => setCancelSheetOpen(false)}
+        onConfirm={(code, text) => {
+          setCancelSheetOpen(false);
+          onCancelQueue({ code, text });
+        }}
       />
     </div>
   );

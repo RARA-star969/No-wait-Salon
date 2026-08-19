@@ -1,4 +1,14 @@
-export type QueueStatus = 'Waiting' | 'Called' | 'Serving' | 'Reserved' | 'Completed';
+export type QueueStatus = 'Waiting' | 'Called' | 'Serving' | 'Reserved' | 'Completed' | 'NoShow' | 'Cancelled';
+
+/** Terminal outcome of a queue entry, kept distinct from a completed service. */
+export type QueueOutcome =
+  | 'completed'
+  | 'no_show'
+  | 'cancelled_customer'
+  | 'cancelled_staff'
+  | 'removed';
+
+export type CancelledBy = 'customer' | 'staff';
 
 export interface QueueItem {
   id: string;
@@ -10,12 +20,26 @@ export interface QueueItem {
   barberIndex?: number;
   barberName?: string;
   calledAt?: number;
+  /** Server-stamped arrival deadline. Clients count down to this, never to a local timer. */
+  graceExpiresAt?: number;
+  /** 1 on the first Call, incremented by each Call Again. */
+  callAttempt?: number;
+  /** When the customer tapped "I'm on my way". Never moves the deadline. */
+  acknowledgedAt?: number;
+  outcome?: QueueOutcome;
+  noShowAt?: number;
+  cancelledBy?: CancelledBy;
+  cancelReasonCode?: string;
+  cancelReasonText?: string;
+  cancelledAt?: number;
+  serviceStartedAt?: number;
+  serviceCompletedAt?: number;
   reservedFor?: string;
   createdAt: number;
   estimatedDurationMin?: number;
   sessionId?: string;
   customerId?: string;
-  source?: 'customer_app' | 'qr_walk_in' | 'staff_walk_in' | 'appointment';
+  source?: 'customer_app' | 'qr_walk_in' | 'qr_web' | 'staff_walk_in' | 'appointment';
 }
 
 export interface CustomerProfile {

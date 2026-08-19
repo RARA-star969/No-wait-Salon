@@ -9,6 +9,10 @@ import type { Barber, QueueItem, Salon } from '../src/types.ts';
 import {initPostgresPersistence} from './postgresPersistence.ts';
 import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
+import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
+
+// Configurable arrival grace period; a future per-salon setting can override this.
+const GRACE_WINDOW_MS = graceWindowMs(graceMinutes(process.env.QUEUE_GRACE_MINUTES));
 
 type SalonState = {
   salonId: string;
@@ -24,8 +28,8 @@ type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove'; barberId?: string }
-  | { type: 'cancel_customer'; sessionId: string };
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
+  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -292,6 +296,45 @@ db.exec(`
 
 const customerBookingColumns = new Set((db.prepare('PRAGMA table_info(customer_booking)').all() as Array<{ name: string }>).map((column) => column.name));
 if (!customerBookingColumns.has('source')) db.exec("ALTER TABLE customer_booking ADD COLUMN source TEXT NOT NULL DEFAULT 'customer_app'");
+// Additive booking analytics for the call / arrival grace period.
+for (const [column, ddl] of [
+  ['outcome', 'outcome TEXT'],
+  ['first_called_at', 'first_called_at INTEGER'],
+  ['call_attempts', 'call_attempts INTEGER NOT NULL DEFAULT 0'],
+  ['acknowledged_at', 'acknowledged_at INTEGER'],
+  ['grace_expires_at', 'grace_expires_at INTEGER'],
+  ['no_show_at', 'no_show_at INTEGER'],
+  ['service_started_at', 'service_started_at INTEGER'],
+  ['service_completed_at', 'service_completed_at INTEGER'],
+  ['cancelled_by', 'cancelled_by TEXT'],
+  ['cancel_reason_code', 'cancel_reason_code TEXT'],
+  ['cancel_reason_text', 'cancel_reason_text TEXT'],
+  ['cancelled_at', 'cancelled_at INTEGER'],
+] as const) {
+  if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
+}
+
+const customerProfileColumns = new Set((db.prepare('PRAGMA table_info(customer_profile)').all() as Array<{ name: string }>).map((column) => column.name));
+if (!customerProfileColumns.has('marketing_consent')) db.exec('ALTER TABLE customer_profile ADD COLUMN marketing_consent INTEGER NOT NULL DEFAULT 0');
+
+// Lightweight attribution for customers acquired by scanning a salon QR with a
+// plain phone camera. Deliberately minimal: no marketing engine, just fields.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS web_qr_attribution (
+    id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    qr_token_id TEXT NOT NULL,
+    customer_id TEXT,
+    acquisition_source TEXT NOT NULL DEFAULT 'salon_qr_web',
+    first_visit_at INTEGER NOT NULL,
+    joined_at INTEGER,
+    app_cta_shown INTEGER NOT NULL DEFAULT 0,
+    app_cta_clicked INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS web_qr_attribution_business_idx ON web_qr_attribution(business_id, created_at DESC);
+`);
 db.exec(`
   CREATE TABLE IF NOT EXISTS business_qr (
     id TEXT PRIMARY KEY,
@@ -435,10 +478,33 @@ function upsertBooking(salonId: string, item: QueueItem) {
   if (!customerExists) return;
   const now = Date.now();
   db.prepare(`
-    INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(queue_entry_id) DO UPDATE SET status = excluded.status, source = excluded.source, updated_at = excluded.updated_at
-  `).run(randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null, item.source || 'customer_app', item.createdAt, now);
+    INSERT INTO customer_booking (
+      id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
+      outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at,
+      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(queue_entry_id) DO UPDATE SET
+      status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
+      outcome = COALESCE(excluded.outcome, customer_booking.outcome),
+      first_called_at = COALESCE(customer_booking.first_called_at, excluded.first_called_at),
+      call_attempts = MAX(customer_booking.call_attempts, excluded.call_attempts),
+      acknowledged_at = COALESCE(excluded.acknowledged_at, customer_booking.acknowledged_at),
+      grace_expires_at = excluded.grace_expires_at,
+      no_show_at = COALESCE(excluded.no_show_at, customer_booking.no_show_at),
+      service_started_at = COALESCE(customer_booking.service_started_at, excluded.service_started_at),
+      service_completed_at = COALESCE(excluded.service_completed_at, customer_booking.service_completed_at),
+      cancelled_by = COALESCE(excluded.cancelled_by, customer_booking.cancelled_by),
+      cancel_reason_code = COALESCE(excluded.cancel_reason_code, customer_booking.cancel_reason_code),
+      cancel_reason_text = COALESCE(excluded.cancel_reason_text, customer_booking.cancel_reason_text),
+      cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at)
+  `).run(
+    randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
+    item.source || 'customer_app', item.createdAt, now,
+    item.outcome || null, item.calledAt || null, item.callAttempt || 0, item.acknowledgedAt || null,
+    item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
+    item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
+  );
 }
 
 function seedState(salonId: string): SalonState {
@@ -530,9 +596,26 @@ function applyCommand(state: SalonState, command: QueueCommand) {
 
   if (command.type === 'cancel_customer') {
     const item = state.queue.find((entry) => entry.sessionId === command.sessionId);
+    // Idempotent: cancelling an entry that is already gone is a no-op.
     if (!item) return state;
+    if (!canCancel(item.status)) throw new Error('This booking is already in service and cannot be cancelled.');
     releaseBarber(state, item);
     state.queue = state.queue.filter((entry) => entry.id !== item.id);
+    state.completedList = [
+      {
+        ...item,
+        status: 'Cancelled' as const,
+        outcome: 'cancelled_customer' as const,
+        cancelledBy: 'customer' as const,
+        cancelReasonCode: normaliseCancelReason('customer', command.reasonCode),
+        cancelReasonText: cleanText(command.reasonText, 300) || undefined,
+        cancelledAt: Date.now(),
+        // Removing the deadline guarantees a stale timer can never resurrect
+        // this booking as call-again or no-show.
+        graceExpiresAt: undefined,
+      } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
     return state;
   }
 
@@ -541,12 +624,35 @@ function applyCommand(state: SalonState, command: QueueCommand) {
   const item = state.queue[itemIndex];
 
   if (command.action === 'Call') {
-    if (!['Waiting', 'Reserved'].includes(item.status)) throw new Error(`Cannot call a customer with status ${item.status}.`);
-    const barberIndex = findAvailableBarber(state, command.barberId);
-    if (barberIndex < 0) throw new Error('No barber is currently available.');
+    if (!['Waiting', 'Reserved', 'Called'].includes(item.status)) throw new Error(`Cannot call a customer with status ${item.status}.`);
+    // Pressing Call again inside a live arrival window is a no-op, so a double
+    // tap cannot start a second timer or re-notify the customer.
+    if (!shouldStartNewCall(item)) return state;
+    const now = Date.now();
+    let barberIndex = item.barberIndex;
+    if (barberIndex === undefined || !state.barbers[barberIndex] || state.barbers[barberIndex].status === 'unavailable') {
+      barberIndex = findAvailableBarber(state, command.barberId);
+    }
+    if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
     state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
-    state.queue[itemIndex] = { ...item, status: 'Called', barberIndex, barberName: barber.name, calledAt: Date.now() };
+    state.queue[itemIndex] = {
+      ...item,
+      status: 'Called',
+      barberIndex,
+      barberName: barber.name,
+      calledAt: now,
+      graceExpiresAt: now + GRACE_WINDOW_MS,
+      callAttempt: (item.callAttempt || 0) + 1,
+      // A new call clears the previous acknowledgement.
+      acknowledgedAt: undefined,
+    };
+  } else if (command.action === 'Acknowledge') {
+    // Customer tapped "I'm on my way". Records intent only; the deadline that
+    // staff set is never extended by it.
+    if (item.status !== 'Called') return state;
+    if (item.acknowledgedAt) return state;
+    state.queue[itemIndex] = { ...item, acknowledgedAt: Date.now() };
   } else if (command.action === 'Start') {
     if (!['Waiting', 'Called', 'Reserved'].includes(item.status)) throw new Error(`Cannot start a customer with status ${item.status}.`);
     let barberIndex = item.barberIndex;
@@ -556,12 +662,41 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
     state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
-    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name };
+    // Clearing the deadline makes expiry idempotent: an in-service booking can
+    // never later flip to CALL AGAIN or NO SHOW because of a stale timer.
+    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name, graceExpiresAt: undefined, serviceStartedAt: item.serviceStartedAt || Date.now() };
   } else if (command.action === 'Complete') {
     if (item.status !== 'Serving') throw new Error('Only an in-service customer can be completed.');
     releaseBarber(state, item);
     state.queue.splice(itemIndex, 1);
-    state.completedList = [{ ...item, status: 'Completed' as const }, ...state.completedList].slice(0, 100);
+    state.completedList = [{ ...item, status: 'Completed' as const, outcome: 'completed' as const, serviceCompletedAt: Date.now() }, ...state.completedList].slice(0, 100);
+  } else if (command.action === 'Cancel-chair') {
+    if (!canCancel(item.status)) throw new Error('Complete or finish the active service before cancelling this chair.');
+    releaseBarber(state, item);
+    state.queue.splice(itemIndex, 1);
+    state.completedList = [
+      {
+        ...item,
+        status: 'Cancelled' as const,
+        outcome: 'cancelled_staff' as const,
+        cancelledBy: 'staff' as const,
+        cancelReasonCode: normaliseCancelReason('staff', command.reasonCode),
+        cancelReasonText: cleanText(command.reasonText, 300) || undefined,
+        cancelledAt: Date.now(),
+        graceExpiresAt: undefined,
+      } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
+  } else if (command.action === 'No-show') {
+    if (item.status === 'Serving') throw new Error('Complete the active service before marking a no-show.');
+    releaseBarber(state, item);
+    state.queue.splice(itemIndex, 1);
+    // Preserved in history with its real outcome so it is never counted as a
+    // completed service.
+    state.completedList = [
+      { ...item, status: 'NoShow' as const, outcome: 'no_show' as const, noShowAt: Date.now() } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
   } else {
     if (item.status === 'Serving' && command.action === 'Remove') throw new Error('Complete the active service before removing this customer.');
     releaseBarber(state, item);
@@ -780,6 +915,36 @@ app.get('/api/business-qr/:token',(request,response)=>{
   response.json({business:{...resolved.salon,businessType:resolved.qr.business_type,qrStatus:resolved.qr.status,liveWaitMinutes,waitingCustomers,queueAccepting:resolved.salon.isOpen&&activeBarbers>0}});
 });
 
+function markWebAttributionJoined(businessId:string,qrId:string,customerId:string,at:number){
+  const existing=db.prepare('SELECT id FROM web_qr_attribution WHERE business_id=? AND customer_id=? ORDER BY created_at DESC LIMIT 1').get(businessId,customerId) as {id:string}|undefined;
+  if(existing)db.prepare('UPDATE web_qr_attribution SET joined_at=?,updated_at=? WHERE id=?').run(at,at,existing.id);
+  else db.prepare('INSERT INTO web_qr_attribution (id,business_id,qr_token_id,customer_id,acquisition_source,first_visit_at,joined_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(randomUUID(),businessId,qrId,customerId,'salon_qr_web',at,at,at,at);
+}
+
+// Records that a plain-camera visitor landed on a public salon page. Anonymous:
+// no customer is attached until they authenticate and join.
+app.post('/api/business-qr/:token/visit',async(request,response)=>{
+  const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
+  if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
+  const now=Date.now();
+  const ctaShown=asBoolean(request.body?.appCtaShown)?1:0;
+  const ctaClicked=asBoolean(request.body?.appCtaClicked)?1:0;
+  db.prepare('INSERT INTO web_qr_attribution (id,business_id,qr_token_id,customer_id,acquisition_source,first_visit_at,app_cta_shown,app_cta_clicked,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+    .run(randomUUID(),resolved.salon.id,resolved.qr.id,null,'salon_qr_web',now,ctaShown,ctaClicked,now,now);
+  await postgresPersistence?.flushNow(['web_qr_attribution']);
+  response.status(201).json({recorded:true});
+});
+
+// Marketing consent is explicit and separate from joining a queue. Queue access
+// never depends on it.
+app.put('/api/me/marketing-consent',requireCustomer,async(request:AuthenticatedRequest,response)=>{
+  const consent=asBoolean(request.body?.consent)?1:0;
+  db.prepare('UPDATE customer_profile SET marketing_consent=?,updated_at=? WHERE customer_id=?').run(consent,Date.now(),request.customerId);
+  await postgresPersistence?.flushNow(['customer_profile']);
+  response.json({marketingConsent:consent===1});
+});
+
 app.post('/api/business-qr/:token/join',requireCustomer,async(request:AuthenticatedRequest,response)=>{
   const resolved=resolvedBusinessQr(cleanText(request.params.token,200));
   if(!resolved)return response.status(404).json({error:"This QR isn't linked to a business on our platform.",code:'INVALID_BUSINESS_QR'});
@@ -789,6 +954,9 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   if(!service)return response.status(400).json({error:'Please choose an available service.',code:'SERVICE_UNAVAILABLE'});
   const sessionId=cleanText(request.body?.sessionId,160);
   if(!sessionId)return response.status(400).json({error:'Unable to continue this scan. Please scan again.',code:'INVALID_SCAN_SESSION'});
+  // Only the two QR-originated sources may be claimed by this endpoint; never
+  // trust an arbitrary source string from the client.
+  const requestedSource:QueueItem['source']=cleanText(request.body?.source,32)==='qr_web'?'qr_web':'qr_walk_in';
   const current=readState(resolved.salon.id);
   const existing=current.queue.find(item=>item.customerId===request.customerId);
   if(existing)return response.json({joined:false,reason:'already_in_queue',entry:existing,state:current});
@@ -796,14 +964,16 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   if(attempt&&attempt.resetAt>now&&attempt.count>=6)return response.status(429).json({error:'Too many attempts. Please wait a moment and try again.',code:'RATE_LIMITED'});
   qrJoinAttempts.set(rateKey,{count:attempt&&attempt.resetAt>now?attempt.count+1:1,resetAt:attempt&&attempt.resetAt>now?attempt.resetAt:now+60_000});
   const profile=readCustomerProfile(request.customerId!);
-  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:'qr_walk_in'};
+  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:service.name,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:Number(service.duration_min)||30,source:requestedSource};
   try{
     db.exec('BEGIN IMMEDIATE');
     const latest=readState(resolved.salon.id);
     const duplicate=latest.queue.find(entry=>entry.customerId===request.customerId);
     if(duplicate){db.exec('ROLLBACK');return response.json({joined:false,reason:'already_in_queue',entry:duplicate,state:latest})}
-    latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);db.exec('COMMIT');publish(latest);
-    await postgresPersistence?.flushNow(['customer_booking','salon_state']);
+    latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);
+    if(requestedSource==='qr_web')markWebAttributionJoined(resolved.salon.id,resolved.qr.id,request.customerId!,now);
+    db.exec('COMMIT');publish(latest);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state','web_qr_attribution']);
     response.status(201).json({joined:true,entry:item,state:latest});
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to join this queue right now. Please try again.',code:'QUEUE_JOIN_FAILED'})}
 });
@@ -817,6 +987,13 @@ const distanceBetweenKm = (latitude: number, longitude: number, salonLatitude: n
     + Math.cos(toRadians(latitude)) * Math.cos(toRadians(salonLatitude)) * Math.sin(longitudeDelta / 2) ** 2;
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 };
+
+// Lightweight directory so the Staff app can bind itself to a salon. Read-only
+// and public: it exposes only the id and name of onboarded, active salons.
+app.get('/api/salons/directory', (_request, response) => {
+  const salons = readOnboardedSalons().map((salon) => ({ id: salon.id, name: salon.name, address: salon.address }));
+  response.json({ salons });
+});
 
 app.get('/api/salons/nearby', (request, response) => {
   const latitude = Number(request.query.lat);
@@ -850,6 +1027,20 @@ app.get('/api/salons/nearby', (request, response) => {
 
   response.set('Cache-Control', 'no-store');
   response.json({ salons: matches, source: hasCoordinates ? 'gps' : 'manual' });
+});
+
+// Same salon record the public QR page reads, so the app can refresh a salon
+// it already has selected and never render a stale profile.
+app.get('/api/salons/:salonId/profile', (request, response) => {
+  const row = db.prepare("SELECT * FROM salon WHERE id = ? AND onboarded = 1 AND platform_status = 'active'").get(request.params.salonId) as SalonRow | undefined;
+  if (!row) return response.status(404).json({ error: 'Salon not found.' });
+  const salon = rowToSalon(row);
+  const state = readState(salon.id);
+  const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
+  const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
+  const liveWaitMinutes = activeBarbers ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
+  response.set('Cache-Control', 'no-store');
+  response.json({ salon: { ...salon, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
 });
 
 app.get('/api/salons/:salonId/state', (request, response) => {
@@ -894,12 +1085,22 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
       const cancelled = [...previousItems.values()].find((item) => item.sessionId === command.sessionId);
       if (cancelled?.customerId) {
         upsertBooking(next.salonId, { ...cancelled, status: 'Completed' });
-        db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?').run('Cancelled', Date.now(), cancelled.id);
+        // The completedList upsert above already carried the structured
+        // cancellation, so only the display status needs syncing here.
+        db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?')
+          .run('Cancelled', Date.now(), cancelled.id);
       }
-    } else if (command.type === 'queue_action' && ['No-show', 'Remove'].includes(command.action)) {
+    } else if (command.type === 'queue_action' && ['No-show', 'Remove', 'Cancel-chair'].includes(command.action)) {
       const removed = previousItems.get(command.itemId);
-      if (removed?.customerId) db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?')
-        .run(command.action, Date.now(), removed.id);
+      // A no-show is recorded as its own outcome so reporting never counts it
+      // as a completed service.
+      const outcome =
+        command.action === 'No-show' ? 'no_show' : command.action === 'Cancel-chair' ? 'cancelled_staff' : 'removed';
+      const stamp = Date.now();
+      if (removed?.customerId) {
+        db.prepare('UPDATE customer_booking SET status = ?, outcome = ?, no_show_at = ?, updated_at = ? WHERE queue_entry_id = ?')
+          .run(command.action, outcome, command.action === 'No-show' ? stamp : null, stamp, removed.id);
+      }
     }
     db.exec('COMMIT');
     publish(next);
@@ -1025,17 +1226,21 @@ app.post('/api/me/logout', requireCustomer, (request, response) => {
 app.use(express.static(path.join(projectRoot, 'dist')));
 app.get('*', (_request, response) => response.sendFile(path.join(projectRoot, 'dist', 'index.html')));
 
+// Arrival-window expiry is DERIVED from graceExpiresAt, never mutated here: the
+// booking stays in the queue and simply presents as "call again available" so
+// staff decide explicitly between Call Again, Start Service and No-show. This
+// sweep only re-publishes so open dashboards cross the boundary promptly.
 setInterval(() => {
   for (const salon of readOnboardedSalons()) {
     const state = readState(salon.id);
-    const expired = state.queue.filter((item) => item.status === 'Called' && item.calledAt && Date.now() - item.calledAt > 10 * 60_000);
-    if (expired.length === 0) continue;
-    expired.forEach((item) => releaseBarber(state, item));
-    const expiredIds = new Set(expired.map((item) => item.id));
-    state.queue = state.queue.filter((item) => !expiredIds.has(item.id));
-    writeState(state);
-    publish(state);
-    postgresPersistence?.scheduleFlush();
+    const justExpired = state.queue.some(
+      (item) =>
+        item.status === 'Called' &&
+        item.graceExpiresAt !== undefined &&
+        Date.now() >= item.graceExpiresAt &&
+        Date.now() - item.graceExpiresAt < 30_000,
+    );
+    if (justExpired) publish(state);
   }
 }, 15_000).unref();
 
