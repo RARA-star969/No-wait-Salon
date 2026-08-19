@@ -140,26 +140,32 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
-  // Drives the server-authoritative arrival countdown once staff call the customer.
+  // Drives the server-authoritative arrival countdown. It only ticks while the
+  // customer is actually inside a call window, so the app is not re-rendering
+  // every second (which previously restarted the QR camera).
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const countdownActive = userEntry?.status === 'Called' && Boolean(userEntry.graceExpiresAt);
   useEffect(() => {
+    if (!countdownActive) return;
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [countdownActive]);
 
   // Single scanner controller shared by the header icon and the sticky CTA.
   // Setting it while already open is a no-op, and once open the portal cover
   // hides Home, so neither entry point can be tapped into a second mount.
   const openScanner = useCallback(() => setIsQrScannerOpen(true), []);
 
-  const openQrBusiness = (token: string, business: QrBusiness) => {
+  // Stable identity: this is handed to the QR scanner, and a new closure each
+  // render used to restart its camera.
+  const openQrBusiness = useCallback((token: string, business: QrBusiness) => {
     setSelectedSalon(business);
     setSelectedService(business.services[0]?.name || '');
     setNearbySalons((current) => current?.some((salon) => salon.id === business.id) ? current : [business, ...(current || [])]);
     onQrContextChange(token);
     setScreen('salon');
     setIsQrScannerOpen(false);
-  };
+  }, [onQrContextChange, setScreen, setSelectedSalon, setSelectedService]);
 
   useEffect(() => {
     const token = businessQrToken(window.location.href);

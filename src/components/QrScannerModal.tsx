@@ -187,6 +187,18 @@ export function QrScannerModal({
     }
   }, [isNative, startNative, startWeb, stop, revealWhenReady]);
 
+  // `start`/`stop` are recreated whenever a parent re-renders (onResolved is a
+  // fresh closure each time). Depending on them here restarted the camera on
+  // every parent render, which showed up as a ~1s flicker once a ticking clock
+  // was added upstream. Hold them in refs so the camera lifecycle is tied to
+  // `open` alone and the preview stays continuously mounted.
+  const startRef = useRef(start);
+  const stopRef = useRef(stop);
+  useEffect(() => {
+    startRef.current = start;
+    stopRef.current = stop;
+  }, [start, stop]);
+
   // Phase 1: hide Home the instant the scanner opens, before any camera or
   // WebView transparency work begins, so Home can never be composited through.
   useEffect(() => {
@@ -196,14 +208,14 @@ export function QrScannerModal({
     setTorchOn(false);
     setTorchAvailable(false);
     document.body.classList.add('scanner-open');
-    void start();
+    void startRef.current();
     return () => {
       if (revealTimer.current !== null) clearTimeout(revealTimer.current);
       if (closeTimer.current !== null) clearTimeout(closeTimer.current);
       document.body.classList.remove('scanner-open');
-      stop();
+      stopRef.current();
     };
-  }, [open, start, stop]);
+  }, [open]);
 
   const toggleTorch = async () => {
     try {
@@ -338,7 +350,7 @@ export function QrScannerModal({
                     )}
                     <button
                       type="button"
-                      onClick={() => void start()}
+                      onClick={() => void startRef.current()}
                       className="inline-flex h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-bold text-[#0B1211] transition active:scale-95"
                     >
                       <RefreshCw className="h-4 w-4" /> Try again
