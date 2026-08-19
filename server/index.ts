@@ -358,6 +358,12 @@ if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from
 const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
 (db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
 if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
+// Diagnostic only: surfaces the active public QR token for each salon in the
+// boot log, since a fresh ephemeral SQLite file (no persistent disk) means
+// ensureBusinessQr mints a new random token on every deploy/restart.
+for(const row of db.prepare("SELECT s.id,s.name,q.public_token FROM salon s JOIN business_qr q ON q.business_id=s.id AND q.status='active' AND q.business_type='salon'").all() as Array<{id:string;name:string;public_token:string}>){
+  console.log(`[qr-token] ${row.name} (${row.id}): ${row.public_token}`);
+}
 
 const app = express();
 app.disable('x-powered-by');

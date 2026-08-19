@@ -1,18 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
-  ArrowLeft,
+  ArmchairIcon,
+  ArrowRight,
   BellRing,
   Check,
   CheckCircle2,
   Clock,
   LoaderCircle,
   MapPin,
+  Radio,
   Scissors,
   Smartphone,
   Sparkles,
   Star,
-  Users,
+  User,
 } from 'lucide-react';
 import type { CustomerAuthSession, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
@@ -45,6 +47,23 @@ const webSessionId = (): string => {
     return `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 };
+
+/** Flat teal top bar shared by every step of the public web page. */
+const TopBar: React.FC<{ onOpenApp: () => void }> = ({ onOpenApp }) => (
+  <header className="sticky top-0 z-30 flex items-center justify-between bg-[#0F6E63] px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <span className="flex items-center gap-1.5 text-[13px] font-extrabold tracking-[0.06em] text-white">
+      <Scissors className="h-4 w-4" />
+      NO-WAIT SALON
+    </span>
+    <button
+      type="button"
+      onClick={onOpenApp}
+      className="rounded-full border border-white/40 px-3 py-1.5 text-[11px] font-bold text-white"
+    >
+      Open in app
+    </button>
+  </header>
+);
 
 /**
  * Public mobile page reached by scanning a salon QR with a plain phone camera.
@@ -164,11 +183,13 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     ).length;
   }, [entry, queue, waiting]);
 
-  const estimatedWait = useMemo(() => {
-    if (peopleAhead === 0) return 'Ready now';
+  const estimatedWaitRange = useMemo(() => {
+    if (peopleAhead === 0) return { label: 'Ready now', minutes: 0 };
     const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / Math.max(1, barbersActive)));
-    return `${Math.max(5, minutes - 5)}–${minutes + 5} min`;
+    return { label: `${Math.max(5, minutes - 5)}–${minutes + 5} min`, minutes };
   }, [peopleAhead, barbersActive]);
+
+  const estimatedWait = estimatedWaitRange.label;
 
   // Trend arrows on the live queue hero card: a lightweight client-side read
   // of "did this number move since the last snapshot", nothing more.
@@ -295,11 +316,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     }
   };
 
-  // Runs inside the tap, which is the only moment browsers allow audio priming.
   const toggleService = (id: string) => {
     setSelectedServiceIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
   };
 
+  // Runs inside the tap, which is the only moment browsers allow audio priming.
   const startJoin = () => {
     setError('');
     primeTurnAlert();
@@ -310,6 +331,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     }
     setStep('phone');
   };
+
+  const openApp = () => void businessQrService.recordVisit(token, { appCtaShown: true, appCtaClicked: true });
 
   if (loadError) {
     return (
@@ -354,91 +377,99 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const arrivalExpired = phase === 'call_again';
   const countdown = formatCountdown(remainingMs(entry || {}, now));
   const acknowledged = Boolean(entry?.acknowledgedAt);
+  const position = peopleAhead + 1;
+  // Small fixed row of avatar dots ahead of the customer's own marker, capped so a
+  // long queue never overflows the progress strip.
+  const progressDots = Math.min(peopleAhead, 4);
 
   return (
     <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
-      <div className="mx-auto w-full max-w-[30rem]">
-        {/* Compact hero: a slim gradient band, not a large empty colour block. */}
-        <header className="relative overflow-hidden bg-gradient-to-br from-[#0F766E] to-[#0B5F58] px-5 pb-14 pt-[max(0.875rem,env(safe-area-inset-top))]">
-          {business.coverImageUrl && (
-            <img src={business.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
-          )}
-          <div className="relative flex items-center justify-between">
-            {step !== 'salon' && !isQueued ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setStep('salon');
-                }}
-                aria-label="Back"
-                className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white"
-              >
-                <ArrowLeft className="h-4.5 w-4.5" />
-              </button>
-            ) : (
-              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">No-Wait Salon</span>
-            )}
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                business.queueAccepting ? 'bg-white/20 text-white' : 'bg-[#B4483A] text-white'
-              }`}
-            >
-              {business.queueAccepting ? 'Open now' : 'Closed'}
-            </span>
-          </div>
-        </header>
+      <div className="mx-auto w-full max-w-[26rem]">
+        <TopBar onOpenApp={openApp} />
 
-        {/* Identity card overlapping the hero keeps the fold tight. */}
-        <div className="-mt-10 px-4">
-          <div className="rounded-3xl border border-[#E2EAE9] bg-white p-4 shadow-[0_8px_24px_-12px_rgba(15,32,31,0.18)]">
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#E5F3F1] ring-1 ring-[#D3E7E4]">
-                {profile.logoImageUrl ? (
-                  <img src={profile.logoImageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Scissors className="h-5 w-5 text-[#0F766E]" />
-                )}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h1 className="truncate text-[19px] font-bold leading-tight tracking-[-0.02em]">{profile.name}</h1>
-                {profile.category && <p className="mt-0.5 truncate text-[11px] font-semibold text-[#0F766E]">{profile.category}</p>}
-                <p className="mt-1 flex items-start gap-1.5 text-xs leading-5 text-[#667371]">
-                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span className="line-clamp-2">{profile.address}</span>
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                {profile.rating > 0 && (
-                  <span className="flex items-center gap-1 rounded-lg bg-[#FFF8EC] px-2 py-1 text-xs font-bold text-[#8A6516]">
-                    <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
-                    {profile.rating}
-                    {profile.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({profile.reviewCount})</span>}
-                  </span>
-                )}
+        <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+9rem)] pt-4">
+          {/* ---------------- Salon identity ---------------- */}
+          {step === 'salon' && (
+            <div className="rounded-2xl border border-[#E2EAE9] bg-white p-3.5">
+              <div className="flex items-start gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-xl bg-[#E5F3F1] ring-1 ring-[#D3E7E4]">
+                  {profile.logoImageUrl ? (
+                    <img src={profile.logoImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Scissors className="h-5 w-5 text-[#0F766E]" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h1 className="truncate text-[17px] font-extrabold leading-tight tracking-[-0.01em]">{profile.name}</h1>
+                  {profile.category && <p className="mt-0.5 truncate text-[12px] text-[#8B9795]">{profile.category}</p>}
+                  <p className="mt-1.5 flex items-start gap-1.5 text-xs leading-5 text-[#667371]">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span className="line-clamp-2">{profile.address}</span>
+                  </p>
+                </div>
                 <span
-                  className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
                     profile.isOpen ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-[#F3F0EE] text-[#8A6A62]'
                   }`}
                 >
                   {profile.isOpen ? 'Open now' : 'Closed'}
                 </span>
               </div>
+              {profile.rating > 0 && (
+                <span className="mt-3 flex w-fit items-center gap-1 rounded-lg bg-[#FFF8EC] px-2 py-1 text-xs font-bold text-[#8A6516]">
+                  <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
+                  {profile.rating}
+                  {profile.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({profile.reviewCount})</span>}
+                </span>
+              )}
             </div>
-          </div>
-        </div>
+          )}
 
-        <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+9.5rem)] pt-4">
+          {/* ---------------- Success header (live ticket) ---------------- */}
+          {isQueued && entry && (
+            <div className="pt-2 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#0F766E] text-white">
+                {completed ? <CheckCircle2 className="h-7 w-7" /> : <Check className="h-7 w-7" />}
+              </div>
+              <h1 className="mt-3 text-[19px] font-extrabold tracking-[-0.01em]">
+                {cancelledByStaff
+                  ? 'The salon cancelled your booking'
+                  : cancelledByCustomer
+                    ? 'Booking cancelled'
+                    : completed
+                      ? 'Service complete'
+                      : noShow
+                        ? 'You missed your turn'
+                        : arrivalExpired
+                          ? 'Your arrival window has ended'
+                          : phase === 'called'
+                            ? acknowledged
+                              ? 'On your way'
+                              : "It's your turn!"
+                            : inService
+                              ? 'In service'
+                              : "You're in the queue!"}
+              </h1>
+              <p className="mt-1 text-[13px] text-[#667371]">
+                {phase === 'called' || inService || completed || noShow || arrivalExpired || cancelled
+                  ? `${business.name} · ${entry.service}`
+                  : "We'll notify you when it's your turn"}
+              </p>
+            </div>
+          )}
+
           {/* Live queue hero: the strongest visual signal on the page. */}
-          <LiveQueueCard
-            waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? waitLabel(profile.liveWaitMinutes) : 'Ready now'}
-            peopleAhead={isQueued ? peopleAhead : waiting}
-            peopleAheadTrend={aheadTrend}
-            readyChairs={barbersAvailable}
-            totalChairs={barbersActive}
-            live={business.queueAccepting}
-            activityLabel={isQueued ? `${business.name} · ${entry?.service || ''}` : `${waiting} ${waiting === 1 ? 'person' : 'people'} waiting`}
-          />
+          <div className="mt-4">
+            <LiveQueueCard
+              waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? waitLabel(profile.liveWaitMinutes) : 'Ready now'}
+              peopleAhead={isQueued ? peopleAhead : waiting}
+              peopleAheadTrend={aheadTrend}
+              readyChairs={barbersAvailable}
+              totalChairs={barbersActive}
+              live={business.queueAccepting}
+              activityLabel={isQueued ? `${business.name} · ${entry?.service || ''}` : `${waiting} ${waiting === 1 ? 'person' : 'people'} waiting`}
+            />
+          </div>
 
           {error && (
             <div role="alert" className="mt-4 flex items-start gap-2 rounded-2xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs leading-5 text-[#8A3E35]">
@@ -450,7 +481,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           {step === 'salon' && (
             <>
               {profile.offers.length > 0 && (
-                <div className="mt-5 rounded-2xl border border-[#F2E2C9] bg-[#FFFBF3] p-4">
+                <div className="mt-4 rounded-2xl border border-[#F2E2C9] bg-[#FFFBF3] p-4">
                   <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9A7327]">
                     <Sparkles className="h-3.5 w-3.5" /> Offers
                   </p>
@@ -465,9 +496,12 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 </div>
               )}
 
-              <div className="mt-6 flex items-end justify-between gap-3">
-                <h2 className="text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Choose your services</h2>
-                {totals.count > 0 && <span className="text-[11px] font-bold text-[#0F766E]">{totals.count} selected</span>}
+              <div className="mt-6 flex items-end justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">Choose your services</p>
+                  <h2 className="mt-0.5 text-[16px] font-extrabold">Service menu</h2>
+                </div>
+                {totals.count > 0 && <span className="text-xs font-semibold text-[#0F766E]">{totals.count} selected</span>}
               </div>
               <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
                 {SERVICE_FILTERS.map((filter) => (
@@ -499,11 +533,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                       }`}
                     >
                       <span
-                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-[6px] border-2 ${
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border-2 ${
                           active ? 'border-[#0F766E] bg-[#0F766E]' : 'border-[#CBD8D6]'
                         }`}
                       >
-                        {active && <Check className="h-3 w-3 text-white" />}
+                        {active && <Check className="h-3.5 w-3.5 text-white" />}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold">{service.name}</span>
@@ -652,97 +686,100 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
             </div>
           )}
 
-          {/* ---------------- Live queue status ---------------- */}
+          {/* ---------------- Live ticket ---------------- */}
           {isQueued && entry && (
-            <div className="mt-5">
+            <div className="mt-4">
               <div
-                className={`rounded-3xl border p-5 text-center ${
-                  completed
-                    ? 'border-[#CBD8D6] bg-white'
-                    : entry.status === 'Called'
-                      ? 'border-[#F3C79A] bg-[#FFF6EA]'
-                      : 'border-[#B9DAD6] bg-[#EDF7F5]'
+                className={`rounded-3xl p-5 text-white ${
+                  completed || noShow || cancelled
+                    ? 'bg-gradient-to-br from-[#5A6866] to-[#3F4B49]'
+                    : phase === 'called'
+                      ? 'bg-gradient-to-br from-[#B4761C] to-[#8A5A16]'
+                      : 'bg-gradient-to-br from-[#0F766E] to-[#0B4A44]'
                 }`}
               >
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-white text-[#0F766E] ring-1 ring-[#D3E7E4]">
-                  {completed ? <CheckCircle2 className="h-6 w-6" /> : entry.status === 'Called' ? <BellRing className="h-6 w-6 text-[#B4761C]" /> : <Check className="h-6 w-6" />}
-                </div>
-                <h2 className="mt-3 text-[17px] font-bold">
-                  {cancelledByStaff
-                    ? 'The salon cancelled your booking'
-                    : cancelledByCustomer
-                      ? 'Booking cancelled'
-                      : completed
-                    ? 'Service complete'
-                    : noShow
-                      ? 'You missed your turn'
-                      : arrivalExpired
-                        ? 'Your arrival window has ended'
-                        : phase === 'called'
-                          ? acknowledged
-                            ? 'On your way'
-                            : "It's your turn"
-                          : inService
-                            ? 'In service'
-                            : "You're in the queue"}
-                </h2>
-                <p className="mt-1 text-xs text-[#4F7F7A]">
-                  {business.name} · {entry.service}
-                </p>
+                {!completed && !noShow && !cancelled && !arrivalExpired && phase !== 'called' && (
+                  <>
+                    <p className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">Your position</p>
+                    <p className="mt-1 text-center text-[48px] font-extrabold leading-none">{position}</p>
+                    <p className="mt-1 text-center text-[13px] text-white/85">
+                      {peopleAhead > 0 ? `${peopleAhead} people ahead of you` : "You're next!"}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-xl bg-white/10 p-2.5">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Ahead</p>
+                        <p className="mt-0.5 text-base font-bold">{peopleAhead}</p>
+                      </div>
+                      <div className="rounded-xl bg-white/10 p-2.5">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Est. wait</p>
+                        <p className="mt-0.5 text-base font-bold leading-tight">{estimatedWait}</p>
+                      </div>
+                      <div className="rounded-xl bg-white/10 p-2.5">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Service</p>
+                        <p className="mt-0.5 truncate text-base font-bold">{entry.service}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-center gap-1.5">
+                      {Array.from({ length: progressDots }).map((_, index) => (
+                        <React.Fragment key={index}>
+                          <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15 text-white/80 ring-2 ring-white/25">
+                            <User className="h-3.5 w-3.5" />
+                          </span>
+                          <span className="h-px w-3 bg-white/25" />
+                        </React.Fragment>
+                      ))}
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[15px] font-extrabold text-[#0B4A44]">
+                        {position}
+                      </span>
+                      <span className="h-px w-3 border-t border-dashed border-white/35" />
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/40 text-white/80">
+                        <ArmchairIcon className="h-4 w-4" />
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {phase === 'called' && (
-                  <div className="mt-4 rounded-2xl bg-white p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8785]">
+                  <div className="text-center">
+                    <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-white/15">
+                      <BellRing className="h-5.5 w-5.5" />
+                    </div>
+                    <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.14em] text-white/75">
                       {acknowledged ? 'Please reach the salon within' : 'Please arrive within'}
                     </p>
-                    <p className="mt-1 text-3xl font-bold tabular-nums text-[#B4761C]">{countdown}</p>
+                    <p className="mt-1 text-3xl font-extrabold tabular-nums">{countdown}</p>
                     {(entry.callAttempt || 0) > 1 && (
-                      <p className="mt-1 text-[11px] font-semibold text-[#8A6516]">Call attempt {entry.callAttempt}</p>
+                      <p className="mt-1 text-[11px] font-semibold text-white/80">Call attempt {entry.callAttempt}</p>
                     )}
                   </div>
                 )}
 
                 {arrivalExpired && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
-                    Your booking is still waiting for salon action.
-                  </div>
+                  <p className="text-center text-sm leading-6 text-white/90">Your booking is still waiting for salon action.</p>
                 )}
 
                 {noShow && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
+                  <p className="text-center text-sm leading-6 text-white/90">
                     Your queue entry was closed because you could not reach the salon within the arrival window.
-                  </div>
-                )}
-
-                {!completed && !noShow && phase !== 'called' && (
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-left">
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Position</p>
-                      <p className="mt-0.5 text-base font-bold">{peopleAhead + 1}</p>
-                    </div>
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Ahead</p>
-                      <p className="mt-0.5 text-base font-bold">{peopleAhead}</p>
-                    </div>
-                    <div className="rounded-xl bg-white p-2.5">
-                      <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">Status</p>
-                      <p className="mt-0.5 text-base font-bold">{inService ? 'In service' : 'Waiting'}</p>
-                    </div>
-                  </div>
+                  </p>
                 )}
 
                 {cancelled && (
-                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
+                  <p className="text-center text-sm leading-6 text-white/90">
                     {cancelledByStaff
                       ? 'The salon could not keep this booking. You can join the queue again or call them.'
                       : 'Your booking was cancelled and removed from the queue.'}
-                  </div>
+                  </p>
                 )}
+
+                {completed && <p className="text-center text-sm leading-6 text-white/90">Thanks for visiting {business.name}.</p>}
 
                 {(arrivalExpired || noShow || cancelled) && (
                   <div className="mt-4 flex flex-col gap-2">
                     {business.phoneNumber && (
-                      <a href={`tel:${business.phoneNumber}`} className="flex h-11 items-center justify-center rounded-xl border border-[#CDE3E0] bg-white text-sm font-bold text-[#0F766E]">
+                      <a href={`tel:${business.phoneNumber}`} className="flex h-11 items-center justify-center rounded-xl bg-white/15 text-sm font-bold text-white">
                         Call salon
                       </a>
                     )}
@@ -750,30 +787,36 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                       type="button"
                       onClick={() => (arrivalExpired && !cancelled && !noShow ? void cancelBooking('changed_mind') : rejoin())}
                       disabled={busy}
-                      className="flex h-11 items-center justify-center rounded-xl bg-[#0F766E] text-sm font-bold text-white disabled:opacity-60"
+                      className="flex h-11 items-center justify-center rounded-xl bg-white text-sm font-bold text-[#0B4A44] disabled:opacity-60"
                     >
                       {noShow || cancelled ? 'Join queue again' : 'Leave this queue & join again'}
                     </button>
                   </div>
                 )}
-
-                {!completed && !noShow && !cancelled && (
-                  <>
-                    <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>
-                    {canCancel(entry.status) && (
-                      <button
-                        type="button"
-                        onClick={() => setCancelOpen(true)}
-                        className="mt-3 text-xs font-bold text-[#8A3E35] underline underline-offset-2"
-                      >
-                        Cancel booking
-                      </button>
-                    )}
-                  </>
-                )}
               </div>
 
-              {/* Optional, never blocking. */}
+              {!completed && !noShow && !cancelled && (
+                <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-[#CFE6E2] bg-[#EAF6F4] px-4 py-3">
+                  <Radio className="h-4 w-4 shrink-0 animate-pulse text-[#0F766E]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-bold text-[#0F766E]">Live updates automatically</p>
+                    <p className="text-[11px] text-[#4F7F7A]">No need to refresh this page.</p>
+                  </div>
+                </div>
+              )}
+
+              {!completed && !noShow && !cancelled && canCancel(entry.status) && (
+                <div className="mt-3 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setCancelOpen(true)}
+                    className="text-xs font-bold text-[#B4483A] underline underline-offset-2"
+                  >
+                    Cancel booking
+                  </button>
+                </div>
+              )}
+
               {!completed && notifyState === 'default' && (
                 <button
                   type="button"
@@ -784,20 +827,33 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 </button>
               )}
 
-              <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[#0F766E]">
-                  <Smartphone className="h-5 w-5" />
+              {/* Get-the-app promo: web-only, never shown in the native app. */}
+              <div className="relative mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-[#5B2A9E] to-[#3C1B70] p-5">
+                <Sparkles className="pointer-events-none absolute right-6 top-6 h-4 w-4 text-white/40" />
+                <Sparkles className="pointer-events-none absolute right-16 top-24 h-3 w-3 text-white/30" />
+                <span className="inline-block rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white/85">
+                  Faster in the app
                 </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">Get the app for faster check-in</p>
-                  <p className="mt-0.5 text-[11px] leading-5 text-[#667371]">Track your turn and skip re-entering details.</p>
-                </div>
+                <h3 className="mt-2.5 max-w-[13rem] text-[19px] font-extrabold leading-tight text-white">
+                  Track your turn <span className="text-[#C9A6FF]">faster</span> in the app
+                </h3>
+                <ul className="mt-3 space-y-1.5 text-[12px] font-semibold text-white/90">
+                  <li className="flex items-center gap-2">
+                    <BellRing className="h-3.5 w-3.5 shrink-0 text-white/70" /> Instant turn alerts
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <User className="h-3.5 w-3.5 shrink-0 text-white/70" /> No re-entering details
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Smartphone className="h-3.5 w-3.5 shrink-0 text-white/70" /> Quicker repeat booking
+                  </li>
+                </ul>
                 <button
                   type="button"
-                  onClick={() => void businessQrService.recordVisit(token, { appCtaShown: true, appCtaClicked: true })}
-                  className="shrink-0 self-center rounded-lg bg-[#0F766E] px-3 py-2 text-xs font-bold text-white"
+                  onClick={openApp}
+                  className="mt-4 flex h-11 items-center gap-2 rounded-xl bg-[#7C3AED] px-4 text-sm font-bold text-white"
                 >
-                  Get app
+                  Get the app <ArrowRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -809,12 +865,12 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       {step === 'salon' && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E2EAE9] bg-white/95 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur">
           {totals.count > 0 && (
-            <div className="mx-auto mb-2 flex w-full max-w-[30rem] items-center justify-between text-[11px] font-semibold text-[#5A6866]">
+            <div className="mx-auto mb-2 flex w-full max-w-[26rem] items-center justify-between text-[11px] font-semibold text-[#5A6866]">
               <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min</span>
               <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
             </div>
           )}
-          <div className="mx-auto flex w-full max-w-[30rem] items-center gap-3">
+          <div className="mx-auto flex w-full max-w-[26rem] items-center gap-3">
             <button
               type="button"
               onClick={startJoin}
