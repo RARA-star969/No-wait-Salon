@@ -22,6 +22,11 @@ jobs:
   customer-debug-apk:
     runs-on: ubuntu-latest
     env:
+      # Deliberately the PRODUCTION API: this build exists to validate the
+      # client-side work (scanner transition, join flow, live ticket, salon
+      # parity) against the real backend customers already use. Server-side
+      # additions on this branch are NOT deployed there yet — see the branch
+      # notes for what that means for stylist preference.
       VITE_API_BASE_URL: https://no-wait-salon-api.onrender.com
 
     steps:
@@ -55,10 +60,20 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      # Version codes are offset above the production series (which reached
+      # 102) so a test build always installs over the production candidate
+      # instead of being refused by Android as a downgrade.
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          echo "code=$(( 200 + ${{ github.run_number }} ))" >> "${GITHUB_OUTPUT}"
+          echo "name=1.1.0-beta.${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
+
       - name: Build customer debug APK
         env:
-          APP_VERSION_NAME: 0.1.4-qrfix.${{ github.run_number }}
-          APP_VERSION_CODE: ${{ github.run_number }}
+          APP_VERSION_NAME: ${{ steps.version.outputs.name }}
+          APP_VERSION_CODE: ${{ steps.version.outputs.code }}
         run: pnpm android:apk:customer
 
       - name: Stage APK
@@ -66,14 +81,14 @@ jobs:
         run: |
           mkdir -p test-artifacts
           cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
-            "test-artifacts/No-Wait-Salon-Customer-test-0.1.4-qrfix.${{ github.run_number }}.apk"
+            "test-artifacts/No-Wait-Salon-Customer-beta-${{ steps.version.outputs.name }}.apk"
           sha256sum test-artifacts/*.apk > test-artifacts/SHA256SUMS.txt
           ls -la test-artifacts
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: customer-test-apk-${{ github.run_number }}
+          name: customer-beta-apk-${{ github.run_number }}
           path: test-artifacts/
           retention-days: 14
           if-no-files-found: error
