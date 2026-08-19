@@ -1,0 +1,95 @@
+name: Android customer production build
+
+# Builds the Customer APK from `main` against the PRODUCTION API.
+#
+# This is the artifact to install for real-world use. It is debug-signed
+# because the original upload keystore was lost: it therefore cannot be
+# published to Play or installed over an older release-signed build. Once a
+# new signing key is provisioned, android-release.yml takes over and this
+# workflow can be retired.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-production-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  customer-production-apk:
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: https://no-wait-salon-api.onrender.com
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Type-check
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Confirm the production API is reachable
+        run: curl --fail --retry 4 --retry-all-errors --max-time 70 "${VITE_API_BASE_URL}/api/health"
+
+      # Version codes are offset past the test-build series (which reached 16),
+      # so this APK always installs over an earlier test build rather than
+      # being refused as a downgrade.
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          echo "code=$(( 100 + ${{ github.run_number }} ))" >> "${GITHUB_OUTPUT}"
+          echo "name=1.0.0-rc.${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build customer APK against production
+        env:
+          APP_VERSION_NAME: ${{ steps.version.outputs.name }}
+          APP_VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: pnpm android:apk:customer
+
+      - name: Stage APK
+        shell: bash
+        run: |
+          mkdir -p production-artifacts
+          cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
+            "production-artifacts/No-Wait-Salon-Customer-production-${{ steps.version.outputs.name }}.apk"
+          sha256sum production-artifacts/*.apk > production-artifacts/SHA256SUMS.txt
+          ls -la production-artifacts
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-production-apk-${{ github.run_number }}
+          path: production-artifacts/
+          retention-days: 90
+          if-no-files-found: error
