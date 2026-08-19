@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
+import { QueueBookingCard } from './QueueBookingCard';
 import {
   BOOKING_TABS,
   applyFilters,
@@ -25,13 +25,9 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Play,
-  Check,
   UserPlus,
   Sparkles,
   History,
-  Trash2,
-  PhoneForwarded,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon } from '../types';
 import { WalkInModal } from './WalkInModal';
@@ -254,229 +250,21 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 </button>
               </div>
             ) : (
-              queue.map((item, index) => {
-                const isServing = item.status === 'Serving';
-                const isCalled = item.status === 'Called';
-                const isWaiting = item.status === 'Waiting';
-                const isReserved = item.status === 'Reserved';
-
-                return (
-                  <div
-                    key={item.id}
-                    id={`queue-entry-${item.id}`}
-                    className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
-                      isServing
-                        ? 'bg-[#E7F5F2]/70 border-[#0F766E]/40'
-                        : isCalled
-                          ? 'bg-[#FAF0E6] border-[#A66020]/40 ring-1 ring-[#A66020]/30'
-                          : item.isUser
-                            ? 'bg-[#0F766E]/5 border-[#0F766E]/30'
-                            : 'bg-white border-[#E1E7E6]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 ${
-                          isServing
-                            ? 'bg-[#0F766E] text-white'
-                            : isCalled
-                              ? 'bg-[#A66020] text-white'
-                              : item.isUser
-                                ? 'bg-[#0F766E] text-white'
-                                : 'bg-[#E1E7E6] text-[#17201F]'
-                        }`}
-                      >
-                        {isServing ? '✂' : isCalled ? '!' : index + 1}
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <b className="font-sans text-sm font-bold text-[#17201F] truncate">
-                            {item.name}
-                          </b>
-                          {item.isUser && (
-                            <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
-                              {item.source === 'qr_web' ? 'Web QR' : item.source === 'qr_walk_in' ? 'QR Walk-in' : 'App User'}{(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
-                            </span>
-                          )}
-                          {item.phone && (
-                            <span className="text-[10px] text-[#6F7C7A] font-mono">
-                              · +91 {item.phone.slice(-4)}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center flex-wrap gap-2 text-[11px] text-[#6F7C7A] mt-0.5">
-                          <span className="font-medium text-[#17201F]">{item.service}</span>
-                          {isServing && item.barberName && (
-                            <span className="font-bold text-[#0F766E] bg-white px-1.5 py-0.2 rounded border border-[#0F766E]/30">
-                              Barber: {item.barberName}
-                            </span>
-                          )}
-                          {isCalled && item.barberName && (
-                            <span className="font-bold text-[#A66020] bg-white px-1.5 py-0.2 rounded border border-[#A66020]/30">
-                              Called for: {item.barberName}
-                            </span>
-                          )}
-                          {isReserved && (
-                            <span className="font-bold text-[#0F766E] bg-white px-1.5 py-0.2 rounded border border-[#0F766E]/30">
-                              Reserved: {item.reservedFor}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Status & Actions */}
-                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                      <span
-                        className={`text-[10px] font-bold uppercase px-2.5 py-1 rounded-full ${
-                          isServing
-                            ? 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/30'
-                            : isCalled
-                              ? 'bg-[#FAF0E6] text-[#A66020] animate-pulse border border-[#A66020]/30'
-                              : isReserved
-                                ? 'bg-[#0F766E]/10 text-[#0F766E]'
-                                : 'bg-[#E1E7E6]/60 text-[#6F7C7A]'
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-
-                      {/* Action buttons based on status */}
-                      {isWaiting && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            id={`action-cancelchair-waiting-${item.id}`}
-                            onClick={() => setCancelTarget(item)}
-                            className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#F6F9F8] text-[#8A3E35] text-xs font-semibold border border-[#EBD2CD] transition cursor-pointer"
-                            title="Cancel this chair"
-                          >
-                            Cancel Chair
-                          </button>
-                          <button
-                            id={`action-call-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Call')}
-                            className="px-3 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
-                            title="Call customer and assign available barber"
-                          >
-                            <PhoneForwarded className="w-3 h-3" />
-                            <span>Call</span>
-                          </button>
-                          <button
-                            id={`action-start-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Start')}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
-                            title="Start service directly in chair"
-                          >
-                            <Play className="w-3 h-3" />
-                            <span>Start</span>
-                          </button>
-                          <button
-                            id={`action-remove-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Remove')}
-                            className="p-1.5 rounded-lg text-[#6F7C7A] hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
-                            title="Cancel queue entry"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-
-                      {isCalled && (() => {
-                        // Inside the arrival window staff only see the countdown
-                        // and Start Service. No-show and Call Again unlock once
-                        // the server deadline has passed.
-                        const windowOpen = callPhase(item, now) === 'called';
-                        return (
-                          <div className="flex items-center gap-1.5">
-                            {windowOpen ? (
-                              <span
-                                id={`arrival-countdown-${item.id}`}
-                                className="px-2.5 py-1.5 rounded-xl bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-bold tabular-nums"
-                                title="Arrival window remaining"
-                              >
-                                {formatCountdown(remainingMs(item, now))} remaining
-                              </span>
-                            ) : (
-                              <button
-                                id={`action-callagain-${item.id}`}
-                                onClick={() => onQueueAction(item, 'Call')}
-                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
-                                title="Call this customer again and restart the arrival window"
-                              >
-                                Call Again
-                              </button>
-                            )}
-                            <button
-                              id={`action-start-${item.id}`}
-                              onClick={() => onQueueAction(item, 'Start')}
-                              className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer flex items-center gap-1"
-                              title="Seat customer in chair and begin service"
-                            >
-                              <Play className="w-3 h-3" />
-                              <span>Start Service</span>
-                            </button>
-                            <button
-                              id={`action-cancelchair-${item.id}`}
-                              onClick={() => setCancelTarget(item)}
-                              className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#F6F9F8] text-[#8A3E35] text-xs font-semibold border border-[#EBD2CD] transition cursor-pointer"
-                              title="Cancel this chair"
-                            >
-                              Cancel Chair
-                            </button>
-                            {!windowOpen && (
-                              <button
-                                id={`action-noshow-${item.id}`}
-                                onClick={() => onQueueAction(item, 'No-show')}
-                                className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold border border-rose-200/50 transition cursor-pointer"
-                                title="Mark customer as no-show and free barber"
-                              >
-                                No-show
-                              </button>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {isServing && (
-                        <button
-                          id={`action-finish-${item.id}`}
-                          onClick={() => onQueueAction(item, 'Complete')}
-                          className="px-3.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-bold transition active:scale-95 cursor-pointer flex items-center gap-1.5"
-                          title="Finish haircut and free styling chair"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Finish / Complete</span>
-                        </button>
-                      )}
-
-                      {isReserved && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            id={`action-call-reserved-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Call')}
-                            className="px-3 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
-                          >
-                            Check In
-                          </button>
-                          <button
-                            id={`action-start-reserved-${item.id}`}
-                            onClick={() => onQueueAction(item, 'Start')}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition active:scale-95 cursor-pointer"
-                          >
-                            Start
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              queue.map((item, index) => (
+                <QueueBookingCard
+                  key={item.id}
+                  item={item}
+                  position={index + 1}
+                  now={now}
+                  onAction={onQueueAction}
+                  onCancelChair={setCancelTarget}
+                />
+              ))
             )}
 
-            <p className="text-[11px] text-[#6F7C7A] pt-2 leading-relaxed text-center sm:text-left">
-              💡 Clicking <b>Start</b> seats the customer in chair, and <b>Finish</b> marks service complete and frees the barber in real-time.
+            <p className="pt-2 text-center text-[11px] leading-relaxed text-[#6F7C7A] sm:text-left">
+              💡 <b>Start</b> seats the customer in the chair; <b>Complete</b> finishes the service and frees the barber in real time.
+              <b> Cancel Chair</b> records why the salon dropped a booking, while <b>No-show</b> means the customer was called and never arrived.
             </p>
           </div>
         )}
