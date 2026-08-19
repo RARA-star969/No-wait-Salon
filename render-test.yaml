@@ -11,7 +11,11 @@
 #   * PUBLIC_CUSTOMER_URL is optional. When unset, qrPayload() derives the
 #     origin from the request behind Render's proxy, so QR codes generated here
 #     always point at THIS test host and never at production.
-#   * Pinned to the feature branch, so it never follows main.
+#   * Pinned to `feat/public-qr-web-join`, which is now used purely as the
+#     DEPLOY POINTER for this service. Development happens on the current
+#     feature branch; that branch is fast-forwarded onto this one to deploy,
+#     so no history is rewritten and nothing unique ever lives here.
+#     It never follows main.
 #   * plan: free, matching the existing production service tier.
 #
 # Delete this service once testing is finished.

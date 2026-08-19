@@ -1,11 +1,16 @@
-name: Production smoke test
+name: Deployed service smoke test
 
-# Verifies the deployed production service from a runner, which (unlike a
-# development sandbox) can reach onrender.com.
+# Verifies a deployed service from a runner, which (unlike a development
+# sandbox) can reach onrender.com. Defaults to production; point base_url at
+# the isolated test service to check a feature branch deployment.
 
 on:
   workflow_dispatch:
     inputs:
+      base_url:
+        description: Service to check
+        required: false
+        default: https://no-wait-salon-api.onrender.com
       commit:
         description: Commit SHA production is expected to be running
         required: false
@@ -30,12 +35,15 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Smoke test production
+      - name: Smoke test the deployed service
         env:
           EXPECTED_COMMIT: ${{ inputs.commit }}
           WITH_BOOKING: ${{ inputs.with_booking }}
+          BASE_URL: ${{ inputs.base_url || 'https://no-wait-salon-api.onrender.com' }}
         run: |
-          ARGS=("https://no-wait-salon-api.onrender.com")
+          # The free tier sleeps; give it a chance to wake before judging it.
+          curl --fail --retry 6 --retry-all-errors --retry-delay 10 --max-time 90 "${BASE_URL}/api/health" > /dev/null
+          ARGS=("${BASE_URL}")
           if [[ -n "${EXPECTED_COMMIT}" ]]; then ARGS+=("${EXPECTED_COMMIT}"); fi
           if [[ "${WITH_BOOKING}" == "true" ]]; then ARGS+=("--with-booking"); fi
           node scripts/production-smoke.mjs "${ARGS[@]}"
