@@ -889,10 +889,19 @@ app.post('/api/admin/media/upload', requireAdmin, (request,response) => {
 app.get('/api/admin/customers', requireAdmin, (_request,response) => response.json({customers:db.prepare(`SELECT a.id,a.phone_number,p.name,p.email,a.created_at,
   (SELECT COUNT(*) FROM customer_booking b WHERE b.customer_id=a.id) booking_count FROM customer_account a JOIN customer_profile p ON p.customer_id=a.id ORDER BY a.created_at DESC`).all()}));
 
+// Render injects RENDER_GIT_COMMIT into the running container, so a deploy can
+// be verified against the commit it was supposed to ship rather than assumed.
+const BUILD_COMMIT = (process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || '').trim();
+
 app.get('/api/health', (_request, response) => {
   db.prepare('SELECT 1').get();
   response.set('Cache-Control', 'no-store');
-  response.json({ ok: true, timestamp: Date.now() });
+  response.json({
+    ok: true,
+    timestamp: Date.now(),
+    commit: BUILD_COMMIT || null,
+    database: postgresPersistence ? 'postgres' : 'sqlite',
+  });
 });
 
 const qrJoinAttempts=new Map<string,{count:number;resetAt:number}>();

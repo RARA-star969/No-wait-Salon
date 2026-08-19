@@ -1,0 +1,41 @@
+name: Production smoke test
+
+# Verifies the deployed production service from a runner, which (unlike a
+# development sandbox) can reach onrender.com.
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit SHA production is expected to be running
+        required: false
+        default: ''
+      with_booking:
+        description: Also run a live booking round-trip (creates and cancels one booking)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Smoke test production
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit }}
+          WITH_BOOKING: ${{ inputs.with_booking }}
+        run: |
+          ARGS=("https://no-wait-salon-api.onrender.com")
+          if [[ -n "${EXPECTED_COMMIT}" ]]; then ARGS+=("${EXPECTED_COMMIT}"); fi
+          if [[ "${WITH_BOOKING}" == "true" ]]; then ARGS+=("--with-booking"); fi
+          node scripts/production-smoke.mjs "${ARGS[@]}"
