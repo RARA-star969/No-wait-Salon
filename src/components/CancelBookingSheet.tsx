@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertCircle, LoaderCircle, X } from 'lucide-react';
 import { CUSTOMER_CANCEL_REASONS, STAFF_CANCEL_REASONS } from '../shared/queueTiming';
 
@@ -21,6 +21,14 @@ export const CancelBookingSheet: React.FC<Props> = ({ open, audience, title, bus
   const reasons = audience === 'staff' ? STAFF_CANCEL_REASONS : CUSTOMER_CANCEL_REASONS;
   const [code, setCode] = useState<string>(reasons[0].code);
   const [text, setText] = useState('');
+
+  // Each opening starts fresh, so a reason abandoned last time is never
+  // submitted by accident on the next cancellation.
+  useEffect(() => {
+    if (!open) return;
+    setCode(reasons[0].code);
+    setText('');
+  }, [open, reasons]);
 
   if (!open) return null;
 
