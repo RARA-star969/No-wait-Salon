@@ -18,8 +18,8 @@ export type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove'; barberId?: string }
-  | { type: 'cancel_customer'; sessionId: string };
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
+  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string };
 
 const request = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const controller = new AbortController();

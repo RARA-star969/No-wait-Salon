@@ -15,7 +15,7 @@ const tables:Record<string,string[]>={
   customer_account:['id','phone_number','created_at','updated_at'],
   customer_profile:['customer_id','name','email','date_of_birth','gender','anniversary','city','profile_photo_url','marketing_consent','created_at','updated_at'],
   customer_session:['token_hash','customer_id','expires_at','created_at'],
-  customer_booking:['id','queue_entry_id','customer_id','salon_id','service','status','reserved_for','source','created_at','updated_at','outcome','first_called_at','call_attempts','acknowledged_at','grace_expires_at','no_show_at','service_started_at','service_completed_at'],
+  customer_booking:['id','queue_entry_id','customer_id','salon_id','service','status','reserved_for','source','created_at','updated_at','outcome','first_called_at','call_attempts','acknowledged_at','grace_expires_at','no_show_at','service_started_at','service_completed_at','cancelled_by','cancel_reason_code','cancel_reason_text','cancelled_at'],
   admin_user:['id','email','password_hash','created_at','updated_at'],
   admin_session:['token_hash','admin_id','expires_at','created_at'],
   salon_state:['salon_id','version','state_json','updated_at'],

@@ -40,7 +40,8 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
-import { callPhase, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { CancelBookingSheet } from './CancelBookingSheet';
 import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
@@ -83,7 +84,7 @@ interface CustomerAppProps {
   completedEntry: QueueItem | null;
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
-  onCancelQueue: () => void;
+  onCancelQueue: (reason?: { code: string; text: string }) => void;
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
@@ -126,6 +127,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   queueError,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
@@ -930,13 +932,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           </div>
 
           {/* Cancel Queue button */}
-          <button
-            id="cancel-queue-entry-btn"
-            onClick={onCancelQueue}
-            className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
-          >
-            Cancel my queue entry
-          </button>
+          {userEntry && canCancel(userEntry.status) && (
+            <button
+              id="cancel-queue-entry-btn"
+              onClick={() => setCancelSheetOpen(true)}
+              className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
+            >
+              Cancel my queue entry
+            </button>
+          )}
         </div>
       )}
 
@@ -980,6 +984,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         isOpen={isCallModalOpen}
         onClose={() => setIsCallModalOpen(false)}
         salon={selectedSalon}
+      />
+
+      <CancelBookingSheet
+        open={cancelSheetOpen}
+        audience="customer"
+        title="Cancel your booking?"
+        onClose={() => setCancelSheetOpen(false)}
+        onConfirm={(code, text) => {
+          setCancelSheetOpen(false);
+          onCancelQueue({ code, text });
+        }}
       />
     </div>
   );

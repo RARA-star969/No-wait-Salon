@@ -18,7 +18,9 @@ import type { CustomerAuthSession, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../services/customerAccountService';
-import { callPhase, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { CancelBookingSheet } from './CancelBookingSheet';
+import { toSalonProfile, waitLabel } from '../shared/salonProfile';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -75,6 +77,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [showTurnPopup, setShowTurnPopup] = useState(false);
   const [notifyState, setNotifyState] = useState(notificationPermission());
   const [now, setNow] = useState(() => Date.now());
+  const [cancelOpen, setCancelOpen] = useState(false);
   const sessionId = useRef(webSessionId());
   const lastStatus = useRef<string | null>(null);
 
@@ -155,19 +158,27 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     if (business && entry) void businessQrService.acknowledgeCall(business.id, entry.id);
   };
 
-  const leaveAndRejoin = async () => {
+  /** Cancels and stays on the card: SSE reports the cancelled outcome back. */
+  const cancelBooking = async (reasonCode = 'other', reasonText = '') => {
     if (!business) return;
     setBusy(true);
+    setError('');
     try {
-      await businessQrService.leaveQueue(business.id, sessionId.current);
-      setEntry(null);
-      lastStatus.current = null;
-      setStep('salon');
+      await businessQrService.leaveQueue(business.id, sessionId.current, reasonCode, reasonText);
+      setCancelOpen(false);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not leave the queue.');
+      setError(reason instanceof Error ? reason.message : 'Could not cancel this booking.');
     } finally {
       setBusy(false);
     }
+  };
+
+  /** Clears the closed booking so the customer can pick a service again. */
+  const rejoin = () => {
+    setEntry(null);
+    lastStatus.current = null;
+    setError('');
+    setStep('salon');
   };
 
   const persistAuth = (session: CustomerAuthSession) => {
@@ -297,13 +308,17 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  const services = business.services || [];
+  const profile = toSalonProfile(business as never);
+  const services = profile.services;
   const selectedService = services.find((service) => service.id === serviceId);
   const isQueued = step === 'queued' && entry;
   const phase = entry ? callPhase(entry, now) : 'waiting';
   const completed = phase === 'completed';
   const inService = phase === 'in_service';
   const noShow = phase === 'no_show';
+  const cancelledByStaff = entry?.outcome === 'cancelled_staff';
+  const cancelledByCustomer = entry?.outcome === 'cancelled_customer';
+  const cancelled = cancelledByStaff || cancelledByCustomer || entry?.status === 'Cancelled';
   const arrivalExpired = phase === 'call_again';
   const countdown = formatCountdown(remainingMs(entry || {}, now));
   const acknowledged = Boolean(entry?.acknowledgedAt);
@@ -347,25 +362,36 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           <div className="rounded-3xl border border-[#E2EAE9] bg-white p-4 shadow-[0_8px_24px_-12px_rgba(15,32,31,0.18)]">
             <div className="flex items-start gap-3">
               <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#E5F3F1] ring-1 ring-[#D3E7E4]">
-                {business.logoImageUrl ? (
-                  <img src={business.logoImageUrl} alt="" className="h-full w-full object-cover" />
+                {profile.logoImageUrl ? (
+                  <img src={profile.logoImageUrl} alt="" className="h-full w-full object-cover" />
                 ) : (
                   <Scissors className="h-5 w-5 text-[#0F766E]" />
                 )}
               </span>
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-[19px] font-bold leading-tight tracking-[-0.02em]">{business.name}</h1>
+                <h1 className="truncate text-[19px] font-bold leading-tight tracking-[-0.02em]">{profile.name}</h1>
+                {profile.category && <p className="mt-0.5 truncate text-[11px] font-semibold text-[#0F766E]">{profile.category}</p>}
                 <p className="mt-1 flex items-start gap-1.5 text-xs leading-5 text-[#667371]">
                   <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  <span className="line-clamp-2">{business.address}</span>
+                  <span className="line-clamp-2">{profile.address}</span>
                 </p>
               </div>
-              {business.rating > 0 && (
-                <span className="flex shrink-0 items-center gap-1 rounded-lg bg-[#FFF8EC] px-2 py-1 text-xs font-bold text-[#8A6516]">
-                  <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
-                  {business.rating}
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {profile.rating > 0 && (
+                  <span className="flex items-center gap-1 rounded-lg bg-[#FFF8EC] px-2 py-1 text-xs font-bold text-[#8A6516]">
+                    <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
+                    {profile.rating}
+                    {profile.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({profile.reviewCount})</span>}
+                  </span>
+                )}
+                <span
+                  className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    profile.isOpen ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-[#F3F0EE] text-[#8A6A62]'
+                  }`}
+                >
+                  {profile.isOpen ? 'Open now' : 'Closed'}
                 </span>
-              )}
+              </div>
             </div>
           </div>
         </div>
@@ -373,7 +399,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-4">
           {/* Live status row */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Live wait" value={isQueued ? estimatedWait : `${business.liveWaitMinutes} min`} />
+            <Field label="Live wait" value={isQueued ? estimatedWait : waitLabel(profile.liveWaitMinutes)} />
             <Field label={isQueued ? 'People ahead' : 'In queue'} value={String(isQueued ? peopleAhead : waiting)} />
           </div>
 
@@ -386,15 +412,18 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           {/* ---------------- Salon / service selection ---------------- */}
           {step === 'salon' && (
             <>
-              {business.offers?.length > 0 && (
+              {profile.offers.length > 0 && (
                 <div className="mt-5 rounded-2xl border border-[#F2E2C9] bg-[#FFFBF3] p-4">
                   <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9A7327]">
                     <Sparkles className="h-3.5 w-3.5" /> Offers
                   </p>
-                  {business.offers.slice(0, 2).map((offer, index) => (
-                    <p key={index} className="mt-2 text-sm font-semibold leading-5 text-[#5C4713]">
-                      {typeof offer === 'string' ? offer : offer?.title}
-                    </p>
+                  {profile.offers.map((offer) => (
+                    <div key={offer.id} className="mt-2">
+                      {offer.discount && <p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p>}
+                      <p className="text-sm font-semibold leading-5 text-[#5C4713]">{offer.title}</p>
+                      {offer.minimumBill && <p className="mt-0.5 text-[10px] text-[#9A7327]">Minimum bill {offer.minimumBill}</p>}
+                      {offer.validity && <p className="text-[10px] text-[#9A7327]">{offer.validity}</p>}
+                    </div>
                   ))}
                 </div>
               )}
@@ -424,6 +453,9 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold">{service.name}</span>
+                        {service.description && (
+                          <span className="mt-0.5 block text-[11px] leading-4 text-[#788582]">{service.description}</span>
+                        )}
                         <span className="mt-0.5 flex items-center gap-1 text-xs text-[#667371]">
                           <Clock className="h-3 w-3" /> {service.durationMin} min
                         </span>
@@ -437,10 +469,44 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 )}
               </div>
 
-              {business.description && (
+              <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">About</h2>
+              <div className="mt-2 rounded-2xl border border-[#E2EAE9] bg-white p-4">
+                <p className="text-sm leading-6 text-[#4C5A58]">{profile.description}</p>
+                {profile.amenities.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {profile.amenities.map((amenity) => (
+                      <span key={amenity} className="rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">
+                        {amenity}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Location &amp; hours</h2>
+              <div className="mt-2 rounded-2xl border border-[#E2EAE9] bg-white p-4">
+                <p className="text-sm leading-6 text-[#4C5A58]">{profile.address}</p>
+                {profile.openingHours && <p className="mt-1 text-xs font-semibold text-[#25302F]">{profile.openingHours}</p>}
+                <a
+                  href={profile.directionsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"
+                >
+                  <MapPin className="h-4 w-4" /> View directions
+                </a>
+              </div>
+
+              {profile.gallery.length > 0 && (
                 <>
-                  <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">About</h2>
-                  <p className="mt-2 rounded-2xl border border-[#E2EAE9] bg-white p-4 text-sm leading-6 text-[#4C5A58]">{business.description}</p>
+                  <h2 className="mt-7 text-[13px] font-bold uppercase tracking-[0.12em] text-[#5A6866]">Inside the salon</h2>
+                  <div className="mt-2 flex snap-x gap-3 overflow-x-auto pb-1">
+                    {profile.gallery.map((item) => (
+                      <div key={item.id} className="aspect-[4/5] min-w-[150px] shrink-0 snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]">
+                        <img src={item.imageUrl} alt={item.label || profile.name} className="h-full w-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
                 </>
               )}
             </>
@@ -546,7 +612,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   {completed ? <CheckCircle2 className="h-6 w-6" /> : entry.status === 'Called' ? <BellRing className="h-6 w-6 text-[#B4761C]" /> : <Check className="h-6 w-6" />}
                 </div>
                 <h2 className="mt-3 text-[17px] font-bold">
-                  {completed
+                  {cancelledByStaff
+                    ? 'The salon cancelled your booking'
+                    : cancelledByCustomer
+                      ? 'Booking cancelled'
+                      : completed
                     ? 'Service complete'
                     : noShow
                       ? 'You missed your turn'
@@ -605,7 +675,15 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   </div>
                 )}
 
-                {(arrivalExpired || noShow) && (
+                {cancelled && (
+                  <div className="mt-4 rounded-2xl bg-white p-4 text-sm leading-6 text-[#5A6866]">
+                    {cancelledByStaff
+                      ? 'The salon could not keep this booking. You can join the queue again or call them.'
+                      : 'Your booking was cancelled and removed from the queue.'}
+                  </div>
+                )}
+
+                {(arrivalExpired || noShow || cancelled) && (
                   <div className="mt-4 flex flex-col gap-2">
                     {business.phoneNumber && (
                       <a href={`tel:${business.phoneNumber}`} className="flex h-11 items-center justify-center rounded-xl border border-[#CDE3E0] bg-white text-sm font-bold text-[#0F766E]">
@@ -614,16 +692,29 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                     )}
                     <button
                       type="button"
-                      onClick={() => void leaveAndRejoin()}
+                      onClick={() => (arrivalExpired && !cancelled && !noShow ? void cancelBooking('changed_mind') : rejoin())}
                       disabled={busy}
                       className="flex h-11 items-center justify-center rounded-xl bg-[#0F766E] text-sm font-bold text-white disabled:opacity-60"
                     >
-                      {noShow ? 'Join queue again' : 'Leave this queue & join again'}
+                      {noShow || cancelled ? 'Join queue again' : 'Leave this queue & join again'}
                     </button>
                   </div>
                 )}
 
-                {!completed && !noShow && <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>}
+                {!completed && !noShow && !cancelled && (
+                  <>
+                    <p className="mt-3 text-[11px] text-[#4F7F7A]">Live · updates automatically, no need to refresh.</p>
+                    {canCancel(entry.status) && (
+                      <button
+                        type="button"
+                        onClick={() => setCancelOpen(true)}
+                        className="mt-3 text-xs font-bold text-[#8A3E35] underline underline-offset-2"
+                      >
+                        Cancel booking
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Optional, never blocking. */}
@@ -682,6 +773,15 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           </div>
         </div>
       )}
+
+      <CancelBookingSheet
+        open={cancelOpen}
+        audience="customer"
+        busy={busy}
+        error={error}
+        onClose={() => setCancelOpen(false)}
+        onConfirm={(reasonCode, reasonText) => void cancelBooking(reasonCode, reasonText)}
+      />
 
       {/* Turn popup: the guaranteed in-page surface, driven by SSE. */}
       {showTurnPopup && entry && (

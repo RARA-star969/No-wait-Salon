@@ -33,12 +33,16 @@ export type CallPhase =
   | 'call_again'//      window elapsed, staff must decide
   | 'in_service'
   | 'completed'
-  | 'no_show';
+  | 'no_show'
+  | 'cancelled';
 
 export function callPhase(item: Pick<QueueItem, 'status' | 'graceExpiresAt'>, now = Date.now()): CallPhase {
   if (item.status === 'Serving') return 'in_service';
   if (item.status === 'Completed') return 'completed';
   if (item.status === 'NoShow') return 'no_show';
+  // A cancelled booking is terminal. Without this it read as 'waiting', which
+  // would put it back in the Live tab and under a live countdown.
+  if (item.status === 'Cancelled') return 'cancelled';
   if (item.status !== 'Called') return 'waiting';
   // Missing deadline (an entry called before this feature shipped) is treated
   // as still inside the window rather than instantly expired.
@@ -71,4 +75,40 @@ export function shouldStartNewCall(
 ): boolean {
   if (item.status !== 'Called') return true;
   return callPhase(item, now) === 'call_again';
+}
+
+/** Reasons a customer can give. Shared by the web page and the Customer app. */
+export const CUSTOMER_CANCEL_REASONS = [
+  { code: 'wait_too_long', label: 'Wait too long' },
+  { code: 'running_late', label: 'Running late' },
+  { code: 'changed_mind', label: 'Changed mind' },
+  { code: 'booked_by_mistake', label: 'Booked by mistake' },
+  { code: 'chose_another_salon', label: 'Chose another salon' },
+  { code: 'price_or_service', label: 'Price/service issue' },
+  { code: 'other', label: 'Other' },
+] as const;
+
+/** Reasons staff can give when cancelling a chair. */
+export const STAFF_CANCEL_REASONS = [
+  { code: 'customer_requested', label: 'Customer requested' },
+  { code: 'booking_mistake', label: 'Booking mistake' },
+  { code: 'service_unavailable', label: 'Service unavailable' },
+  { code: 'staff_unavailable', label: 'Staff unavailable' },
+  { code: 'salon_closing', label: 'Salon closing' },
+  { code: 'other', label: 'Other' },
+] as const;
+
+const CUSTOMER_CODES = new Set(CUSTOMER_CANCEL_REASONS.map((reason) => reason.code as string));
+const STAFF_CODES = new Set(STAFF_CANCEL_REASONS.map((reason) => reason.code as string));
+
+/** Server-side validation: an unknown code is stored as 'other', never trusted raw. */
+export function normaliseCancelReason(by: 'customer' | 'staff', code: unknown): string {
+  const value = typeof code === 'string' ? code.trim() : '';
+  const allowed = by === 'staff' ? STAFF_CODES : CUSTOMER_CODES;
+  return allowed.has(value) ? value : 'other';
+}
+
+/** A booking can only be cancelled before it is in service or already closed. */
+export function canCancel(status: QueueItem['status']): boolean {
+  return status === 'Waiting' || status === 'Called' || status === 'Reserved';
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
+import { fetchSalonProfile } from './services/salonDiscoveryService';
 import { Header } from './components/Header';
 import { CustomerApp } from './components/CustomerApp';
 import { PublicSalonPage } from './components/PublicSalonPage';
@@ -154,6 +155,21 @@ export default function App() {
     return () => {
       disposed = true;
       unsubscribe();
+    };
+  }, [selectedSalon.id]);
+
+  // Keep the selected salon's profile identical to what the public web page
+  // would show for it: re-read the server record whenever the salon changes.
+  useEffect(() => {
+    let disposed = false;
+    fetchSalonProfile(selectedSalon.id)
+      .then((fresh) => {
+        if (disposed || !fresh) return;
+        setSelectedSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
     };
   }, [selectedSalon.id]);
 
@@ -317,11 +333,19 @@ export default function App() {
 
   const handleQueueAction = (
     item: QueueItem,
-    action: 'Call' | 'Start' | 'Complete' | 'No-show' | 'Remove',
+    action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
+    reason?: { code: string; text: string },
     specificBarberIndex?: number
   ) => {
     const barberId = specificBarberIndex !== undefined ? barbers[specificBarberIndex]?.id : undefined;
-    void runCommand({ type: 'queue_action', itemId: item.id, action, barberId }).then((snapshot) => {
+    void runCommand({
+      type: 'queue_action',
+      itemId: item.id,
+      action,
+      barberId,
+      reasonCode: reason?.code,
+      reasonText: reason?.text,
+    }).then((snapshot) => {
       if (!snapshot || item.sessionId !== customerSessionId.current) return;
       if (action === 'Call') {
         const updated = snapshot.queue.find((entry) => entry.id === item.id);
@@ -413,8 +437,13 @@ export default function App() {
     setCurrentScreen('tracking');
   };
 
-  const handleCancelUserQueue = async () => {
-    const snapshot = await runCommand({ type: 'cancel_customer', sessionId: customerSessionId.current });
+  const handleCancelUserQueue = async (reason?: { code: string; text: string }) => {
+    const snapshot = await runCommand({
+      type: 'cancel_customer',
+      sessionId: customerSessionId.current,
+      reasonCode: reason?.code,
+      reasonText: reason?.text,
+    });
     if (!snapshot) return;
     setCurrentScreen('salon');
     triggerPushNotification(

@@ -9,7 +9,7 @@ import type { Barber, QueueItem, Salon } from '../src/types.ts';
 import {initPostgresPersistence} from './postgresPersistence.ts';
 import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
-import {graceMinutes,graceWindowMs,shouldStartNewCall} from '../src/shared/queueTiming.ts';
+import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 
 // Configurable arrival grace period; a future per-salon setting can override this.
 const GRACE_WINDOW_MS = graceWindowMs(graceMinutes(process.env.QUEUE_GRACE_MINUTES));
@@ -28,8 +28,8 @@ type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove'; barberId?: string }
-  | { type: 'cancel_customer'; sessionId: string };
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
+  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -306,6 +306,10 @@ for (const [column, ddl] of [
   ['no_show_at', 'no_show_at INTEGER'],
   ['service_started_at', 'service_started_at INTEGER'],
   ['service_completed_at', 'service_completed_at INTEGER'],
+  ['cancelled_by', 'cancelled_by TEXT'],
+  ['cancel_reason_code', 'cancel_reason_code TEXT'],
+  ['cancel_reason_text', 'cancel_reason_text TEXT'],
+  ['cancelled_at', 'cancelled_at INTEGER'],
 ] as const) {
   if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
 }
@@ -476,9 +480,10 @@ function upsertBooking(salonId: string, item: QueueItem) {
   db.prepare(`
     INSERT INTO customer_booking (
       id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
-      outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at
+      outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at,
+      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(queue_entry_id) DO UPDATE SET
       status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
       outcome = COALESCE(excluded.outcome, customer_booking.outcome),
@@ -488,12 +493,17 @@ function upsertBooking(salonId: string, item: QueueItem) {
       grace_expires_at = excluded.grace_expires_at,
       no_show_at = COALESCE(excluded.no_show_at, customer_booking.no_show_at),
       service_started_at = COALESCE(customer_booking.service_started_at, excluded.service_started_at),
-      service_completed_at = COALESCE(excluded.service_completed_at, customer_booking.service_completed_at)
+      service_completed_at = COALESCE(excluded.service_completed_at, customer_booking.service_completed_at),
+      cancelled_by = COALESCE(excluded.cancelled_by, customer_booking.cancelled_by),
+      cancel_reason_code = COALESCE(excluded.cancel_reason_code, customer_booking.cancel_reason_code),
+      cancel_reason_text = COALESCE(excluded.cancel_reason_text, customer_booking.cancel_reason_text),
+      cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at)
   `).run(
     randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
     item.source || 'customer_app', item.createdAt, now,
     item.outcome || null, item.calledAt || null, item.callAttempt || 0, item.acknowledgedAt || null,
     item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
+    item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
   );
 }
 
@@ -586,9 +596,26 @@ function applyCommand(state: SalonState, command: QueueCommand) {
 
   if (command.type === 'cancel_customer') {
     const item = state.queue.find((entry) => entry.sessionId === command.sessionId);
+    // Idempotent: cancelling an entry that is already gone is a no-op.
     if (!item) return state;
+    if (!canCancel(item.status)) throw new Error('This booking is already in service and cannot be cancelled.');
     releaseBarber(state, item);
     state.queue = state.queue.filter((entry) => entry.id !== item.id);
+    state.completedList = [
+      {
+        ...item,
+        status: 'Cancelled' as const,
+        outcome: 'cancelled_customer' as const,
+        cancelledBy: 'customer' as const,
+        cancelReasonCode: normaliseCancelReason('customer', command.reasonCode),
+        cancelReasonText: cleanText(command.reasonText, 300) || undefined,
+        cancelledAt: Date.now(),
+        // Removing the deadline guarantees a stale timer can never resurrect
+        // this booking as call-again or no-show.
+        graceExpiresAt: undefined,
+      } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
     return state;
   }
 
@@ -643,6 +670,23 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     releaseBarber(state, item);
     state.queue.splice(itemIndex, 1);
     state.completedList = [{ ...item, status: 'Completed' as const, outcome: 'completed' as const, serviceCompletedAt: Date.now() }, ...state.completedList].slice(0, 100);
+  } else if (command.action === 'Cancel-chair') {
+    if (!canCancel(item.status)) throw new Error('Complete or finish the active service before cancelling this chair.');
+    releaseBarber(state, item);
+    state.queue.splice(itemIndex, 1);
+    state.completedList = [
+      {
+        ...item,
+        status: 'Cancelled' as const,
+        outcome: 'cancelled_staff' as const,
+        cancelledBy: 'staff' as const,
+        cancelReasonCode: normaliseCancelReason('staff', command.reasonCode),
+        cancelReasonText: cleanText(command.reasonText, 300) || undefined,
+        cancelledAt: Date.now(),
+        graceExpiresAt: undefined,
+      } as QueueItem,
+      ...state.completedList,
+    ].slice(0, 100);
   } else if (command.action === 'No-show') {
     if (item.status === 'Serving') throw new Error('Complete the active service before marking a no-show.');
     releaseBarber(state, item);
@@ -985,6 +1029,20 @@ app.get('/api/salons/nearby', (request, response) => {
   response.json({ salons: matches, source: hasCoordinates ? 'gps' : 'manual' });
 });
 
+// Same salon record the public QR page reads, so the app can refresh a salon
+// it already has selected and never render a stale profile.
+app.get('/api/salons/:salonId/profile', (request, response) => {
+  const row = db.prepare("SELECT * FROM salon WHERE id = ? AND onboarded = 1 AND platform_status = 'active'").get(request.params.salonId) as SalonRow | undefined;
+  if (!row) return response.status(404).json({ error: 'Salon not found.' });
+  const salon = rowToSalon(row);
+  const state = readState(salon.id);
+  const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
+  const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
+  const liveWaitMinutes = activeBarbers ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
+  response.set('Cache-Control', 'no-store');
+  response.json({ salon: { ...salon, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
+});
+
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(readState(request.params.salonId));
@@ -1027,14 +1085,17 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
       const cancelled = [...previousItems.values()].find((item) => item.sessionId === command.sessionId);
       if (cancelled?.customerId) {
         upsertBooking(next.salonId, { ...cancelled, status: 'Completed' });
-        db.prepare("UPDATE customer_booking SET status = ?, outcome = 'cancelled', updated_at = ? WHERE queue_entry_id = ?")
+        // The completedList upsert above already carried the structured
+        // cancellation, so only the display status needs syncing here.
+        db.prepare('UPDATE customer_booking SET status = ?, updated_at = ? WHERE queue_entry_id = ?')
           .run('Cancelled', Date.now(), cancelled.id);
       }
-    } else if (command.type === 'queue_action' && ['No-show', 'Remove'].includes(command.action)) {
+    } else if (command.type === 'queue_action' && ['No-show', 'Remove', 'Cancel-chair'].includes(command.action)) {
       const removed = previousItems.get(command.itemId);
       // A no-show is recorded as its own outcome so reporting never counts it
       // as a completed service.
-      const outcome = command.action === 'No-show' ? 'no_show' : 'removed';
+      const outcome =
+        command.action === 'No-show' ? 'no_show' : command.action === 'Cancel-chair' ? 'cancelled_staff' : 'removed';
       const stamp = Date.now();
       if (removed?.customerId) {
         db.prepare('UPDATE customer_booking SET status = ?, outcome = ?, no_show_at = ?, updated_at = ? WHERE queue_entry_id = ?')

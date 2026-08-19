@@ -91,6 +91,15 @@ const migrations=[{
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS service_completed_at BIGINT;
     CREATE INDEX IF NOT EXISTS customer_booking_outcome_idx ON customer_booking(outcome,updated_at DESC);
   `
+},{
+  version:5,
+  name:'structured_cancellations',
+  sql:`
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancel_reason_code TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancel_reason_text TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancelled_at BIGINT;
+  `
 }];
 
 export async function runMigrations(db:Database){

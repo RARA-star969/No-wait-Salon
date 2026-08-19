@@ -1,7 +1,14 @@
-export type QueueStatus = 'Waiting' | 'Called' | 'Serving' | 'Reserved' | 'Completed' | 'NoShow';
+export type QueueStatus = 'Waiting' | 'Called' | 'Serving' | 'Reserved' | 'Completed' | 'NoShow' | 'Cancelled';
 
 /** Terminal outcome of a queue entry, kept distinct from a completed service. */
-export type QueueOutcome = 'completed' | 'no_show' | 'cancelled' | 'removed';
+export type QueueOutcome =
+  | 'completed'
+  | 'no_show'
+  | 'cancelled_customer'
+  | 'cancelled_staff'
+  | 'removed';
+
+export type CancelledBy = 'customer' | 'staff';
 
 export interface QueueItem {
   id: string;
@@ -21,6 +28,10 @@ export interface QueueItem {
   acknowledgedAt?: number;
   outcome?: QueueOutcome;
   noShowAt?: number;
+  cancelledBy?: CancelledBy;
+  cancelReasonCode?: string;
+  cancelReasonText?: string;
+  cancelledAt?: number;
   serviceStartedAt?: number;
   serviceCompletedAt?: number;
   reservedFor?: string;
