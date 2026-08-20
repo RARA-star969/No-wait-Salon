@@ -22,7 +22,8 @@ import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../services/customerAccountService';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
-import { toSalonProfile, waitLabel } from '../shared/salonProfile';
+import { toSalonProfile } from '../shared/salonProfile';
+import { formatDuration } from '../shared/duration';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { resolveAppReadiness } from '../shared/profileReadiness';
@@ -494,7 +495,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           {/* Live queue hero: the strongest visual signal on the page. */}
           <div className="mt-4">
             <LiveQueueCard
-              waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? waitLabel(profile.liveWaitMinutes) : 'Ready now'}
+              waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? formatDuration(profile.liveWaitMinutes) : 'Ready now'}
               peopleAhead={isQueued ? peopleAhead : waiting}
               peopleAheadTrend={aheadTrend}
               readyChairs={barbersAvailable}
@@ -936,6 +937,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         busy={busy}
         error={error}
         customerName={customerProfile?.name}
+        customerPhotoUrl={customerProfile?.profilePhotoUrl}
         onClose={() => { setJoinSheetOpen(false); setError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoin(preferredBarberId)}
       />

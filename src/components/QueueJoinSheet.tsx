@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, Users, X } from 'lucide-react';
+import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, User, Users, X } from 'lucide-react';
 import type { Barber, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
+import { formatDuration } from '../shared/duration';
+import { LiveChip } from './LiveQueueCard';
 
 /** "Any available stylist" is modelled as an explicit choice, not an absence. */
 export const ANY_STYLIST = '';
@@ -17,6 +19,8 @@ type Props = {
   error?: string;
   /** Name we already hold, shown so the customer can see we did not forget it. */
   customerName?: string;
+  /** Uploaded profile photo, when the account has one. */
+  customerPhotoUrl?: string;
   onClose: () => void;
   onConfirm: (preferredBarberId: string) => void;
 };
@@ -35,6 +39,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
   busy,
   error,
   customerName,
+  customerPhotoUrl,
   onClose,
   onConfirm,
 }) => {
@@ -70,7 +75,16 @@ export const QueueJoinSheet: React.FC<Props> = ({
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F766E]">Join the queue</p>
             <h2 className="mt-1 truncate text-xl font-bold tracking-[-0.03em] text-[#17201F]">{salon.name}</h2>
             {customerName && (
-              <p className="mt-1 truncate text-xs text-[#667371]">Booking as {customerName}</p>
+              <div className="mt-1.5 flex items-center gap-1.5">
+                <span className="grid h-5 w-5 shrink-0 place-items-center overflow-hidden rounded-full bg-[#E6F3F1] text-[#0F766E]">
+                  {customerPhotoUrl ? (
+                    <img src={customerPhotoUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <User className="h-3 w-3" />
+                  )}
+                </span>
+                <p className="truncate text-xs text-[#667371]">Booking as {customerName}</p>
+              </div>
             )}
           </div>
           <button
@@ -84,19 +98,13 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Live queue facts, from the same maths the live ticket uses. */}
+          {/* Live queue facts, in the same live-scoreboard language as the salon page. */}
           <section className="rounded-2xl border border-[#BFDAD6] bg-[#E6F3F1] p-4">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#14B8A6] opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#0F766E]" />
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#4E7772]">Live queue</p>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Stat label="People ahead" value={String(preview.peopleAhead)} />
-              <Stat label="Your position" value={`#${preview.projectedPosition}`} />
-              <Stat label="Est. wait" value={preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m`} />
+            <LiveChip />
+            <div className="mt-3 grid grid-cols-3 gap-2 divide-x divide-[#BFDAD6]">
+              <Stat label="Ahead" value={String(preview.peopleAhead)} />
+              <Stat label="Position" value={`#${preview.projectedPosition}`} />
+              <Stat label="Est. time" value={preview.estimatedWaitMinutes === 0 ? 'Now' : formatDuration(preview.estimatedWaitMinutes)} />
             </div>
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-[#5C7773]">
               <Users className="h-3.5 w-3.5" />
@@ -117,7 +125,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
                 )}
                 {totalDurationMin > 0 ? (
                   <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#60716E]">
-                    <Clock className="h-3 w-3" /> {totalDurationMin} min
+                    <Clock className="h-3 w-3" /> {formatDuration(totalDurationMin)}
                   </p>
                 ) : null}
               </div>
@@ -134,13 +142,21 @@ export const QueueJoinSheet: React.FC<Props> = ({
             <p className="mt-1 text-[11px] text-[#788582]">Pick a favourite, or let the salon seat you sooner.</p>
 
             <div className="mt-3 space-y-2">
-              <StylistOption
+              <button
                 id="stylist-any"
-                title="Any available stylist"
-                subtitle="Usually the fastest way to be seated"
-                selected={stylist === ANY_STYLIST}
-                onSelect={() => setStylist(ANY_STYLIST)}
-              />
+                type="button"
+                onClick={() => setStylist(ANY_STYLIST)}
+                aria-pressed={stylist === ANY_STYLIST}
+                className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left transition ${
+                  stylist === ANY_STYLIST ? 'border-[#0F766E] bg-[#F1FAF9]' : 'border-[#E2EAE9] bg-white'
+                }`}
+              >
+                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full ${stylist === ANY_STYLIST ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#5C6B68]'}`}>
+                  {stylist === ANY_STYLIST ? <Check className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                </span>
+                <span className="min-w-0 flex-1 text-[13px] font-semibold text-[#17201F]">Any available stylist</span>
+                <span className="shrink-0 text-[10px] text-[#788582]">Fastest</span>
+              </button>
               {selectable.map((barber) => (
                 <StylistOption
                   key={barber.id}
@@ -187,7 +203,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
 };
 
 const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-xl bg-white/70 p-2.5 text-center">
+  <div className="pl-2.5 text-center first:pl-0">
     <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#5C7773]">{label}</p>
     <p className="mt-0.5 text-lg font-bold tracking-[-0.02em] text-[#125B54]">{value}</p>
   </div>

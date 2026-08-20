@@ -226,12 +226,15 @@ export default function App() {
     }
   }, [completedList, userEntry, currentScreen]);
 
-  // Dispatch push notification helper
+  // Dispatch push notification helper. `silent` skips the on-screen banner —
+  // used for moments (like a successful join) that should feel confirmed
+  // through a chime + haptic, not an intrusive popup blocking the screen.
   const triggerPushNotification = (
     title: string,
     body: string,
     type: PushNotification['type'],
-    salonName = selectedSalon.name
+    salonName = selectedSalon.name,
+    silent = false
   ) => {
     const notif: PushNotification = {
       id: `push-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -243,8 +246,15 @@ export default function App() {
       read: false,
     };
     setNotifications((prev) => [notif, ...prev.slice(0, 30)]);
-    setActiveToast(notif);
+    if (!silent) setActiveToast(notif);
     dispatchWebPushNotification(notif);
+    if (silent) {
+      try {
+        navigator.vibrate?.([12, 40, 12]);
+      } catch {
+        /* unsupported */
+      }
+    }
   };
 
   // Request native permission
@@ -468,7 +478,9 @@ export default function App() {
       triggerPushNotification(
         `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
         `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
-        'confirmed'
+        'confirmed',
+        selectedSalon.name,
+        true,
       );
       setCurrentScreen('tracking');
     } catch (error) {
@@ -784,6 +796,7 @@ export default function App() {
         busy={joinSheetBusy}
         error={joinSheetError}
         customerName={customerProfile?.name}
+        customerPhotoUrl={customerProfile?.profilePhotoUrl}
         onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />

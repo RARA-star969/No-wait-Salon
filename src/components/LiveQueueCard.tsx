@@ -1,26 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
+import { ArmchairIcon, ArrowDown, ArrowUp, Clock } from 'lucide-react';
 
 /**
- * The hero USP: a premium teal/emerald live-queue card shared by the
+ * The hero USP: a premium, compact teal/emerald live-queue card shared by the
  * customer app's salon page and the public QR web page, so both surfaces
  * present the exact same "strongest visual signal" for the live queue.
  *
- * Pure CSS keyframes drive the pulse/waveform motion — no per-frame JS —
+ * Pure CSS keyframes drive the pulse/breathing motion — no per-frame JS —
  * so this stays cheap on low-end mobile browsers.
  */
 
 export type QueueTrend = 'up' | 'down' | 'steady';
 
 export type LiveQueueCardProps = {
+  /** Already-formatted duration value only, e.g. "8 min" or "1 hr 15 min" — never "wait". */
   waitLabel: string;
-  waitDeltaLabel?: string;
   peopleAhead: number;
   peopleAheadTrend?: QueueTrend;
   readyChairs: number;
   totalChairs: number;
   activityLabel?: string;
-  queueMovingLabel?: string;
   live?: boolean;
   className?: string;
 };
@@ -39,37 +38,60 @@ function useFlashOnChange<T>(value: T): boolean {
   return flashing;
 }
 
-const TrendBadge: React.FC<{ trend?: QueueTrend; label?: string }> = ({ trend, label }) => {
-  if (!trend || trend === 'steady' || !label) return null;
+/** The premium red LIVE chip, reused verbatim by the floating capsule so both match exactly. */
+export const LiveChip: React.FC<{ live?: boolean; className?: string }> = ({ live = true, className = '' }) => (
+  <span
+    className={`inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#F4574B] to-[#D8362A] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white ${live ? 'animate-[live-chip-pulse_2.2s_ease-in-out_infinite]' : ''} ${className}`}
+  >
+    <span className="relative flex h-1.5 w-1.5">
+      {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/85" />}
+      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+    </span>
+    Live
+  </span>
+);
+
+const TrendBadge: React.FC<{ trend?: QueueTrend }> = ({ trend }) => {
+  if (!trend || trend === 'steady') return null;
   const Icon = trend === 'down' ? ArrowDown : ArrowUp;
   const positive = trend === 'down';
   return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${positive ? 'text-[#5EE0B4]' : 'text-[#F5B199]'}`}>
-      <Icon className="h-3 w-3" />
-      {label}
+    <span className={`inline-flex h-4 w-4 items-center justify-center rounded-full ${positive ? 'bg-[#5EE0B4]/20 text-[#5EE0B4]' : 'bg-[#F5B199]/20 text-[#F5B199]'}`}>
+      <Icon className="h-2.5 w-2.5" strokeWidth={3} />
     </span>
   );
 };
 
-const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.ReactNode; flashing?: boolean }> = ({ label, value, delta, flashing }) => (
+const Stat: React.FC<{ label: string; value: React.ReactNode; trend?: QueueTrend; flashing?: boolean; icon?: React.ReactNode }> = ({
+  label,
+  value,
+  trend,
+  flashing,
+  icon,
+}) => (
   <div className="min-w-0">
-    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label}</p>
-    <p className={`mt-1 text-[22px] font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}>
-      {value}
+    <p className="flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-[0.14em] text-white/55">
+      {icon}
+      {label}
     </p>
-    {delta && <div className="mt-1">{delta}</div>}
+    <p
+      className={`mt-1 flex items-center gap-1.5 text-[19px] font-extrabold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
+        flashing ? 'scale-[1.1] text-[#7DEFC6]' : ''
+      }`}
+    >
+      {value}
+      {trend && <TrendBadge trend={trend} />}
+    </p>
   </div>
 );
 
 export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   waitLabel,
-  waitDeltaLabel,
   peopleAhead,
   peopleAheadTrend,
   readyChairs,
   totalChairs,
   activityLabel,
-  queueMovingLabel = 'Steady',
   live = true,
   className = '',
 }) => {
@@ -80,67 +102,36 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
 
   return (
     <section
-      className={`relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-5 text-white shadow-[0_18px_40px_-16px_rgba(6,44,40,0.55)] ${className}`}
+      className={`relative overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_14px_32px_-16px_rgba(6,44,40,0.55)] ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
-      <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -left-14 bottom-0 h-32 w-32 rounded-full bg-[#0AA88C]/25 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-10 -top-14 h-32 w-32 rounded-full bg-[#5EE0B4]/20 blur-3xl" aria-hidden="true" />
 
       <div className="relative flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">
-          <span className="relative flex h-1.5 w-1.5">
-            {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
-          </span>
-          Live
-        </span>
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-          Updates in real time
-          <Radio className="h-3 w-3 animate-pulse" />
-        </span>
+        <LiveChip live={live} />
+        {activityLabel && (
+          <span className="max-w-[55%] truncate text-[10px] font-semibold text-white/65">{activityLabel}</span>
+        )}
       </div>
 
-      <div className="relative mt-4 grid grid-cols-3 gap-3">
-        <Stat label="Approx. wait" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
-        <Stat
-          label="People ahead"
-          value={peopleAhead}
-          flashing={aheadFlash}
-          delta={<TrendBadge trend={peopleAheadTrend} label={peopleAheadTrend === 'down' ? '↓ moving' : peopleAheadTrend === 'up' ? '↑ busier' : undefined} />}
-        />
-        <Stat
-          label="Ready chairs"
-          value={readyChairs}
-          flashing={chairsFlash}
-          delta={<span className={`inline-flex h-2 w-2 rounded-full ${chairsReady ? 'bg-[#5EE0B4]' : 'bg-white/30'}`} />}
-        />
-      </div>
-
-      {/* Lightweight waveform: a looping CSS animation, not a per-frame canvas. */}
-      <div className="relative mt-4 h-10 overflow-hidden rounded-xl bg-black/10">
-        <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="h-full w-[200%] animate-[queue-waveform_3.2s_linear_infinite]">
-          <path
-            d="M0 20 C 8 8, 16 32, 24 20 S 40 8, 48 20 S 64 32, 72 20 S 88 8, 96 20 S 112 32, 120 20 S 136 8, 144 20 S 160 32, 168 20 S 184 8, 192 20 S 200 20, 200 20"
-            fill="none"
-            stroke="#7DEFC6"
-            strokeWidth="2"
-            strokeLinecap="round"
-            opacity="0.85"
+      <div className="relative mt-3 grid grid-cols-3 gap-2.5 divide-x divide-white/10">
+        <Stat label="Time" icon={<Clock className="h-2.5 w-2.5" />} value={waitLabel} flashing={waitFlash} />
+        <div className="pl-2.5">
+          <Stat label="Ahead" value={peopleAhead} trend={peopleAheadTrend} flashing={aheadFlash} />
+        </div>
+        <div className="pl-2.5">
+          <Stat
+            label="Chairs"
+            icon={<ArmchairIcon className="h-2.5 w-2.5" />}
+            value={
+              <span className="flex items-center gap-1.5">
+                {readyChairs}/{totalChairs}
+                <span className={`h-1.5 w-1.5 rounded-full ${chairsReady ? 'bg-[#5EE0B4]' : 'bg-white/30'}`} />
+              </span>
+            }
+            flashing={chairsFlash}
           />
-        </svg>
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/25" aria-hidden="true" />
-        <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7DEFC6]" aria-hidden="true" />
-      </div>
-
-      <div className="relative mt-4 flex items-center justify-between text-[11px] font-semibold text-white/75">
-        <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          {activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}
-        </span>
-        <span className="flex items-center gap-1 text-[#7DEFC6]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#7DEFC6]" />
-          Queue moving · {queueMovingLabel}
-        </span>
+        </div>
       </div>
     </section>
   );

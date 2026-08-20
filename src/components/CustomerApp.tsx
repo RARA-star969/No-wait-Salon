@@ -6,6 +6,7 @@ import {
   Clock,
   Users,
   ChevronRight,
+  ChevronDown,
   ArrowLeft,
   Calendar,
   AlertCircle,
@@ -22,9 +23,13 @@ import {
   LocateFixed,
   LoaderCircle,
   QrCode,
+  Lock,
+  Zap,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
+import { toSalonProfile } from '../shared/salonProfile';
+import { selectionTotals } from '../shared/serviceSelection';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
@@ -168,6 +173,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [reserveDayTab, setReserveDayTab] = useState<'today' | 'tomorrow'>('today');
+  const [reserveWindowsOpen, setReserveWindowsOpen] = useState(true);
   const homeScrollRef = useRef<HTMLDivElement>(null);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
@@ -285,6 +292,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       : peopleAhead === 0
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+
+  // Reserve-screen summary: same service-selection math the salon page uses,
+  // so the count/price shown here never drifts from what was actually chosen.
+  const reserveProfile = toSalonProfile(selectedSalon);
+  const reserveTotals = selectionTotals(
+    reserveProfile.services,
+    selectedServiceIds.length ? selectedServiceIds : reserveProfile.services.filter((s) => s.name === selectedService).map((s) => s.id),
+  );
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
   const visibleSalons = nearbySalons?.filter((salon) => {
@@ -776,64 +791,140 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {/* 3. FUTURE TIME SLOTS SCREEN */}
       {currentScreen === 'slots' && (
-        <div id="customer-slots-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
-          <button
-            id="back-to-salon-btn"
-            onClick={() => setScreen('salon')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Salon details</span>
-          </button>
+        <div id="customer-slots-screen" className="min-h-full animate-in fade-in duration-150">
+          {/* Branded hero, in the same colour language as the salon profile page. */}
+          <div className="relative overflow-hidden bg-[#173B38] px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))] text-white">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,#4A7C76_0,transparent_40%),linear-gradient(150deg,#102B28,#224C47_55%,#C3A66A)]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-[#102725]/92" />
+            <div className="relative z-10">
+              <button
+                id="back-to-salon-btn"
+                onClick={() => setScreen('salon')}
+                aria-label="Back"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15 backdrop-blur-md transition active:scale-95"
+              >
+                <ArrowLeft className="h-4.5 w-4.5" />
+              </button>
 
-          <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
-              Advance Reservation
+              <div className="mt-4 flex items-center gap-2.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/40 bg-white/10">
+                  {selectedSalon.logoImageUrl ? (
+                    <img src={selectedSalon.logoImageUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    <Scissors className="h-4.5 w-4.5" />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{selectedSalon.name}</p>
+                  <p className="text-[10px] text-white/65">{selectedSalon.category || 'Salon & grooming'}</p>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">Advance reservation</p>
+                <h1 className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.03em]">Arrive when it matters</h1>
+                <p className="mt-1.5 text-xs leading-relaxed text-white/75">Reserve your future slot now.</p>
+              </div>
             </div>
-            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
-              Reserve your queue time
-            </h1>
-            <p className="text-xs text-[#6F7C7A] mt-1 leading-relaxed">
-              This reserves an estimated arrival window in the queue for today with SMS notifications.
-            </p>
           </div>
 
-          <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#17201F] leading-snug">
-              Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
-            </p>
-          </div>
-
-          <div>
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A] mb-2.5">
-              Available Windows Today
-            </span>
-
-            <div className="space-y-2">
-              {AVAILABLE_TIME_SLOTS.map((slot) => (
+          <div className="relative z-10 -mt-4 space-y-4 rounded-t-3xl bg-[#F8FAFA] p-5 pb-8">
+            {/* Today / Tomorrow tabs */}
+            <div className="flex gap-1 rounded-2xl border border-[#E1E7E6] bg-white p-1">
+              {(['today', 'tomorrow'] as const).map((tab) => (
                 <button
-                  key={slot}
-                  id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
-                  onClick={() => onSelectSlotClick(slot)}
-                  className="w-full p-3.5 rounded-2xl border border-[#E1E7E6] bg-white hover:border-[#0F766E] hover:bg-[#0F766E]/5 text-left flex items-center justify-between transition cursor-pointer group"
+                  key={tab}
+                  onClick={() => setReserveDayTab(tab)}
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold capitalize transition ${
+                    reserveDayTab === tab ? 'bg-[#0F766E] text-white shadow-sm' : 'text-[#6F7C7A]'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#F8FAFA] border border-[#E1E7E6] group-hover:bg-[#0F766E] group-hover:text-white text-[#0F766E] flex items-center justify-center font-bold text-xs transition">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <b className="font-sans text-sm font-bold text-[#17201F]">{slot}</b>
-                      <span className="block text-[11px] text-[#6F7C7A]">
-                        Estimated arrival window
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-[#0F766E] group-hover:text-[#0B665F] bg-[#0F766E]/10 px-3 py-1 rounded-lg">
-                    Select Slot
-                  </span>
+                  {tab}
                 </button>
               ))}
+            </div>
+
+            {/* Gold reserve chip with an overlapping lock badge, and the selected-services summary. */}
+            <div className="flex items-center gap-3.5 rounded-2xl border border-[#E1E7E6] bg-white p-4">
+              <span className="relative shrink-0">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[linear-gradient(140deg,#8A6215_0%,#E9C468_30%,#FCEBB0_48%,#D9A93B_66%,#8A6215_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+                  <Calendar className="h-5 w-5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" />
+                </span>
+                <span className="absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white text-[#8A6215] ring-2 ring-[#F8FAFA]">
+                  <Lock className="h-2.5 w-2.5" />
+                </span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">
+                  {reserveTotals.count || 1} {(reserveTotals.count || 1) === 1 ? 'service' : 'services'} selected
+                </p>
+                <p className="mt-0.5 truncate text-sm font-bold text-[#17201F]">{reserveTotals.names.join(' + ') || selectedService}</p>
+                <button
+                  onClick={() => setScreen('salon')}
+                  className="mt-1 text-xs font-bold text-[#0F766E]"
+                >
+                  View package
+                </button>
+              </div>
+              <span className="shrink-0 text-base font-bold text-[#17201F]">₹{reserveTotals.totalPriceInr || selectedSalon.services.find((s) => s.name === selectedService)?.priceInr || 0}</span>
+            </div>
+
+            {/* Available windows, inside a dropdown control. */}
+            <div className="rounded-2xl border border-[#E1E7E6] bg-white">
+              <button
+                onClick={() => setReserveWindowsOpen((value) => !value)}
+                className="flex w-full items-center justify-between p-4"
+                aria-expanded={reserveWindowsOpen}
+              >
+                <span className="text-sm font-bold text-[#17201F]">
+                  Available windows {reserveDayTab === 'today' ? 'today' : 'tomorrow'}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-[#6F7C7A] transition-transform ${reserveWindowsOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {reserveWindowsOpen && (
+                <div className="space-y-2 border-t border-[#EEF3F2] p-3">
+                  {AVAILABLE_TIME_SLOTS.map((slot, index) => (
+                    <button
+                      key={slot}
+                      id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
+                      onClick={() => onSelectSlotClick(slot)}
+                      className="flex w-full items-center justify-between rounded-xl border border-[#E1E7E6] bg-[#FBFCFC] px-3.5 py-3 text-left transition hover:border-[#0F766E] hover:bg-[#0F766E]/5"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Clock className="h-4 w-4 text-[#0F766E]" />
+                        <b className="text-sm font-bold text-[#17201F]">{slot}</b>
+                      </span>
+                      {index === 0 && (
+                        <span className="rounded-lg bg-[#0F766E]/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#0F766E]">
+                          Best time
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Premium Unlocks: real benefits of reserving ahead, honestly labelled. */}
+            <div className="relative overflow-hidden rounded-2xl bg-[linear-gradient(135deg,#173B38_0%,#1F534D_55%,#3F746D_100%)] p-4 text-white [animation:sheet-reveal_360ms_cubic-bezier(0.22,1,0.36,1)]">
+              <Sparkles className="pointer-events-none absolute right-4 top-4 h-4 w-4 text-[#E9C468]/70" />
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#E9C468]">
+                <Zap className="h-3.5 w-3.5" /> Premium unlocks
+              </p>
+              <div className="mt-3 space-y-2.5 text-xs">
+                <div className="flex items-start gap-2">
+                  <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#5EE0B4]" />
+                  <span className="leading-5 text-white/85">A guaranteed arrival window is held for you the moment you reserve.</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <BellRing className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#5EE0B4]" />
+                  <span className="leading-5 text-white/85">A push alert reaches your device before your window opens.</span>
+                </div>
+                <div className="flex items-start gap-2 opacity-70">
+                  <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-white/60" />
+                  <span className="leading-5 text-white/70">Priority stylist matching — coming soon.</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
