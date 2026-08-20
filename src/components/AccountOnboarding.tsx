@@ -13,16 +13,23 @@ type Props = {
   onProfileSaved: (profile: CustomerProfile) => void;
 };
 
-type Step = 'phone' | 'code' | 'name';
+type Step = 'phone' | 'code' | 'returning' | 'details';
+
+const GENDER_OPTIONS = ['Female', 'Male', 'Other'] as const;
+
+const initials = (name: string) =>
+  name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('') || '•';
 
 /**
  * The identity half of the first-run onboarding gate: verify mobile by OTP,
- * then collect the one field the app genuinely needs — a name. Runs full
- * screen, before Home, never mid-journey. A customer who only needs a name
- * (already verified elsewhere) starts straight on that step.
+ * then either welcome a returning customer straight back in (name already on
+ * file — never re-asked) or collect the few details a brand-new customer
+ * needs (name, gender, optional email). Runs full screen, before Home, and
+ * is also reachable directly from the landing screen's Login / Sign up
+ * action, so it is the single OTP + profile surface for both entry points.
  */
 export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfileSaved }) => {
-  const [step, setStep] = useState<Step>(gate.reason === 'missing_profile' ? 'name' : 'phone');
+  const [step, setStep] = useState<Step>(gate.reason === 'missing_profile' ? 'details' : 'phone');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [challengeId, setChallengeId] = useState('');
@@ -30,8 +37,11 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [name, setName] = useState('');
-  const [nameError, setNameError] = useState('');
+  const [gender, setGender] = useState('');
+  const [email, setEmail] = useState('');
+  const [detailsError, setDetailsError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [returningProfile, setReturningProfile] = useState<CustomerProfile | null>(null);
   const verifiedAuth = useRef<CustomerAuthSession | null>(null);
 
   const sendCode = async () => {
@@ -62,13 +72,16 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
       verifiedAuth.current = auth;
       onVerified(auth);
       // Same identity may already carry a saved name server-side (a reinstall,
-      // a cleared browser) — never ask again if it does.
+      // a cleared browser, or logging back in on a new device) — never ask
+      // for OTP context or basic details again if it does. Greet them by
+      // name instead of dropping straight into the app.
       const profile = await customerAccountService.getProfile().catch(() => null);
       if (profile?.name && profile.name.trim().length >= 2) {
-        onProfileSaved(profile);
+        setReturningProfile(profile);
+        setStep('returning');
         return;
       }
-      setStep('name');
+      setStep('details');
     } catch (error) {
       setCodeError(error instanceof Error ? error.message : 'That code did not match. Please try again.');
     } finally {
@@ -76,22 +89,29 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
     }
   };
 
-  const saveName = async () => {
-    if (name.trim().length < 2) return setNameError('Please enter your name.');
-    setNameError('');
+  const continueReturning = () => {
+    if (returningProfile) onProfileSaved(returningProfile);
+  };
+
+  const saveDetails = async () => {
+    if (name.trim().length < 2) return setDetailsError('Please enter your name.');
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return setDetailsError('Enter a valid email address, or leave it blank.');
+    }
+    setDetailsError('');
     setBusy(true);
     try {
       const profile = await customerAccountService.updateProfile({
         name: name.trim(),
-        email: '',
+        email: email.trim(),
         dateOfBirth: '',
-        gender: '',
+        gender,
         anniversary: '',
         city: '',
       });
       onProfileSaved(profile);
     } catch (error) {
-      setNameError(error instanceof Error ? error.message : 'Could not save your details. Please try again.');
+      setDetailsError(error instanceof Error ? error.message : 'Could not save your details. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -193,15 +213,40 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
           </>
         )}
 
-        {step === 'name' && (
+        {step === 'returning' && returningProfile && (
+          <>
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full border-4 border-white bg-[#DFF0ED] text-2xl font-bold text-[#0F766E] shadow-[0_10px_30px_rgba(15,118,110,0.15)] ring-1 ring-[#C6DEDA]">
+              {initials(returningProfile.name)}
+            </div>
+            <p className={ui.eyebrow}>Verified</p>
+            <h1 id="onboarding-returning-welcome" className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">
+              Welcome back, {returningProfile.name.split(/\s+/)[0]}.
+            </h1>
+            <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
+              We found your profile — no need to enter your details again.
+            </p>
+
+            <button
+              type="button"
+              id="onboarding-continue-returning-btn"
+              onClick={continueReturning}
+              className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99]"
+            >
+              <ArrowRight className="h-4 w-4" />
+              Continue to No-Wait Salon
+            </button>
+          </>
+        )}
+
+        {step === 'details' && (
           <>
             <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
               <UserRound className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Almost there</p>
-            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">What should we call you?</h1>
+            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Tell us a little about you.</h1>
             <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
-              Just your name — the salon needs it to call you when it's your turn. Everything else is optional and can be added later in Profile.
+              Your name is how the salon calls you when it's your turn. Gender and email are optional and help us personalize your experience.
             </p>
 
             <label htmlFor="onboarding-name-input" className={`mt-7 ${ui.label}`}>
@@ -210,18 +255,50 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
             <input
               id="onboarding-name-input"
               value={name}
-              onChange={(event) => { setName(event.target.value); setNameError(''); }}
-              onKeyDown={(event) => { if (event.key === 'Enter') void saveName(); }}
+              onChange={(event) => { setName(event.target.value); setDetailsError(''); }}
               autoComplete="name"
               placeholder="Your full name"
               className={ui.field}
             />
-            {nameError && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{nameError}</p>}
+
+            <span className={`mt-4 block ${ui.label}`}>Gender (optional)</span>
+            <div className="flex gap-2">
+              {GENDER_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  id={`onboarding-gender-${option.toLowerCase()}-btn`}
+                  onClick={() => setGender((current) => (current === option ? '' : option))}
+                  className={`flex-1 rounded-xl border px-3 py-2.5 text-xs font-bold transition ${
+                    gender === option
+                      ? 'border-[#0F766E] bg-[#E8F5F3] text-[#0F766E]'
+                      : 'border-[#DCE5E3] bg-white text-[#43504E] hover:border-[#9CCBC6]'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+
+            <label htmlFor="onboarding-email-input" className={`mt-4 ${ui.label}`}>
+              Email (optional)
+            </label>
+            <input
+              id="onboarding-email-input"
+              type="email"
+              value={email}
+              onChange={(event) => { setEmail(event.target.value); setDetailsError(''); }}
+              onKeyDown={(event) => { if (event.key === 'Enter') void saveDetails(); }}
+              autoComplete="email"
+              placeholder="you@example.com"
+              className={ui.field}
+            />
+            {detailsError && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{detailsError}</p>}
 
             <button
               type="button"
-              id="onboarding-save-name-btn"
-              onClick={() => void saveName()}
+              id="onboarding-save-details-btn"
+              onClick={() => void saveDetails()}
               disabled={busy}
               className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >

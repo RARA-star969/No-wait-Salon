@@ -44,7 +44,7 @@ import {
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { getNotificationPermissionStatus } from '../services/notificationService';
-import { resolveAppReadiness } from '../shared/profileReadiness';
+import { resolveAppReadiness, type AppReadiness } from '../shared/profileReadiness';
 import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { StickyScanQrButton } from './StickyScanQrButton';
@@ -158,6 +158,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  // Whether AccountOnboarding (OTP + profile) is the active screen, and the
+  // last onboarding_required readiness seen while it was — see the render
+  // logic below for why this is latched instead of read live.
+  const [identityFlowActive, setIdentityFlowActive] = useState(false);
+  const identityGateRef = useRef<Extract<AppReadiness, { kind: 'onboarding_required' }> | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
@@ -292,14 +297,42 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     readiness: readiness.kind,
   });
 
+  // AccountOnboarding (OTP + profile) is reached two ways: the normal stage
+  // sequence landing on 'identity', or landing's "Login / Sign up" jumping
+  // there directly, ahead of location/notifications. Either way it must stay
+  // mounted for its own full lifecycle — including a returning customer's
+  // "Welcome back" screen, which needs an explicit tap to continue. Deriving
+  // its gate from *live* readiness would unmount it mid-step the instant a
+  // concurrent profile fetch (App.tsx's own loadProfile effect, racing
+  // AccountOnboarding's) resolves readiness to 'ready' first. Latching the
+  // last known onboarding_required gate, and only leaving the flow via
+  // AccountOnboarding's own completion callback, closes that race.
+  if (readiness.kind === 'onboarding_required') identityGateRef.current = readiness;
+  if (!identityFlowActive && stage === 'identity') setIdentityFlowActive(true);
+
+  if (identityFlowActive && identityGateRef.current) {
+    return (
+      <AccountOnboarding
+        gate={identityGateRef.current}
+        onVerified={onIdentityVerified}
+        onProfileSaved={(profile) => {
+          onProfileSaved(profile);
+          setIdentityFlowActive(false);
+        }}
+      />
+    );
+  }
+
   if (stage === 'welcome') {
     return (
       <CustomerLanding
         onExplore={completeOnboarding}
-        onLoginSignup={onProfileLogin}
-        onMenu={() => {
+        onLoginSignup={() => {
           completeOnboarding();
-          setScreen('profile');
+          if (readiness.kind === 'onboarding_required') {
+            identityGateRef.current = readiness;
+            setIdentityFlowActive(true);
+          }
         }}
       />
     );
@@ -319,16 +352,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           localStorage.setItem(NOTIFICATION_PROMPT_STORAGE_KEY, 'done');
           setNotificationPrompted(true);
         }}
-      />
-    );
-  }
-  if (stage === 'identity') {
-    // Only reachable here when readiness is 'onboarding_required'.
-    return (
-      <AccountOnboarding
-        gate={readiness as Extract<typeof readiness, { kind: 'onboarding_required' }>}
-        onVerified={onIdentityVerified}
-        onProfileSaved={onProfileSaved}
       />
     );
   }

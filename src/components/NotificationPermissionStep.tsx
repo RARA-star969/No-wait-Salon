@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { BellRing, LoaderCircle } from 'lucide-react';
 import { Button, ui } from './ui';
 import { requestPushPermission } from '../services/notificationService';
@@ -6,6 +8,30 @@ import { requestPushPermission } from '../services/notificationService';
 type Props = {
   onDone: () => void;
 };
+
+/**
+ * Best-effort camera priming so the QR/barcode scanner opens instantly the
+ * first time it's tapped, instead of asking then. Never blocks onward
+ * navigation and never surfaces as its own screen — a denial here just means
+ * the scanner asks again itself when actually opened, exactly as it already
+ * does.
+ */
+async function primeCameraAccess(): Promise<void> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const current = await BarcodeScanner.checkPermissions();
+      if (current.camera === 'prompt' || current.camera === 'prompt-with-rationale') {
+        await BarcodeScanner.requestPermissions();
+      }
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+    stream.getTracks().forEach((track) => track.stop());
+  } catch {
+    // Denied or unavailable — the scanner itself handles this gracefully on open.
+  }
+}
 
 /**
  * One guided permission ask, shown only when the browser has not already
@@ -20,6 +46,7 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
     setBusy(true);
     try {
       await requestPushPermission();
+      await primeCameraAccess();
     } finally {
       setBusy(false);
       onDone();
@@ -35,7 +62,8 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
         <p className={ui.eyebrow}>Turn alerts</p>
         <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Never miss your turn.</h1>
         <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
-          We'll notify you when you're almost up, so you don't have to keep the app open and watch the queue.
+          We'll notify you when you're almost up, so you don't have to keep the app open and watch the queue. This
+          also readies your camera for scanning a business QR code later.
         </p>
 
         <button
