@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, CalendarDays, ChevronDown, Clock, Lock, Sparkles, UserCheck } from 'lucide-react';
+import { ArrowLeft, CalendarDays, ChevronDown, Clock, Lock, Sparkles, UserCheck, X } from 'lucide-react';
 import type { Salon, ServiceItem } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { useRevealOnView } from '../shared/useRevealOnView';
@@ -19,6 +19,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
   const [day, setDay] = useState<'today' | 'tomorrow'>('today');
   const [windowsOpen, setWindowsOpen] = useState(false);
   const [packageOpen, setPackageOpen] = useState(false);
+  const [calendarComingSoonOpen, setCalendarComingSoonOpen] = useState(false);
   const totalPriceInr = services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0);
   const { ref: unlocksRef, revealed: unlocksRevealed } = useRevealOnView<HTMLDivElement>();
 
@@ -61,7 +62,8 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
 
         <button
           type="button"
-          aria-label="Choose a specific calendar date (premium)"
+          onClick={() => setCalendarComingSoonOpen(true)}
+          aria-label="Choose a specific calendar date (premium, coming soon)"
           className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-[0_8px_18px_-10px_rgba(120,86,20,0.6)]"
           style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}
         >
@@ -161,6 +163,32 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
         services={services}
         onClose={() => setPackageOpen(false)}
       />
+
+      {/* Honest "coming soon" — tapping the locked calendar never silently
+          no-ops and never pretends to book a specific future date. */}
+      {calendarComingSoonOpen && (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) setCalendarComingSoonOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-label="Premium calendar booking" className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full" style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}>
+                  <div aria-hidden="true" className="gold-shimmer pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+                  <CalendarDays className="relative h-4 w-4 text-[#2B1E06]" />
+                </span>
+                <h2 className="text-lg font-bold text-[#17201F]">Premium calendar booking</h2>
+              </div>
+              <button onClick={() => setCalendarComingSoonOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-[#657471]">
+              Choosing a specific future date is a premium feature that isn't live yet — coming soon. For now, Today and Tomorrow hold your place in the live queue.
+            </p>
+            <span className="mt-4 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: 'linear-gradient(120deg, #7A5B21, #E7C673)', color: '#2B1E06' }}>
+              <Lock className="h-3 w-3" /> Coming soon
+            </span>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

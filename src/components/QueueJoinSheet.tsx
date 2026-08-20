@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, ChevronRight, LoaderCircle, Scissors, Sparkles, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, LoaderCircle, Scissors, Sparkles, Star, X } from 'lucide-react';
 import type { Barber, CustomerProfile, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
 import { formatDurationLabel } from '../shared/durationFormat';
+import { selectableStylists, STYLIST_STATUS_LABEL, stylistLiveStatus } from '../shared/staffAvailability';
 import { CustomerAvatar } from './CustomerAvatar';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
+
+/** Demo placeholder rating shown only when a stylist record has no real
+ *  `rating` yet — never overwrites an actual rating the data model supplies. */
+const DEMO_STYLIST_RATING = 4.8;
 
 /** "Any available stylist" is modelled as an explicit choice, not an absence. */
 export const ANY_STYLIST = '';
@@ -47,6 +52,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
 }) => {
   const [stylist, setStylist] = useState<string>(ANY_STYLIST);
   const [viewServicesOpen, setViewServicesOpen] = useState(false);
+  const [profileBarber, setProfileBarber] = useState<Barber | null>(null);
   const preview = useMemo(() => buildJoinPreview(queue, barbers), [queue, barbers]);
   const totalDurationMin = useMemo(() => services.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0), [services]);
   const totalPriceInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
@@ -61,7 +67,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
 
   if (!open) return null;
 
-  const selectable = barbers.filter((barber) => barber.status !== 'unavailable');
+  const selectable = selectableStylists(barbers);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 sm:items-center">
@@ -145,22 +151,33 @@ export const QueueJoinSheet: React.FC<Props> = ({
             </div>
             <p className="mt-1 text-[11px] text-[#788582]">Pick a favourite, or let the salon seat you sooner.</p>
 
+            {/* Quiet toggle, not a full card — individual stylists below are
+                the primary visual focus. */}
+            <button
+              type="button"
+              id="stylist-any"
+              aria-pressed={stylist === ANY_STYLIST}
+              onClick={() => setStylist(ANY_STYLIST)}
+              className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
+                stylist === ANY_STYLIST ? 'border-[#0F766E] bg-[#E7F5F2] text-[#0F766E]' : 'border-[#E2EAE9] bg-white text-[#5C6B68]'
+              }`}
+            >
+              <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${stylist === ANY_STYLIST ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C5CECC] text-transparent'}`}>
+                <Check className="h-2.5 w-2.5" strokeWidth={3} />
+              </span>
+              Any available stylist
+              <span className="font-semibold text-[10px] text-[#0F766E]/70">· Fastest option</span>
+            </button>
+
             <div className="mt-3 space-y-2">
-              <StylistOption
-                id="stylist-any"
-                title="Any available stylist"
-                subtitle="Usually the fastest way to be seated"
-                selected={stylist === ANY_STYLIST}
-                onSelect={() => setStylist(ANY_STYLIST)}
-              />
               {selectable.map((barber) => (
                 <StylistOption
                   key={barber.id}
                   id={`stylist-${barber.id}`}
-                  title={barber.name}
-                  subtitle={barber.status === 'available' ? 'Free now' : 'With a customer'}
+                  barber={barber}
                   selected={stylist === barber.id}
                   onSelect={() => setStylist(barber.id)}
+                  onViewProfile={() => setProfileBarber(barber)}
                 />
               ))}
               {selectable.length === 0 && (
@@ -202,36 +219,91 @@ export const QueueJoinSheet: React.FC<Props> = ({
         services={services}
         onClose={() => setViewServicesOpen(false)}
       />
+
+      {profileBarber && <StylistProfileSheet barber={profileBarber} onClose={() => setProfileBarber(null)} />}
     </div>
   );
 };
 
 const StylistOption: React.FC<{
   id: string;
-  title: string;
-  subtitle: string;
+  barber: Barber;
   selected: boolean;
   onSelect: () => void;
-}> = ({ id, title, subtitle, selected, onSelect }) => (
-  <button
-    id={id}
-    type="button"
-    onClick={onSelect}
-    aria-pressed={selected}
-    className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
-      selected ? 'border-[#0F766E] bg-[#F1FAF9] shadow-[0_4px_14px_-8px_rgba(15,118,110,0.5)]' : 'border-[#E2EAE9] bg-white'
-    }`}
-  >
-    <span
-      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold ${
-        selected ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#5C6B68]'
+  onViewProfile: () => void;
+}> = ({ id, barber, selected, onSelect, onViewProfile }) => {
+  const liveStatus = stylistLiveStatus(barber);
+  const statusPillClass =
+    liveStatus === 'free'
+      ? 'bg-[#E7F5F2] text-[#0F766E]'
+      : liveStatus === 'with_customer'
+        ? 'bg-[#FDF1DD] text-[#8A5A16]'
+        : 'bg-[#F1F4F3] text-[#788582]';
+
+  return (
+    <div
+      className={`flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
+        selected ? 'border-[#0F766E] bg-[#F1FAF9] shadow-[0_4px_14px_-8px_rgba(15,118,110,0.5)]' : 'border-[#E2EAE9] bg-white'
       }`}
     >
-      {selected ? <Check className="h-4 w-4" /> : title.slice(0, 1).toUpperCase()}
-    </span>
-    <span className="min-w-0 flex-1">
-      <span className="block truncate text-sm font-bold text-[#17201F]">{title}</span>
-      <span className="mt-0.5 block truncate text-[11px] text-[#788582]">{subtitle}</span>
-    </span>
-  </button>
-);
+      <button id={id} type="button" onClick={onSelect} aria-pressed={selected} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span className={`grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold ring-2 ring-offset-1 ring-offset-white ${selected ? 'ring-[#0F766E]' : 'ring-transparent'}`}>
+          {barber.avatarUrl ? (
+            <img src={barber.avatarUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className={`grid h-full w-full place-items-center ${selected ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#5C6B68]'}`}>
+              {selected ? <Check className="h-4 w-4" /> : barber.name.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-bold text-[#17201F]">{barber.name}</span>
+            <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-[#8A6516]">
+              <Star className="h-3 w-3 fill-[#F5A524] text-[#F5A524]" />
+              {(typeof barber.rating === 'number' && barber.rating > 0 ? barber.rating : DEMO_STYLIST_RATING).toFixed(1)}
+            </span>
+          </span>
+          <span className={`mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ${statusPillClass}`}>
+            {STYLIST_STATUS_LABEL[liveStatus]}
+          </span>
+        </span>
+      </button>
+      <button type="button" onClick={onViewProfile} className="shrink-0 text-[11px] font-bold text-[#0F766E] underline underline-offset-2">
+        View profile
+      </button>
+    </div>
+  );
+};
+
+/** Extensible profile preview — only ever shows fields the salon actually supplied. */
+const StylistProfileSheet: React.FC<{ barber: Barber; onClose: () => void }> = ({ barber, onClose }) => {
+  const liveStatus = stylistLiveStatus(barber);
+  return (
+    <div className="fixed inset-0 z-[96] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section role="dialog" aria-modal="true" aria-label={`${barber.name}'s profile`} className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-[#EEF3F2] text-lg font-bold text-[#5C6B68]">
+              {barber.avatarUrl ? <img src={barber.avatarUrl} alt="" className="h-full w-full object-cover" /> : barber.name.slice(0, 1).toUpperCase()}
+            </span>
+            <div>
+              <h2 className="text-lg font-bold text-[#17201F]">{barber.name}</h2>
+              <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-[#8A6516]">
+                <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
+                {(typeof barber.rating === 'number' && barber.rating > 0 ? barber.rating : DEMO_STYLIST_RATING).toFixed(1)}
+                {typeof barber.reviewCount === 'number' && barber.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({barber.reviewCount})</span>}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+        </div>
+        <span className={`mt-4 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${liveStatus === 'free' ? 'bg-[#E7F5F2] text-[#0F766E]' : liveStatus === 'with_customer' ? 'bg-[#FDF1DD] text-[#8A5A16]' : 'bg-[#F1F4F3] text-[#788582]'}`}>
+          {STYLIST_STATUS_LABEL[liveStatus]}
+        </span>
+        {barber.shortBio && <p className="mt-3 text-xs leading-5 text-[#657471]">{barber.shortBio}</p>}
+      </section>
+    </div>
+  );
+};

@@ -17,6 +17,7 @@ import {
   requestPushPermission,
   dispatchWebPushNotification,
 } from './services/notificationService';
+import { fireTurnAlert } from './services/turnAlertService';
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 import { businessQrService } from './services/businessQrService';
@@ -134,6 +135,12 @@ export default function App() {
   const [permissionStatus, setPermissionStatus] = useState<NotificationPermission | 'unsupported'>(() =>
     getNotificationPermissionStatus()
   );
+
+  // Urgent "it's your turn" popup — the guaranteed in-app surface for the
+  // Called transition, mirroring the public QR web page. Reset whenever the
+  // active entry changes identity or leaves the Called phase, so it never
+  // survives to the next booking or reappears on an SSE reconnect replay.
+  const [showTurnPopup, setShowTurnPopup] = useState(false);
 
   const loadProfile = async () => {
     if (!loadCustomerAuth()) return;
@@ -294,6 +301,11 @@ export default function App() {
           `Barber ${userEntry.barberName || 'Arjun'} is ready for you at the styling chair. Please step inside now!`,
           'called'
         );
+        // Same in-page alert channel (vibration + chime) as the public QR web
+        // page, plus the urgent full-screen popup so a customer with the app
+        // open never misses the edge into Called.
+        fireTurnAlert(selectedSalon.name, userEntry.service);
+        setShowTurnPopup(true);
       }
     }
 
@@ -310,6 +322,13 @@ export default function App() {
       }
     }
   }, [queue, userEntry, selectedSalon]);
+
+  // The popup is dismissed by "I'm on my way" below, but also auto-clears the
+  // instant the entry stops being Called (staff called again, cancelled it,
+  // or it moved on) so it can never linger over a stale state.
+  useEffect(() => {
+    if (!userEntry || userEntry.status !== 'Called') setShowTurnPopup(false);
+  }, [userEntry?.id, userEntry?.status]);
 
   // --- Handlers ---
   const runCommand = async (command: Parameters<typeof realtimeQueueService.command>[1]) => {
@@ -518,6 +537,13 @@ export default function App() {
     setCurrentScreen('tracking');
   };
 
+  /** "I'm on my way": records the acknowledgement server-side. The arrival
+   *  deadline staff set is never moved by this — only the ack timestamp. */
+  const acknowledgeTurn = () => {
+    setShowTurnPopup(false);
+    if (userEntry) void runCommand({ type: 'queue_action', itemId: userEntry.id, action: 'Acknowledge' });
+  };
+
   const handleCancelUserQueue = async (reason?: { code: string; text: string }) => {
     const snapshot = await runCommand({
       type: 'cancel_customer',
@@ -636,9 +662,6 @@ export default function App() {
                   onJoinClick={handleJoinClick}
                   onSelectSlotClick={handleSelectSlotClick}
                   onCancelQueue={handleCancelUserQueue}
-                  permissionStatus={permissionStatus}
-                  onRequestPermission={handleRequestPermission}
-                  onTestPush={handleTestNotification}
                   customerAuth={customerAuth}
                   customerProfile={customerProfile}
                   profileLoading={profileLoading}
@@ -652,6 +675,8 @@ export default function App() {
                   }}
                   onQrContextChange={setActiveQrToken}
                   queueError={queueAlert}
+                  showTurnPopup={showTurnPopup}
+                  onAcknowledgeTurn={acknowledgeTurn}
                 />
               </div>
             </section>
