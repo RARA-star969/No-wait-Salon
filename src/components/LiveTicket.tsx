@@ -101,7 +101,18 @@ export const LiveTicket: React.FC<Props> = ({
         <div className="mt-4 grid grid-cols-3 gap-2 text-left">
           <Cell label="Position" value={String(ticket.position)} />
           <Cell label="Ahead" value={String(ticket.peopleAhead)} />
-          <Cell label={ticket.isInService ? 'Status' : 'Est. wait'} value={ticket.isInService ? 'In service' : ticket.estimatedWaitLabel} />
+          {/* Compact form here: the tile is a third of the row, and "About 23
+              min" wrapped onto two lines against the other two values. */}
+          <Cell
+            label={ticket.isInService ? 'Status' : 'Est. wait'}
+            value={
+              ticket.isInService
+                ? 'In service'
+                : ticket.estimatedWaitMinutes <= 0
+                  ? 'Next'
+                  : `~${ticket.estimatedWaitMinutes} min`
+            }
+          />
         </div>
       )}
 
@@ -151,6 +162,6 @@ export const LiveTicket: React.FC<Props> = ({
 const Cell: React.FC<{ label: string; value: string }> = ({ label, value }) => (
   <div className="rounded-xl bg-white p-2.5">
     <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">{label}</p>
-    <p className="mt-0.5 text-base font-bold text-[#17201F]">{value}</p>
+    <p className="mt-0.5 truncate text-base font-bold text-[#17201F]">{value}</p>
   </div>
 );

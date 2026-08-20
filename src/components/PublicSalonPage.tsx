@@ -3,16 +3,13 @@ import {
   AlertCircle,
   ArrowLeft,
   BellRing,
-  Check,
-  CheckCircle2,
-  Clock,
   LoaderCircle,
   MapPin,
+  Radio,
+  RefreshCw,
   Scissors,
   Smartphone,
-  Sparkles,
   Star,
-  Users,
 } from 'lucide-react';
 import type { Barber, CustomerAuthSession, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
@@ -32,7 +29,7 @@ import {
   SalonOffers,
   SalonStylists,
 } from './SalonSections';
-import { toSalonProfile, waitLabel } from '../shared/salonProfile';
+import { toSalonProfile } from '../shared/salonProfile';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -41,6 +38,18 @@ import {
 } from '../services/turnAlertService';
 
 const WEB_SESSION_KEY = 'no_wait_salon_web_qr_session';
+
+/**
+ * Shown to a customer who is still in the queue. Deliberately three short,
+ * true statements about how this page behaves — not marketing.
+ */
+const QUEUE_ASSURANCES = [
+  { Icon: Radio, title: 'Live updates', body: 'Your place changes here the moment the salon moves the queue.' },
+  // Deliberately not "no need to refresh" — the ticket card already says that,
+  // and repeating it here wasted a slot that can answer a real worry instead.
+  { Icon: RefreshCw, title: 'Your place is saved', body: 'Close this page and reopen the link — you keep your spot.' },
+  { Icon: BellRing, title: "We'll tell you when it's your turn", body: 'A full-screen alert appears as soon as the salon calls you.' },
+] as const;
 
 type Step = 'salon' | 'phone' | 'otp' | 'profile' | 'queued';
 
@@ -55,13 +64,6 @@ const webSessionId = (): string => {
     return `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 };
-
-const Field: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-2xl border border-[#E2EAE9] bg-white p-3.5">
-    <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#7A8785]">{label}</p>
-    <p className="mt-1 text-[17px] font-bold leading-tight text-[#17201F]">{value}</p>
-  </div>
-);
 
 /**
  * Public mobile page reached by scanning a salon QR with a plain phone camera.
@@ -159,12 +161,6 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       (item) => item.id !== entry.id && ['Waiting', 'Called', 'Serving'].includes(item.status) && item.createdAt < entry.createdAt,
     ).length;
   }, [entry, queue, waiting]);
-
-  const estimatedWait = useMemo(() => {
-    if (peopleAhead === 0) return 'Ready now';
-    const minutes = Math.max(5, Math.ceil((peopleAhead * 15) / workingChairs(barbers)));
-    return `${Math.max(5, minutes - 5)}–${minutes + 5} min`;
-  }, [peopleAhead, barbers]);
 
   const acknowledgeTurn = () => {
     setShowTurnPopup(false);
@@ -334,58 +330,92 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const cancelledByCustomer = entry?.outcome === 'cancelled_customer';
   const cancelled = cancelledByStaff || cancelledByCustomer || entry?.status === 'Cancelled';
   const arrivalExpired = phase === 'call_again';
+  // Once a booking is closed there is nothing left to reassure anyone about.
+  const terminalTicket = completed || noShow || cancelled;
   const countdown = formatCountdown(remainingMs(entry || {}, now));
   const acknowledged = Boolean(entry?.acknowledgedAt);
 
   return (
     <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
       <div className="mx-auto w-full max-w-[30rem]">
-        {/* Compact hero: a slim gradient band, not a large empty colour block. */}
-        <header className="relative overflow-hidden bg-gradient-to-br from-[#0F766E] to-[#0B5F58] px-5 pb-14 pt-[max(0.875rem,env(safe-area-inset-top))]">
-          {business.coverImageUrl && (
-            <img src={business.coverImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        {/*
+          Hero carries the salon's identity itself rather than being an empty
+          colour band with a card floated over it on a negative margin. That
+          overlap was what read as a detached, oversized header on iOS: the
+          band was sized for a card that was pulled out of it, so any change in
+          safe-area inset or text wrapping left a gap or a clipped edge.
+          Everything here is in normal flow, so nothing can collide.
+        */}
+        <header className="relative overflow-hidden rounded-b-[1.75rem] bg-gradient-to-br from-[#0F766E] to-[#0A5750] px-5 pb-6 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
+          {profile.coverImageUrl && (
+            <img src={profile.coverImageUrl} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-20" />
           )}
-          <div className="relative flex items-center justify-between">
-            {step !== 'salon' && !isQueued ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setError('');
-                  setStep('salon');
-                }}
-                aria-label="Back"
-                className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white"
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0A4F49]/70 to-transparent" aria-hidden />
+
+          <div className="relative">
+            <div className="flex items-center justify-between gap-3">
+              {step !== 'salon' && !isQueued ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError('');
+                    setStep('salon');
+                  }}
+                  aria-label="Back"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/15 text-white transition active:scale-95"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">No-Wait Salon</span>
+              )}
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                  profile.isOpen ? 'bg-white/20 text-white' : 'bg-[#B4483A] text-white'
+                }`}
               >
-                <ArrowLeft className="h-4.5 w-4.5" />
-              </button>
-            ) : (
-              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">No-Wait Salon</span>
-            )}
-            <span
-              className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                business.queueAccepting ? 'bg-white/20 text-white' : 'bg-[#B4483A] text-white'
-              }`}
-            >
-              {business.queueAccepting ? 'Open now' : 'Closed'}
-            </span>
+                {profile.isOpen ? 'Open now' : 'Closed'}
+              </span>
+            </div>
+
+            <div className="mt-4 flex items-start gap-3">
+              <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/15 ring-1 ring-white/25">
+                {profile.logoImageUrl ? (
+                  <img src={profile.logoImageUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Scissors className="h-6 w-6 text-white" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-[22px] font-bold leading-tight tracking-[-0.03em] [overflow-wrap:anywhere]">{profile.name}</h1>
+                {profile.category && (
+                  <p className="mt-0.5 truncate text-[11px] font-semibold text-white/75">{profile.category}</p>
+                )}
+                {profile.rating > 0 && (
+                  <p className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-white/15 px-2 py-0.5 text-[11px] font-bold">
+                    <Star className="h-3 w-3 fill-[#FFD37A] text-[#FFD37A]" />
+                    {profile.rating}
+                    {profile.reviewCount > 0 && <span className="font-semibold text-white/70">({profile.reviewCount})</span>}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-3 flex items-start gap-1.5 text-[12px] leading-5 text-white/80">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="[overflow-wrap:anywhere]">{profile.address}</span>
+            </p>
           </div>
         </header>
 
-        {/* Identity card overlapping the hero keeps the fold tight. Shared
-            with the Customer app salon screen. */}
-        <div className="-mt-10 px-4">
-          <SalonIdentity profile={profile} />
-        </div>
-
-        <main className="px-4 pb-[calc(env(safe-area-inset-bottom)+7rem)] pt-4">
-          {/* Live status row */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Live wait" value={isQueued ? estimatedWait : waitLabel(profile.liveWaitMinutes)} />
-            <Field label={isQueued ? 'People ahead' : 'In queue'} value={String(isQueued ? peopleAhead : waiting)} />
-          </div>
-
+        {/*
+          One padding scale for the whole page. The bottom allowance is only
+          reserved while the sticky CTA is actually mounted, so the ticket page
+          does not end in a block of dead space.
+        */}
+        <main className={`px-4 pt-5 ${step === 'salon' ? 'pb-[calc(env(safe-area-inset-bottom)+7.5rem)]' : 'pb-[calc(env(safe-area-inset-bottom)+2rem)]'}`}>
           {error && (
-            <div role="alert" className="mt-4 flex items-start gap-2 rounded-2xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs leading-5 text-[#8A3E35]">
+            <div role="alert" className="mb-4 flex items-start gap-2 rounded-2xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs leading-5 text-[#8A3E35]">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
             </div>
           )}
@@ -395,7 +425,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
               screen uses, fed by the same salon record the Admin panel edits,
               so the two pages match in content, hierarchy and spacing. */}
           {step === 'salon' && (
-            <div className="mt-5 space-y-6">
+            <div className="space-y-7">
               <SalonLiveQueue
                 profile={profile}
                 peopleAhead={waiting}
@@ -417,8 +447,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
           {/* ---------------- Auth + profile ---------------- */}
           {step === 'phone' && (
-            <div className="mt-5 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-              <h2 className="text-base font-bold">Enter your mobile number</h2>
+            <div className="rounded-2xl border border-[#E2EAE9] bg-white p-5">
+              <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#17201F]">Enter your mobile number</h2>
               <p className="mt-1 text-xs leading-5 text-[#667371]">We send a one-time code to confirm your spot.</p>
               <input
                 value={phone}
@@ -440,8 +470,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           )}
 
           {step === 'otp' && (
-            <div className="mt-5 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-              <h2 className="text-base font-bold">Enter the code</h2>
+            <div className="rounded-2xl border border-[#E2EAE9] bg-white p-5">
+              <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#17201F]">Enter the code</h2>
               <p className="mt-1 text-xs text-[#667371]">Sent to {phone}</p>
               {demoCode && <p className="mt-3 rounded-xl bg-[#F1FAF9] p-3 text-center text-xs font-bold text-[#0F766E]">Demo code: {demoCode}</p>}
               <input
@@ -464,8 +494,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           )}
 
           {step === 'profile' && (
-            <div className="mt-5 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-              <h2 className="text-base font-bold">Almost there</h2>
+            <div className="rounded-2xl border border-[#E2EAE9] bg-white p-5">
+              <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#17201F]">Almost there</h2>
               <p className="mt-1 text-xs leading-5 text-[#667371]">We only need your name to call you in the queue.</p>
               <input
                 value={name}
@@ -499,9 +529,12 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
             </div>
           )}
 
-          {/* ---------------- Live queue status ---------------- */}
+          {/* ---------------- Live queue status ----------------
+              Ordered as: what is happening now, then reassurance while they
+              wait, then the app offer. The offer sits last on purpose — it is
+              the least urgent thing on the page. */}
           {isQueued && entry && (
-            <div className="mt-5">
+            <div className="space-y-4">
               {/* Shared with the Customer app: identical status hierarchy,
                   position, countdown and actions from one view model. */}
               <LiveTicket
@@ -517,36 +550,61 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 onRejoin={rejoin}
               />
 
-              {/* Web-only extras below. */}
               {!completed && notifyState === 'default' && (
                 <button
                   type="button"
                   onClick={() => void requestTurnNotifications().then(setNotifyState)}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-[#CDE3E0] bg-white py-3 text-xs font-bold text-[#0F766E]"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#CDE3E0] bg-white py-3.5 text-xs font-bold text-[#0F766E] transition active:scale-[0.99]"
                 >
                   <BellRing className="h-4 w-4" /> Notify me when it's my turn
                 </button>
               )}
 
-              {/* App-download CTA is deliberately WEB ONLY. The installed
-                  Customer app must never render it, which is why it lives here
-                  and not inside the shared LiveTicket. */}
-              <div id="web-get-app-cta" className="mt-3 flex items-start gap-3 rounded-2xl border border-[#E2EAE9] bg-white p-4">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[#0F766E]">
-                  <Smartphone className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold">Get the app for faster check-in</p>
-                  <p className="mt-0.5 text-[11px] leading-5 text-[#667371]">Track your turn and skip re-entering details.</p>
+              {/* Queue confidence. Answers the question a waiting customer
+                  actually has — "do I need to keep checking this?" — and gives
+                  the page a calm middle before the app offer. */}
+              {!terminalTicket && (
+                <section aria-label="How this page keeps you updated" className="rounded-2xl border border-[#E2EAE9] bg-white p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">While you wait</p>
+                  <ul className="mt-3 space-y-3">
+                    {QUEUE_ASSURANCES.map((assurance) => (
+                      <li key={assurance.title} className="flex items-start gap-3">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#E9F5F3] text-[#0F766E]">
+                          <assurance.Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-bold leading-tight text-[#17201F]">{assurance.title}</span>
+                          <span className="mt-0.5 block text-[11px] leading-5 text-[#667371]">{assurance.body}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* App offer. WEB ONLY — the installed Customer app must never
+                  render it, which is why it lives here and not inside the
+                  shared LiveTicket component. */}
+              <section id="web-get-app-cta" className="overflow-hidden rounded-2xl border border-[#CFE4E1] bg-gradient-to-br from-[#F2FAF9] to-[#E7F3F1] p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white text-[#0F766E] ring-1 ring-[#CFE4E1]">
+                    <Smartphone className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold leading-tight text-[#17201F]">Get the app for faster check-in</p>
+                    <p className="mt-1 text-[11px] leading-5 text-[#5A6866]">
+                      Save your details once, then join any No-Wait salon in two taps.
+                    </p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void businessQrService.recordVisit(token, { appCtaShown: true, appCtaClicked: true })}
-                  className="shrink-0 self-center rounded-lg bg-[#0F766E] px-3 py-2 text-xs font-bold text-white"
+                  className="mt-3.5 flex h-11 w-full items-center justify-center rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99]"
                 >
-                  Get app
+                  Get the app
                 </button>
-              </div>
+              </section>
             </div>
           )}
         </main>
@@ -554,24 +612,24 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
       {/* Sticky CTA: only while choosing, so the status page stays uncluttered. */}
       {step === 'salon' && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E2EAE9] bg-white/95 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E2EAE9]/80 bg-white/92 px-4 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_-18px_rgba(15,32,31,0.45)] backdrop-blur-md">
           <div className="mx-auto flex w-full max-w-[30rem] items-center gap-3">
             {selectedService && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-[#5A6866]">{selectedService.name}</p>
-                <p className="text-[15px] font-bold leading-tight">₹{selectedService.priceInr}</p>
+                <p className="truncate text-[11px] font-semibold text-[#5A6866]">{selectedService.name}</p>
+                <p className="text-[15px] font-bold leading-tight text-[#17201F]">₹{selectedService.priceInr}</p>
               </div>
             )}
             <button
               type="button"
               onClick={startJoin}
-              disabled={!business.queueAccepting || busy || services.length === 0}
-              className={`flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-6 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60 ${
-                selectedService ? '' : 'flex-1'
+              disabled={!profile.queueAccepting || busy || services.length === 0}
+              className={`flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-6 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60 ${
+                selectedService ? '' : 'w-full'
               }`}
             >
               {busy && <LoaderCircle className="h-4 w-4 animate-spin" />}
-              {business.queueAccepting ? 'Join Queue' : 'Not accepting'}
+              {profile.queueAccepting ? 'Join Queue' : 'Not accepting'}
             </button>
           </div>
         </div>
