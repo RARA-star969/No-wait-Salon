@@ -1,24 +1,22 @@
 /**
- * The single authoritative sequence for the Customer app's first-run
- * onboarding gate: welcome, then permissions, then identity (OTP + name),
- * only then the usable app. Each stage is checked in order and the first one
- * not yet satisfied is what renders — a returning customer who already
- * satisfies every stage lands on 'ready' with nothing shown in between.
+ * The customer app's first-run sequence: landing, then location, then an
+ * optional notification-permission ask, then the usable app. Identity (OTP +
+ * profile) is deliberately NOT part of this sequence — guests can browse
+ * salons and live queues freely. Verification only gates the moment a
+ * booking/queue-join is actually created, handled separately by
+ * `resolveAppReadiness` at that call site.
  */
-export type OnboardingStage = 'loading' | 'welcome' | 'location' | 'notifications' | 'identity' | 'ready';
+export type OnboardingStage = 'loading' | 'landing' | 'location' | 'notifications' | 'ready';
 
 export function resolveOnboardingStage(input: {
-  hasCompletedOnboarding: boolean;
+  hasEnteredApp: boolean;
   locationHydrated: boolean;
   locationSetupCompleted: boolean;
   notificationPromptNeeded: boolean;
-  readiness: 'ready' | 'onboarding_required' | 'loading';
 }): OnboardingStage {
-  if (!input.hasCompletedOnboarding) return 'welcome';
+  if (!input.hasEnteredApp) return 'landing';
   if (!input.locationHydrated) return 'loading';
   if (!input.locationSetupCompleted) return 'location';
   if (input.notificationPromptNeeded) return 'notifications';
-  if (input.readiness === 'loading') return 'loading';
-  if (input.readiness === 'onboarding_required') return 'identity';
   return 'ready';
 }

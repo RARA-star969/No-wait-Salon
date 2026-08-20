@@ -4,10 +4,11 @@
  * QueueJoinSheet's callers, the public web page) so none of them keep their
  * own copy of what "we already know this person" means.
  *
- * The rule is deliberately narrow: only a verified mobile number and a usable
- * display name are required. Everything else on the profile is optional and
- * must never gate anything — asking again for details we already hold is the
- * exact problem this replaces.
+ * The rule is deliberately narrow: only a verified mobile number, a usable
+ * display name, and a gender are required. Everything else on the profile
+ * (email, date of birth, city, photo…) is optional and must never gate
+ * anything — asking again for details we already hold is the exact problem
+ * this replaces.
  *
  * Each surface still owns *how* it reacts to a non-ready result — the app
  * routes to a first-run onboarding gate before Home ever renders, the public
@@ -23,10 +24,10 @@ export type AppReadiness =
   /** No verified session at all — onboarding must run OTP first. */
   | { kind: 'onboarding_required'; reason: 'not_signed_in' | 'no_verified_phone' | 'missing_profile'; missing?: RequiredProfileField[] };
 
-export type RequiredProfileField = 'name';
+export type RequiredProfileField = 'name' | 'gender';
 
 /** Fields that actually block readiness. Kept as a list so the UI can name them. */
-export const REQUIRED_PROFILE_FIELDS: RequiredProfileField[] = ['name'];
+export const REQUIRED_PROFILE_FIELDS: RequiredProfileField[] = ['name', 'gender'];
 
 const clean = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
@@ -36,7 +37,11 @@ export function hasVerifiedPhone(auth: CustomerAuthSession | null | undefined): 
 }
 
 export function missingProfileFields(profile: CustomerProfile | null | undefined): RequiredProfileField[] {
-  return REQUIRED_PROFILE_FIELDS.filter((field) => field === 'name' && clean(profile?.name).length < 2);
+  return REQUIRED_PROFILE_FIELDS.filter((field) => {
+    if (field === 'name') return clean(profile?.name).length < 2;
+    if (field === 'gender') return clean(profile?.gender).length === 0;
+    return false;
+  });
 }
 
 /**

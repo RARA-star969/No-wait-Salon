@@ -25,7 +25,7 @@ import {
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
-import { CustomerOnboarding } from './CustomerOnboarding';
+import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
@@ -140,9 +140,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
-  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
+  // Whether the customer has dismissed the landing screen, via either
+  // "Explore Nearby" (guest) or "Login / Sign up" (authenticated). Either
+  // path leads to the same guest-accessible Home.
+  const [hasEnteredApp, setHasEnteredApp] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
+  const [showLoginGate, setShowLoginGate] = useState(false);
   // The browser itself remembers a decided (granted/denied) permission — this
   // flag only remembers that we already asked, so a "Not now" is never re-asked.
   const [notificationPrompted, setNotificationPrompted] = useState(
@@ -196,9 +200,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return () => { disposed = true; };
   }, []);
 
-  const completeOnboarding = () => {
+  const enterApp = () => {
     localStorage.setItem(CUSTOMER_ONBOARDING_STORAGE_KEY, 'complete');
-    setHasCompletedOnboarding(true);
+    setHasEnteredApp(true);
+  };
+
+  // Landing's "Login / Sign up": verify up front for a customer who wants an
+  // account before browsing. A customer who is already ready (a restored
+  // session) just enters directly, with nothing shown in between.
+  const loginGateReadiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+  const openLoginGate = () => {
+    if (loginGateReadiness.kind === 'ready') { enterApp(); return; }
+    if (loginGateReadiness.kind === 'loading') return;
+    setShowLoginGate(true);
   };
 
   const applyLocation = (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => {
@@ -276,23 +290,40 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
   }) || [];
 
-  // The single authoritative onboarding sequence: welcome, then permissions
-  // (location, notifications), then identity (OTP + name) — only then is the
-  // usable app reachable at all. A returning customer who already satisfies
-  // every stage lands straight on 'ready', with nothing shown in between.
-  // Any account state that goes bad later re-evaluates this on the next
-  // render and routes back here as recovery, never as a detour inserted into
-  // Salon → service selection → Join Queue.
-  const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+  // The single authoritative pre-Home sequence: landing, then permissions
+  // (location, notifications) — only then is the guest-accessible Home
+  // reachable. Identity (OTP + profile) is deliberately not part of this
+  // sequence: guests browse freely, and verification only gates the moment a
+  // booking is actually created (handled at the Join Queue call site).
   const stage = resolveOnboardingStage({
-    hasCompletedOnboarding,
+    hasEnteredApp,
     locationHydrated,
     locationSetupCompleted: Boolean(storedLocation?.setupCompleted),
     notificationPromptNeeded: !notificationPrompted && getNotificationPermissionStatus() === 'default',
-    readiness: readiness.kind,
   });
 
-  if (stage === 'welcome') return <CustomerOnboarding onComplete={completeOnboarding} />;
+  if (stage === 'landing') {
+    return (
+      <>
+        <LandingScreen onExploreNearby={enterApp} onLogin={openLoginGate} />
+        {showLoginGate && loginGateReadiness.kind === 'onboarding_required' && (
+          <div className="fixed inset-0 z-[100] bg-[#F8FAFA]">
+            <AccountOnboarding
+              gate={loginGateReadiness}
+              onVerified={onIdentityVerified}
+              onProfileSaved={(profile) => { onProfileSaved(profile); setShowLoginGate(false); enterApp(); }}
+              onCancel={() => setShowLoginGate(false)}
+              intro={{
+                eyebrow: 'Login / Sign up',
+                title: 'Welcome back.',
+                description: 'Verify your mobile number to sync your bookings and profile across devices.',
+              }}
+            />
+          </div>
+        )}
+      </>
+    );
+  }
   if (stage === 'loading') {
     return (
       <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
@@ -308,16 +339,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           localStorage.setItem(NOTIFICATION_PROMPT_STORAGE_KEY, 'done');
           setNotificationPrompted(true);
         }}
-      />
-    );
-  }
-  if (stage === 'identity') {
-    // Only reachable here when readiness is 'onboarding_required'.
-    return (
-      <AccountOnboarding
-        gate={readiness as Extract<typeof readiness, { kind: 'onboarding_required' }>}
-        onVerified={onIdentityVerified}
-        onProfileSaved={onProfileSaved}
       />
     );
   }

@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { ArrowRight, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, Smartphone, UserRound } from 'lucide-react';
-import type { AppReadiness } from '../shared/profileReadiness';
+import { ArrowRight, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, Smartphone, UserRound, X } from 'lucide-react';
+import { missingProfileFields, type AppReadiness } from '../shared/profileReadiness';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, saveCustomerAuth } from '../services/customerAccountService';
@@ -11,18 +11,26 @@ type Props = {
   gate: Extract<AppReadiness, { kind: 'onboarding_required' }>;
   onVerified: (auth: CustomerAuthSession) => void;
   onProfileSaved: (profile: CustomerProfile) => void;
+  /** Shown as a close (X) affordance when this runs as a dismissible gate rather than a mandatory first-run screen. */
+  onCancel?: () => void;
+  /** Copy shown above the phone step, so the booking gate and the landing "Login / Sign up" entry point read differently. */
+  intro?: { eyebrow: string; title: string; description: string };
 };
 
-type Step = 'phone' | 'code' | 'name';
+type Step = 'phone' | 'code' | 'details';
+
+const GENDER_OPTIONS = ['Woman', 'Man', 'Non-binary', 'Prefer not to say'];
 
 /**
- * The identity half of the first-run onboarding gate: verify mobile by OTP,
- * then collect the one field the app genuinely needs — a name. Runs full
- * screen, before Home, never mid-journey. A customer who only needs a name
- * (already verified elsewhere) starts straight on that step.
+ * The shared identity flow: verify mobile by OTP, then collect the details
+ * the app genuinely needs — name and gender (email stays optional). Reused
+ * both as the full-screen "Login / Sign up" entry from the landing screen
+ * and as the booking-verification gate shown right before a queue-join, so
+ * there is exactly one place this logic lives. A customer who only needs
+ * details (already verified elsewhere) starts straight on that step.
  */
-export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfileSaved }) => {
-  const [step, setStep] = useState<Step>(gate.reason === 'missing_profile' ? 'name' : 'phone');
+export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfileSaved, onCancel, intro }) => {
+  const [step, setStep] = useState<Step>(gate.reason === 'missing_profile' ? 'details' : 'phone');
   const [phone, setPhone] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [challengeId, setChallengeId] = useState('');
@@ -30,7 +38,9 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [name, setName] = useState('');
-  const [nameError, setNameError] = useState('');
+  const [gender, setGender] = useState('');
+  const [email, setEmail] = useState('');
+  const [detailsError, setDetailsError] = useState('');
   const [busy, setBusy] = useState(false);
   const verifiedAuth = useRef<CustomerAuthSession | null>(null);
 
@@ -61,14 +71,15 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
       saveCustomerAuth(auth);
       verifiedAuth.current = auth;
       onVerified(auth);
-      // Same identity may already carry a saved name server-side (a reinstall,
-      // a cleared browser) — never ask again if it does.
+      // Same identity may already carry a saved name + gender server-side (a
+      // reinstall, a cleared browser) — never ask again if it does.
       const profile = await customerAccountService.getProfile().catch(() => null);
-      if (profile?.name && profile.name.trim().length >= 2) {
+      if (profile && missingProfileFields(profile).length === 0) {
         onProfileSaved(profile);
         return;
       }
-      setStep('name');
+      if (profile?.name) setName(profile.name);
+      setStep('details');
     } catch (error) {
       setCodeError(error instanceof Error ? error.message : 'That code did not match. Please try again.');
     } finally {
@@ -76,39 +87,51 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
     }
   };
 
-  const saveName = async () => {
-    if (name.trim().length < 2) return setNameError('Please enter your name.');
-    setNameError('');
+  const saveDetails = async () => {
+    if (name.trim().length < 2) return setDetailsError('Please enter your name.');
+    if (!gender) return setDetailsError('Please select your gender.');
+    setDetailsError('');
     setBusy(true);
     try {
       const profile = await customerAccountService.updateProfile({
         name: name.trim(),
-        email: '',
+        email: email.trim(),
         dateOfBirth: '',
-        gender: '',
+        gender,
         anniversary: '',
         city: '',
       });
       onProfileSaved(profile);
     } catch (error) {
-      setNameError(error instanceof Error ? error.message : 'Could not save your details. Please try again.');
+      setDetailsError(error instanceof Error ? error.message : 'Could not save your details. Please try again.');
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div id="account-onboarding-screen" className={`flex min-h-full flex-col px-5 pb-7 pt-10 ${ui.page}`}>
+    <div id="account-onboarding-screen" className={`relative flex min-h-full flex-col px-5 pb-7 pt-10 ${ui.page}`}>
+      {onCancel && (
+        <button
+          type="button"
+          id="onboarding-cancel-btn"
+          onClick={onCancel}
+          aria-label="Close"
+          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] grid h-9 w-9 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[#E2EAE9]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         {step === 'phone' && (
           <>
             <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
               <Smartphone className="h-7 w-7" />
             </div>
-            <p className={ui.eyebrow}>Verify your mobile</p>
-            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">One quick check.</h1>
+            <p className={ui.eyebrow}>{intro?.eyebrow || 'Verify your mobile'}</p>
+            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">{intro?.title || 'One quick check.'}</h1>
             <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
-              We use your mobile number to hold your place in a queue and let you back in without asking again.
+              {intro?.description || 'We use your mobile number to hold your place in a queue and let you back in without asking again.'}
             </p>
 
             <label htmlFor="onboarding-phone-input" className={`mt-7 ${ui.label}`}>
@@ -193,15 +216,15 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
           </>
         )}
 
-        {step === 'name' && (
+        {step === 'details' && (
           <>
             <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
               <UserRound className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Almost there</p>
-            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">What should we call you?</h1>
+            <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">A couple of quick details.</h1>
             <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
-              Just your name — the salon needs it to call you when it's your turn. Everything else is optional and can be added later in Profile.
+              The salon needs your name and gender to call you when it's your turn. Email is optional and can be added later in Profile.
             </p>
 
             <label htmlFor="onboarding-name-input" className={`mt-7 ${ui.label}`}>
@@ -210,18 +233,46 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
             <input
               id="onboarding-name-input"
               value={name}
-              onChange={(event) => { setName(event.target.value); setNameError(''); }}
-              onKeyDown={(event) => { if (event.key === 'Enter') void saveName(); }}
+              onChange={(event) => { setName(event.target.value); setDetailsError(''); }}
               autoComplete="name"
               placeholder="Your full name"
               className={ui.field}
             />
-            {nameError && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{nameError}</p>}
+
+            <label htmlFor="onboarding-gender-select" className={`mt-4 ${ui.label}`}>
+              Gender
+            </label>
+            <select
+              id="onboarding-gender-select"
+              value={gender}
+              onChange={(event) => { setGender(event.target.value); setDetailsError(''); }}
+              className={ui.field}
+            >
+              <option value="" disabled>Select gender</option>
+              {GENDER_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <label htmlFor="onboarding-email-input" className={`mt-4 ${ui.label}`}>
+              Email <span className="font-normal normal-case text-[#8A9694]">(optional)</span>
+            </label>
+            <input
+              id="onboarding-email-input"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') void saveDetails(); }}
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              className={ui.field}
+            />
+            {detailsError && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{detailsError}</p>}
 
             <button
               type="button"
-              id="onboarding-save-name-btn"
-              onClick={() => void saveName()}
+              id="onboarding-save-details-btn"
+              onClick={() => void saveDetails()}
               disabled={busy}
               className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >
