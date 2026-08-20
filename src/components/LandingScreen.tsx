@@ -23,7 +23,10 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div id="customer-landing-screen" className="relative flex min-h-full flex-col overflow-hidden bg-[#050B0F] text-white">
+    // Fixed to the real viewport (not the parent's padded/card-framed flow)
+    // so the artwork covers the whole screen edge-to-edge, top to bottom —
+    // escaping any ancestor padding/max-height without touching those files.
+    <div id="customer-landing-screen" className="fixed inset-0 z-40 flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#050B0F] text-white">
       <img
         src={landingHero}
         alt=""
@@ -75,8 +78,10 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
         </div>
       </div>
 
-      {/* Bottom action area */}
-      <div className="relative z-10 mt-auto px-5 pb-[max(1.75rem,env(safe-area-inset-bottom))] pt-10">
+      {/* Bottom action area: Explore Nearby, then Login / Sign up directly
+          below it, anchored near the bottom so neither ever overlaps the
+          artwork's logo, headline, subtitle, or illustration above them. */}
+      <div className="relative z-10 mt-auto px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-8">
         <button
           type="button"
           id="landing-explore-nearby-btn"
@@ -86,19 +91,20 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
           <MapPin className="h-4.5 w-4.5" />
           Explore Nearby
         </button>
-        <p className="mt-2.5 text-center text-[11px] leading-4 text-white/60">
-          No account needed to browse salons and live queues nearby.
-        </p>
 
         <button
           type="button"
           id="landing-login-signup-btn"
           onClick={onLogin}
-          className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/5 text-sm font-bold text-white backdrop-blur-sm transition active:scale-[0.99]"
+          className="mt-2.5 flex h-13 w-full items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/5 text-sm font-bold text-white backdrop-blur-sm transition active:scale-[0.99]"
         >
           <LogIn className="h-4 w-4" />
           Login / Sign up
         </button>
+
+        <p className="mt-2.5 text-center text-[11px] leading-4 text-white/60">
+          No account needed to browse salons and live queues nearby.
+        </p>
       </div>
     </div>
   );
