@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   Bell,
   BellRing,
-  Volume2,
+  Radio,
   Check,
   Sparkles,
   Star,
@@ -45,6 +45,7 @@ import {
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { getNotificationPermissionStatus } from '../services/notificationService';
+import { notificationPermission, requestTurnNotifications } from '../services/turnAlertService';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
@@ -94,9 +95,6 @@ interface CustomerAppProps {
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
   onCancelQueue: (reason?: { code: string; text: string }) => void;
-  permissionStatus: NotificationPermission | 'unsupported';
-  onRequestPermission: () => void;
-  onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
   customerAuth: CustomerAuthSession | null;
   customerProfile: CustomerProfile | null;
   profileLoading: boolean;
@@ -107,6 +105,8 @@ interface CustomerAppProps {
   onProfileLogout: () => void;
   onQrContextChange: (token: string | null) => void;
   queueError: string;
+  showTurnPopup: boolean;
+  onAcknowledgeTurn: () => void;
 }
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({
@@ -125,9 +125,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onJoinClick,
   onSelectSlotClick,
   onCancelQueue,
-  permissionStatus,
-  onRequestPermission,
-  onTestPush,
   customerAuth,
   customerProfile,
   profileLoading,
@@ -138,6 +135,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onProfileLogout,
   onQrContextChange,
   queueError,
+  showTurnPopup,
+  onAcknowledgeTurn,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
@@ -179,6 +178,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     const id = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, [countdownActive]);
+
+  // Real notification-permission state for the Live Ticket's "notify me"
+  // affordance — the same honest, opt-in surface the public QR web page uses.
+  // Never presented as an always-on push subscription.
+  const [notifyState, setNotifyState] = useState(notificationPermission());
 
   // Single scanner controller shared by the header icon and the sticky CTA.
   // Setting it while already open is a no-op, and once open the portal cover
@@ -285,6 +289,27 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       : peopleAhead === 0
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+
+  const readyChairs = barbers.filter((b) => b.status === 'available').length;
+
+  // Live Ticket lifecycle: the same derived phase the public QR web page uses,
+  // computed from the server-authoritative status + graceExpiresAt so it can
+  // never drift from what Staff Dashboard actually did.
+  const trackingPhase = userEntry ? callPhase(userEntry, nowTick) : 'waiting';
+  const trackingCalled = trackingPhase === 'called';
+  const trackingArrivalExpired = trackingPhase === 'call_again';
+  const trackingInService = trackingPhase === 'in_service';
+  const trackingAcknowledged = Boolean(userEntry?.acknowledgedAt);
+  const trackingCountdown = formatCountdown(remainingMs(userEntry || {}, nowTick));
+
+  // The terminal card (screen === 'complete') reads the same phase from
+  // whichever entry actually closed, so completed / no-show / cancelled all
+  // render distinct, honest copy instead of one generic "complete" message.
+  const completedPhase = completedEntry ? callPhase(completedEntry, nowTick) : 'completed';
+  const completedCancelledByStaff = completedEntry?.outcome === 'cancelled_staff';
+  const completedCancelledByCustomer = completedEntry?.outcome === 'cancelled_customer';
+  const completedNoShow = completedPhase === 'no_show';
+  const completedCancelled = completedPhase === 'cancelled' || completedCancelledByStaff || completedCancelledByCustomer;
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
   const visibleSalons = nearbySalons?.filter((salon) => {
@@ -863,175 +888,115 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </p>
           </div>
 
-          {/* Main Tracking Card in Natural Tones */}
-          <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
-            <div className="flex items-center gap-4">
-              <div
-                id="tracking-position-badge"
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 ${
-                  userEntry?.status === 'Called'
-                    ? 'bg-[#FAF0E6] text-[#A66020] border-2 border-[#A66020] animate-pulse'
-                    : userEntry?.status === 'Serving'
-                      ? 'bg-[#E7F5F2] text-[#0F766E] border-2 border-[#0F766E]'
-                      : userEntry?.status === 'Reserved'
-                        ? 'bg-[#0F766E]/10 text-[#0F766E]'
-                        : 'bg-[#0F766E] text-white'
-                }`}
-              >
-                {userEntry?.status === 'Reserved'
-                  ? '✓'
-                  : userEntry?.status === 'Called'
-                    ? '!'
-                    : userEntry?.status === 'Serving'
-                      ? '✂'
-                      : peopleAhead + 1}
-              </div>
-
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">
-                  {userEntry?.status === 'Reserved'
-                    ? 'RESERVED WINDOW'
-                    : userEntry?.status === 'Called'
-                      ? 'COUNTER READY'
-                      : userEntry?.status === 'Serving'
-                        ? 'IN SERVICE'
-                        : 'YOUR POSITION'}
-                </span>
-                <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
-                  {userEntry?.status === 'Reserved'
-                    ? `Reserved for ${userEntry.reservedFor}`
-                    : userEntry?.status === 'Called'
-                      ? 'Please arrive at salon'
-                      : userEntry?.status === 'Serving'
-                        ? `Chair: ${userEntry.barberName || 'Barber ready'}`
-                        : peopleAhead === 0
-                          ? 'You are next in line'
-                          : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} ahead`}
-                </b>
-              </div>
-            </div>
-
-            {/* Notice Box */}
-            <div
-              id="tracking-notice-box"
-              className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 ${
-                userEntry?.status === 'Called'
-                  ? 'bg-[#FAF0E6] text-[#A66020] border border-[#A66020]/30'
-                  : userEntry?.status === 'Serving'
-                    ? 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/30'
-                    : userEntry?.status === 'Reserved'
-                      ? 'bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]'
-                      : 'bg-[#F8FAFA] text-[#17201F] border border-[#E1E7E6]'
-              }`}
-            >
-              {userEntry?.status === 'Called' ? (
-                <AlertCircle className="w-4 h-4 text-[#A66020] shrink-0 mt-0.5" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-              )}
-              <div>
-                {userEntry?.status === 'Called' && (
-                  <span>
-                    <b>Barber {userEntry.barberName || 'Staff'} is ready!</b> Please step in within 10 minutes.
-                  </span>
-                )}
-                {userEntry?.status === 'Serving' && (
-                  <span>
-                    Currently in grooming chair with <b>{userEntry.barberName}</b>. Relax and enjoy your cut!
-                  </span>
-                )}
-                {userEntry?.status === 'Reserved' && (
-                  <span>
-                    Your slot at <b>{userEntry.reservedFor}</b> is held. We will update you with live notifications.
-                  </span>
-                )}
-                {(!userEntry || userEntry.status === 'Waiting') && (
-                  <span>
-                    {peopleAhead === 0
-                      ? 'You are next in line! Head over to the salon entrance now.'
-                      : "You're confirmed in live queue. Relax—we'll alert your mobile when it's your turn."}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Queue Details Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E1E7E6] text-xs">
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Estimated Wait
-                </span>
-                <span className="font-sans font-bold text-[#0F766E] text-base">
-                  {userEntry?.status === 'Called'
-                    ? 'Ready Now'
-                    : userEntry?.status === 'Serving'
-                      ? 'In Progress'
-                      : waitDisplay}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Active Barbers
-                </span>
-                <span className="font-bold text-[#17201F] text-sm mt-0.5 block">
-                  {activeBarbersCount} available
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Push Notifications Status & Alert Settings Card */}
+          {/* Main Tracking Card — one surface per phase, so Waiting/Called/In
+              service never show two cards saying the same thing at once. */}
           <div
-            id="tracking-push-notification-card"
-            className="p-4 rounded-2xl bg-white border border-[#E1E7E6] space-y-2.5"
+            id="tracking-position-badge"
+            className={`rounded-2xl p-6 text-white ${
+              trackingCalled
+                ? 'bg-gradient-to-br from-[#B4761C] to-[#8A5A16]'
+                : 'bg-gradient-to-br from-[#0F766E] to-[#0B4A44]'
+            }`}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-[#0F766E]" />
-                <span className="text-xs font-bold text-[#17201F]">Live Push Notifications</span>
+            {userEntry?.status === 'Reserved' && (
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">Reserved window</p>
+                <p className="mt-1 text-xl font-bold">Reserved for {userEntry.reservedFor}</p>
+                <p className="mt-2 text-xs text-white/85">We'll update you with live notifications as the window nears.</p>
               </div>
-              <span
-                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                  permissionStatus === 'granted'
-                    ? 'bg-[#E7F5F2] text-[#0F766E]'
-                    : 'bg-[#0F766E]/10 text-[#0F766E]'
-                }`}
-              >
-                {permissionStatus === 'granted' ? 'Alerts Enabled' : 'Simulated Push Active'}
-              </span>
-            </div>
+            )}
 
-            <p className="text-[11px] text-[#6F7C7A] leading-relaxed">
-              {userEntry?.status === 'Reserved'
-                ? `Push alert will notify your device 15 minutes before your reserved arrival window (${userEntry.reservedFor}).`
-                : 'Push notification will sound and alert your screen when 10–15 minutes remain (1 person ahead) and when your counter is ready.'}
-            </p>
+            {userEntry?.status !== 'Reserved' && !trackingCalled && !trackingArrivalExpired && !trackingInService && (
+              <>
+                <p className="text-center text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">Your position</p>
+                <p className="mt-1 text-center text-[44px] font-extrabold leading-none">{peopleAhead + 1}</p>
+                <p className="mt-1 text-center text-[13px] text-white/85">
+                  {peopleAhead > 0 ? `${peopleAhead} people ahead of you` : "You're next!"}
+                </p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-white/10 p-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Ahead</p>
+                    <p className="mt-0.5 text-base font-bold">{peopleAhead}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 p-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Est. wait</p>
+                    <p className="mt-0.5 text-base font-bold leading-tight">{waitDisplay}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/10 p-2.5">
+                    <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/70">Ready chairs</p>
+                    <p className="mt-0.5 text-base font-bold">{readyChairs}/{activeBarbersCount}</p>
+                  </div>
+                </div>
+              </>
+            )}
 
-            <div className="flex items-center gap-2 pt-1">
-              {permissionStatus !== 'granted' && permissionStatus !== 'unsupported' && (
-                <button
-                  id="tracking-enable-push-btn"
-                  onClick={onRequestPermission}
-                  className="flex-1 py-2 px-3 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
-                >
-                  <Bell className="w-3 h-3" />
-                  <span>Enable Device Notifications</span>
-                </button>
-              )}
+            {trackingCalled && (
+              <div className="text-center">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-white/15">
+                  <BellRing className="h-5.5 w-5.5" />
+                </div>
+                <p className="mt-3 text-lg font-extrabold">{trackingAcknowledged ? 'On your way' : "It's your turn!"}</p>
+                <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/75">
+                  {trackingAcknowledged ? 'Please reach the salon within' : 'Please arrive within'}
+                </p>
+                <p className="mt-1 text-3xl font-extrabold tabular-nums">{trackingCountdown}</p>
+                {(userEntry?.callAttempt || 0) > 1 && (
+                  <p className="mt-1 text-[11px] font-semibold text-white/80">Call attempt {userEntry?.callAttempt}</p>
+                )}
+                {!trackingAcknowledged && (
+                  <button
+                    type="button"
+                    id="acknowledge-turn-btn"
+                    onClick={onAcknowledgeTurn}
+                    className="mt-4 flex h-11 w-full items-center justify-center rounded-xl bg-white text-sm font-bold text-[#8A5A16] active:scale-[0.99]"
+                  >
+                    I'm on my way
+                  </button>
+                )}
+              </div>
+            )}
 
-              <button
-                id="tracking-test-push-btn"
-                onClick={() =>
-                  onTestPush(userEntry?.status === 'Reserved' ? 'reserved_nearing' : 'approaching')
-                }
-                className="py-2 px-3 rounded-xl bg-[#F8FAFA] hover:bg-[#E1E7E6] border border-[#E1E7E6] text-[#0F766E] text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
-                title="Test Push Alert"
-              >
-                <Volume2 className="w-3 h-3" />
-                <span>Test Alert</span>
-              </button>
-            </div>
+            {trackingArrivalExpired && (
+              <div className="text-center">
+                <AlertCircle className="mx-auto h-6 w-6 text-white/80" />
+                <p className="mt-3 text-base font-bold">Your arrival window has ended</p>
+                <p className="mt-1 text-xs leading-5 text-white/85">The salon will call you again shortly, or you can call them directly.</p>
+              </div>
+            )}
+
+            {trackingInService && (
+              <div className="text-center">
+                <div className="mx-auto grid h-11 w-11 place-items-center rounded-full bg-white/15">
+                  <Scissors className="h-5 w-5" />
+                </div>
+                <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/70">In service</p>
+                <p className="mt-1 text-xl font-bold">{userEntry?.barberName ? `With ${userEntry.barberName}` : 'You are being served'}</p>
+                <p className="mt-2 text-xs text-white/85">{selectedSalon.name} · {userEntry?.service}</p>
+              </div>
+            )}
           </div>
+
+          {/* Live-updates band: honest about what this actually is — an
+              in-app SSE stream, not a background push subscription. */}
+          {userEntry && !trackingInService && (
+            <div className="flex items-center gap-2.5 rounded-2xl border border-[#CFE6E2] bg-[#EAF6F4] px-4 py-3">
+              <Radio className="h-4 w-4 shrink-0 animate-pulse text-[#0F766E]" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[13px] font-bold text-[#0F766E]">Live updates automatically</p>
+                <p className="text-[11px] text-[#4F7F7A]">No need to refresh — this screen updates the instant staff acts.</p>
+              </div>
+            </div>
+          )}
+
+          {!trackingInService && notifyState === 'default' && (
+            <button
+              type="button"
+              onClick={() => void requestTurnNotifications().then(setNotifyState)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-[#CDE3E0] bg-white py-3 text-xs font-bold text-[#0F766E]"
+            >
+              <Bell className="h-4 w-4" /> Notify me when it's my turn
+            </button>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 gap-2.5">
@@ -1055,7 +1020,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </button>
           </div>
 
-          {/* Cancel Queue button */}
+          {/* Cancel Queue button — hidden once in service, since it no longer
+              makes sense (canCancel excludes 'Serving'). */}
           {userEntry && canCancel(userEntry.status) && (
             <button
               id="cancel-queue-entry-btn"
@@ -1068,36 +1034,107 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         </div>
       )}
 
-      {/* 5. SERVICE COMPLETE SCREEN */}
+      {/* 5. TERMINAL SCREEN — completed, no-show, or cancelled. Reads whichever
+          outcome actually closed the booking instead of assuming success. */}
       {currentScreen === 'complete' && (
         <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[#F8FAFA] p-5 animate-in fade-in duration-200">
-          <div className="rounded-2xl border border-[#C8E3DF] bg-white p-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E] ring-1 ring-[#C8E3DF]">
-              <CheckCircle2 className="h-7 w-7" />
+          <div
+            className={`rounded-2xl border p-6 text-center ${
+              completedCancelled || completedNoShow ? 'border-[#E5DAD5] bg-white' : 'border-[#C8E3DF] bg-white'
+            }`}
+          >
+            <div
+              className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ring-1 ${
+                completedCancelled || completedNoShow
+                  ? 'bg-[#F3F0EE] text-[#8A6A62] ring-[#E5DAD5]'
+                  : 'bg-[#E7F5F2] text-[#0F766E] ring-[#C8E3DF]'
+              }`}
+            >
+              {completedCancelled || completedNoShow ? <AlertCircle className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
             </div>
-            <span className="mt-4 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">Service complete</span>
-            <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#17201F]">Looking sharp.</h1>
+            <span className="mt-4 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">
+              {completedCancelledByStaff
+                ? 'Booking cancelled by salon'
+                : completedCancelledByCustomer
+                  ? 'Booking cancelled'
+                  : completedNoShow
+                    ? 'Turn missed'
+                    : 'Service complete'}
+            </span>
+            <h1 id="tracking-main-status" className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#17201F]">
+              {completedCancelledByStaff
+                ? 'The salon cancelled your booking'
+                : completedCancelledByCustomer
+                  ? 'Booking cancelled'
+                  : completedNoShow
+                    ? 'You missed your turn'
+                    : 'Looking sharp.'}
+            </h1>
             <p className="mx-auto mt-2 max-w-[300px] text-xs leading-relaxed text-[#6F7C7A]">
-              Your {completedEntry?.service || selectedService} at {selectedSalon.name} is complete. Thanks for visiting us today.
+              {completedCancelledByStaff
+                ? 'The salon could not keep this booking. You can join the queue again or call them.'
+                : completedCancelledByCustomer
+                  ? 'Your booking was cancelled and removed from the queue.'
+                  : completedNoShow
+                    ? 'Your queue entry was closed because you could not reach the salon within the arrival window.'
+                    : `Your ${completedEntry?.service || selectedService} at ${selectedSalon.name} is complete. Thanks for visiting us today.`}
             </p>
 
-            <div className="mt-5 grid grid-cols-2 gap-2 text-left">
-              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Service</span>
-                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.service || selectedService}</span>
+            {!completedCancelled && !completedNoShow && (
+              <div className="mt-5 grid grid-cols-2 gap-2 text-left">
+                <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Service</span>
+                  <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.service || selectedService}</span>
+                </div>
+                <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Stylist</span>
+                  <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.barberName || 'Salon team'}</span>
+                </div>
               </div>
-              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Stylist</span>
-                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.barberName || 'Salon team'}</span>
-              </div>
-            </div>
+            )}
+
+            {(completedCancelled || completedNoShow) && selectedSalon.phoneNumber && (
+              <a
+                href={`tel:${selectedSalon.phoneNumber}`}
+                className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] text-sm font-bold text-[#0F766E]"
+              >
+                <PhoneCall className="h-4 w-4" /> Call salon
+              </a>
+            )}
 
             <button
               type="button"
               onClick={() => setScreen('home')}
-              className="mt-5 w-full rounded-xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B665F] active:scale-[0.99]"
+              className="mt-3 w-full rounded-xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B665F] active:scale-[0.99]"
             >
-              Find another service
+              {completedCancelled || completedNoShow ? 'Join a queue again' : 'Find another service'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Turn popup: the guaranteed full-screen surface for the Called edge,
+          matching the public QR web page. Only ever shown while genuinely
+          Called — the App-level effect clears it the instant that changes. */}
+      {showTurnPopup && userEntry && trackingCalled && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/55 px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:items-center">
+          <div role="alertdialog" aria-modal="true" aria-label="It's your turn" className="w-full max-w-sm rounded-3xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto grid h-16 w-16 animate-pulse place-items-center rounded-full bg-[#FFF3E2] text-[#B4761C]">
+              <BellRing className="h-8 w-8" />
+            </div>
+            <h2 className="mt-4 text-xl font-bold tracking-[-0.01em]">It's your turn!</h2>
+            <p className="mt-2 text-sm leading-6 text-[#5A6866]">Please proceed to the salon counter.</p>
+            <p className="mt-2 text-sm font-bold text-[#B4761C]">Please arrive within {trackingCountdown}</p>
+            <div className="mt-4 rounded-2xl bg-[#F6F9F8] p-3">
+              <p className="text-sm font-bold">{selectedSalon.name}</p>
+              <p className="mt-0.5 text-xs text-[#667371]">{userEntry.service}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onAcknowledgeTurn}
+              className="mt-5 h-12 w-full rounded-xl bg-[#0F766E] text-sm font-bold text-white active:scale-[0.99]"
+            >
+              I'm on my way
             </button>
           </div>
         </div>
