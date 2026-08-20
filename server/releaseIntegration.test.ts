@@ -259,6 +259,52 @@ test('Scenario B: a production QR resolves, joins, and reaches the same dashboar
   }
 });
 
+test('Scenario B2: multi-service QR web join totals services and prevents a duplicate', async () => {
+  const qr = await api('GET', '/api/admin/businesses/salon-1/qr', undefined, adminToken);
+  const token = qr.body.qr.publicToken || qr.body.qr.token;
+  const business = await api('GET', `/api/business-qr/${token}`);
+  const [first, second] = business.body.business.services;
+  assert.ok(first && second, 'the seeded salon offers at least two services');
+
+  const staff = await new Stream('salon-1').open();
+  try {
+    const auth = await authenticate('9000000002');
+    const session = `web-multi-${Date.now()}`;
+    const joined = await fetch(`${base}/api/business-qr/${token}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth}` },
+      body: JSON.stringify({ serviceIds: [first.id, second.id], sessionId: session, source: 'qr_web', requestId: crypto.randomUUID() }),
+    });
+    assert.equal(joined.status, 201);
+    const joinedBody = await joined.clone().json();
+    assert.deepEqual(joinedBody.entry.services, [first.name, second.name], 'both service names are stored on the booking');
+    assert.equal(joinedBody.entry.totalPriceInr, first.priceInr + second.priceInr, 'the running total is the sum of both services');
+    assert.equal(joinedBody.entry.service, `${first.name} + ${second.name}`, 'the display label combines both service names');
+
+    const arrived = await staff.until((snapshot) => Boolean(find(snapshot, session)), 'multi-service booking');
+    const entry = find(arrived, session)!;
+    assert.equal(entry.totalPriceInr, first.priceInr + second.priceInr);
+
+    // A second join attempt from the same authenticated customer (a browser
+    // refresh replaying the picker) must never create a second live booking:
+    // the server is the source of truth and refuses it.
+    const again = await fetch(`${base}/api/business-qr/${token}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${auth}` },
+      body: JSON.stringify({ serviceIds: [first.id], sessionId: `${session}-new-tab`, source: 'qr_web', requestId: crypto.randomUUID() }),
+    });
+    assert.equal(again.status, 200);
+    const againBody = await again.clone().json();
+    assert.equal(againBody.joined, false);
+    assert.equal(againBody.reason, 'already_in_queue');
+    assert.equal(againBody.entry.id, entry.id, 'the existing live ticket is returned instead of a duplicate');
+
+    await command('salon-1', { type: 'cancel_customer', sessionId: session, reasonCode: 'other' });
+  } finally {
+    staff.close();
+  }
+});
+
 test('duplicate joins are refused for the same session', async () => {
   const session = `dupe-${Date.now()}`;
   const item = { name: 'Dupe', service: 'Haircut', status: 'Waiting', sessionId: session, source: 'customer_app' };

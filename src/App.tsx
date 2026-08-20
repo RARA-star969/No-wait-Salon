@@ -47,6 +47,7 @@ export default function App() {
   const [salons] = useState<Salon[]>(SALONS);
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
   const qrRouteMatch = window.location.pathname.match(/^\/q\/([^/]+)\/?$/);
   const isQrRoute = Boolean(qrRouteMatch);
@@ -185,12 +186,22 @@ export default function App() {
   // Find user's active entry in queue if any
   const userEntry = queue.find((item) => item.sessionId === customerSessionId.current) || null;
 
-  // Auto-redirect to tracking screen if user is in queue and on salon/slots
+  // Restores the live ticket after a refresh/reopen: the moment the queue
+  // snapshot loads and reveals this session's active entry, jump straight to
+  // it once. Tracked by entry id so a deliberate "back to Home" tap later
+  // (same entry, unchanged id) is never fought.
+  const restoredEntryId = useRef<string | null>(null);
   useEffect(() => {
-    if (userEntry && (currentScreen === 'slots' || currentScreen === 'salon')) {
+    if (!userEntry) {
+      restoredEntryId.current = null;
+      return;
+    }
+    if (restoredEntryId.current === userEntry.id) return;
+    restoredEntryId.current = userEntry.id;
+    if (currentScreen === 'slots' || currentScreen === 'salon' || currentScreen === 'home') {
       setCurrentScreen('tracking');
     }
-  }, [userEntry]);
+  }, [userEntry, currentScreen]);
 
   useEffect(() => {
     const completedEntry = completedList.find((item) => item.sessionId === customerSessionId.current);
@@ -360,10 +371,11 @@ export default function App() {
   };
 
   const joinQrQueue = async (token: string) => {
-    const service = selectedSalon.services.find((item) => item.name === selectedService);
-    if (!service) { setQueueAlert('Please select an available service.'); return false; }
+    const chosen = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
+    const serviceIds = chosen.length ? chosen.map((item) => item.id) : selectedSalon.services.find((item) => item.name === selectedService) ? [selectedSalon.services.find((item) => item.name === selectedService)!.id] : [];
+    if (!serviceIds.length) { setQueueAlert('Please select an available service.'); return false; }
     try {
-      const result = await businessQrService.join(token, service.id, customerSessionId.current);
+      const result = await businessQrService.join(token, serviceIds, customerSessionId.current);
       applySnapshot(result.state);
       setCurrentScreen('tracking');
       return true;
@@ -411,19 +423,24 @@ export default function App() {
       triggerPushNotification(`🎟️ ${selectedSalon.name}: Live Ticket Confirmed`, `You've joined the queue for ${action.serviceName}. We'll notify you before your turn!`, 'confirmed');
       return;
     }
+    const chosenServices = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
+    const multiSelected = action.type === 'join' && chosenServices.length > 0;
+    const serviceNames = multiSelected ? chosenServices.map((item) => item.name) : undefined;
     const snapshot = await runCommand({
       type: 'join',
       item: {
         id: '',
         name: 'You',
         phone: auth.phoneNumber,
-        service: action.serviceName!,
+        service: multiSelected ? serviceNames!.join(' + ') : action.serviceName!,
+        services: serviceNames,
+        totalPriceInr: multiSelected ? chosenServices.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0) : undefined,
         status: action.type === 'slot' ? 'Reserved' : 'Waiting',
         reservedFor: action.type === 'slot' ? action.slot : undefined,
         isUser: true,
         sessionId: customerSessionId.current,
         createdAt: Date.now(),
-        estimatedDurationMin: 30,
+        estimatedDurationMin: multiSelected ? chosenServices.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0) || 30 : 30,
       },
     });
     if (!snapshot) return;
@@ -546,6 +563,8 @@ export default function App() {
                   setSelectedSalon={setSelectedSalon}
                   selectedService={selectedService}
                   setSelectedService={setSelectedService}
+                  selectedServiceIds={selectedServiceIds}
+                  setSelectedServiceIds={setSelectedServiceIds}
                   queue={queue}
                   barbers={barbers}
                   userEntry={userEntry}

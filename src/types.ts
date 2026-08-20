@@ -40,6 +40,10 @@ export interface QueueItem {
   sessionId?: string;
   customerId?: string;
   source?: 'customer_app' | 'qr_walk_in' | 'qr_web' | 'staff_walk_in' | 'appointment';
+  /** Names of every service selected for this booking. `service` stays a display string ("Haircut + Beard Trim") for backward compatibility. */
+  services?: string[];
+  /** Running total across `services`, in INR. Absent on older single-service bookings. */
+  totalPriceInr?: number;
 }
 
 export interface CustomerProfile {

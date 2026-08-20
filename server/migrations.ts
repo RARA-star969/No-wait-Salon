@@ -100,6 +100,13 @@ const migrations=[{
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancel_reason_text TEXT;
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS cancelled_at BIGINT;
   `
+},{
+  version:6,
+  name:'multi_service_bookings',
+  sql:`
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS services_json TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS total_price_inr INTEGER;
+  `
 }];
 
 export async function runMigrations(db:Database){
