@@ -16,7 +16,7 @@ import {
   Star,
   User,
 } from 'lucide-react';
-import type { CustomerAuthSession, QueueItem } from '../types';
+import type { Barber, CustomerAuthSession, CustomerProfile, QueueItem } from '../types';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../services/customerAccountService';
@@ -25,6 +25,8 @@ import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
+import { resolveJoinGate } from '../shared/profileReadiness';
+import { QueueJoinSheet } from './QueueJoinSheet';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -89,6 +91,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [entry, setEntry] = useState<QueueItem | null>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [completedList, setCompletedList] = useState<QueueItem[]>([]);
+  const [barbers, setBarbers] = useState<Barber[]>([]);
   const [barbersActive, setBarbersActive] = useState(1);
   const [barbersAvailable, setBarbersAvailable] = useState(1);
   const [restoring, setRestoring] = useState(true);
@@ -96,6 +99,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [notifyState, setNotifyState] = useState(notificationPermission());
   const [now, setNow] = useState(() => Date.now());
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [joinSheetOpen, setJoinSheetOpen] = useState(false);
   const sessionId = useRef(webSessionId());
   const lastStatus = useRef<string | null>(null);
 
@@ -119,10 +124,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   // Live queue for this salon only, over the existing SSE stream.
   useEffect(() => {
     if (!business) return;
-    const apply = (state: { queue: QueueItem[]; barbers?: Array<{ status: string }>; completedList?: QueueItem[] }) => {
+    const apply = (state: { queue: QueueItem[]; barbers?: Barber[]; completedList?: QueueItem[] }) => {
       setQueue(state.queue);
       setCompletedList(state.completedList || []);
       if (state.barbers) {
+        setBarbers(state.barbers);
         setBarbersActive(state.barbers.filter((b) => b.status !== 'unavailable').length || 1);
         setBarbersAvailable(state.barbers.filter((b) => b.status === 'available').length);
       }
@@ -234,19 +240,37 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     setAuth(session);
   };
 
-  const joinQueue = useCallback(
-    async (_session: CustomerAuthSession) => {
+  // A customer we have already verified is never asked again: once signed in,
+  // fetch their profile so resolveJoinGate can decide without a round trip
+  // inside the tap that opens the sheet.
+  const [profileLoading, setProfileLoading] = useState(false);
+  useEffect(() => {
+    if (!auth) return;
+    let cancelled = false;
+    setProfileLoading(true);
+    customerAccountService
+      .getProfile()
+      .then((profile) => { if (!cancelled) setCustomerProfile(profile); })
+      .catch(() => undefined)
+      .finally(() => { if (!cancelled) setProfileLoading(false); });
+    return () => { cancelled = true; };
+  }, [auth?.token]);
+
+  /** Confirms the join from the queue-join sheet, honouring the chosen stylist. */
+  const confirmJoin = useCallback(
+    async (preferredBarberId: string) => {
       if (!business) return;
       setBusy(true);
       setError('');
       try {
-        const result = await businessQrService.join(token, selectedServiceIds, sessionId.current, 'qr_web');
+        const result = await businessQrService.join(token, selectedServiceIds, sessionId.current, 'qr_web', preferredBarberId || undefined);
         const joined = result.entry as QueueItem;
         setEntry(joined);
         lastStatus.current = joined?.status || null;
         if (result.state?.queue) setQueue(result.state.queue);
         if (consent) void businessQrService.setMarketingConsent(true);
         void businessQrService.recordVisit(token, { appCtaShown: true });
+        setJoinSheetOpen(false);
         setStep('queued');
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : 'Unable to join this queue right now.');
@@ -284,8 +308,9 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       };
       persistAuth(session);
       const profile = await customerAccountService.getProfile().catch(() => null);
-      if (profile?.name) {
-        await joinQueue(session);
+      setCustomerProfile(profile);
+      if (profile?.name && profile.name.trim().length >= 2) {
+        setJoinSheetOpen(true);
         return;
       }
       setStep('profile');
@@ -301,7 +326,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     setBusy(true);
     setError('');
     try {
-      await customerAccountService.updateProfile({
+      const updated = await customerAccountService.updateProfile({
         name: name.trim(),
         email: email.trim(),
         dateOfBirth: '',
@@ -309,9 +334,11 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         anniversary: '',
         city: '',
       });
-      if (auth) await joinQueue(auth);
+      setCustomerProfile(updated);
+      setJoinSheetOpen(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save your details.');
+    } finally {
       setBusy(false);
     }
   };
@@ -325,8 +352,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     setError('');
     primeTurnAlert();
     if (!selectedServiceIds.length) return setError('Please choose at least one service.');
-    if (auth) {
-      void joinQueue(auth);
+    const gate = resolveJoinGate(auth, customerProfile, { profileLoading });
+    if (gate.kind === 'loading') return;
+    if (gate.kind === 'ready') {
+      setJoinSheetOpen(true);
+      return;
+    }
+    if (gate.kind === 'needs_profile') {
+      setStep('profile');
       return;
     }
     setStep('phone');
@@ -891,6 +924,20 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         error={error}
         onClose={() => setCancelOpen(false)}
         onConfirm={(reasonCode, reasonText) => void cancelBooking(reasonCode, reasonText)}
+      />
+
+      {/* Queue-join sheet: opens once a customer is verified and ready. */}
+      <QueueJoinSheet
+        open={joinSheetOpen}
+        salon={business}
+        services={profile.services.filter((service) => selectedServiceIds.includes(service.id))}
+        barbers={barbers}
+        queue={queue}
+        busy={busy}
+        error={error}
+        customerName={customerProfile?.name}
+        onClose={() => { setJoinSheetOpen(false); setError(''); }}
+        onConfirm={(preferredBarberId) => void confirmJoin(preferredBarberId)}
       />
 
       {/* Turn popup: the guaranteed in-page surface, driven by SSE. */}

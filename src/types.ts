@@ -44,6 +44,8 @@ export interface QueueItem {
   services?: string[];
   /** Running total across `services`, in INR. Absent on older single-service bookings. */
   totalPriceInr?: number;
+  /** Stylist the customer asked for at join time. Empty means "any available". */
+  preferredBarberId?: string;
 }
 
 export interface CustomerProfile {
@@ -157,4 +159,6 @@ export interface OtpAction {
   slot?: string;
   serviceName?: string;
   qrToken?: string;
+  /** Reopen the queue-join sheet once verification completes. */
+  resumeJoinSheet?: boolean;
 }

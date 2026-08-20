@@ -19,7 +19,7 @@ export function businessQrToken(rawValue:string){
 
 export const businessQrService={
   resolve:(token:string)=>request<{business:QrBusiness}>(`/api/business-qr/${encodeURIComponent(token)}`),
-  join:(token:string,serviceIds:string|string[],sessionId:string,source:'qr_walk_in'|'qr_web'='qr_walk_in')=>request<{joined:boolean;reason?:'already_in_queue';entry:any;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceIds:Array.isArray(serviceIds)?serviceIds:[serviceIds],sessionId,source,requestId:crypto.randomUUID()})}),
+  join:(token:string,serviceIds:string|string[],sessionId:string,source:'qr_walk_in'|'qr_web'='qr_walk_in',preferredBarberId?:string)=>request<{joined:boolean;reason?:'already_in_queue';entry:any;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceIds:Array.isArray(serviceIds)?serviceIds:[serviceIds],sessionId,source,preferredBarberId:preferredBarberId||undefined,requestId:crypto.randomUUID()})}),
   recordVisit:(token:string,payload:{appCtaShown?:boolean;appCtaClicked?:boolean}={})=>request<{recorded:boolean}>(`/api/business-qr/${encodeURIComponent(token)}/visit`,{method:'POST',body:JSON.stringify(payload)}).catch(()=>({recorded:false})),
   acknowledgeCall:(salonId:string,itemId:string)=>request<any>(`/api/salons/${encodeURIComponent(salonId)}/commands`,{method:'POST',body:JSON.stringify({type:'queue_action',action:'Acknowledge',itemId})}).catch(()=>null),
   leaveQueue:(salonId:string,sessionId:string,reasonCode='other',reasonText='')=>request<any>(`/api/salons/${encodeURIComponent(salonId)}/commands`,{method:'POST',body:JSON.stringify({type:'cancel_customer',sessionId,reasonCode,reasonText})}),

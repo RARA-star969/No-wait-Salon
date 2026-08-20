@@ -20,6 +20,8 @@ import {
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 import { businessQrService } from './services/businessQrService';
+import { resolveJoinGate } from './shared/profileReadiness';
+import { QueueJoinSheet } from './components/QueueJoinSheet';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
@@ -98,6 +100,15 @@ export default function App() {
   // OTP Modal State
   const [isOtpOpen, setIsOtpOpen] = useState(false);
   const [pendingOtpAction, setPendingOtpAction] = useState<OtpAction | null>(null);
+
+  // Queue-join sheet state: shown once a customer is verified and ready to
+  // pick a stylist, never before.
+  const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
+  const [joinSheetBusy, setJoinSheetBusy] = useState(false);
+  const [joinSheetError, setJoinSheetError] = useState('');
+  // Set when verification or a missing name interrupted a join; reopens the
+  // sheet the moment that gap is filled, instead of joining silently.
+  const pendingJoinResume = useRef(false);
 
   // Push Notifications State
   const [notifications, setNotifications] = useState<PushNotification[]>(() => {
@@ -370,19 +381,36 @@ export default function App() {
     });
   };
 
-  const joinQrQueue = async (token: string) => {
+  /** Services chosen so far, falling back to the legacy single-select name. */
+  const chosenServicesFor = () => {
     const chosen = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
-    const serviceIds = chosen.length ? chosen.map((item) => item.id) : selectedSalon.services.find((item) => item.name === selectedService) ? [selectedSalon.services.find((item) => item.name === selectedService)!.id] : [];
-    if (!serviceIds.length) { setQueueAlert('Please select an available service.'); return false; }
-    try {
-      const result = await businessQrService.join(token, serviceIds, customerSessionId.current);
-      applySnapshot(result.state);
-      setCurrentScreen('tracking');
-      return true;
-    } catch (error) {
-      setQueueAlert(error instanceof Error ? error.message : 'Unable to join this queue.');
-      return false;
+    if (chosen.length) return chosen;
+    const fallback = selectedSalon.services.find((item) => item.name === selectedService);
+    return fallback ? [fallback] : [];
+  };
+
+  /**
+   * The single entry point for "Join Queue". A customer we have already
+   * verified — a verified mobile plus a usable name — goes straight to the
+   * queue-join sheet. Anything missing is resolved first, then the sheet
+   * reopens automatically; nothing here ever asks twice for what we hold.
+   */
+  const openQueueJoinSheet = () => {
+    const gate = resolveJoinGate(customerAuth, customerProfile, { profileLoading });
+    if (gate.kind === 'loading') return;
+    if (gate.kind === 'ready') {
+      setJoinSheetError('');
+      setIsJoinSheetOpen(true);
+      return;
     }
+    if (gate.kind === 'needs_profile') {
+      pendingJoinResume.current = true;
+      setCurrentScreen('edit-profile');
+      return;
+    }
+    pendingJoinResume.current = true;
+    setPendingOtpAction({ type: 'join', serviceName: selectedService, qrToken: activeQrToken || undefined, resumeJoinSheet: true });
+    setIsOtpOpen(true);
   };
 
   const handleJoinClick = () => {
@@ -390,9 +418,7 @@ export default function App() {
       setCurrentScreen('tracking');
       return;
     }
-    if (activeQrToken && customerAuth) { void joinQrQueue(activeQrToken); return; }
-    setPendingOtpAction({ type: 'join', serviceName: selectedService, qrToken: activeQrToken || undefined });
-    setIsOtpOpen(true);
+    openQueueJoinSheet();
   };
 
   const handleSelectSlotClick = (slot: string) => {
@@ -402,6 +428,55 @@ export default function App() {
     }
     setPendingOtpAction({ type: 'slot', slot, serviceName: selectedService });
     setIsOtpOpen(true);
+  };
+
+  /** Confirms the join from the queue-join sheet, honouring the chosen stylist. */
+  const confirmJoinFromSheet = async (preferredBarberId: string) => {
+    const chosenServices = chosenServicesFor();
+    if (!chosenServices.length) {
+      setJoinSheetError('Please select an available service.');
+      return;
+    }
+    setJoinSheetBusy(true);
+    setJoinSheetError('');
+    try {
+      if (activeQrToken) {
+        const serviceIds = chosenServices.map((item) => item.id);
+        const result = await businessQrService.join(activeQrToken, serviceIds, customerSessionId.current, 'qr_walk_in', preferredBarberId || undefined);
+        applySnapshot(result.state);
+      } else {
+        const serviceNames = chosenServices.map((item) => item.name);
+        const snapshot = await realtimeQueueService.command(selectedSalon.id, {
+          type: 'join',
+          item: {
+            id: '',
+            name: customerProfile?.name?.trim() || 'You',
+            phone: customerAuth?.phoneNumber || '',
+            service: serviceNames.join(' + '),
+            services: serviceNames,
+            totalPriceInr: chosenServices.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0),
+            status: 'Waiting',
+            isUser: true,
+            sessionId: customerSessionId.current,
+            createdAt: Date.now(),
+            estimatedDurationMin: chosenServices.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0) || 30,
+            preferredBarberId: preferredBarberId || undefined,
+          },
+        });
+        applySnapshot(snapshot);
+      }
+      setIsJoinSheetOpen(false);
+      triggerPushNotification(
+        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
+        `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
+        'confirmed'
+      );
+      setCurrentScreen('tracking');
+    } catch (error) {
+      setJoinSheetError(error instanceof Error ? error.message : 'Unable to join this queue right now.');
+    } finally {
+      setJoinSheetBusy(false);
+    }
   };
 
   const handleOtpVerifySuccess = async (auth: CustomerAuthSession) => {
@@ -415,40 +490,42 @@ export default function App() {
       setCurrentScreen('profile');
       return;
     }
-    if (action.qrToken) {
-      const joined = await joinQrQueue(action.qrToken);
-      if (!joined) return;
+    if (action.resumeJoinSheet) {
       setIsOtpOpen(false);
       setPendingOtpAction(null);
-      triggerPushNotification(`🎟️ ${selectedSalon.name}: Live Ticket Confirmed`, `You've joined the queue for ${action.serviceName}. We'll notify you before your turn!`, 'confirmed');
+      const profile = await customerAccountService.getProfile().catch(() => null);
+      setCustomerProfile(profile);
+      if (profile?.name && profile.name.trim().length >= 2) {
+        setJoinSheetError('');
+        setIsJoinSheetOpen(true);
+      } else {
+        pendingJoinResume.current = true;
+        setCurrentScreen('edit-profile');
+      }
       return;
     }
-    const chosenServices = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
-    const multiSelected = action.type === 'join' && chosenServices.length > 0;
-    const serviceNames = multiSelected ? chosenServices.map((item) => item.name) : undefined;
+    // Only the slot-reservation flow reaches here now.
     const snapshot = await runCommand({
       type: 'join',
       item: {
         id: '',
         name: 'You',
         phone: auth.phoneNumber,
-        service: multiSelected ? serviceNames!.join(' + ') : action.serviceName!,
-        services: serviceNames,
-        totalPriceInr: multiSelected ? chosenServices.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0) : undefined,
-        status: action.type === 'slot' ? 'Reserved' : 'Waiting',
-        reservedFor: action.type === 'slot' ? action.slot : undefined,
+        service: action.serviceName!,
+        status: 'Reserved',
+        reservedFor: action.slot,
         isUser: true,
         sessionId: customerSessionId.current,
         createdAt: Date.now(),
-        estimatedDurationMin: multiSelected ? chosenServices.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0) || 30 : 30,
+        estimatedDurationMin: 30,
       },
     });
     if (!snapshot) return;
     setIsOtpOpen(false);
     triggerPushNotification(
-      action.type === 'slot' ? `⏰ ${selectedSalon.name}: Slot Reserved (${action.slot})` : `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
-      action.type === 'slot' ? `Your reservation for ${action.serviceName} is locked.` : `You've joined the queue for ${action.serviceName}. We'll notify you before your turn!`,
-      action.type === 'slot' ? 'reserved_nearing' : 'confirmed'
+      `⏰ ${selectedSalon.name}: Slot Reserved (${action.slot})`,
+      `Your reservation for ${action.serviceName} is locked.`,
+      'reserved_nearing'
     );
     setPendingOtpAction(null);
     setCurrentScreen('tracking');
@@ -580,7 +657,15 @@ export default function App() {
                   profileLoading={profileLoading}
                   profileError={profileError}
                   onProfileLogin={() => { setPendingOtpAction({ type: 'profile' }); setIsOtpOpen(true); }}
-                  onProfileSaved={(profile) => { setCustomerProfile(profile); setProfileError(''); }}
+                  onProfileSaved={(profile) => {
+                    setCustomerProfile(profile);
+                    setProfileError('');
+                    if (pendingJoinResume.current) {
+                      pendingJoinResume.current = false;
+                      setJoinSheetError('');
+                      setIsJoinSheetOpen(true);
+                    }
+                  }}
                   onProfileLogout={async () => {
                     try { await customerAccountService.logout(); } catch { /* local logout still completes */ }
                     saveCustomerAuth(null); setCustomerAuth(null); setCustomerProfile(null); setCurrentScreen('home');
@@ -678,6 +763,20 @@ export default function App() {
         }}
         pendingAction={pendingOtpAction}
         onVerifySuccess={handleOtpVerifySuccess}
+      />
+
+      {/* Queue-join sheet: opens once a customer is verified and ready. */}
+      <QueueJoinSheet
+        open={isJoinSheetOpen}
+        salon={selectedSalon}
+        services={chosenServicesFor()}
+        barbers={barbers}
+        queue={queue}
+        busy={joinSheetBusy}
+        error={joinSheetError}
+        customerName={customerProfile?.name}
+        onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
+        onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />
     </div>
   );

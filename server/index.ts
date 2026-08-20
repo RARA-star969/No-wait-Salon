@@ -586,7 +586,20 @@ function applyCommand(state: SalonState, command: QueueCommand) {
   if (command.type === 'join') {
     if (!command.item.sessionId) throw new Error('Customer session is required.');
     if (state.queue.some((item) => item.sessionId === command.item.sessionId)) throw new Error('You already have an active booking at this salon.');
-    state.queue.push({ ...command.item, source: command.item.source || 'customer_app', id: randomUUID(), createdAt: Date.now() });
+    // A requested stylist is a preference, not an assignment: the chair is only
+    // bound at Call/Start time. An unknown id is dropped rather than rejected,
+    // so a stale client can never fail a join over it.
+    const requested = command.item.preferredBarberId
+      ? state.barbers.find((barber) => barber.id === command.item.preferredBarberId)
+      : undefined;
+    state.queue.push({
+      ...command.item,
+      preferredBarberId: requested?.id,
+      barberName: requested?.name,
+      source: command.item.source || 'customer_app',
+      id: randomUUID(),
+      createdAt: Date.now(),
+    });
     return state;
   }
 
@@ -642,7 +655,9 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     const now = Date.now();
     let barberIndex = item.barberIndex;
     if (barberIndex === undefined || !state.barbers[barberIndex] || state.barbers[barberIndex].status === 'unavailable') {
-      barberIndex = findAvailableBarber(state, command.barberId);
+      // Staff's explicit pick wins; otherwise honour the stylist the customer
+      // asked for at join time before falling back to anyone available.
+      barberIndex = findAvailableBarber(state, command.barberId || item.preferredBarberId);
     }
     if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
@@ -668,7 +683,7 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     if (!['Waiting', 'Called', 'Reserved'].includes(item.status)) throw new Error(`Cannot start a customer with status ${item.status}.`);
     let barberIndex = item.barberIndex;
     if (barberIndex === undefined || !state.barbers[barberIndex] || state.barbers[barberIndex].status === 'unavailable') {
-      barberIndex = findAvailableBarber(state, command.barberId);
+      barberIndex = findAvailableBarber(state, command.barberId || item.preferredBarberId);
     }
     if (barberIndex === undefined || barberIndex < 0) throw new Error('No barber is currently available.');
     const barber = state.barbers[barberIndex];
@@ -996,7 +1011,11 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
   const serviceNames=services.map(service=>service.name);
   const totalDurationMin=services.reduce((sum,service)=>sum+(Number(service.duration_min)||0),0)||30;
   const totalPriceInr=services.reduce((sum,service)=>sum+(Number(service.price_inr)||0),0);
-  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:serviceNames.join(' + '),services:serviceNames,totalPriceInr,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:totalDurationMin,source:requestedSource};
+  // A requested stylist is validated against this salon's roster; an unknown id
+  // is dropped rather than rejected so a stale page cannot fail the join.
+  const requestedBarberId=cleanText(request.body?.preferredBarberId,120);
+  const preferredBarber=requestedBarberId?current.barbers.find(barber=>barber.id===requestedBarberId):undefined;
+  const item:QueueItem={id:randomUUID(),name:String(profile.name||`Customer •${String(profile.phone_number).slice(-4)}`),phone:String(profile.phone_number),service:serviceNames.join(' + '),services:serviceNames,totalPriceInr,status:'Waiting',isUser:true,sessionId,customerId:request.customerId,createdAt:now,estimatedDurationMin:totalDurationMin,preferredBarberId:preferredBarber?.id,barberName:preferredBarber?.name,source:requestedSource};
   try{
     db.exec('BEGIN IMMEDIATE');
     const latest=readState(resolved.salon.id);
