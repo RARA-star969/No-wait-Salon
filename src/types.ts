@@ -155,10 +155,7 @@ export type ViewMode = 'split' | 'customer' | 'staff';
 export type CustomerScreen = 'home' | 'salon' | 'slots' | 'tracking' | 'complete' | 'profile' | 'edit-profile';
 
 export interface OtpAction {
-  type: 'join' | 'slot' | 'profile';
+  type: 'slot' | 'profile';
   slot?: string;
   serviceName?: string;
-  qrToken?: string;
-  /** Reopen the queue-join sheet once verification completes. */
-  resumeJoinSheet?: boolean;
 }

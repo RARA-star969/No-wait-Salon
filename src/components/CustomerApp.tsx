@@ -27,6 +27,8 @@ import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { CustomerOnboarding } from './CustomerOnboarding';
 import { LocationDiscovery } from './LocationDiscovery';
+import { NotificationPermissionStep } from './NotificationPermissionStep';
+import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
@@ -41,10 +43,14 @@ import {
 } from '../services/locationPreferenceService';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
+import { getNotificationPermissionStatus } from '../services/notificationService';
+import { resolveAppReadiness } from '../shared/profileReadiness';
+import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
+const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
 
 /**
  * Background discovery refresh for an already-configured location. Uses GPS
@@ -95,6 +101,7 @@ interface CustomerAppProps {
   profileLoading: boolean;
   profileError: string;
   onProfileLogin: () => void;
+  onIdentityVerified: (auth: CustomerAuthSession) => void;
   onProfileSaved: (profile: CustomerProfile) => void;
   onProfileLogout: () => void;
   onQrContextChange: (token: string | null) => void;
@@ -125,6 +132,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   profileLoading,
   profileError,
   onProfileLogin,
+  onIdentityVerified,
   onProfileSaved,
   onProfileLogout,
   onQrContextChange,
@@ -134,6 +142,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
+  );
+  // The browser itself remembers a decided (granted/denied) permission — this
+  // flag only remembers that we already asked, so a "Not now" is never re-asked.
+  const [notificationPrompted, setNotificationPrompted] = useState(
+    () => localStorage.getItem(NOTIFICATION_PROMPT_STORAGE_KEY) === 'done'
   );
   // Storage is async on device, so nothing renders until it has been read.
   // Rendering before hydration would flash first-time setup at returning users.
@@ -263,24 +276,50 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
   }) || [];
 
-  if (!hasCompletedOnboarding) {
-    return <CustomerOnboarding onComplete={completeOnboarding} />;
-  }
+  // The single authoritative onboarding sequence: welcome, then permissions
+  // (location, notifications), then identity (OTP + name) — only then is the
+  // usable app reachable at all. A returning customer who already satisfies
+  // every stage lands straight on 'ready', with nothing shown in between.
+  // Any account state that goes bad later re-evaluates this on the next
+  // render and routes back here as recovery, never as a detour inserted into
+  // Salon → service selection → Join Queue.
+  const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+  const stage = resolveOnboardingStage({
+    hasCompletedOnboarding,
+    locationHydrated,
+    locationSetupCompleted: Boolean(storedLocation?.setupCompleted),
+    notificationPromptNeeded: !notificationPrompted && getNotificationPermissionStatus() === 'default',
+    readiness: readiness.kind,
+  });
 
-  // Wait for persisted setup to load so returning customers never see a flash
-  // of the first-time location screen.
-  if (!locationHydrated) {
+  if (stage === 'welcome') return <CustomerOnboarding onComplete={completeOnboarding} />;
+  if (stage === 'loading') {
     return (
       <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
         <LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" />
       </div>
     );
   }
-
-  // First-time setup only. Returning customers go straight to Home and change
-  // their location through the header row instead.
-  if (!storedLocation?.setupCompleted) {
-    return <LocationDiscovery onLocated={applyLocation} />;
+  if (stage === 'location') return <LocationDiscovery onLocated={applyLocation} />;
+  if (stage === 'notifications') {
+    return (
+      <NotificationPermissionStep
+        onDone={() => {
+          localStorage.setItem(NOTIFICATION_PROMPT_STORAGE_KEY, 'done');
+          setNotificationPrompted(true);
+        }}
+      />
+    );
+  }
+  if (stage === 'identity') {
+    // Only reachable here when readiness is 'onboarding_required'.
+    return (
+      <AccountOnboarding
+        gate={readiness as Extract<typeof readiness, { kind: 'onboarding_required' }>}
+        onVerified={onIdentityVerified}
+        onProfileSaved={onProfileSaved}
+      />
+    );
   }
 
   if (currentScreen === 'profile' || currentScreen === 'edit-profile') {

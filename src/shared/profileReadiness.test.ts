@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canJoinWithoutPrompting, resolveJoinGate } from './profileReadiness.ts';
+import { isAppReady, resolveAppReadiness } from './profileReadiness.ts';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 
 const auth: CustomerAuthSession = { token: 'tok-1', customerId: 'cust-1', phoneNumber: '9876543210' };
@@ -18,32 +18,32 @@ const profile: CustomerProfile = {
   updatedAt: 0,
 };
 
-test('a verified customer with a usable name is never asked again', () => {
-  const gate = resolveJoinGate(auth, profile);
+test('a verified customer with a usable name is ready, never asked again', () => {
+  const gate = resolveAppReadiness(auth, profile);
   assert.equal(gate.kind, 'ready');
-  assert.equal(canJoinWithoutPrompting(auth, profile), true);
+  assert.equal(isAppReady(auth, profile), true);
 });
 
-test('no session at all requires verification', () => {
-  assert.deepEqual(resolveJoinGate(null, null), { kind: 'needs_verification', reason: 'not_signed_in' });
+test('no session at all requires onboarding', () => {
+  assert.deepEqual(resolveAppReadiness(null, null), { kind: 'onboarding_required', reason: 'not_signed_in' });
 });
 
-test('a session without a verified phone still requires verification', () => {
-  const gate = resolveJoinGate({ token: '', customerId: 'cust-1', phoneNumber: '9876543210' }, profile);
-  assert.equal(gate.kind, 'needs_verification');
+test('a session without a verified phone still requires onboarding', () => {
+  const gate = resolveAppReadiness({ token: '', customerId: 'cust-1', phoneNumber: '9876543210' }, profile);
+  assert.equal(gate.kind, 'onboarding_required');
 });
 
 test('verified but nameless customer is asked only for the missing field', () => {
-  const gate = resolveJoinGate(auth, { ...profile, name: '' });
-  assert.deepEqual(gate, { kind: 'needs_profile', missing: ['name'] });
+  const gate = resolveAppReadiness(auth, { ...profile, name: '' });
+  assert.deepEqual(gate, { kind: 'onboarding_required', reason: 'missing_profile', missing: ['name'] });
 });
 
 test('a signed-in customer whose profile has not loaded yet waits instead of being asked', () => {
-  const gate = resolveJoinGate(auth, null, { profileLoading: true });
+  const gate = resolveAppReadiness(auth, null, { profileLoading: true });
   assert.deepEqual(gate, { kind: 'loading' });
 });
 
-test('optional fields never gate a join', () => {
-  const gate = resolveJoinGate(auth, { ...profile, email: '', dateOfBirth: '', gender: '', city: '' });
+test('optional fields never gate readiness', () => {
+  const gate = resolveAppReadiness(auth, { ...profile, email: '', dateOfBirth: '', gender: '', city: '' });
   assert.equal(gate.kind, 'ready');
 });

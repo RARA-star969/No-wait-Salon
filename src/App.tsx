@@ -20,7 +20,7 @@ import {
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 import { businessQrService } from './services/businessQrService';
-import { resolveJoinGate } from './shared/profileReadiness';
+import { resolveAppReadiness } from './shared/profileReadiness';
 import { QueueJoinSheet } from './components/QueueJoinSheet';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
@@ -106,9 +106,6 @@ export default function App() {
   const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
   const [joinSheetBusy, setJoinSheetBusy] = useState(false);
   const [joinSheetError, setJoinSheetError] = useState('');
-  // Set when verification or a missing name interrupted a join; reopens the
-  // sheet the moment that gap is filled, instead of joining silently.
-  const pendingJoinResume = useRef(false);
 
   // Push Notifications State
   const [notifications, setNotifications] = useState<PushNotification[]>(() => {
@@ -390,27 +387,21 @@ export default function App() {
   };
 
   /**
-   * The single entry point for "Join Queue". A customer we have already
-   * verified — a verified mobile plus a usable name — goes straight to the
-   * queue-join sheet. Anything missing is resolved first, then the sheet
-   * reopens automatically; nothing here ever asks twice for what we hold.
+   * The single entry point for "Join Queue". Onboarding already guarantees a
+   * verified mobile plus a usable name before Home — and therefore this
+   * button — is ever reachable, so this opens the queue-join sheet directly:
+   * no verification modal, no profile redirect, no silent join.
+   *
+   * The one guard is defensive: if the account state has somehow gone bad
+   * since Home rendered, this does nothing rather than inserting a detour —
+   * the same readiness check inside CustomerApp reacts to that state change
+   * on its own and routes back to the onboarding gate as account recovery.
    */
   const openQueueJoinSheet = () => {
-    const gate = resolveJoinGate(customerAuth, customerProfile, { profileLoading });
-    if (gate.kind === 'loading') return;
-    if (gate.kind === 'ready') {
-      setJoinSheetError('');
-      setIsJoinSheetOpen(true);
-      return;
-    }
-    if (gate.kind === 'needs_profile') {
-      pendingJoinResume.current = true;
-      setCurrentScreen('edit-profile');
-      return;
-    }
-    pendingJoinResume.current = true;
-    setPendingOtpAction({ type: 'join', serviceName: selectedService, qrToken: activeQrToken || undefined, resumeJoinSheet: true });
-    setIsOtpOpen(true);
+    const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+    if (readiness.kind !== 'ready') return;
+    setJoinSheetError('');
+    setIsJoinSheetOpen(true);
   };
 
   const handleJoinClick = () => {
@@ -490,21 +481,9 @@ export default function App() {
       setCurrentScreen('profile');
       return;
     }
-    if (action.resumeJoinSheet) {
-      setIsOtpOpen(false);
-      setPendingOtpAction(null);
-      const profile = await customerAccountService.getProfile().catch(() => null);
-      setCustomerProfile(profile);
-      if (profile?.name && profile.name.trim().length >= 2) {
-        setJoinSheetError('');
-        setIsJoinSheetOpen(true);
-      } else {
-        pendingJoinResume.current = true;
-        setCurrentScreen('edit-profile');
-      }
-      return;
-    }
-    // Only the slot-reservation flow reaches here now.
+    // Only the slot-reservation flow reaches here now: Join Queue never opens
+    // this modal, since onboarding already guarantees a verified, named
+    // customer before Home is reachable at all.
     const snapshot = await runCommand({
       type: 'join',
       item: {
@@ -657,15 +636,8 @@ export default function App() {
                   profileLoading={profileLoading}
                   profileError={profileError}
                   onProfileLogin={() => { setPendingOtpAction({ type: 'profile' }); setIsOtpOpen(true); }}
-                  onProfileSaved={(profile) => {
-                    setCustomerProfile(profile);
-                    setProfileError('');
-                    if (pendingJoinResume.current) {
-                      pendingJoinResume.current = false;
-                      setJoinSheetError('');
-                      setIsJoinSheetOpen(true);
-                    }
-                  }}
+                  onIdentityVerified={(auth) => { saveCustomerAuth(auth); setCustomerAuth(auth); }}
+                  onProfileSaved={(profile) => { setCustomerProfile(profile); setProfileError(''); }}
                   onProfileLogout={async () => {
                     try { await customerAccountService.logout(); } catch { /* local logout still completes */ }
                     saveCustomerAuth(null); setCustomerAuth(null); setCustomerProfile(null); setCurrentScreen('home');

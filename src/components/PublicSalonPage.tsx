@@ -25,7 +25,7 @@ import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
-import { resolveJoinGate } from '../shared/profileReadiness';
+import { resolveAppReadiness } from '../shared/profileReadiness';
 import { QueueJoinSheet } from './QueueJoinSheet';
 import {
   fireTurnAlert,
@@ -241,7 +241,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   };
 
   // A customer we have already verified is never asked again: once signed in,
-  // fetch their profile so resolveJoinGate can decide without a round trip
+  // fetch their profile so resolveAppReadiness can decide without a round trip
   // inside the tap that opens the sheet.
   const [profileLoading, setProfileLoading] = useState(false);
   useEffect(() => {
@@ -352,13 +352,13 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     setError('');
     primeTurnAlert();
     if (!selectedServiceIds.length) return setError('Please choose at least one service.');
-    const gate = resolveJoinGate(auth, customerProfile, { profileLoading });
+    const gate = resolveAppReadiness(auth, customerProfile, { profileLoading });
     if (gate.kind === 'loading') return;
     if (gate.kind === 'ready') {
       setJoinSheetOpen(true);
       return;
     }
-    if (gate.kind === 'needs_profile') {
+    if (gate.reason === 'missing_profile') {
       setStep('profile');
       return;
     }
