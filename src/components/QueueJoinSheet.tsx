@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, Users, X } from 'lucide-react';
-import type { Barber, QueueItem, Salon, ServiceItem } from '../types';
+import { AlertCircle, Check, ChevronRight, LoaderCircle, Scissors, Sparkles, X } from 'lucide-react';
+import type { Barber, CustomerProfile, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
+import { formatDurationLabel } from '../shared/durationFormat';
+import { CustomerAvatar } from './CustomerAvatar';
+import { LiveQueueScoreboard } from './LiveQueueScoreboard';
+import { ServicesBillSheet } from './ServicesBillSheet';
 
 /** "Any available stylist" is modelled as an explicit choice, not an absence. */
 export const ANY_STYLIST = '';
@@ -17,6 +21,8 @@ type Props = {
   error?: string;
   /** Name we already hold, shown so the customer can see we did not forget it. */
   customerName?: string;
+  /** Full profile, used to render the customer's actual uploaded photo. */
+  customerProfile?: CustomerProfile | null;
   onClose: () => void;
   onConfirm: (preferredBarberId: string) => void;
 };
@@ -35,14 +41,17 @@ export const QueueJoinSheet: React.FC<Props> = ({
   busy,
   error,
   customerName,
+  customerProfile,
   onClose,
   onConfirm,
 }) => {
   const [stylist, setStylist] = useState<string>(ANY_STYLIST);
+  const [viewServicesOpen, setViewServicesOpen] = useState(false);
   const preview = useMemo(() => buildJoinPreview(queue, barbers), [queue, barbers]);
   const totalDurationMin = useMemo(() => services.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0), [services]);
   const totalPriceInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
   const serviceLabel = services.map((item) => item.name).join(' + ') || 'Service';
+  const displayName = customerProfile?.name?.trim() || customerName;
 
   // Each opening starts from "any available" rather than inheriting a stylist
   // chosen for an earlier visit.
@@ -69,8 +78,11 @@ export const QueueJoinSheet: React.FC<Props> = ({
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F766E]">Join the queue</p>
             <h2 className="mt-1 truncate text-xl font-bold tracking-[-0.03em] text-[#17201F]">{salon.name}</h2>
-            {customerName && (
-              <p className="mt-1 truncate text-xs text-[#667371]">Booking as {customerName}</p>
+            {displayName && (
+              <div className="mt-2 flex items-center gap-2">
+                <CustomerAvatar profile={customerProfile ?? null} size={28} className="text-[10px]" />
+                <p className="truncate text-xs font-semibold text-[#42524F]">{displayName}</p>
+              </div>
             )}
           </div>
           <button
@@ -84,44 +96,44 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Live queue facts, from the same maths the live ticket uses. */}
-          <section className="rounded-2xl border border-[#BFDAD6] bg-[#E6F3F1] p-4">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#14B8A6] opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#0F766E]" />
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#4E7772]">Live queue</p>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Stat label="People ahead" value={String(preview.peopleAhead)} />
-              <Stat label="Your position" value={`#${preview.projectedPosition}`} />
-              <Stat label="Est. wait" value={preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m`} />
-            </div>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-[#5C7773]">
-              <Users className="h-3.5 w-3.5" />
-              {preview.openChairs} of {preview.workingChairs} {preview.workingChairs === 1 ? 'chair' : 'chairs'} free right now
-            </p>
-          </section>
+          {/* Live queue facts — same reusable scoreboard language as the salon
+              page's sticky capsule, so the two never visually drift apart. */}
+          <LiveQueueScoreboard
+            variant="panel"
+            metrics={[
+              { key: 'ahead', label: 'People ahead', value: preview.peopleAhead },
+              { key: 'position', label: 'Your position', value: `#${preview.projectedPosition}` },
+              { key: 'wait', label: 'Est. time', value: preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m` },
+              { key: 'chairs', label: 'Chairs available', value: preview.openChairs },
+            ]}
+          />
 
-          {/* Service summary — chosen already, shown for confirmation only. */}
+          {/* Session summary — this is the customer's own service duration,
+              never to be confused with how long the queue itself will take. */}
           <section className="mt-4 rounded-2xl border border-[#E1E7E6] bg-white p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#73827F]">
-              {services.length > 1 ? 'Your services' : 'Your service'}
-            </p>
-            <div className="mt-2 flex items-start justify-between gap-3">
+            <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-[#17201F]">{serviceLabel}</p>
-                {services.length === 1 && services[0]?.description && (
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#788582]">{services[0].description}</p>
-                )}
                 {totalDurationMin > 0 ? (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#60716E]">
-                    <Clock className="h-3 w-3" /> {totalDurationMin} min
+                  <p className="mt-1 text-[11px] font-semibold text-[#60716E]">
+                    Your session · approx. {formatDurationLabel(totalDurationMin)}
                   </p>
                 ) : null}
               </div>
               {totalPriceInr > 0 ? <span className="shrink-0 text-base font-bold text-[#17201F]">₹{totalPriceInr}</span> : null}
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-[#EEF2F1] pt-3">
+              <span className="text-[11px] font-semibold text-[#788582]">
+                {services.length} {services.length === 1 ? 'service' : 'services'} selected
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewServicesOpen(true)}
+                className="flex items-center gap-1 text-[11px] font-bold text-[#0F766E]"
+              >
+                View services
+                <ChevronRight className="h-3 w-3" />
+              </button>
             </div>
           </section>
 
@@ -182,16 +194,17 @@ export const QueueJoinSheet: React.FC<Props> = ({
           </p>
         </div>
       </div>
+
+      <ServicesBillSheet
+        open={viewServicesOpen}
+        title="Your services"
+        eyebrow={`${services.length} ${services.length === 1 ? 'service' : 'services'} selected`}
+        services={services}
+        onClose={() => setViewServicesOpen(false)}
+      />
     </div>
   );
 };
-
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-xl bg-white/70 p-2.5 text-center">
-    <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#5C7773]">{label}</p>
-    <p className="mt-0.5 text-lg font-bold tracking-[-0.02em] text-[#125B54]">{value}</p>
-  </div>
-);
 
 const StylistOption: React.FC<{
   id: string;

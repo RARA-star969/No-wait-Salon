@@ -2,10 +2,10 @@ import { Salon, ServiceItem, Barber, QueueItem } from '../types';
 
 export const SERVICES: ServiceItem[] = [
   { id: 's1', name: 'Haircut', durationMin: 30, priceInr: 250, description: 'Precision cut, wash & styling' },
-  { id: 's2', name: 'Haircut + Beard', durationMin: 45, priceInr: 400, description: 'Hair grooming with beard styling & hot towel' },
+  { id: 's2', name: 'Haircut + Beard', durationMin: 45, priceInr: 400, originalPriceInr: 480, description: 'Hair grooming with beard styling & hot towel' },
   { id: 's3', name: 'Beard Trim & Shape', durationMin: 20, priceInr: 150, description: 'Sharp line-up, trimming and beard oil treatment' },
   { id: 's4', name: 'Detox Head Massage', durationMin: 25, priceInr: 300, description: 'Cooling scalp therapy with ayurvedic oils' },
-  { id: 's5', name: 'Hair Spa & Conditioning', durationMin: 40, priceInr: 550, description: 'Deep nourishing moisture treatment' },
+  { id: 's5', name: 'Hair Spa & Conditioning', durationMin: 40, priceInr: 550, originalPriceInr: 650, description: 'Deep nourishing moisture treatment' },
 ];
 
 export const SALONS: Salon[] = [

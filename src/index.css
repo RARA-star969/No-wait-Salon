@@ -83,10 +83,79 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
+/* Live scoreboard capsule: a slow breathing scale + glow drift so the sticky
+   "signature" summary reads as alive without being distracting. */
+@keyframes scoreboard-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+
+@keyframes scoreboard-glow-drift {
+  0%, 100% { opacity: 0.7; transform: translate(0, 0); }
+  50% { opacity: 1; transform: translate(-6px, 4px); }
+}
+
+.live-scoreboard {
+  animation: scoreboard-breathe 3.6s ease-in-out infinite;
+}
+
+.live-scoreboard-glow {
+  animation: scoreboard-glow-drift 4.2s ease-in-out infinite;
+}
+
+/* Premium gold "reserve a future window" CTA: a gentle continuous forward
+   nudge on the arrow plus a slow shimmer sweep across the metallic surface. */
+@keyframes cta-arrow-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+@keyframes gold-shimmer {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(120%); }
+}
+
+.cta-arrow-nudge {
+  animation: cta-arrow-nudge 1.8s ease-in-out infinite;
+}
+
+.gold-shimmer {
+  animation: gold-shimmer 3.2s ease-in-out infinite;
+}
+
+/* Premium unlocks card: one tasteful rise/fade/shimmer reveal when it enters
+   the viewport, driven by an IntersectionObserver toggling this class. */
+@keyframes premium-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.premium-reveal-pending {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.premium-reveal-in {
+  animation: premium-reveal 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
-  .animate-\[queue-waveform_3\.2s_linear_infinite\] {
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .live-scoreboard,
+  .live-scoreboard-glow,
+  .cta-arrow-nudge,
+  .gold-shimmer {
+    animation: none;
+  }
+
+  .premium-reveal-pending {
+    opacity: 1;
+    transform: none;
+  }
+
+  .premium-reveal-in {
     animation: none;
   }
 

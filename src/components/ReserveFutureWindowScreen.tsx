@@ -1,0 +1,166 @@
+import React, { useState } from 'react';
+import { ArrowLeft, CalendarDays, ChevronDown, Clock, Lock, Sparkles, UserCheck } from 'lucide-react';
+import type { Salon, ServiceItem } from '../types';
+import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
+import { useRevealOnView } from '../shared/useRevealOnView';
+import { ServicesBillSheet } from './ServicesBillSheet';
+
+type Props = {
+  salon: Salon;
+  services: ServiceItem[];
+  onBack: () => void;
+  onSelectSlot: (slot: string) => void;
+};
+
+/** The slot that reads best against a typical evening rush — a tasteful, non-fabricated nudge. */
+const BEST_TIME_SLOT = AVAILABLE_TIME_SLOTS[0];
+
+export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, onBack, onSelectSlot }) => {
+  const [day, setDay] = useState<'today' | 'tomorrow'>('today');
+  const [windowsOpen, setWindowsOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
+  const totalPriceInr = services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0);
+  const { ref: unlocksRef, revealed: unlocksRevealed } = useRevealOnView<HTMLDivElement>();
+
+  return (
+    <div id="reserve-future-window-screen" className="min-h-full space-y-4 bg-[#F8FAFA] p-5 pb-10 animate-in fade-in duration-150">
+      <button
+        id="back-to-salon-btn"
+        onClick={onBack}
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] transition hover:text-[#17201F]"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        <span>Salon details</span>
+      </button>
+
+      {/* Compact header: fits in the first viewport with no forced scroll. */}
+      <div>
+        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#8A9694]">Advance reservation</p>
+        <h1 className="mt-1 whitespace-nowrap text-[22px] font-bold leading-tight tracking-[-0.03em] text-[#17201F]">
+          Arrive when it matters
+        </h1>
+        <p className="mt-0.5 text-xs font-medium text-[#6F7C7A]">Reserve future window · {salon.name}</p>
+      </div>
+
+      {/* Calendar: Today/Tomorrow toggle + a gold calendar control with a lock badge overlapping its outside edge. */}
+      <div className="flex items-center gap-2.5">
+        <div className="flex flex-1 rounded-xl border border-[#E1E7E6] bg-white p-1">
+          {(['today', 'tomorrow'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setDay(option)}
+              className={`flex-1 rounded-lg py-2 text-xs font-bold capitalize transition ${
+                day === option ? 'bg-[#0F766E] text-white' : 'text-[#5C6B68]'
+              }`}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          aria-label="Choose a specific calendar date (premium)"
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-[0_8px_18px_-10px_rgba(120,86,20,0.6)]"
+          style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}
+        >
+          <CalendarDays className="h-5 w-5 text-[#2B1E06]" />
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-[#F8FAFA] bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+            <Lock className="h-2.5 w-2.5" />
+          </span>
+        </button>
+      </div>
+
+      {/* Selected services summary — no "approx duration" clutter here. */}
+      <button
+        type="button"
+        onClick={() => setPackageOpen(true)}
+        className="flex w-full items-center justify-between rounded-2xl border border-[#E1E7E6] bg-white px-4 py-3.5 text-left"
+      >
+        <span className="min-w-0">
+          <span className="block text-xs font-bold text-[#17201F]">
+            {services.length} {services.length === 1 ? 'service' : 'services'} selected
+          </span>
+          <span className="mt-0.5 block text-sm font-bold text-[#0F766E]">₹{totalPriceInr}</span>
+        </span>
+        <span className="shrink-0 text-[11px] font-bold text-[#0F766E] underline underline-offset-4">View package</span>
+      </button>
+
+      {/* Available windows: a compact expandable selector instead of a wall of cards. */}
+      <div className="overflow-hidden rounded-2xl border border-[#E1E7E6] bg-white">
+        <button
+          type="button"
+          onClick={() => setWindowsOpen((value) => !value)}
+          aria-expanded={windowsOpen}
+          className="flex w-full items-center justify-between px-4 py-3.5"
+        >
+          <span className="flex items-center gap-2 text-xs font-bold text-[#17201F]">
+            <Clock className="h-4 w-4 text-[#0F766E]" />
+            Available windows {day === 'today' ? 'today' : 'tomorrow'}
+          </span>
+          <ChevronDown className={`h-4 w-4 text-[#6F7C7A] transition-transform ${windowsOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {windowsOpen && (
+          <div className="space-y-1.5 border-t border-[#EEF2F1] p-2">
+            {AVAILABLE_TIME_SLOTS.map((slot) => (
+              <button
+                key={slot}
+                id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
+                onClick={() => onSelectSlot(slot)}
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-[#F0F9F7]"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F0F5F4] text-[#0F766E]">
+                    <Clock className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="text-sm font-bold text-[#17201F]">{slot}</span>
+                  {slot === BEST_TIME_SLOT && (
+                    <span className="rounded-full bg-[#E7F5F2] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#0F766E]">Best time</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Premium unlocks: one reveal on first view, no continuous motion. */}
+      <div
+        ref={unlocksRef}
+        className={`relative overflow-hidden rounded-2xl p-4 text-white ${unlocksRevealed ? 'premium-reveal-in' : 'premium-reveal-pending'}`}
+        style={{ background: 'linear-gradient(135deg, #1D3734, #12211F 60%, #0B1817)' }}
+      >
+        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#E7C673]/20 blur-3xl" aria-hidden="true" />
+        <div className="relative flex items-center gap-1.5">
+          <Sparkles className="h-3.5 w-3.5 text-[#E7C673]" />
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#E7C673]">Premium unlocks</span>
+        </div>
+        <div className="relative mt-3 space-y-2.5">
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><Clock className="h-3.5 w-3.5" /></span>
+            <div>
+              <p className="text-xs font-bold">Priority arrival window</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-white/60">A wider grace period so a late arrival never loses the slot.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2.5">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><UserCheck className="h-3.5 w-3.5" /></span>
+            <div>
+              <p className="text-xs font-bold">Auto-hold your favourite stylist</p>
+              <p className="mt-0.5 text-[11px] leading-4 text-white/60">Reserve with the same stylist across future visits.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ServicesBillSheet
+        open={packageOpen}
+        title="Your package"
+        eyebrow={`${services.length} ${services.length === 1 ? 'service' : 'services'} selected`}
+        services={services}
+        onClose={() => setPackageOpen(false)}
+      />
+    </div>
+  );
+};

@@ -784,6 +784,7 @@ export default function App() {
         busy={joinSheetBusy}
         error={joinSheetError}
         customerName={customerProfile?.name}
+        customerProfile={customerProfile}
         onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />

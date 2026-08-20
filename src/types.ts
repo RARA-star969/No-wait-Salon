@@ -91,6 +91,8 @@ export interface ServiceItem {
   name: string;
   durationMin: number;
   priceInr: number;
+  /** Optional compare-at price, shown struck through when a salon sets one. Staff/dashboard-driven; never fabricated on the client. */
+  originalPriceInr?: number;
   description?: string;
   icon?: string;
 }

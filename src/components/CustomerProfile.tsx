@@ -1,7 +1,8 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, CircleUserRound, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
+import { CustomerAvatar } from './CustomerAvatar';
 
 type Props = {
   mode: 'profile' | 'edit';
@@ -20,24 +21,9 @@ const fieldsComplete = (profile: CustomerProfile | null) => profile
   ? [profile.name, profile.profilePhotoUrl, profile.email, profile.dateOfBirth].filter(Boolean).length
   : 0;
 
-const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; onClick?: () => void }> = ({ profile, editable, onClick }) => {
-  const [photoSrc, setPhotoSrc] = useState('');
-  const initials = profile?.name?.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '';
-  useEffect(() => {
-    let objectUrl = '';
-    if (!profile?.profilePhotoUrl) { setPhotoSrc(''); return; }
-    customerAccountService.getPhotoObjectUrl().then((url) => { objectUrl = url; setPhotoSrc(url); }).catch(() => setPhotoSrc(''));
-    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [profile?.profilePhotoUrl, profile?.updatedAt]);
-  return (
-    <button type="button" onClick={onClick} disabled={!editable} aria-label={editable ? 'Change profile photo' : 'Profile photo'}
-      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#DFF0ED] text-2xl font-bold text-[#0F766E] ring-1 ring-[#C6DEDA] disabled:cursor-default">
-      {photoSrc ? <img src={photoSrc} alt="Customer profile" className="h-full w-full object-cover" />
-        : initials || <UserRound className="h-10 w-10" />}
-      {editable && <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-white ring-2 ring-white"><Camera className="h-4 w-4" /></span>}
-    </button>
-  );
-};
+const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; onClick?: () => void }> = ({ profile, editable, onClick }) => (
+  <CustomerAvatar profile={profile} editable={editable} onClick={onClick} size={96} className="text-2xl" />
+);
 
 export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout }) => {
   const [form, setForm] = useState({ name: '', email: '', dateOfBirth: '', gender: '', anniversary: '', city: '' });

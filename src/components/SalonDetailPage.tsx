@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Users, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Timer, Users, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
 import { toSalonProfile, waitLabel as sharedWaitLabel } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { LiveQueueScoreboard } from './LiveQueueScoreboard';
+import { ServicesBillSheet } from './ServicesBillSheet';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
+import { formatDurationLabel } from '../shared/durationFormat';
 
 type Props = {
   salon: Salon;
@@ -34,7 +37,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [visited, setVisited] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [payBillOpen, setPayBillOpen] = useState(false);
+  const [priceBreakdownOpen, setPriceBreakdownOpen] = useState(false);
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
+  const liveQueueSectionRef = useRef<HTMLDivElement>(null);
+  const [showScoreboard, setShowScoreboard] = useState(false);
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((barber) => barber.status === 'available').length;
@@ -78,6 +84,30 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     previousStats.current = { waitMinutes, waitingCount: waiting.length };
   }, [waitMinutes, waiting.length]);
 
+  // The signature sticky scoreboard: appears the moment the main live-queue
+  // card scrolls out of view, and morphs back away the moment it returns.
+  useEffect(() => {
+    const node = liveQueueSectionRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowScoreboard(!entry.isIntersecting),
+      { rootMargin: '-64px 0px 0px 0px', threshold: 0 },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollToLiveQueue = () => {
+    liveQueueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const positionLabel = waiting.length === 0 ? 'Next' : `#${waiting.length + 1}`;
+  const scoreboardMetrics = [
+    { key: 'time', label: 'Time', value: waitMinutes > 0 ? waitLabel : 'Now' },
+    { key: 'position', label: 'Position', value: positionLabel },
+    { key: 'chairs', label: 'Chairs', value: availableBarbers },
+  ];
+
   const directionsUrl = `https://maps.google.com/?q=${salon.latitude},${salon.longitude}`;
   const shareSalon = async () => {
     const shareData = { title: salon.name, text: `${salon.name}\n${salon.address}`, url: directionsUrl };
@@ -87,6 +117,19 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
   return (
     <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
+      {/* Signature sticky "live scoreboard": the main live-queue card, morphed
+          into a floating capsule, only while that card is scrolled out of view. */}
+      <div
+        aria-hidden={!showScoreboard}
+        className={`fixed inset-x-0 top-0 z-40 flex justify-center px-4 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all duration-300 ease-out ${
+          showScoreboard ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
+        }`}
+      >
+        <div className="w-full max-w-xl">
+          <LiveQueueScoreboard variant="capsule" metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
+        </div>
+      </div>
+
       <section className="relative min-h-[270px] overflow-hidden bg-[#173B38] text-white">
         {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#4A7C76_0,transparent_38%),linear-gradient(145deg,#102B28,#224C47_58%,#C3A66A)]" />
@@ -122,7 +165,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setVisited((value) => !value)} active={visited} />
         </section>
 
-        <section>
+        <section ref={liveQueueSectionRef}>
           <LiveQueueCard
             waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
             waitDeltaLabel={waitTrend === 'down' ? '↓ moving' : waitTrend === 'up' ? '↑ busier' : undefined}
@@ -132,7 +175,28 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             totalChairs={activeBarbers}
             activityLabel={`${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} ahead · ${availableBarbers} of ${activeBarbers} chairs ready`}
           />
-          <button onClick={onReserve} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#C9E2DE] bg-[#E6F3F1] px-4 py-3 text-xs font-semibold text-[#235E58]"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Reserve a future queue window</span><ChevronRight className="h-4 w-4" /></button>
+
+          {/* Premium future-window CTA: metallic gold, restrained shimmer + a
+              continuously-nudging arrow to read as "tap me", not a plain link. */}
+          <button
+            onClick={onReserve}
+            id="reserve-future-window-btn"
+            className="group relative mt-2.5 flex w-full items-center justify-between overflow-hidden rounded-2xl px-4 py-3.5 text-left shadow-[0_10px_24px_-14px_rgba(120,86,20,0.55)]"
+            style={{ background: 'linear-gradient(120deg, #7A5B21 0%, #C9A24B 32%, #F1D68A 50%, #C9A24B 68%, #7A5B21 100%)' }}
+          >
+            <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
+            <span className="relative flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/15 text-[#3B2A08]"><CalendarDays className="h-4 w-4" /></span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-[#3B2A08]/80">Premium</span>
+                  <span className="rounded-full bg-[#3B2A08]/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-[#3B2A08]">New</span>
+                </span>
+                <span className="mt-0.5 block truncate text-[13px] font-extrabold tracking-[-0.01em] text-[#2B1E06]">Reserve a future queue window</span>
+              </span>
+            </span>
+            <ChevronRight className="relative h-5 w-5 shrink-0 text-[#3B2A08] cta-arrow-nudge" />
+          </button>
         </section>
 
         <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[#173E3A] to-[#3F746D] p-5 text-white">
@@ -161,11 +225,28 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <div className="space-y-2.5">
             {filteredServices.map((service) => {
               const active = selectedServiceIds.includes(service.id);
+              const hasSaving = Boolean(service.originalPriceInr && service.originalPriceInr > service.priceInr);
+              const savePercent = hasSaving ? Math.round((1 - service.priceInr / (service.originalPriceInr as number)) * 100) : 0;
               return (
-                <button key={service.id} id={`service-opt-${service.id}`} type="button" onClick={() => toggleService(service.id)} aria-pressed={active} className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span>
-                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{service.durationMin} min</span></span>
-                  <span className="self-start text-sm font-bold">₹{service.priceInr}</span>
+                <button key={service.id} id={`service-opt-${service.id}`} type="button" onClick={() => toggleService(service.id)} aria-pressed={active} className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 text-left transition-all ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
+                    {service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EFF4F3] px-2 py-0.5 text-[10px] font-bold text-[#4C5A58]">
+                      <Timer className="h-3 w-3 text-[#0F766E]" />
+                      {formatDurationLabel(service.durationMin)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 self-start text-right">
+                    <span className="block text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+                    {hasSaving && (
+                      <span className="mt-0.5 flex items-center justify-end gap-1">
+                        <span className="text-[10px] text-[#A3ADAB] line-through">₹{service.originalPriceInr}</span>
+                        <span className="rounded-full bg-[#FDECEA] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-[#B4463A]">{savePercent}% off</span>
+                      </span>
+                    )}
+                  </span>
                 </button>
               );
             })}
@@ -182,19 +263,43 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#DDE5E3] bg-white/95 px-3 pt-2.5 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
-        {!userEntry && totals.count > 0 && (
-          <div className="mx-auto mb-2 flex max-w-xl items-center justify-between text-[11px] font-semibold text-[#4C5A58]">
-            <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min</span>
-            <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
+      {/* Premium sticky action dock: elevated glass panel, safe-area aware. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-xl rounded-[22px] border border-white/60 bg-white/90 p-2.5 shadow-[0_-8px_28px_-12px_rgba(15,40,37,0.28)] backdrop-blur-xl">
+          {!userEntry && totals.count > 0 && (
+            <button
+              type="button"
+              onClick={() => setPriceBreakdownOpen(true)}
+              className="mb-2 flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition active:bg-[#F0F5F4]"
+            >
+              <span className="text-[11px] font-semibold text-[#4C5A58]">
+                {totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {formatDurationLabel(totals.totalDurationMin)}
+              </span>
+              <span className="flex items-center gap-1 text-sm font-bold text-[#17201F] underline decoration-[#C7D0CE] decoration-dashed underline-offset-4">
+                ₹{totals.totalPriceInr}
+              </span>
+            </button>
+          )}
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
+            <button
+              onClick={() => setPayBillOpen(true)}
+              className="min-h-13 rounded-2xl px-4 text-xs font-bold text-[#3B2A08] transition active:scale-[0.98]"
+              style={{ background: 'linear-gradient(120deg, #8A6A2C, #D6B676, #8A6A2C)' }}
+            >
+              Pay Bill
+            </button>
           </div>
-        )}
-        <div className="mx-auto grid max-w-xl grid-cols-[1fr_auto] gap-2">
-          <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white sm:text-sm disabled:opacity-50">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
-          <button onClick={() => setPayBillOpen(true)} className="min-h-13 rounded-xl border border-[#BFD6D2] bg-white px-4 text-xs font-bold text-[#0F766E]">Pay Bill</button>
         </div>
       </div>
       {payBillOpen && <PayBillSheet salonName={salon.name} onClose={() => setPayBillOpen(false)} />}
+      <ServicesBillSheet
+        open={priceBreakdownOpen}
+        title="Price breakdown"
+        eyebrow="Selected services"
+        services={profile.services.filter((service) => selectedServiceIds.includes(service.id))}
+        onClose={() => setPriceBreakdownOpen(false)}
+      />
     </div>
   );
 };

@@ -80,13 +80,14 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
 
   return (
     <section
-      className={`relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-5 text-white shadow-[0_18px_40px_-16px_rgba(6,44,40,0.55)] ${className}`}
+      id="live-queue-hero-card"
+      className={`relative overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_14px_32px_-16px_rgba(6,44,40,0.55)] ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
-      <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -left-14 bottom-0 h-32 w-32 rounded-full bg-[#0AA88C]/25 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/20 blur-3xl" aria-hidden="true" />
 
-      <div className="relative flex items-center justify-between">
+      <div className="relative flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">
           <span className="relative flex h-1.5 w-1.5">
             {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
@@ -94,13 +95,13 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
           </span>
           Live
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/70">
-          Updates in real time
-          <Radio className="h-3 w-3 animate-pulse" />
+        <span className="flex min-w-0 items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/65">
+          <span className="truncate">Queue moving · {queueMovingLabel}</span>
+          <Radio className="h-3 w-3 shrink-0 animate-pulse" />
         </span>
       </div>
 
-      <div className="relative mt-4 grid grid-cols-3 gap-3">
+      <div className="relative mt-3 grid grid-cols-3 gap-3">
         <Stat label="Approx. wait" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
         <Stat
           label="People ahead"
@@ -116,31 +117,9 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
         />
       </div>
 
-      {/* Lightweight waveform: a looping CSS animation, not a per-frame canvas. */}
-      <div className="relative mt-4 h-10 overflow-hidden rounded-xl bg-black/10">
-        <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="h-full w-[200%] animate-[queue-waveform_3.2s_linear_infinite]">
-          <path
-            d="M0 20 C 8 8, 16 32, 24 20 S 40 8, 48 20 S 64 32, 72 20 S 88 8, 96 20 S 112 32, 120 20 S 136 8, 144 20 S 160 32, 168 20 S 184 8, 192 20 S 200 20, 200 20"
-            fill="none"
-            stroke="#7DEFC6"
-            strokeWidth="2"
-            strokeLinecap="round"
-            opacity="0.85"
-          />
-        </svg>
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/25" aria-hidden="true" />
-        <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7DEFC6]" aria-hidden="true" />
-      </div>
-
-      <div className="relative mt-4 flex items-center justify-between text-[11px] font-semibold text-white/75">
-        <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          {activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}
-        </span>
-        <span className="flex items-center gap-1 text-[#7DEFC6]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#7DEFC6]" />
-          Queue moving · {queueMovingLabel}
-        </span>
+      <div className="relative mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-white/75">
+        <Users className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}</span>
       </div>
     </section>
   );

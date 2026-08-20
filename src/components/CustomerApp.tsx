@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   PhoneCall,
   Navigation,
-  ShieldCheck,
   Bell,
   BellRing,
   Volume2,
@@ -24,7 +23,6 @@ import {
   QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
-import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
@@ -33,6 +31,7 @@ import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
+import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
 import { QrScannerModal } from './QrScannerModal';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
@@ -285,6 +284,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       : peopleAhead === 0
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+
+  // Services chosen so far, falling back to the legacy single-select name —
+  // mirrors the same fallback used when actually confirming the reservation.
+  const reserveWindowServices = (() => {
+    const chosen = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
+    if (chosen.length) return chosen;
+    const fallback = selectedSalon.services.find((item) => item.name === selectedService);
+    return fallback ? [fallback] : [];
+  })();
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
   const visibleSalons = nearbySalons?.filter((salon) => {
@@ -776,67 +784,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {/* 3. FUTURE TIME SLOTS SCREEN */}
       {currentScreen === 'slots' && (
-        <div id="customer-slots-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
-          <button
-            id="back-to-salon-btn"
-            onClick={() => setScreen('salon')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Salon details</span>
-          </button>
-
-          <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
-              Advance Reservation
-            </div>
-            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
-              Reserve your queue time
-            </h1>
-            <p className="text-xs text-[#6F7C7A] mt-1 leading-relaxed">
-              This reserves an estimated arrival window in the queue for today with SMS notifications.
-            </p>
-          </div>
-
-          <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#17201F] leading-snug">
-              Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
-            </p>
-          </div>
-
-          <div>
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A] mb-2.5">
-              Available Windows Today
-            </span>
-
-            <div className="space-y-2">
-              {AVAILABLE_TIME_SLOTS.map((slot) => (
-                <button
-                  key={slot}
-                  id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
-                  onClick={() => onSelectSlotClick(slot)}
-                  className="w-full p-3.5 rounded-2xl border border-[#E1E7E6] bg-white hover:border-[#0F766E] hover:bg-[#0F766E]/5 text-left flex items-center justify-between transition cursor-pointer group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#F8FAFA] border border-[#E1E7E6] group-hover:bg-[#0F766E] group-hover:text-white text-[#0F766E] flex items-center justify-center font-bold text-xs transition">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <b className="font-sans text-sm font-bold text-[#17201F]">{slot}</b>
-                      <span className="block text-[11px] text-[#6F7C7A]">
-                        Estimated arrival window
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-[#0F766E] group-hover:text-[#0B665F] bg-[#0F766E]/10 px-3 py-1 rounded-lg">
-                    Select Slot
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ReserveFutureWindowScreen
+          salon={selectedSalon}
+          services={reserveWindowServices}
+          onBack={() => setScreen('salon')}
+          onSelectSlot={onSelectSlotClick}
+        />
       )}
 
       {/* 4. LIVE TRACKING SCREEN */}
