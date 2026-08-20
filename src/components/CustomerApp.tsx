@@ -25,7 +25,7 @@ import {
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
-import { CustomerOnboarding } from './CustomerOnboarding';
+import { CustomerLanding } from './CustomerLanding';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
@@ -292,7 +292,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     readiness: readiness.kind,
   });
 
-  if (stage === 'welcome') return <CustomerOnboarding onComplete={completeOnboarding} />;
+  if (stage === 'welcome') {
+    return (
+      <CustomerLanding
+        onExplore={completeOnboarding}
+        onLoginSignup={onProfileLogin}
+        onMenu={() => {
+          completeOnboarding();
+          setScreen('profile');
+        }}
+      />
+    );
+  }
   if (stage === 'loading') {
     return (
       <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
