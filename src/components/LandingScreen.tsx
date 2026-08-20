@@ -28,9 +28,11 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
         src={landingHero}
         alt=""
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute inset-0 h-full w-full object-cover object-top"
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#050B0F] via-[#050B0F]/10 to-[#050B0F]/40" aria-hidden="true" />
+      {/* Light scrim: mostly clear over the artwork's own text, just enough
+          extra contrast at the very top (menu button) and bottom (CTAs). */}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#050B0F]/90 via-transparent to-[#050B0F]/20" aria-hidden="true" />
 
       {/* Top-right menu */}
       <div className="relative z-10 flex justify-end px-4 pt-[max(1rem,env(safe-area-inset-top))]">
