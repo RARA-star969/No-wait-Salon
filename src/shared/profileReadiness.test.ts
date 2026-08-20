@@ -10,7 +10,7 @@ const profile: CustomerProfile = {
   name: 'Riya Shah',
   email: '',
   dateOfBirth: '',
-  gender: '',
+  gender: 'Woman',
   anniversary: '',
   city: '',
   profilePhotoUrl: '',
@@ -18,7 +18,7 @@ const profile: CustomerProfile = {
   updatedAt: 0,
 };
 
-test('a verified customer with a usable name is ready, never asked again', () => {
+test('a verified customer with a usable name and gender is ready, never asked again', () => {
   const gate = resolveAppReadiness(auth, profile);
   assert.equal(gate.kind, 'ready');
   assert.equal(isAppReady(auth, profile), true);
@@ -38,12 +38,17 @@ test('verified but nameless customer is asked only for the missing field', () =>
   assert.deepEqual(gate, { kind: 'onboarding_required', reason: 'missing_profile', missing: ['name'] });
 });
 
+test('verified customer missing gender is asked only for the missing field', () => {
+  const gate = resolveAppReadiness(auth, { ...profile, gender: '' });
+  assert.deepEqual(gate, { kind: 'onboarding_required', reason: 'missing_profile', missing: ['gender'] });
+});
+
 test('a signed-in customer whose profile has not loaded yet waits instead of being asked', () => {
   const gate = resolveAppReadiness(auth, null, { profileLoading: true });
   assert.deepEqual(gate, { kind: 'loading' });
 });
 
-test('optional fields never gate readiness', () => {
-  const gate = resolveAppReadiness(auth, { ...profile, email: '', dateOfBirth: '', gender: '', city: '' });
+test('email, date of birth, and city never gate readiness', () => {
+  const gate = resolveAppReadiness(auth, { ...profile, email: '', dateOfBirth: '', city: '' });
   assert.equal(gate.kind, 'ready');
 });

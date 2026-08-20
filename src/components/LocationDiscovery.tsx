@@ -1,14 +1,16 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
-import { AlertCircle, LoaderCircle, LocateFixed, MapPin, Navigation, Search } from 'lucide-react';
+import { AlertCircle, ArrowLeft, LoaderCircle, LocateFixed, MapPin, Navigation, Search } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
 import { readGeolocationPermission, type StoredLocationPreference } from '../services/locationPreferenceService';
 
 type Props = {
   onLocated: (salons: NearbySalon[], label: string, preference: StoredLocationPreference) => void;
+  /** Returns to the landing screen. Optional only so this component stays usable if ever reached with nothing behind it. */
+  onBack?: () => void;
 };
 
-export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
+export const LocationDiscovery: React.FC<Props> = ({ onLocated, onBack }) => {
   const [area, setArea] = useState('');
   const [manualMode, setManualMode] = useState(false);
   const [loading, setLoading] = useState<'gps' | 'manual' | null>(null);
@@ -86,8 +88,21 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated }) => {
   };
 
   return (
-    <div id="location-discovery-screen" className="flex min-h-full flex-col bg-[#F8FAFA] px-5 pb-7 pt-10 text-[#17201F]">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
+    <div id="location-discovery-screen" className="flex min-h-full flex-col bg-[#F8FAFA] text-[#17201F]">
+      {onBack && (
+        <div className="px-5 pt-[max(1rem,env(safe-area-inset-top))]">
+          <button
+            type="button"
+            id="location-back-btn"
+            onClick={onBack}
+            aria-label="Back to landing"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3] bg-white text-[#17201F] transition active:scale-95"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-7 pt-6">
         <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
           <MapPin className="h-7 w-7" />
         </div>

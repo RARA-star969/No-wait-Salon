@@ -3,38 +3,33 @@ import test from 'node:test';
 import { resolveOnboardingStage } from './onboardingStage.ts';
 
 const base = {
-  hasCompletedOnboarding: true,
+  hasEnteredApp: true,
   locationHydrated: true,
   locationSetupCompleted: true,
   notificationPromptNeeded: false,
-  readiness: 'ready' as const,
 };
 
-test('fresh install starts at welcome, before anything else is checked', () => {
-  assert.equal(resolveOnboardingStage({ ...base, hasCompletedOnboarding: false, readiness: 'onboarding_required' }), 'welcome');
+test('fresh install starts at the landing screen, before anything else is checked', () => {
+  assert.equal(resolveOnboardingStage({ ...base, hasEnteredApp: false }), 'landing');
 });
 
-test('location setup is required before permissions or identity', () => {
-  assert.equal(resolveOnboardingStage({ ...base, locationSetupCompleted: false, readiness: 'onboarding_required' }), 'location');
+test('location setup is required before permissions, once the landing screen is dismissed', () => {
+  assert.equal(resolveOnboardingStage({ ...base, locationSetupCompleted: false }), 'location');
 });
 
-test('the notification permission ask comes after location, before identity', () => {
-  assert.equal(resolveOnboardingStage({ ...base, notificationPromptNeeded: true, readiness: 'onboarding_required' }), 'notifications');
-});
-
-test('identity (OTP + name) is the last gate before the app is usable', () => {
-  assert.equal(resolveOnboardingStage({ ...base, readiness: 'onboarding_required' }), 'identity');
-});
-
-test('a signed-in customer whose profile has not loaded yet waits rather than flashing identity', () => {
-  assert.equal(resolveOnboardingStage({ ...base, readiness: 'loading' }), 'loading');
+test('the notification permission ask comes after location', () => {
+  assert.equal(resolveOnboardingStage({ ...base, notificationPromptNeeded: true }), 'notifications');
 });
 
 test('a fully returning customer reaches ready with every stage already satisfied', () => {
   assert.equal(resolveOnboardingStage(base), 'ready');
 });
 
-test('killing and reopening with everything persisted skips straight to ready, never welcome again', () => {
-  const returning = { ...base, hasCompletedOnboarding: true, locationSetupCompleted: true, notificationPromptNeeded: false, readiness: 'ready' as const };
+test('killing and reopening with everything persisted skips straight to ready, never the landing screen again', () => {
+  const returning = { ...base, hasEnteredApp: true, locationSetupCompleted: true, notificationPromptNeeded: false };
   assert.equal(resolveOnboardingStage(returning), 'ready');
+});
+
+test('location not yet hydrated from storage waits, rather than flashing the landing screen again', () => {
+  assert.equal(resolveOnboardingStage({ ...base, locationHydrated: false }), 'loading');
 });

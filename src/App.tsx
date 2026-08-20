@@ -22,6 +22,7 @@ import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './se
 import { businessQrService } from './services/businessQrService';
 import { resolveAppReadiness } from './shared/profileReadiness';
 import { QueueJoinSheet } from './components/QueueJoinSheet';
+import { AccountOnboarding } from './components/AccountOnboarding';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
@@ -106,6 +107,13 @@ export default function App() {
   const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
   const [joinSheetBusy, setJoinSheetBusy] = useState(false);
   const [joinSheetError, setJoinSheetError] = useState('');
+
+  // Booking verification gate: guests browse freely, but tapping Join Queue
+  // without a verified, complete profile opens this instead of the join
+  // sheet. On success it continues straight into the SAME pending booking —
+  // the salon/services already chosen are never lost, and the customer is
+  // never sent back to reselect them.
+  const [bookingGateOpen, setBookingGateOpen] = useState(false);
 
   // Push Notifications State
   const [notifications, setNotifications] = useState<PushNotification[]>(() => {
@@ -387,19 +395,19 @@ export default function App() {
   };
 
   /**
-   * The single entry point for "Join Queue". Onboarding already guarantees a
-   * verified mobile plus a usable name before Home — and therefore this
-   * button — is ever reachable, so this opens the queue-join sheet directly:
-   * no verification modal, no profile redirect, no silent join.
-   *
-   * The one guard is defensive: if the account state has somehow gone bad
-   * since Home rendered, this does nothing rather than inserting a detour —
-   * the same readiness check inside CustomerApp reacts to that state change
-   * on its own and routes back to the onboarding gate as account recovery.
+   * The single entry point for "Join Queue". Guests reach this freely — Home
+   * never required signing in — so this is the one place booking is actually
+   * gated: a verified, complete profile opens the queue-join sheet directly;
+   * anything else opens the booking verification gate instead, which resumes
+   * this exact same call once it succeeds.
    */
   const openQueueJoinSheet = () => {
     const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
-    if (readiness.kind !== 'ready') return;
+    if (readiness.kind === 'loading') return;
+    if (readiness.kind !== 'ready') {
+      setBookingGateOpen(true);
+      return;
+    }
     setJoinSheetError('');
     setIsJoinSheetOpen(true);
   };
@@ -736,6 +744,35 @@ export default function App() {
         pendingAction={pendingOtpAction}
         onVerifySuccess={handleOtpVerifySuccess}
       />
+
+      {/* Booking verification gate: opens instead of the join sheet when the
+          customer tapped Join Queue without a verified, complete profile.
+          Success continues straight into the same pending booking below. */}
+      {bookingGateOpen && (() => {
+        const gate = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+        if (gate.kind !== 'onboarding_required') return null;
+        return (
+          <div className="fixed inset-0 z-[95] bg-[#F8FAFA]">
+            <AccountOnboarding
+              gate={gate}
+              onVerified={(auth) => { saveCustomerAuth(auth); setCustomerAuth(auth); }}
+              onProfileSaved={(profile) => {
+                setCustomerProfile(profile);
+                setProfileError('');
+                setBookingGateOpen(false);
+                setJoinSheetError('');
+                setIsJoinSheetOpen(true);
+              }}
+              onCancel={() => setBookingGateOpen(false)}
+              intro={{
+                eyebrow: 'Verify to book',
+                title: 'One quick check before we hold your spot.',
+                description: "Verify your mobile number, then add your name and gender so the salon can call you when it's your turn.",
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* Queue-join sheet: opens once a customer is verified and ready. */}
       <QueueJoinSheet
