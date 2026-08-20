@@ -16,6 +16,7 @@ import {
   getNotificationPermissionStatus,
   requestPushPermission,
   dispatchWebPushNotification,
+  playNotificationChime,
 } from './services/notificationService';
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
@@ -484,11 +485,13 @@ export default function App() {
         applySnapshot(snapshot);
       }
       setIsJoinSheetOpen(false);
-      triggerPushNotification(
-        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
-        `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
-        'confirmed'
-      );
+      // A successful join is a routine, expected outcome — not an urgent
+      // event — so it gets a light, one-shot chime + haptic and goes
+      // straight to the Live Ticket, never a large confirmation popup. This
+      // fires only from this direct join-success callback, so it can never
+      // repeat from an SSE reconnect or a rerender.
+      playNotificationChime();
+      try { navigator.vibrate?.(60); } catch { /* unsupported or blocked */ }
       setCurrentScreen('tracking');
     } catch (error) {
       setJoinSheetError(error instanceof Error ? error.message : 'Unable to join this queue right now.');

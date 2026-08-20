@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ArrowLeft,
   Calendar,
+  CalendarDays,
   AlertCircle,
   CheckCircle2,
   PhoneCall,
@@ -21,6 +22,7 @@ import {
   Star,
   LocateFixed,
   LoaderCircle,
+  Lock,
   QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
@@ -167,6 +169,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  // Advance-reservation date strip: only Today has a real live queue behind
+  // it right now, so Tomorrow's windows are clearly labelled as estimates
+  // for a future day rather than a confirmed slot.
+  const [reservationDay, setReservationDay] = useState<'today' | 'tomorrow'>('today');
   const homeScrollRef = useRef<HTMLDivElement>(null);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
@@ -801,64 +807,106 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {/* 3. FUTURE TIME SLOTS SCREEN */}
       {currentScreen === 'slots' && (
-        <div id="customer-slots-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
-          <button
-            id="back-to-salon-btn"
-            onClick={() => setScreen('salon')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Salon details</span>
-          </button>
-
-          <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
-              Advance Reservation
-            </div>
-            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
-              Reserve your queue time
-            </h1>
-            <p className="text-xs text-[#6F7C7A] mt-1 leading-relaxed">
-              This reserves an estimated arrival window in the queue for today with SMS notifications.
-            </p>
-          </div>
-
-          <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-            <p className="text-xs text-[#17201F] leading-snug">
-              Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
-            </p>
-          </div>
-
-          <div>
-            <span className="block text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A] mb-2.5">
-              Available Windows Today
+        <div id="customer-slots-screen" className="animate-in fade-in duration-150">
+          {/* Premium header with a tasteful gold accent — not a loud gold page. */}
+          <div className="bg-gradient-to-br from-[#173B38] to-[#0F2E2B] px-5 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] text-white">
+            <button
+              id="back-to-salon-btn"
+              onClick={() => setScreen('salon')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 transition hover:text-white cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Salon details</span>
+            </button>
+            <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#E7D6A3]/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[#F5E8C4]">
+              <Sparkles className="h-3 w-3" /> Advance reservation
             </span>
+            <h1 className="mt-2.5 text-2xl font-bold tracking-tight">Reserve an arrival window</h1>
+            <p className="mt-1 text-xs leading-relaxed text-white/70">
+              {selectedService} at {selectedSalon.name}. This holds an <b className="text-white">estimated</b> arrival
+              window in the live queue — never an exact appointment time.
+            </p>
+          </div>
 
-            <div className="space-y-2">
-              {AVAILABLE_TIME_SLOTS.map((slot) => (
+          <div className="p-5 space-y-4">
+            {/* Date strip */}
+            <div className="flex gap-2">
+              {(['today', 'tomorrow'] as const).map((day) => (
                 <button
-                  key={slot}
-                  id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
-                  onClick={() => onSelectSlotClick(slot)}
-                  className="w-full p-3.5 rounded-2xl border border-[#E1E7E6] bg-white hover:border-[#0F766E] hover:bg-[#0F766E]/5 text-left flex items-center justify-between transition cursor-pointer group"
+                  key={day}
+                  type="button"
+                  id={`reservation-day-${day}`}
+                  onClick={() => setReservationDay(day)}
+                  className={`flex-1 rounded-xl border px-3 py-2.5 text-center text-xs font-bold transition ${
+                    reservationDay === day ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#E1E7E6] bg-white text-[#43504E]'
+                  }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-[#F8FAFA] border border-[#E1E7E6] group-hover:bg-[#0F766E] group-hover:text-white text-[#0F766E] flex items-center justify-center font-bold text-xs transition">
-                      <Clock className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <b className="font-sans text-sm font-bold text-[#17201F]">{slot}</b>
-                      <span className="block text-[11px] text-[#6F7C7A]">
-                        Estimated arrival window
-                      </span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-[#0F766E] group-hover:text-[#0B665F] bg-[#0F766E]/10 px-3 py-1 rounded-lg">
-                    Select Slot
-                  </span>
+                  {day === 'today' ? 'Today' : 'Tomorrow'}
                 </button>
               ))}
+              <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#DCE5E3] px-3 py-2.5 text-center text-[11px] font-semibold text-[#9AA6A3]">
+                <CalendarDays className="h-3.5 w-3.5" /> More dates soon
+              </span>
+            </div>
+
+            <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
+              <p className="text-xs text-[#17201F] leading-snug">
+                Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
+              </p>
+            </div>
+
+            <div>
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A] mb-2.5">
+                {reservationDay === 'today' ? 'Available windows today' : 'Available windows tomorrow'}
+              </span>
+
+              <div className="space-y-2">
+                {AVAILABLE_TIME_SLOTS.map((slot, index) => (
+                  <button
+                    key={slot}
+                    id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
+                    onClick={() => onSelectSlotClick(slot)}
+                    className="w-full p-3.5 rounded-2xl border border-[#E1E7E6] bg-white hover:border-[#0F766E] hover:bg-[#0F766E]/5 text-left flex items-center justify-between transition cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-[#F8FAFA] border border-[#E1E7E6] group-hover:bg-[#0F766E] group-hover:text-white text-[#0F766E] flex items-center justify-center font-bold text-xs transition">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <b className="font-sans text-sm font-bold text-[#17201F]">{slot}</b>
+                          {index === 0 && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#FBF3DE] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#8A5A16]">
+                              <Sparkles className="h-2.5 w-2.5" /> Best time
+                            </span>
+                          )}
+                        </div>
+                        <span className="block text-[11px] text-[#6F7C7A]">
+                          {index === 0 ? 'Approx. arrival window · lower expected wait' : 'Approx. arrival window'}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-[#0F766E] group-hover:text-[#0B665F] bg-[#0F766E]/10 px-3 py-1 rounded-lg">
+                      Select
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Locked premium preview — coming soon, never a fake guarantee. */}
+            <div className="rounded-2xl border border-[#E7D6A3] bg-gradient-to-br from-[#FBF3DE] to-[#F5E8C4] p-4">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A5A16]">
+                <Lock className="h-3.5 w-3.5" /> Premium unlocks
+              </p>
+              <div className="mt-3 space-y-2">
+                {['Priority arrival window', 'Auto-hold your favourite stylist'].map((feature) => (
+                  <div key={feature} className="flex items-center gap-2.5 rounded-xl bg-white/70 px-3 py-2.5 text-xs font-semibold text-[#6B531B]">
+                    <Lock className="h-3.5 w-3.5 shrink-0" /> {feature}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

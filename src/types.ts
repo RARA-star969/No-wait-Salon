@@ -84,6 +84,20 @@ export interface Barber {
   status: 'available' | 'busy' | 'unavailable';
   currentCustomerName?: string;
   avatarBg?: string;
+  /** Real profile photo, when the salon has uploaded one. Falls back to initials. */
+  avatarUrl?: string;
+  /** Average rating out of 5, when the salon tracks one. Never invented client-side. */
+  rating?: number;
+  reviewCount?: number;
+  shortBio?: string;
+  /**
+   * Whether this stylist is rostered on for today. Optional and additive —
+   * absent/undefined on every existing record, which reads as "on duty" so
+   * nothing already stored changes behaviour. A future Staff Dashboard
+   * attendance toggle can set this per day without any client-side change
+   * beyond what already reads it (see shared/staffAvailability.ts).
+   */
+  workingToday?: boolean;
 }
 
 export interface ServiceItem {

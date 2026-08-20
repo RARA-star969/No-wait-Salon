@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, Radio } from 'lucide-react';
 
 /**
  * The hero USP: a premium teal/emerald live-queue card shared by the
@@ -69,7 +69,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   readyChairs,
   totalChairs,
   activityLabel,
-  queueMovingLabel = 'Steady',
+  queueMovingLabel = 'Queue moving steadily',
   live = true,
   className = '',
 }) => {
@@ -132,15 +132,11 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
         <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7DEFC6]" aria-hidden="true" />
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between text-[11px] font-semibold text-white/75">
-        <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          {activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}
-        </span>
-        <span className="flex items-center gap-1 text-[#7DEFC6]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#7DEFC6]" />
-          Queue moving · {queueMovingLabel}
-        </span>
+      {/* One concise status line — the numbers already live in the grid above,
+          so this never repeats them. */}
+      <div className="relative mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-white/75">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#7DEFC6]" />
+        <span className="truncate">{activityLabel || queueMovingLabel}</span>
       </div>
     </section>
   );
