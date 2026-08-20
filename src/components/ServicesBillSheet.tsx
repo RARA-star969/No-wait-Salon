@@ -1,5 +1,5 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Tag, X } from 'lucide-react';
 import type { ServiceItem } from '../types';
 import { formatDurationLabel } from '../shared/durationFormat';
 
@@ -9,9 +9,11 @@ import { formatDurationLabel } from '../shared/durationFormat';
  * Join Queue sheet (View Services). Same row alignment, same divider, same
  * Subtotal/Total footer — so the two never drift into separate designs.
  *
- * Deliberately has no discount/coupon line yet: the footer structure below
- * leaves room for one (Subtotal → Discount → Total) without inventing a
- * fake production discount today.
+ * Deliberately has no discount/coupon logic wired up yet: `showCoupon` opts
+ * a call site into an honest coupon-code input that never fabricates a
+ * discount — applying always reports that coupons aren't live yet, so the
+ * footer structure (Subtotal → Discount → Total) is ready for a real one
+ * without inventing production pricing behaviour today.
  */
 type Props = {
   open: boolean;
@@ -19,15 +21,23 @@ type Props = {
   eyebrow: string;
   services: ServiceItem[];
   showDuration?: boolean;
+  showCoupon?: boolean;
   onClose: () => void;
 };
 
-export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, services, showDuration = true, onClose }) => {
+export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, services, showDuration = true, showCoupon = false, onClose }) => {
+  const [couponCode, setCouponCode] = useState('');
+  const [couponMessage, setCouponMessage] = useState('');
   if (!open) return null;
   const subtotal = services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0);
   // No fees/discounts wired up yet, so total mirrors subtotal — the two rows
   // stay separate so a future discount line only has to change the total.
   const total = subtotal;
+
+  const applyCoupon = () => {
+    if (!couponCode.trim()) return;
+    setCouponMessage("Coupons aren't live yet — your total is unchanged.");
+  };
 
   return (
     <div className="fixed inset-0 z-[95] flex items-end justify-center bg-slate-950/55 sm:items-center" role="presentation">
@@ -68,6 +78,30 @@ export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, servi
             </div>
 
             <div className="my-4 h-px bg-[#E7ECEB]" />
+
+            {showCoupon && (
+              <div className="mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#DDE7E5] bg-[#F8FAFA] px-3">
+                    <Tag className="h-3.5 w-3.5 shrink-0 text-[#0F766E]" />
+                    <input
+                      value={couponCode}
+                      onChange={(event) => { setCouponCode(event.target.value); setCouponMessage(''); }}
+                      placeholder="Coupon code"
+                      className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-[#17201F] outline-none placeholder:text-[#9AA6A3]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={applyCoupon}
+                    className="h-11 shrink-0 rounded-xl bg-[#0F766E] px-4 text-xs font-bold text-white transition active:scale-[0.98]"
+                  >
+                    Apply
+                  </button>
+                </div>
+                {couponMessage && <p className="mt-2 text-[11px] font-medium text-[#8A6516]" role="status">{couponMessage}</p>}
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-semibold text-[#5C6B68]">

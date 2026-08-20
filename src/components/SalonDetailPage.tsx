@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Timer, Users, Wifi, Wind, X } from 'lucide-react';
-import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
-import { toSalonProfile, waitLabel as sharedWaitLabel } from '../shared/salonProfile';
+import { ArrowLeft, Bookmark, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, PhoneCall, Plus, Scissors, Share2, Sparkles, Store, Timer, Wifi, Wind, X } from 'lucide-react';
+import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
+import { toSalonProfile } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
@@ -41,6 +41,16 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
   const liveQueueSectionRef = useRef<HTMLDivElement>(null);
   const [showScoreboard, setShowScoreboard] = useState(false);
+  // Quick-action / address bottom sheets — all honest placeholder structures
+  // for now (no timings/branch backend wired yet), built so they can be
+  // filled in later without another UI pass.
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [openHoursSheetOpen, setOpenHoursSheetOpen] = useState(false);
+  const [directionsSheetOpen, setDirectionsSheetOpen] = useState(false);
+  const [branchesSheetOpen, setBranchesSheetOpen] = useState(false);
+  const [beenHereSheetOpen, setBeenHereSheetOpen] = useState(false);
+  // Micro-bounce on the sticky dock whenever the selection count changes.
+  const [dockBounce, setDockBounce] = useState(false);
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((barber) => barber.status === 'available').length;
@@ -50,7 +60,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     () => toSalonProfile(salon, { liveWaitMinutes: waitMinutes, waitingCustomers: waiting.length }),
     [salon, waitMinutes, waiting.length],
   );
-  const waitLabel = sharedWaitLabel(waitMinutes);
+  // The live-queue USP card shows only the value ("8 min") — never the word
+  // "wait" — so this stays local rather than the shared salonProfile label
+  // (which other surfaces, like the salon list "Current wait" row, keep as-is).
+  const waitLabel = formatDurationLabel(waitMinutes);
   const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name)))), [profile.services]);
   const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
 
@@ -66,23 +79,27 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const totals = useMemo(() => selectionTotals(profile.services, selectedServiceIds), [profile.services, selectedServiceIds]);
 
   const toggleService = (id: string) => {
-    const next = selectedServiceIds.includes(id) ? selectedServiceIds.filter((value) => value !== id) : [...selectedServiceIds, id];
+    const adding = !selectedServiceIds.includes(id);
+    const next = adding ? [...selectedServiceIds, id] : selectedServiceIds.filter((value) => value !== id);
     setSelectedServiceIds(next);
     const names = profile.services.filter((service) => next.includes(service.id)).map((service) => service.name);
     setSelectedService(names.join(' + ') || profile.services[0]?.name || '');
+    if (adding) {
+      try { navigator.vibrate?.(15); } catch { /* unsupported or blocked */ }
+      setDockBounce(true);
+      setTimeout(() => setDockBounce(false), 450);
+    }
   };
 
-  // Trend arrows compare against the previous render's numbers, purely a
+  // Trend arrow compares against the previous render's numbers, purely a
   // client-side visual cue layered on top of the server-authoritative queue.
-  const previousStats = useRef({ waitMinutes, waitingCount: waiting.length });
-  const [waitTrend, setWaitTrend] = useState<QueueTrend>('steady');
+  const previousStats = useRef({ waitingCount: waiting.length });
   const [aheadTrend, setAheadTrend] = useState<QueueTrend>('steady');
   useEffect(() => {
     const prev = previousStats.current;
-    setWaitTrend(waitMinutes < prev.waitMinutes ? 'down' : waitMinutes > prev.waitMinutes ? 'up' : 'steady');
     setAheadTrend(waiting.length < prev.waitingCount ? 'down' : waiting.length > prev.waitingCount ? 'up' : 'steady');
-    previousStats.current = { waitMinutes, waitingCount: waiting.length };
-  }, [waitMinutes, waiting.length]);
+    previousStats.current = { waitingCount: waiting.length };
+  }, [waiting.length]);
 
   // The signature sticky scoreboard: appears the moment the main live-queue
   // card scrolls out of view, and morphs back away the moment it returns.
@@ -103,7 +120,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
   const positionLabel = waiting.length === 0 ? 'Next' : `#${waiting.length + 1}`;
   const scoreboardMetrics = [
-    { key: 'time', label: 'Time', value: waitMinutes > 0 ? waitLabel : 'Now' },
+    { key: 'time', label: <Clock className="h-2.5 w-2.5" aria-hidden="true" />, value: waitMinutes > 0 ? waitLabel : 'Now' },
     { key: 'position', label: 'Position', value: positionLabel },
     { key: 'chairs', label: 'Chairs', value: availableBarbers },
   ];
@@ -153,49 +170,53 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
             </div>
           </div>
-          <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-4 text-white/75"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />{salon.address}</p>
+          <button
+            type="button"
+            id="salon-address-row"
+            onClick={() => setAddressSheetOpen(true)}
+            aria-label="View salon address and contact"
+            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-white/75 underline decoration-white/25 underline-offset-2 transition active:text-white"
+          >
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
+          </button>
         </div>
       </section>
 
       <div className="space-y-5 px-4 py-4">
         <section className="grid grid-cols-4 gap-2">
-          <QuickAction icon={<Clock3 />} label={salon.isOpen ? 'Open' : 'Closed'} secondary={salon.openingHours.split('·')[1]?.trim()} />
-          <QuickAction icon={<Navigation />} label="Directions" href={directionsUrl} />
-          {salon.phoneNumber ? <QuickAction icon={<Phone />} label="Call" href={`tel:${salon.phoneNumber}`} /> : <QuickAction icon={<Store />} label="Branches" disabled={branches.length === 0} secondary={branches.length ? `${branches.length} nearby` : undefined} />}
-          <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setVisited((value) => !value)} active={visited} />
+          <QuickAction icon={<Clock3 />} label={salon.isOpen ? 'Open' : 'Closed'} secondary={salon.openingHours.split('·')[1]?.trim()} onClick={() => setOpenHoursSheetOpen(true)} />
+          <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
+          <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
+          <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setBeenHereSheetOpen(true)} active={visited} />
         </section>
 
         <section ref={liveQueueSectionRef}>
           <LiveQueueCard
             waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
-            waitDeltaLabel={waitTrend === 'down' ? '↓ moving' : waitTrend === 'up' ? '↑ busier' : undefined}
             peopleAhead={waiting.length}
             peopleAheadTrend={aheadTrend}
             readyChairs={availableBarbers}
             totalChairs={activeBarbers}
-            activityLabel={`${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} ahead · ${availableBarbers} of ${activeBarbers} chairs ready`}
           />
 
-          {/* Premium future-window CTA: metallic gold, restrained shimmer + a
-              continuously-nudging arrow to read as "tap me", not a plain link. */}
+          {/* Premium future-window CTA: dense metallic gold, glossy white
+              copy, and a continuously-nudging arrow to read as "tap me". */}
           <button
             onClick={onReserve}
             id="reserve-future-window-btn"
             className="group relative mt-2.5 flex w-full items-center justify-between overflow-hidden rounded-2xl px-4 py-3.5 text-left shadow-[0_10px_24px_-14px_rgba(120,86,20,0.55)]"
-            style={{ background: 'linear-gradient(120deg, #7A5B21 0%, #C9A24B 32%, #F1D68A 50%, #C9A24B 68%, #7A5B21 100%)' }}
+            style={{ background: 'linear-gradient(120deg, #8A6A2C 0%, #C9A24B 32%, #E7C673 50%, #C9A24B 68%, #8A6A2C 100%)' }}
           >
-            <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
+            <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/45 to-transparent" aria-hidden="true" />
             <span className="relative flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/15 text-[#3B2A08]"><CalendarDays className="h-4 w-4" /></span>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/20 text-white ring-1 ring-white/25"><CalendarDays className="h-4.5 w-4.5" /></span>
               <span className="min-w-0">
-                <span className="flex items-center gap-1.5">
-                  <span className="text-[9px] font-black uppercase tracking-[0.14em] text-[#3B2A08]/80">Premium</span>
-                  <span className="rounded-full bg-[#3B2A08]/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-[#3B2A08]">New</span>
-                </span>
-                <span className="mt-0.5 block truncate text-[13px] font-extrabold tracking-[-0.01em] text-[#2B1E06]">Reserve a future queue window</span>
+                <span className="block truncate text-[15px] font-extrabold tracking-[-0.01em] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">Reserve your slot</span>
+                <span className="mt-0.5 block text-[10px] font-semibold text-white/80">Hold your place for later today</span>
               </span>
             </span>
-            <ChevronRight className="relative h-5 w-5 shrink-0 text-[#3B2A08] cta-arrow-nudge" />
+            <ChevronRight className="relative h-5 w-5 shrink-0 text-white cta-arrow-nudge" />
           </button>
         </section>
 
@@ -223,33 +244,14 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             ))}
           </div>
           <div className="space-y-2.5">
-            {filteredServices.map((service) => {
-              const active = selectedServiceIds.includes(service.id);
-              const hasSaving = Boolean(service.originalPriceInr && service.originalPriceInr > service.priceInr);
-              const savePercent = hasSaving ? Math.round((1 - service.priceInr / (service.originalPriceInr as number)) * 100) : 0;
-              return (
-                <button key={service.id} id={`service-opt-${service.id}`} type="button" onClick={() => toggleService(service.id)} aria-pressed={active} className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 text-left transition-all ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
-                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
-                    {service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}
-                    <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EFF4F3] px-2 py-0.5 text-[10px] font-bold text-[#4C5A58]">
-                      <Timer className="h-3 w-3 text-[#0F766E]" />
-                      {formatDurationLabel(service.durationMin)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 self-start text-right">
-                    <span className="block text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
-                    {hasSaving && (
-                      <span className="mt-0.5 flex items-center justify-end gap-1">
-                        <span className="text-[10px] text-[#A3ADAB] line-through">₹{service.originalPriceInr}</span>
-                        <span className="rounded-full bg-[#FDECEA] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-[#B4463A]">{savePercent}% off</span>
-                      </span>
-                    )}
-                  </span>
-                </button>
-              );
-            })}
+            {filteredServices.map((service) => (
+              <ServiceCard
+                key={service.id}
+                service={service}
+                active={selectedServiceIds.includes(service.id)}
+                onToggle={() => toggleService(service.id)}
+              />
+            ))}
             {filteredServices.length === 0 && <p className="rounded-2xl border border-[#E0E7E6] bg-white p-5 text-center text-xs text-[#788582]">No services in this filter yet.</p>}
           </div>
         </section>
@@ -263,31 +265,35 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
-      {/* Premium sticky action dock: elevated glass panel, safe-area aware. */}
+      {/* Premium sticky action dock: elevated glass/mirror panel, safe-area
+          aware, with a micro-bounce whenever the selection changes. */}
       <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
-        <div className="mx-auto max-w-xl rounded-[22px] border border-white/60 bg-white/90 p-2.5 shadow-[0_-8px_28px_-12px_rgba(15,40,37,0.28)] backdrop-blur-xl">
+        <div className={`mx-auto max-w-xl rounded-[22px] border border-white/60 bg-white/90 p-2.5 shadow-[0_-8px_28px_-12px_rgba(15,40,37,0.28)] backdrop-blur-xl ${dockBounce ? 'dock-bounce' : ''}`}>
           {!userEntry && totals.count > 0 && (
             <button
               type="button"
               onClick={() => setPriceBreakdownOpen(true)}
               className="mb-2 flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition active:bg-[#F0F5F4]"
             >
-              <span className="text-[11px] font-semibold text-[#4C5A58]">
-                {totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {formatDurationLabel(totals.totalDurationMin)}
+              <span className="min-w-0 text-[11px] font-semibold leading-4 text-[#4C5A58]">
+                {totals.count} {totals.count === 1 ? 'service' : 'services'} selected
+                <span className="block text-[#788582]">Session time: approx. {formatDurationLabel(totals.totalDurationMin)}</span>
               </span>
-              <span className="flex items-center gap-1 text-sm font-bold text-[#17201F] underline decoration-[#C7D0CE] decoration-dashed underline-offset-4">
+              <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-[#17201F] underline decoration-[#C7D0CE] decoration-dashed underline-offset-4">
                 ₹{totals.totalPriceInr}
               </span>
             </button>
           )}
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
+            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : 'Join Queue'}</button>
             <button
               onClick={() => setPayBillOpen(true)}
-              className="min-h-13 rounded-2xl px-4 text-xs font-bold text-[#3B2A08] transition active:scale-[0.98]"
+              className="relative flex min-h-13 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-4 text-xs font-bold text-[#3B2A08] transition active:scale-[0.98]"
               style={{ background: 'linear-gradient(120deg, #8A6A2C, #D6B676, #8A6A2C)' }}
             >
-              Pay Bill
+              <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
+              <Lock className="relative h-3.5 w-3.5" />
+              <span className="relative">Pay Bill</span>
             </button>
           </div>
         </div>
@@ -296,10 +302,108 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
       <ServicesBillSheet
         open={priceBreakdownOpen}
         title="Price breakdown"
-        eyebrow="Selected services"
+        eyebrow={`${totals.count} ${totals.count === 1 ? 'service' : 'services'} selected`}
         services={profile.services.filter((service) => selectedServiceIds.includes(service.id))}
+        showDuration={false}
+        showCoupon
         onClose={() => setPriceBreakdownOpen(false)}
       />
+
+      {addressSheetOpen && (
+        <StoreAddressSheet
+          salonName={salon.name}
+          address={salon.address}
+          phoneNumber={salon.phoneNumber}
+          directionsUrl={directionsUrl}
+          onClose={() => setAddressSheetOpen(false)}
+        />
+      )}
+      {openHoursSheetOpen && (
+        <OpenHoursSheet salonName={salon.name} isOpen={salon.isOpen} openingHours={profile.openingHours} onClose={() => setOpenHoursSheetOpen(false)} />
+      )}
+      {directionsSheetOpen && (
+        <DirectionsSheet salonName={salon.name} address={salon.address} directionsUrl={directionsUrl} onClose={() => setDirectionsSheetOpen(false)} />
+      )}
+      {branchesSheetOpen && (
+        <BranchesSheet branches={branches} onClose={() => setBranchesSheetOpen(false)} />
+      )}
+      {beenHereSheetOpen && (
+        <BeenHereSheet
+          visited={visited}
+          onToggle={() => { setVisited((value) => !value); setBeenHereSheetOpen(false); }}
+          onClose={() => setBeenHereSheetOpen(false)}
+        />
+      )}
+    </div>
+  );
+};
+
+/** ~4 words of description, then a tappable "…more" — expands in place. */
+const DESCRIPTION_PREVIEW_WORDS = 4;
+
+const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: () => void }> = ({ service, active, onToggle }) => {
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [showAddPing, setShowAddPing] = useState(false);
+  const hasSaving = Boolean(service.originalPriceInr && service.originalPriceInr > service.priceInr);
+  const savePercent = hasSaving ? Math.round((1 - service.priceInr / (service.originalPriceInr as number)) * 100) : 0;
+  const words = service.description?.trim().split(/\s+/) ?? [];
+  const isLong = words.length > DESCRIPTION_PREVIEW_WORDS;
+  const preview = isLong ? words.slice(0, DESCRIPTION_PREVIEW_WORDS).join(' ') : service.description;
+
+  const handleAdd = () => {
+    const adding = !active;
+    onToggle();
+    if (adding) {
+      setShowAddPing(true);
+      setTimeout(() => setShowAddPing(false), 600);
+    }
+  };
+
+  return (
+    <div id={`service-opt-${service.id}`} className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 transition-all ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
+      <div className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
+        {service.description && (
+          <p className="mt-1 text-[10px] leading-4 text-[#788582]">
+            {descExpanded || !isLong ? service.description : (
+              <>
+                {preview}
+                <button type="button" onClick={() => setDescExpanded(true)} className="ml-1 font-bold text-[#0F766E]">…more</button>
+              </>
+            )}
+          </p>
+        )}
+        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EFF4F3] px-2 py-0.5 text-[10px] font-bold text-[#4C5A58]">
+          <Timer className="h-3 w-3 text-[#0F766E]" />
+          Session time : {formatDurationLabel(service.durationMin)}
+        </span>
+      </div>
+      <div className="relative shrink-0 self-start text-right">
+        <span className="block text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+        {hasSaving && (
+          <span className="mt-0.5 flex items-center justify-end gap-1">
+            <span className="text-[10px] text-[#A3ADAB] line-through">₹{service.originalPriceInr}</span>
+            <span className="rounded-full bg-[#FDECEA] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide text-[#B4463A]">{savePercent}% off</span>
+          </span>
+        )}
+        {showAddPing && (
+          <span className="add-to-dock-ping pointer-events-none absolute -top-3 right-0 inline-flex items-center gap-0.5 rounded-full bg-[#0F766E] px-2 py-0.5 text-[9px] font-bold text-white">
+            <Check className="h-2.5 w-2.5" /> Added
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={handleAdd}
+          aria-pressed={active}
+          aria-label={active ? `Remove ${service.name}` : `Add ${service.name}`}
+          className={`mt-2 flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${
+            active ? 'bg-[#0F766E] text-white' : 'border border-[#0F766E]/30 text-[#0F766E]'
+          }`}
+        >
+          {active ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+          {active ? 'Added' : 'Add'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -316,3 +420,101 @@ const PayBillSheet: React.FC<{ salonName: string; onClose: () => void }> = ({ sa
   const [amount, setAmount] = useState('');
   return <div className="fixed inset-0 z-50 flex items-end bg-black/55" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-label="Pay salon bill" className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"><div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0]" /><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">Pay Bill</p><h2 className="mt-1 text-xl font-bold">{salonName}</h2></div><button onClick={onClose} aria-label="Close Pay Bill" className="flex h-9 w-9 items-center justify-center rounded-full bg-white"><X className="h-4 w-4" /></button></div><label className="mt-5 block text-xs font-semibold">Bill amount</label><div className="mt-2 flex h-14 items-center rounded-xl border border-[#D8E2E0] bg-white px-4"><span className="text-lg font-bold">₹</span><input value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, '').slice(0, 7))} inputMode="numeric" placeholder="0" className="h-full min-w-0 flex-1 bg-transparent px-2 text-xl font-bold outline-none" /></div><div className="mt-4 rounded-xl border border-[#DCE5E3] bg-white p-3 text-[11px] leading-5 text-[#647370]">Secure payment provider is not connected yet. No payment will be processed or marked successful from this preview.</div><button disabled className="mt-4 h-12 w-full rounded-xl bg-[#0F766E] text-sm font-bold text-white opacity-45">Continue to secure payment</button></section></div>;
 };
+
+/** Generic bottom-sheet shell shared by the quick-action placeholder sheets below. */
+const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }> = ({ icon, eyebrow, title, onClose, children }) => (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section role="dialog" aria-modal="true" aria-label={title} className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+      <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E]">{icon}</span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">{eyebrow}</p>
+            <h2 className="truncate text-lg font-bold text-[#17201F]">{title}</h2>
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+      </div>
+      {children}
+    </section>
+  </div>
+);
+
+/** Salon address + reach-out actions — real UI, dummy CTA wiring for now. */
+const StoreAddressSheet: React.FC<{ salonName: string; address: string; phoneNumber?: string; directionsUrl: string; onClose: () => void }> = ({ salonName, address, phoneNumber, directionsUrl, onClose }) => (
+  <QuickActionSheetShell icon={<MapPin className="h-4 w-4" />} eyebrow="Store location" title={salonName} onClose={onClose}>
+    <p className="mt-4 rounded-2xl border border-[#E1E7E6] bg-white p-4 text-xs leading-5 text-[#4C5A58] [overflow-wrap:anywhere]">{address}</p>
+    <div className="mt-4 grid grid-cols-2 gap-2.5">
+      {phoneNumber ? (
+        <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] bg-white text-xs font-bold text-[#17201F]"><PhoneCall className="h-4 w-4 text-[#0F766E]" />Call salon</a>
+      ) : (
+        <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-[#F1F4F3] text-xs font-semibold text-[#9AA6A3]"><PhoneCall className="h-4 w-4" />No number listed</span>
+      )}
+      <a href={directionsUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Directions</a>
+    </div>
+  </QuickActionSheetShell>
+);
+
+/** Salon timing overview — placeholder structure, ready for a real weekly schedule later. */
+const OpenHoursSheet: React.FC<{ salonName: string; isOpen: boolean; openingHours: string; onClose: () => void }> = ({ salonName, isOpen, openingHours, onClose }) => {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return (
+    <QuickActionSheetShell icon={<Clock3 className="h-4 w-4" />} eyebrow="Salon timing" title={salonName} onClose={onClose}>
+      <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-[#BFE0DC] bg-[#EDF8F6] text-[#0F766E]' : 'border-[#F0D6D1] bg-[#FFF7F5] text-[#8A3E35]'}`}>
+        <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-[#14B8A6]' : 'bg-[#E58C82]'}`} />
+        {isOpen ? 'Open right now' : 'Closed right now'} · {openingHours}
+      </div>
+      <div className="mt-3 space-y-1 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+        {days.map((day) => (
+          <div key={day} className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-[#4C5A58]">{day}</span>
+            <span className="text-[#788582]">{openingHours}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[#9AA6A3]"><Info className="mt-0.5 h-3 w-3 shrink-0" />Per-day timing isn't wired up yet — every day shows the salon's general hours for now.</p>
+    </QuickActionSheetShell>
+  );
+};
+
+/** Directions/help sheet — placeholder structure alongside the real maps link. */
+const DirectionsSheet: React.FC<{ salonName: string; address: string; directionsUrl: string; onClose: () => void }> = ({ salonName, address, directionsUrl, onClose }) => (
+  <QuickActionSheetShell icon={<Navigation className="h-4 w-4" />} eyebrow="Get there" title={`Directions to ${salonName}`} onClose={onClose}>
+    <p className="mt-4 text-xs leading-5 text-[#657471] [overflow-wrap:anywhere]">{address}</p>
+    <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Open in Maps<ExternalLink className="h-3 w-3" /></a>
+    <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[#9AA6A3]"><Info className="mt-0.5 h-3 w-3 shrink-0" />In-app turn-by-turn guidance isn't available yet — this opens your device's maps app instead.</p>
+  </QuickActionSheetShell>
+);
+
+/** Other branches of the same brand — real list when available, honest empty state otherwise. */
+const BranchesSheet: React.FC<{ branches: NearbySalon[]; onClose: () => void }> = ({ branches, onClose }) => (
+  <QuickActionSheetShell icon={<Store className="h-4 w-4" />} eyebrow="Same brand" title="Other branches" onClose={onClose}>
+    <div className="mt-4 space-y-2">
+      {branches.map((branch) => (
+        <div key={branch.id} className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+          <p className="text-sm font-bold text-[#17201F]">{branch.name}</p>
+          <p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p>
+        </div>
+      ))}
+      {branches.length === 0 && (
+        <p className="rounded-2xl border border-[#E1E7E6] bg-white p-4 text-center text-xs text-[#788582]">No other branches nearby yet.</p>
+      )}
+    </div>
+  </QuickActionSheetShell>
+);
+
+/** "Been here" — a simple honest visited toggle; no fake visit history invented. */
+const BeenHereSheet: React.FC<{ visited: boolean; onToggle: () => void; onClose: () => void }> = ({ visited, onToggle, onClose }) => (
+  <QuickActionSheetShell icon={<CheckCircle2 className="h-4 w-4" />} eyebrow="Your visits" title="Been here?" onClose={onClose}>
+    <p className="mt-4 text-xs leading-5 text-[#657471]">Mark this salon as one you've visited before. Your visit history isn't tracked yet — this is just a personal reminder for now.</p>
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${visited ? 'bg-[#F1F4F3] text-[#4C5A58]' : 'bg-[#0F766E] text-white'}`}
+    >
+      <CheckCircle2 className="h-4 w-4" />
+      {visited ? 'Marked as visited' : 'Mark as visited'}
+    </button>
+  </QuickActionSheetShell>
+);

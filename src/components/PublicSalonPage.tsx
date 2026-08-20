@@ -500,7 +500,6 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
               readyChairs={barbersAvailable}
               totalChairs={barbersActive}
               live={business.queueAccepting}
-              activityLabel={isQueued ? `${business.name} · ${entry?.service || ''}` : `${waiting} ${waiting === 1 ? 'person' : 'people'} waiting`}
             />
           </div>
 

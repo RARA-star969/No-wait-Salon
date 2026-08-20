@@ -16,6 +16,7 @@ import {
   getNotificationPermissionStatus,
   requestPushPermission,
   dispatchWebPushNotification,
+  playNotificationChime,
 } from './services/notificationService';
 import { fireTurnAlert } from './services/turnAlertService';
 import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQueueService';
@@ -254,6 +255,33 @@ export default function App() {
     dispatchWebPushNotification(notif);
   };
 
+  /**
+   * Background join-success feedback: adds a notification-center entry and,
+   * where permission is already granted, a native Android notification —
+   * never an in-app toast/banner (no `setActiveToast`), so nothing overlays
+   * the screen the customer is already looking at. Joining is a routine,
+   * expected outcome, not an urgent event.
+   */
+  const notifyJoinSuccessQuietly = (title: string, body: string, salonName = selectedSalon.name) => {
+    const notif: PushNotification = {
+      id: `push-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      title,
+      body,
+      timestamp: Date.now(),
+      type: 'confirmed',
+      salonName,
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev.slice(0, 30)]);
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(notif.title, { body: notif.body, tag: notif.id });
+      } catch {
+        // Native notification is a nice-to-have; the notification-center entry above already recorded it.
+      }
+    }
+  };
+
   // Request native permission
   const handleRequestPermission = async () => {
     const status = await requestPushPermission();
@@ -484,10 +512,16 @@ export default function App() {
         applySnapshot(snapshot);
       }
       setIsJoinSheetOpen(false);
-      triggerPushNotification(
-        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
-        `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
-        'confirmed'
+      // A successful join is expected, not urgent: a light one-shot chime +
+      // haptic plus a quiet background notification, straight to the Live
+      // Ticket — never a large confirmation popup or in-app toast. Runs only
+      // once, directly off this join-success promise resolving, so it can
+      // never repeat from an SSE reconnect or a later restore of the ticket.
+      playNotificationChime();
+      try { navigator.vibrate?.(60); } catch { /* unsupported or blocked */ }
+      notifyJoinSuccessQuietly(
+        `${selectedSalon.name}: You're in the queue`,
+        `${chosenServices.map((item) => item.name).join(' + ')} · position confirmed.`,
       );
       setCurrentScreen('tracking');
     } catch (error) {

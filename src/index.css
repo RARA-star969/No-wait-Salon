@@ -139,6 +139,42 @@ body.barcode-scanner-active #qr-scanner-scrim {
   animation: premium-reveal 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* Live chip: a soft pulsing ring so the LIVE indicator itself reads as truly
+   live, not a static red pill. Shared by the hero card and the sticky
+   scoreboard capsule so the two never diverge. */
+@keyframes live-chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.live-chip-pulse {
+  animation: live-chip-pulse 2.2s ease-out infinite;
+}
+
+/* Sticky action dock: a quick micro-bounce whenever the selection changes,
+   so adding/removing a service reads as the dock "catching" it. */
+@keyframes dock-bounce {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.03); }
+  65% { transform: scale(0.99); }
+}
+
+.dock-bounce {
+  animation: dock-bounce 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Service "Add" tap: a quick rise + fade near the tapped card, hinting the
+   item just flew into the sticky dock below. */
+@keyframes add-to-dock-ping {
+  0% { opacity: 0; transform: translateY(2px) scale(0.85); }
+  30% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1); }
+}
+
+.add-to-dock-ping {
+  animation: add-to-dock-ping 560ms ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
@@ -146,7 +182,10 @@ body.barcode-scanner-active #qr-scanner-scrim {
   .live-scoreboard,
   .live-scoreboard-glow,
   .cta-arrow-nudge,
-  .gold-shimmer {
+  .gold-shimmer,
+  .live-chip-pulse,
+  .dock-bounce,
+  .add-to-dock-ping {
     animation: none;
   }
 

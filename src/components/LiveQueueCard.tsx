@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 
 /**
  * The hero USP: a premium teal/emerald live-queue card shared by the
@@ -14,13 +14,10 @@ export type QueueTrend = 'up' | 'down' | 'steady';
 
 export type LiveQueueCardProps = {
   waitLabel: string;
-  waitDeltaLabel?: string;
   peopleAhead: number;
   peopleAheadTrend?: QueueTrend;
   readyChairs: number;
   totalChairs: number;
-  activityLabel?: string;
-  queueMovingLabel?: string;
   live?: boolean;
   className?: string;
 };
@@ -63,13 +60,10 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.Reac
 
 export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   waitLabel,
-  waitDeltaLabel,
   peopleAhead,
   peopleAheadTrend,
   readyChairs,
   totalChairs,
-  activityLabel,
-  queueMovingLabel = 'Steady',
   live = true,
   className = '',
 }) => {
@@ -81,28 +75,27 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   return (
     <section
       id="live-queue-hero-card"
-      className={`relative overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_14px_32px_-16px_rgba(6,44,40,0.55)] ${className}`}
+      className={`relative overflow-hidden rounded-[20px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_14px_32px_-16px_rgba(6,44,40,0.55)] ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
       <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/20 blur-3xl" aria-hidden="true" />
 
       <div className="relative flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">
+        <span className={`inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'live-chip-pulse' : ''}`}>
           <span className="relative flex h-1.5 w-1.5">
             {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
           </span>
           Live
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-white/65">
-          <span className="truncate">Queue moving · {queueMovingLabel}</span>
-          <Radio className="h-3 w-3 shrink-0 animate-pulse" />
+        <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">
+          {totalChairs} {totalChairs === 1 ? 'chair' : 'chairs'} today
         </span>
       </div>
 
       <div className="relative mt-3 grid grid-cols-3 gap-3">
-        <Stat label="Approx. wait" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
+        <Stat label="Time" value={waitLabel} flashing={waitFlash} />
         <Stat
           label="People ahead"
           value={peopleAhead}
@@ -115,11 +108,6 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
           flashing={chairsFlash}
           delta={<span className={`inline-flex h-2 w-2 rounded-full ${chairsReady ? 'bg-[#5EE0B4]' : 'bg-white/30'}`} />}
         />
-      </div>
-
-      <div className="relative mt-3 flex items-center gap-1.5 text-[10px] font-semibold text-white/75">
-        <Users className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}</span>
       </div>
     </section>
   );

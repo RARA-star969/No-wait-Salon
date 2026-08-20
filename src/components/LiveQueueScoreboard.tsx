@@ -12,7 +12,9 @@ import { Radio } from 'lucide-react';
 
 export type ScoreboardMetric = {
   key: string;
-  label: string;
+  /** Usually short text; pass an icon element (e.g. a compact Clock glyph) to
+   *  replace the label entirely for a metric that reads better as an icon. */
+  label: React.ReactNode;
   value: React.ReactNode;
 };
 
@@ -42,7 +44,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric; compact: boolean }> = ({
   const flashing = useFlashOnChange(metric.value);
   return (
     <div className="min-w-0 shrink-0">
-      <p className={`whitespace-nowrap font-bold uppercase tracking-[0.12em] text-white/60 ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+      <p className={`flex items-center whitespace-nowrap font-bold uppercase tracking-[0.12em] text-white/60 ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
         {metric.label}
       </p>
       <p
@@ -78,7 +80,7 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
     >
       <span className="live-scoreboard-glow pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-[#5EE0B4]/25 blur-2xl" aria-hidden="true" />
 
-      <span className={`relative inline-flex shrink-0 items-center gap-1 rounded-full bg-[#EF4444]/90 font-bold uppercase tracking-[0.08em] text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'}`}>
+      <span className={`live-chip-pulse relative inline-flex shrink-0 items-center gap-1 rounded-full bg-[#EF4444]/90 font-bold uppercase tracking-[0.08em] text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'}`}>
         <span className="relative flex h-1.5 w-1.5">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
