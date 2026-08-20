@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import {
   Scissors,
   MapPin,
@@ -147,6 +148,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     () => localStorage.getItem(CUSTOMER_ONBOARDING_STORAGE_KEY) === 'complete'
   );
   const [showLoginGate, setShowLoginGate] = useState(false);
+  // Set only by an explicit "go back to landing" (visible Back button on
+  // Location, or the hardware back button) — never by the persisted
+  // hasEnteredApp flag, so it doesn't survive a fresh app launch.
+  const [showLandingOverride, setShowLandingOverride] = useState(false);
+  const backToLanding = useCallback(() => setShowLandingOverride(true), []);
   // The browser itself remembers a decided (granted/denied) permission — this
   // flag only remembers that we already asked, so a "Not now" is never re-asked.
   const [notificationPrompted, setNotificationPrompted] = useState(
@@ -302,16 +308,68 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     notificationPromptNeeded: !notificationPrompted && getNotificationPermissionStatus() === 'default',
   });
 
-  if (stage === 'landing') {
+  // Android/Capacitor hardware back button: navigate one step back through
+  // whatever this component is currently showing, mirroring each screen's
+  // own visible Back control. Only the true root (landing, nothing behind
+  // it) reports "unhandled", which is the sole case allowed to background
+  // or exit the app. On web/iOS this listener is installed but the
+  // 'backButton' event never fires, so normal browser-back stays untouched.
+  const handleHardwareBack = useCallback((): boolean => {
+    if (isQrScannerOpen) { setIsQrScannerOpen(false); return true; }
+    if (isChangingLocation) { setIsChangingLocation(false); return true; }
+    if (cancelSheetOpen) { setCancelSheetOpen(false); return true; }
+    if (isCallModalOpen) { setIsCallModalOpen(false); return true; }
+    if (showLoginGate) { setShowLoginGate(false); return true; }
+
+    const atLandingRoot = stage === 'landing' || showLandingOverride;
+    if (atLandingRoot) return false;
+
+    if (stage === 'location' || stage === 'notifications') { backToLanding(); return true; }
+    if (stage !== 'ready') return true;
+
+    if (currentScreen === 'edit-profile') { setScreen('profile'); return true; }
+    if (currentScreen === 'slots') { setScreen('salon'); return true; }
+    if (currentScreen === 'profile' || currentScreen === 'salon' || currentScreen === 'tracking' || currentScreen === 'complete') {
+      setScreen('home');
+      return true;
+    }
+    // currentScreen === 'home': the deepest customer screen backs out to landing.
+    backToLanding();
+    return true;
+  }, [
+    isQrScannerOpen, isChangingLocation, cancelSheetOpen, isCallModalOpen, showLoginGate,
+    stage, showLandingOverride, backToLanding, currentScreen, setScreen,
+  ]);
+
+  // Always call the latest handler without resubscribing the native listener
+  // on every state change.
+  const handleHardwareBackRef = useRef(handleHardwareBack);
+  useEffect(() => { handleHardwareBackRef.current = handleHardwareBack; }, [handleHardwareBack]);
+  useEffect(() => {
+    const listenerHandle = CapacitorApp.addListener('backButton', () => {
+      const handled = handleHardwareBackRef.current();
+      if (!handled) void CapacitorApp.exitApp();
+    });
+    return () => { void listenerHandle.then((handle) => handle.remove()); };
+  }, []);
+
+  // A visible/hardware "back to landing" always wins over the persisted
+  // hasEnteredApp flag — it's a transient override, not a reset of it, so
+  // tapping Explore Nearby again resumes exactly where the normal sequence
+  // would have put the customer (straight to Home if location is already set up).
+  if (stage === 'landing' || showLandingOverride) {
     return (
       <>
-        <LandingScreen onExploreNearby={enterApp} onLogin={openLoginGate} />
+        <LandingScreen
+          onExploreNearby={() => { setShowLandingOverride(false); enterApp(); }}
+          onLogin={openLoginGate}
+        />
         {showLoginGate && loginGateReadiness.kind === 'onboarding_required' && (
           <div className="fixed inset-0 z-[100] bg-[#F8FAFA]">
             <AccountOnboarding
               gate={loginGateReadiness}
               onVerified={onIdentityVerified}
-              onProfileSaved={(profile) => { onProfileSaved(profile); setShowLoginGate(false); enterApp(); }}
+              onProfileSaved={(profile) => { onProfileSaved(profile); setShowLoginGate(false); setShowLandingOverride(false); enterApp(); }}
               onCancel={() => setShowLoginGate(false)}
               intro={{
                 eyebrow: 'Login / Sign up',
@@ -331,7 +389,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       </div>
     );
   }
-  if (stage === 'location') return <LocationDiscovery onLocated={applyLocation} />;
+  if (stage === 'location') return <LocationDiscovery onLocated={applyLocation} onBack={backToLanding} />;
   if (stage === 'notifications') {
     return (
       <NotificationPermissionStep
