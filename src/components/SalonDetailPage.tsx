@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, Lock, MapPin, Navigation, Phone, Scissors, Share2, Sparkles, Store, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Clock3, CreditCard, ExternalLink, Lock, MapPin, Navigation, Phone, Receipt, Scissors, Share2, Sparkles, Store, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
+import { formatDuration } from '../shared/formatDuration';
+import { GOLD_BADGE_CLASS, GOLD_SHIMMER_CLASS, GOLD_SURFACE_CLASS } from '../shared/premiumGold';
 
 type Props = {
   salon: Salon;
@@ -35,6 +37,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [addressSheetOpen, setAddressSheetOpen] = useState(false);
   const [premiumSheetOpen, setPremiumSheetOpen] = useState(false);
+  const [priceSheetOpen, setPriceSheetOpen] = useState(false);
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
@@ -48,7 +51,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   // The USP card's own compact wording ("8 min", not "8 min wait") — kept
   // local to this card so the shared salonProfile.waitLabel() used elsewhere
   // (including the public QR web page) is untouched.
-  const compactWaitLabel = waitMinutes > 0 ? `${waitMinutes} min` : 'Ready now';
+  const compactWaitLabel = waitMinutes > 0 ? formatDuration(waitMinutes) : 'Ready now';
   const queueStatusLabel = waiting.length === 0 ? 'Ready now' : availableBarbers > 0 ? 'Queue moving steadily' : 'All chairs busy right now';
   const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name)))), [profile.services]);
   const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
@@ -145,13 +148,14 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             totalChairs={activeBarbers}
             activityLabel={queueStatusLabel}
           />
-          <button onClick={onReserve} id="reserve-slot-btn" className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#E7D6A3] bg-gradient-to-r from-[#FBF3DE] to-[#F5E8C4] px-4 py-3 text-xs font-semibold text-[#6B531B]">
-            <span className="flex items-center gap-2">
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#B4761C] text-white"><CalendarDays className="h-3.5 w-3.5" /></span>
+          <button onClick={onReserve} id="reserve-slot-btn" className={`mt-2 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-xs font-bold ${GOLD_SURFACE_CLASS}`}>
+            <div aria-hidden="true" className={GOLD_SHIMMER_CLASS} />
+            <span className="relative flex items-center gap-2">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#2A1B04]/20 ring-1 ring-white/40"><CalendarDays className="h-3.5 w-3.5" /></span>
               Reserve a future queue window
-              <span className="inline-flex items-center gap-0.5 rounded-full bg-[#B4761C]/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#8A5A16]"><Lock className="h-2.5 w-2.5" />Premium</span>
+              <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${GOLD_BADGE_CLASS}`}><Lock className="h-2.5 w-2.5" />Premium</span>
             </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-[#8A5A16]" />
+            <ChevronRight className="relative h-4 w-4 shrink-0" />
           </button>
         </section>
 
@@ -184,7 +188,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               return (
                 <button key={service.id} id={`service-opt-${service.id}`} type="button" onClick={() => toggleService(service.id)} aria-pressed={active} className={`flex w-full items-center gap-3 rounded-2xl border bg-white p-4 text-left ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
                   <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${active ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C7D0CE] text-transparent'}`}><Check className="h-3 w-3" /></span>
-                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{service.durationMin} min</span></span>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{service.name}</span>{service.description && <span className="mt-1 block text-[10px] leading-4 text-[#788582]">{service.description}</span>}<span className="mt-2 block text-[10px] font-semibold text-[#60716E]">{formatDuration(service.durationMin)}</span></span>
                   <span className="self-start text-sm font-bold">₹{service.priceInr}</span>
                 </button>
               );
@@ -199,15 +203,24 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
-        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
+        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${formatDuration(branch.liveWaitMinutes)} wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#DDE5E3] bg-white/95 px-3 pt-2.5 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
         {!userEntry && totals.count > 0 && (
-          <div className="mx-auto mb-2 flex max-w-xl items-center justify-between text-[11px] font-semibold text-[#4C5A58]">
+          <button
+            type="button"
+            id="selected-price-summary-btn"
+            onClick={() => setPriceSheetOpen(true)}
+            aria-label="View price breakdown"
+            className="mx-auto mb-2 flex w-full max-w-xl items-center justify-between text-[11px] font-semibold text-[#4C5A58]"
+          >
             <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected</span>
-            <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
-          </div>
+            <span className="flex items-center gap-1 text-sm font-bold text-[#17201F]">
+              ₹{totals.totalPriceInr}
+              <ChevronRight className="h-3.5 w-3.5 text-[#0F766E]" />
+            </span>
+          </button>
         )}
         <div className="mx-auto grid max-w-xl grid-cols-[1fr_auto] gap-2">
           <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white sm:text-sm disabled:opacity-50">{userEntry ? 'View live queue' : 'Join Queue'}</button>
@@ -215,10 +228,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             type="button"
             onClick={() => setPremiumSheetOpen(true)}
             aria-label="Premium features, coming soon"
-            className="min-h-13 flex items-center gap-1.5 rounded-xl border border-[#E7D6A3] bg-gradient-to-r from-[#FBF3DE] to-[#F5E8C4] px-3.5 text-xs font-bold text-[#8A5A16]"
+            className={`relative min-h-13 flex items-center justify-center gap-1.5 overflow-hidden rounded-xl px-3.5 text-xs font-bold ${GOLD_SURFACE_CLASS}`}
           >
-            <Lock className="h-3.5 w-3.5" />
-            Premium
+            <div aria-hidden="true" className={GOLD_SHIMMER_CLASS} />
+            <Lock className="relative h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -232,6 +245,13 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         />
       )}
       {premiumSheetOpen && <PremiumLockedSheet onClose={() => setPremiumSheetOpen(false)} />}
+      {priceSheetOpen && (
+        <PriceBreakdownSheet
+          services={profile.services.filter((service) => selectedServiceIds.includes(service.id))}
+          totalPriceInr={totals.totalPriceInr}
+          onClose={() => setPriceSheetOpen(false)}
+        />
+      )}
     </div>
   );
 };
@@ -269,6 +289,49 @@ const StoreAddressSheet: React.FC<{ salonName: string; address: string; phoneNum
   </div>
 );
 
+/**
+ * Real, honest price breakdown for the currently selected services — the
+ * subtotal is the total, since nothing here fabricates a coupon or discount.
+ * Structured with a distinct "future benefits" slot so promo codes,
+ * discounts and membership benefits can be added later without reshaping
+ * this sheet.
+ */
+const PriceBreakdownSheet: React.FC<{ services: { id: string; name: string; priceInr: number }[]; totalPriceInr: number; onClose: () => void }> = ({ services, totalPriceInr, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section role="dialog" aria-modal="true" aria-label="Price breakdown" className="flex max-h-[80vh] w-full flex-col rounded-t-3xl bg-[#F8FAFA] pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+      <div className="mx-auto mb-4 h-1 w-10 shrink-0 rounded-full bg-[#C9D2D0] sm:hidden" />
+      <div className="flex shrink-0 items-start justify-between gap-3 px-5">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E]"><Receipt className="h-4 w-4" /></span>
+          <h2 className="text-lg font-bold text-[#17201F]">Price breakdown</h2>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+      </div>
+      <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto px-5">
+        {services.map((service) => (
+          <div key={service.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+            <span className="truncate text-sm font-semibold text-[#17201F]">{service.name}</span>
+            <span className="shrink-0 text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+          </div>
+        ))}
+        {services.length === 0 && <p className="rounded-2xl border border-[#E1E7E6] bg-white p-4 text-center text-xs text-[#788582]">No services selected yet.</p>}
+      </div>
+      {/* Reserved for coupons, discounts, and membership benefits — none exist
+          yet, so nothing fake is shown here. */}
+      <div className="shrink-0 space-y-2 border-t border-[#E1E7E6] px-5 pt-3">
+        <div className="flex items-center justify-between text-xs font-semibold text-[#4C5A58]">
+          <span>Subtotal</span>
+          <span>₹{totalPriceInr}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm font-bold text-[#17201F]">
+          <span>Total</span>
+          <span>₹{totalPriceInr}</span>
+        </div>
+      </div>
+    </section>
+  </div>
+);
+
 /** Coming-soon preview for premium capabilities — never a fake purchase flow. */
 const PremiumLockedSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => (
   <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -276,7 +339,7 @@ const PremiumLockedSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => (
       <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#F5E8C4] to-[#E7D6A3] text-[#8A5A16]"><Lock className="h-4 w-4" /></span>
+          <span className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full ${GOLD_SURFACE_CLASS}`}><div aria-hidden="true" className={GOLD_SHIMMER_CLASS} /><Lock className="relative h-4 w-4" /></span>
           <h2 className="text-lg font-bold text-[#17201F]">Premium, coming soon</h2>
         </div>
         <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
@@ -284,8 +347,8 @@ const PremiumLockedSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => (
       <p className="mt-3 text-xs leading-5 text-[#657471]">A preview of what a premium membership will unlock. Nothing here is billed yet.</p>
       <div className="mt-4 space-y-2">
         {['Priority queue placement', 'Advance reservation windows', 'Favourite-stylist auto-hold'].map((feature) => (
-          <div key={feature} className="flex items-center gap-3 rounded-xl border border-[#E7D6A3] bg-white p-3">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#FBF3DE] text-[#8A5A16]"><Lock className="h-3.5 w-3.5" /></span>
+          <div key={feature} className="flex items-center gap-3 rounded-xl border border-[#D9BE84] bg-white p-3">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${GOLD_BADGE_CLASS}`}><Lock className="h-3.5 w-3.5" /></span>
             <span className="text-xs font-semibold text-[#3B4644]">{feature}</span>
           </div>
         ))}

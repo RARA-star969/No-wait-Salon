@@ -5,6 +5,7 @@
  */
 
 import type { Barber, QueueItem } from '../types';
+import { formatDuration } from './formatDuration';
 
 /** Minutes of chair time assumed per waiting customer when nothing better is known. */
 const DEFAULT_SERVICE_MINUTES = 15;
@@ -21,7 +22,7 @@ export function waitMinutesFor(peopleAhead: number, barbers: Barber[]): number {
 }
 
 export const waitMinutesLabel = (minutes: number): string =>
-  minutes <= 0 ? "You're next" : `About ${minutes} min`;
+  minutes <= 0 ? "You're next" : `About ${formatDuration(minutes)}`;
 
 /** Queue facts for the pre-join sheet. */
 export function buildJoinPreview(queue: QueueItem[], barbers: Barber[]) {

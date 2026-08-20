@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   PhoneCall,
   Navigation,
-  ShieldCheck,
   Bell,
   BellRing,
   Radio,
@@ -24,6 +23,7 @@ import {
   LoaderCircle,
   Lock,
   QrCode,
+  X,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
@@ -52,6 +52,8 @@ import { resolveAppReadiness } from '../shared/profileReadiness';
 import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { StickyScanQrButton } from './StickyScanQrButton';
+import { formatDuration } from '../shared/formatDuration';
+import { GOLD_BADGE_CLASS, GOLD_PANEL_CLASS, GOLD_SHIMMER_CLASS, GOLD_SURFACE_CLASS } from '../shared/premiumGold';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
@@ -173,6 +175,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // it right now, so Tomorrow's windows are clearly labelled as estimates
   // for a future day rather than a confirmed slot.
   const [reservationDay, setReservationDay] = useState<'today' | 'tomorrow'>('today');
+  // "View package" (full selected-services list) and the locked calendar's
+  // "coming soon" affordance — both honest previews, never a fake booking.
+  const [packageSheetOpen, setPackageSheetOpen] = useState(false);
+  const [calendarComingSoonOpen, setCalendarComingSoonOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
@@ -271,6 +277,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       cancelled = true;
     };
   }, []);
+
+  // Real selected-services state for the reservation page — never hardcoded.
+  // Falls back to the legacy single-select name so an older single-service
+  // flow still shows something.
+  const reservedServices = selectedServiceIds.length
+    ? selectedSalon.services.filter((service) => selectedServiceIds.includes(service.id))
+    : selectedSalon.services.filter((service) => service.name === selectedService);
+  const reservedTotalPriceInr = reservedServices.reduce((sum, service) => sum + (Number(service.priceInr) || 0), 0);
+  const reservedTotalDurationMin = reservedServices.reduce((sum, service) => sum + (Number(service.durationMin) || 0), 0);
 
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
@@ -572,7 +587,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
               {visibleSalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
-                const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
+                const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : formatDuration(salon.liveWaitMinutes);
                 return (
                   <button
                     key={salon.id}
@@ -808,28 +823,28 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       {/* 3. FUTURE TIME SLOTS SCREEN */}
       {currentScreen === 'slots' && (
         <div id="customer-slots-screen" className="animate-in fade-in duration-150">
-          {/* Premium header with a tasteful gold accent — not a loud gold page. */}
-          <div className="bg-gradient-to-br from-[#173B38] to-[#0F2E2B] px-5 pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] text-white">
-            <button
-              id="back-to-salon-btn"
-              onClick={() => setScreen('salon')}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 transition hover:text-white cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Salon details</span>
-            </button>
-            <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-[#E7D6A3]/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[#F5E8C4]">
+          {/* Premium hero — no back arrow, no "Salon details" label, no long
+              generic copy. A soft, slow glow pulse behind the headline is the
+              only motion here, and it turns off under reduced-motion. */}
+          <div className="relative overflow-hidden bg-gradient-to-br from-[#173B38] to-[#0F2E2B] px-5 pb-7 pt-[max(1.5rem,env(safe-area-inset-top))] text-white">
+            <div
+              aria-hidden="true"
+              className="premium-glow-pulse pointer-events-none absolute -right-10 -top-14 h-52 w-52 rounded-full bg-[#E8C766]/25 blur-3xl"
+            />
+            <span className="relative inline-flex items-center gap-1 rounded-full bg-[#E7D6A3]/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] text-[#F5E8C4]">
               <Sparkles className="h-3 w-3" /> Advance reservation
             </span>
-            <h1 className="mt-2.5 text-2xl font-bold tracking-tight">Reserve an arrival window</h1>
-            <p className="mt-1 text-xs leading-relaxed text-white/70">
-              {selectedService} at {selectedSalon.name}. This holds an <b className="text-white">estimated</b> arrival
-              window in the live queue — never an exact appointment time.
-            </p>
+            <h1 className="relative mt-3 text-[28px] font-bold leading-[1.15] tracking-[-0.03em]">
+              Arrive when it matters.
+              <br />
+              <span className="text-[#F5E8C4]">Reserve future window.</span>
+            </h1>
           </div>
 
           <div className="p-5 space-y-4">
-            {/* Date strip */}
+            {/* Date strip: Today / Tomorrow, plus a locked calendar control —
+                architecturally ready for real calendar booking, but never
+                pretending to book one today. */}
             <div className="flex gap-2">
               {(['today', 'tomorrow'] as const).map((day) => (
                 <button
@@ -844,16 +859,44 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   {day === 'today' ? 'Today' : 'Tomorrow'}
                 </button>
               ))}
-              <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-dashed border-[#DCE5E3] px-3 py-2.5 text-center text-[11px] font-semibold text-[#9AA6A3]">
-                <CalendarDays className="h-3.5 w-3.5" /> More dates soon
-              </span>
+              <button
+                type="button"
+                id="reservation-calendar-btn"
+                onClick={() => setCalendarComingSoonOpen(true)}
+                aria-label="Premium calendar booking, coming soon"
+                className={`relative flex flex-1 items-center justify-center gap-1.5 overflow-hidden rounded-xl px-3 py-2.5 text-center text-[11px] font-bold ${GOLD_SURFACE_CLASS}`}
+              >
+                <div aria-hidden="true" className={GOLD_SHIMMER_CLASS} />
+                <CalendarDays className="relative h-3.5 w-3.5" />
+                <Lock className="relative h-3 w-3" />
+              </button>
             </div>
 
-            <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-              <p className="text-xs text-[#17201F] leading-snug">
-                Selected service: <b className="font-bold text-[#0F766E]">{selectedService}</b> at {selectedSalon.name}.
-              </p>
+            {/* Selected-services summary — compact, real, and driven from
+                actual selection state. */}
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-4">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-[#17201F]">
+                  {reservedServices.length} {reservedServices.length === 1 ? 'service' : 'services'} selected
+                </p>
+                <p className="mt-1 flex items-center gap-2 text-[11px] font-semibold text-[#60716E]">
+                  <span>₹{reservedTotalPriceInr}</span>
+                  {reservedTotalDurationMin > 0 && (
+                    <>
+                      <span className="text-[#C7D0CE]">·</span>
+                      <span>Approx. {formatDuration(reservedTotalDurationMin)}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                id="view-reservation-package-btn"
+                onClick={() => setPackageSheetOpen(true)}
+                className="shrink-0 rounded-xl border border-[#CDE3E0] bg-[#EAF6F4] px-3 py-2 text-xs font-bold text-[#0F766E]"
+              >
+                View package
+              </button>
             </div>
 
             <div>
@@ -896,19 +939,76 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
 
             {/* Locked premium preview — coming soon, never a fake guarantee. */}
-            <div className="rounded-2xl border border-[#E7D6A3] bg-gradient-to-br from-[#FBF3DE] to-[#F5E8C4] p-4">
-              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#8A5A16]">
+            <div className={`rounded-2xl p-4 ${GOLD_PANEL_CLASS}`}>
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#5A3C0E]">
                 <Lock className="h-3.5 w-3.5" /> Premium unlocks
               </p>
               <div className="mt-3 space-y-2">
                 {['Priority arrival window', 'Auto-hold your favourite stylist'].map((feature) => (
-                  <div key={feature} className="flex items-center gap-2.5 rounded-xl bg-white/70 px-3 py-2.5 text-xs font-semibold text-[#6B531B]">
+                  <div key={feature} className="flex items-center gap-2.5 rounded-xl bg-white/70 px-3 py-2.5 text-xs font-semibold text-[#5A3C0E]">
                     <Lock className="h-3.5 w-3.5 shrink-0" /> {feature}
                   </div>
                 ))}
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* View package: the exact selected services for this reservation,
+          driven from real selection state — never hardcoded. */}
+      {packageSheetOpen && (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) setPackageSheetOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-label="Your package" className="flex max-h-[80vh] w-full flex-col rounded-t-3xl bg-[#F8FAFA] pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl">
+            <div className="mx-auto mb-1 h-1 w-10 shrink-0 rounded-full bg-[#C9D2D0] sm:hidden" />
+            <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-3">
+              <h2 className="text-lg font-bold text-[#17201F]">
+                {reservedServices.length} {reservedServices.length === 1 ? 'service' : 'services'} selected
+              </h2>
+              <button onClick={() => setPackageSheetOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto px-5">
+              {reservedServices.map((service) => (
+                <div key={service.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-[#17201F]">{service.name}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-[#60716E]">{formatDuration(service.durationMin)}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+                </div>
+              ))}
+              {reservedServices.length === 0 && <p className="rounded-2xl border border-[#E1E7E6] bg-white p-4 text-center text-xs text-[#788582]">No services selected yet.</p>}
+            </div>
+            <div className="shrink-0 border-t border-[#E1E7E6] px-5 pt-3">
+              <div className="flex items-center justify-between text-xs font-semibold text-[#4C5A58]">
+                <span>{formatDuration(reservedTotalDurationMin)} total</span>
+                <span className="text-base font-bold text-[#17201F]">₹{reservedTotalPriceInr}</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Premium calendar booking: honest "coming soon" — tapping the locked
+          calendar never silently no-ops and never pretends to book. */}
+      {calendarComingSoonOpen && (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) setCalendarComingSoonOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-label="Premium calendar booking" className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full ${GOLD_SURFACE_CLASS}`}><div aria-hidden="true" className={GOLD_SHIMMER_CLASS} /><CalendarDays className="relative h-4 w-4" /></span>
+                <h2 className="text-lg font-bold text-[#17201F]">Premium calendar booking</h2>
+              </div>
+              <button onClick={() => setCalendarComingSoonOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-[#657471]">
+              Choosing a specific future date is a premium feature that isn't live yet — coming soon. For now, Today and Tomorrow hold your place in the live queue.
+            </p>
+            <span className={`mt-4 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${GOLD_BADGE_CLASS}`}>
+              <Lock className="h-3 w-3" /> Coming soon
+            </span>
+          </section>
         </div>
       )}
 

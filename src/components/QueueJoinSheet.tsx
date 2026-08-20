@@ -3,6 +3,19 @@ import { AlertCircle, Check, ChevronRight, Clock, LoaderCircle, Radio, Scissors,
 import type { Barber, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
 import { selectableStylists, STYLIST_STATUS_LABEL, stylistLiveStatus } from '../shared/staffAvailability';
+import { formatDuration } from '../shared/formatDuration';
+
+/** Demo placeholder rating shown only when a stylist record has no real
+ *  `rating` yet — never overwrites an actual rating the data model supplies. */
+const DEMO_STYLIST_RATING = 4.8;
+
+/** Initials fallback for a customer with no profile photo — e.g. "Ritik Singh" -> "RS". */
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 /** "Any available stylist" is modelled as an explicit choice, not an absence. */
 export const ANY_STYLIST = '';
@@ -18,6 +31,8 @@ type Props = {
   error?: string;
   /** Name we already hold, shown so the customer can see we did not forget it. */
   customerName?: string;
+  /** Real profile photo, when the customer has uploaded one. Falls back to initials. */
+  customerAvatarUrl?: string;
   onClose: () => void;
   onConfirm: (preferredBarberId: string) => void;
 };
@@ -36,6 +51,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
   busy,
   error,
   customerName,
+  customerAvatarUrl,
   onClose,
   onConfirm,
 }) => {
@@ -72,7 +88,16 @@ export const QueueJoinSheet: React.FC<Props> = ({
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F766E]">Join the queue</p>
             <h2 className="mt-1 truncate text-xl font-bold tracking-[-0.03em] text-[#17201F]">{salon.name}</h2>
             {customerName && (
-              <p className="mt-1 truncate text-xs text-[#667371]">Booking as {customerName}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[#0F766E] text-[10px] font-bold text-white ring-1 ring-[#CDE3E0]">
+                  {customerAvatarUrl ? (
+                    <img src={customerAvatarUrl} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initialsFor(customerName)
+                  )}
+                </span>
+                <p className="truncate text-xs text-[#667371]">Booking as <span className="font-semibold text-[#3B4644]">{customerName}</span></p>
+              </div>
             )}
           </div>
           <button
@@ -103,7 +128,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
             <div className="relative mt-3 grid grid-cols-2 gap-2.5">
               <JoinStat label="People ahead" value={String(preview.peopleAhead)} />
               <JoinStat label="Your position" value={`#${preview.projectedPosition}`} />
-              <JoinStat label="Est. wait" value={preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m`} />
+              <JoinStat label="Est. time" value={preview.estimatedWaitMinutes === 0 ? 'Now' : formatDuration(preview.estimatedWaitMinutes)} />
               <JoinStat label="Chairs available" value={String(preview.openChairs)} />
             </div>
           </section>
@@ -126,7 +151,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
                 </button>
                 {totalDurationMin > 0 && (
                   <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#60716E]">
-                    <Clock className="h-3 w-3" /> Approx. {totalDurationMin} min
+                    <Clock className="h-3 w-3" /> Approx. {formatDuration(totalDurationMin)}
                   </p>
                 )}
               </div>
@@ -142,14 +167,25 @@ export const QueueJoinSheet: React.FC<Props> = ({
             </div>
             <p className="mt-1 text-[11px] text-[#788582]">Pick a favourite, or let the salon seat you sooner.</p>
 
+            {/* Quiet toggle, not a full card — individual stylists below are
+                the primary visual focus. */}
+            <button
+              type="button"
+              id="stylist-any"
+              aria-pressed={stylist === ANY_STYLIST}
+              onClick={() => setStylist(ANY_STYLIST)}
+              className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition ${
+                stylist === ANY_STYLIST ? 'border-[#0F766E] bg-[#E7F5F2] text-[#0F766E]' : 'border-[#E2EAE9] bg-white text-[#5C6B68]'
+              }`}
+            >
+              <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${stylist === ANY_STYLIST ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#C5CECC] text-transparent'}`}>
+                <Check className="h-2.5 w-2.5" strokeWidth={3} />
+              </span>
+              Any available stylist
+              <span className="font-semibold text-[10px] text-[#0F766E]/70">· Fastest option</span>
+            </button>
+
             <div className="mt-3 space-y-2">
-              <StylistOption
-                id="stylist-any"
-                title="Any available stylist"
-                subtitle="Usually the fastest way to be seated"
-                selected={stylist === ANY_STYLIST}
-                onSelect={() => setStylist(ANY_STYLIST)}
-              />
               {selectable.map((barber) => (
                 <StylistOption
                   key={barber.id}
@@ -234,7 +270,7 @@ const SelectedServicesSheet: React.FC<{
           <div key={service.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-[#17201F]">{service.name}</p>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#60716E]">Approx. {service.durationMin} min</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#60716E]">Approx. {formatDuration(service.durationMin)}</p>
             </div>
             <span className="shrink-0 text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
           </div>
@@ -242,7 +278,7 @@ const SelectedServicesSheet: React.FC<{
       </div>
       <div className="shrink-0 border-t border-[#E1E7E6] px-5 pt-3">
         <div className="flex items-center justify-between text-xs font-semibold text-[#4C5A58]">
-          <span>Approx. {totalDurationMin} min total</span>
+          <span>Approx. {formatDuration(totalDurationMin)} total</span>
           <span className="text-base font-bold text-[#17201F]">₹{totalPriceInr}</span>
         </div>
       </div>
@@ -284,9 +320,10 @@ const StylistOption: React.FC<
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-sm font-bold text-[#17201F]">{title}</span>
-            {barber && (typeof barber.rating === 'number' && barber.rating > 0) && (
+            {barber && (
               <span className="flex shrink-0 items-center gap-0.5 text-[11px] font-bold text-[#8A6516]">
-                <Star className="h-3 w-3 fill-[#F5A524] text-[#F5A524]" /> {barber.rating.toFixed(1)}
+                <Star className="h-3 w-3 fill-[#F5A524] text-[#F5A524]" />
+                {(typeof barber.rating === 'number' && barber.rating > 0 ? barber.rating : DEMO_STYLIST_RATING).toFixed(1)}
               </span>
             )}
           </span>
@@ -326,12 +363,11 @@ const StylistProfileSheet: React.FC<{ barber: Barber; onClose: () => void }> = (
             </span>
             <div>
               <h2 className="text-lg font-bold text-[#17201F]">{barber.name}</h2>
-              {typeof barber.rating === 'number' && barber.rating > 0 && (
-                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-[#8A6516]">
-                  <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" /> {barber.rating.toFixed(1)}
-                  {typeof barber.reviewCount === 'number' && barber.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({barber.reviewCount})</span>}
-                </p>
-              )}
+              <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-[#8A6516]">
+                <Star className="h-3.5 w-3.5 fill-[#F5A524] text-[#F5A524]" />
+                {(typeof barber.rating === 'number' && barber.rating > 0 ? barber.rating : DEMO_STYLIST_RATING).toFixed(1)}
+                {typeof barber.reviewCount === 'number' && barber.reviewCount > 0 && <span className="font-semibold text-[#A98A44]">({barber.reviewCount})</span>}
+              </p>
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>

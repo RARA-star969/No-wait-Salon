@@ -83,10 +83,58 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
+/* Premium gold shimmer: a single light sweep across any surface using
+   `.premium-gold-shimmer` (see shared/premiumGold.ts). GPU-cheap — only
+   `transform`/`opacity` move, nothing is repainted per frame — so it is safe
+   on low-end Android hardware. */
+@keyframes premium-gold-shimmer {
+  0%,
+  55% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  62% {
+    opacity: 0.9;
+  }
+  85%,
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
+  }
+}
+
+.premium-gold-shimmer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 245, 214, 0.55) 48%, rgba(255, 245, 214, 0.75) 52%, transparent 70%);
+  animation: premium-gold-shimmer 3.6s ease-in-out infinite;
+}
+
+/* Reservation hero: a soft, slow glow pulse behind the headline — not a loud
+   animation, just a gentle premium ambience. */
+@keyframes premium-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+
+.premium-glow-pulse {
+  animation: premium-glow-pulse 4.5s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
-  .animate-\[queue-waveform_3\.2s_linear_infinite\] {
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .premium-gold-shimmer,
+  .premium-glow-pulse {
     animation: none;
   }
 

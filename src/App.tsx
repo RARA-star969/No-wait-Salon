@@ -255,6 +255,32 @@ export default function App() {
     dispatchWebPushNotification(notif);
   };
 
+  /**
+   * Background join-success feedback: adds a notification-center entry and,
+   * where permission is already granted, an Android system notification —
+   * never an in-app toast/banner (no `setActiveToast`), so nothing overlays
+   * the screen the customer is already looking at.
+   */
+  const notifyJoinSuccessQuietly = (title: string, body: string, salonName = selectedSalon.name) => {
+    const notif: PushNotification = {
+      id: `push-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      title,
+      body,
+      timestamp: Date.now(),
+      type: 'confirmed',
+      salonName,
+      read: false,
+    };
+    setNotifications((prev) => [notif, ...prev.slice(0, 30)]);
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(notif.title, { body: notif.body, tag: notif.id });
+      } catch {
+        // Native notification is a nice-to-have here; the notification-center entry above already recorded it.
+      }
+    }
+  };
+
   // Request native permission
   const handleRequestPermission = async () => {
     const status = await requestPushPermission();
@@ -486,12 +512,18 @@ export default function App() {
       }
       setIsJoinSheetOpen(false);
       // A successful join is a routine, expected outcome — not an urgent
-      // event — so it gets a light, one-shot chime + haptic and goes
-      // straight to the Live Ticket, never a large confirmation popup. This
-      // fires only from this direct join-success callback, so it can never
-      // repeat from an SSE reconnect or a rerender.
+      // event — so it gets a light, one-shot chime + haptic + a quiet
+      // background notification, and goes straight to the Live Ticket,
+      // never a large confirmation popup or in-app toast. This block runs
+      // only once, directly off this join-success promise resolving — never
+      // off derived queue state — so it can never repeat from an SSE
+      // reconnect, a rerender, or a later restore of an already-joined ticket.
       playNotificationChime();
       try { navigator.vibrate?.(60); } catch { /* unsupported or blocked */ }
+      notifyJoinSuccessQuietly(
+        `${selectedSalon.name}: You're in the queue`,
+        `${chosenServices.map((item) => item.name).join(' + ')} · position confirmed.`,
+      );
       setCurrentScreen('tracking');
     } catch (error) {
       setJoinSheetError(error instanceof Error ? error.message : 'Unable to join this queue right now.');
@@ -812,6 +844,7 @@ export default function App() {
         busy={joinSheetBusy}
         error={joinSheetError}
         customerName={customerProfile?.name}
+        customerAvatarUrl={customerProfile?.profilePhotoUrl || undefined}
         onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />
