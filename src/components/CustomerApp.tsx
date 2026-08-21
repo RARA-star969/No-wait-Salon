@@ -169,6 +169,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
+  // The screens are siblings inside one persistent scroll container, so
+  // switching screens keeps whatever scrollTop the previous screen left
+  // behind. Snap back to the top on every screen change so a newly opened
+  // salon page (or any other screen) always opens from its header, not
+  // wherever the last screen happened to be scrolled.
+  useEffect(() => {
+    homeScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [currentScreen]);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
   // every second (which previously restarted the QR camera).

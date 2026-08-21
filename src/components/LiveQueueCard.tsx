@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, Radio } from 'lucide-react';
 
 /**
  * The hero USP: a premium teal/emerald live-queue card shared by the
@@ -12,6 +12,20 @@ import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
 
 export type QueueTrend = 'up' | 'down' | 'steady';
 
+/** Ready-seat states drive both the live card's headline metric and the app's CTA copy. */
+export type QueueReadyState = 'yourTurnNow' | 'yourTurnNext' | 'normal';
+
+export function getQueueReadyState(peopleAhead: number, readyChairs: number): QueueReadyState {
+  if (readyChairs <= 0) return 'normal';
+  if (peopleAhead === 0) return 'yourTurnNow';
+  if (peopleAhead === 1) return 'yourTurnNext';
+  return 'normal';
+}
+
+export function queueCtaLabel(state: QueueReadyState): string {
+  return state === 'normal' ? 'Join Queue' : 'Book Seat';
+}
+
 export type LiveQueueCardProps = {
   waitLabel: string;
   waitDeltaLabel?: string;
@@ -19,6 +33,7 @@ export type LiveQueueCardProps = {
   peopleAheadTrend?: QueueTrend;
   readyChairs: number;
   totalChairs: number;
+  /** Optional override for the bottom-left chair summary; omit it for the compact customer layout. */
   activityLabel?: string;
   queueMovingLabel?: string;
   live?: boolean;
@@ -51,12 +66,12 @@ const TrendBadge: React.FC<{ trend?: QueueTrend; label?: string }> = ({ trend, l
   );
 };
 
-const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.ReactNode; flashing?: boolean }> = ({ label, value, delta, flashing }) => (
+const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.ReactNode; flashing?: boolean; emphasize?: boolean }> = ({ label, value, delta, flashing, emphasize }) => (
   <div className="min-w-0">
-    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label}</p>
-    <p className={`mt-1 text-[22px] font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}>
+    <p className={`text-[22px] font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''} ${emphasize ? 'text-[#7DEFC6]' : ''}`}>
       {value}
     </p>
+    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label}</p>
     {delta && <div className="mt-1">{delta}</div>}
   </div>
 );
@@ -73,6 +88,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   live = true,
   className = '',
 }) => {
+  const readyState = getQueueReadyState(peopleAhead, readyChairs);
   const waitFlash = useFlashOnChange(waitLabel);
   const aheadFlash = useFlashOnChange(peopleAhead);
   const chairsFlash = useFlashOnChange(readyChairs);
@@ -80,14 +96,14 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
 
   return (
     <section
-      className={`relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-5 text-white shadow-[0_18px_40px_-16px_rgba(6,44,40,0.55)] ${className}`}
+      className={`relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-5 text-white shadow-[0_20px_44px_-18px_rgba(6,44,40,0.6)] ring-1 ring-white/10 ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
       <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-14 bottom-0 h-32 w-32 rounded-full bg-[#0AA88C]/25 blur-3xl" aria-hidden="true" />
 
       <div className="relative flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] shadow-[0_2px_10px_-2px_rgba(239,68,68,0.6)]">
           <span className="relative flex h-1.5 w-1.5">
             {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
@@ -101,7 +117,13 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
       </div>
 
       <div className="relative mt-4 grid grid-cols-3 gap-3">
-        <Stat label="Approx. wait" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
+        {readyState === 'yourTurnNow' ? (
+          <Stat label="Your turn" value="#1" emphasize />
+        ) : readyState === 'yourTurnNext' ? (
+          <Stat label="Your turn" value="Your Turn" emphasize />
+        ) : (
+          <Stat label="Wait time" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
+        )}
         <Stat
           label="People ahead"
           value={peopleAhead}
@@ -129,14 +151,10 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
           />
         </svg>
         <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-white/25" aria-hidden="true" />
-        <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7DEFC6]" aria-hidden="true" />
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between text-[11px] font-semibold text-white/75">
-        <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          {activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}
-        </span>
+      <div className="relative mt-3.5 flex items-center justify-between text-[10px] font-semibold uppercase tracking-[0.1em] text-white/60">
+        <span>{activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}</span>
         <span className="flex items-center gap-1 text-[#7DEFC6]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#7DEFC6]" />
           Queue moving · {queueMovingLabel}

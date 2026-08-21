@@ -83,10 +83,34 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
+/* Hero "open now" status dot: an elegant, restrained heartbeat — a soft
+   scale bounce plus a breathing glow ring, not a cartoonish blink. */
+@keyframes status-dot-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+@keyframes status-dot-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
-  .animate-\[queue-waveform_3\.2s_linear_infinite\] {
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .animate-\[status-dot-pulse_2\.4s_ease-in-out_infinite\],
+  .animate-\[status-dot-ring_2\.4s_ease-out_infinite\] {
     animation: none;
   }
 
