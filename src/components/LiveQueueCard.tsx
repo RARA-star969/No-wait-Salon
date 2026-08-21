@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LiveSignalBlip } from './LiveSignalBlip';
+import { deriveQueueDisplayState } from '../shared/queueDisplayState';
+import { TimeValue } from './TimeValue';
 
 /**
  * The hero USP: a premium teal/emerald live-queue card shared by the
@@ -36,12 +37,18 @@ function useFlashOnChange<T>(value: T): boolean {
 }
 
 /** Value on top, single-line label below — never a generated/duplicated helper line. */
-const Stat: React.FC<{ label: string; value: React.ReactNode; flashing?: boolean }> = ({ label, value, flashing }) => (
+const Stat: React.FC<{ label: string; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
   <div className="min-w-0 text-center">
-    <p className={`text-[22px] font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}>
+    <p
+      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
+        dense ? 'text-[15px]' : 'text-[22px]'
+      } ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}
+    >
       {value}
     </p>
-    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label}</p>
+    {/* Non-breaking space keeps the label row's height identical across the
+        three columns even when a special queue state leaves this one blank. */}
+    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label || ' '}</p>
   </div>
 );
 
@@ -56,6 +63,13 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   const waitFlash = useFlashOnChange(waitLabel);
   const aheadFlash = useFlashOnChange(peopleAhead);
   const chairsFlash = useFlashOnChange(readyChairs);
+  const display = deriveQueueDisplayState(peopleAhead, readyChairs);
+  const primaryStat =
+    display.state === 'ready_now'
+      ? { value: '#1', label: 'Your Turn' }
+      : display.state === 'your_turn'
+        ? { value: 'Your Turn', label: '' }
+        : { value: <TimeValue label={waitLabel} />, label: 'Wait Time' };
 
   return (
     <section
@@ -75,7 +89,6 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
             </span>
             Live
           </span>
-          {live && <LiveSignalBlip />}
         </span>
         <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">
           {totalChairs} {totalChairs === 1 ? 'chair' : 'chairs'} today
@@ -83,7 +96,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
       </div>
 
       <div className="relative mt-4 grid grid-cols-3 gap-3">
-        <Stat label="Wait Time" value={waitLabel} flashing={waitFlash} />
+        <Stat label={primaryStat.label} value={primaryStat.value} flashing={waitFlash} dense={display.state !== 'waiting'} />
         <Stat label="People Ahead" value={peopleAhead} flashing={aheadFlash} />
         <Stat label="Ready Chairs" value={readyChairs} flashing={chairsFlash} />
       </div>

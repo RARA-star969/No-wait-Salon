@@ -175,45 +175,6 @@ body.barcode-scanner-active #qr-scanner-scrim {
   animation: add-to-dock-ping 560ms ease-out forwards;
 }
 
-/* Live signal blip: idle teal glow most of the time; every 3s it travels
-   into the LIVE chip, turns green and blinks a few times, then returns.
-   One infinite timeline, transform/opacity/background-color only. */
-@keyframes live-signal-travel {
-  0%, 58% {
-    transform: translateX(0);
-    background-color: #5EE0B4;
-    box-shadow: 0 0 0 2px rgba(94, 224, 180, 0.35);
-    opacity: 1;
-  }
-  66% {
-    transform: translateX(-13px);
-    background-color: #22C55E;
-    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.4);
-    opacity: 1;
-  }
-  70% { opacity: 0.25; }
-  74% { opacity: 1; }
-  78% { opacity: 0.25; }
-  82% { opacity: 1; }
-  86% { opacity: 0.25; }
-  90% {
-    opacity: 1;
-    transform: translateX(-13px);
-    background-color: #22C55E;
-  }
-  96%, 100% {
-    transform: translateX(0);
-    background-color: #5EE0B4;
-    box-shadow: 0 0 0 2px rgba(94, 224, 180, 0.35);
-    opacity: 1;
-  }
-}
-
-.live-signal-blip {
-  background-color: #5EE0B4;
-  animation: live-signal-travel 3.4s ease-in-out infinite;
-}
-
 /* Hero "open now" dot: a small ball-like bounce so an open salon reads as
    alive at a glance, not just a static coloured dot. */
 @keyframes open-dot-bounce {
@@ -275,7 +236,6 @@ body.barcode-scanner-active #qr-scanner-scrim {
   .live-chip-pulse,
   .dock-bounce,
   .add-to-dock-ping,
-  .live-signal-blip,
   .open-dot-bounce,
   .capsule-settle-in,
   .sheet-flip-in {

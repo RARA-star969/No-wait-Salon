@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, PhoneCall, Plus, Scissors, Share2, Sparkles, Store, Timer, UserCheck, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Timer, UserCheck, Waves, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
+import { deriveQueueDisplayState } from '../shared/queueDisplayState';
 import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
 import { AnimatedSalonName } from './AnimatedSalonName';
+import { TimeValue } from './TimeValue';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { formatDurationLabel } from '../shared/durationFormat';
 
@@ -31,6 +33,16 @@ const serviceCategory = (name: string) => {
   if (value.includes('colour')) return 'Hair Colour';
   if (value.includes('facial')) return 'Facial';
   return 'Hair Care';
+};
+
+/** One recognizable glyph per Explore/Services category, rather than a
+ *  single icon repeated across every card. */
+const CATEGORY_ICONS: Record<string, React.ReactElement> = {
+  'Hair Care': <Scissors className="h-4 w-4" />,
+  'Beard': <Brush className="h-4 w-4" />,
+  'Massage & Spa': <Waves className="h-4 w-4" />,
+  'Hair Colour': <Palette className="h-4 w-4" />,
+  'Facial': <ScanFace className="h-4 w-4" />,
 };
 
 export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, onBack, onJoin, onReserve, userEntry }) => {
@@ -118,8 +130,18 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   };
 
   const positionLabel = waiting.length === 0 ? 'Next' : `#${waiting.length + 1}`;
+  const queueDisplay = deriveQueueDisplayState(waiting.length, availableBarbers);
   const scoreboardMetrics = [
-    { key: 'time', label: <Clock className="h-2.5 w-2.5" aria-hidden="true" />, value: waitMinutes > 0 ? waitLabel : 'Now' },
+    {
+      key: 'time',
+      label: (
+        <span className="inline-flex items-center gap-1">
+          <Clock className="h-2.5 w-2.5" aria-hidden="true" />
+          Time
+        </span>
+      ),
+      value: waitMinutes > 0 ? <TimeValue label={waitLabel} /> : 'Now',
+    },
     { key: 'position', label: 'Position', value: positionLabel },
     { key: 'chairs', label: 'Chairs', value: availableBarbers },
   ];
@@ -142,7 +164,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         }`}
       >
         <div key={capsuleEnterKey} className="w-full max-w-xl capsule-settle-in">
-          <LiveQueueScoreboard variant="capsule" metrics={scoreboardMetrics} onTap={scrollToLiveQueue} showSignalBlip />
+          <LiveQueueScoreboard variant="capsule" metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
         </div>
       </div>
 
@@ -206,18 +228,18 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <button
             onClick={onReserve}
             id="reserve-future-window-btn"
-            className="group relative mt-2.5 flex w-full items-center justify-between overflow-hidden rounded-2xl px-4 py-3.5 text-left shadow-[0_10px_24px_-14px_rgba(120,86,20,0.55)]"
+            className="group relative mt-2.5 flex w-full items-center justify-between overflow-hidden rounded-2xl px-4 py-2.5 text-left shadow-[0_6px_16px_-12px_rgba(120,86,20,0.5)]"
             style={{ background: 'linear-gradient(120deg, #8A6A2C 0%, #C9A24B 32%, #E7C673 50%, #C9A24B 68%, #8A6A2C 100%)' }}
           >
             <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/45 to-transparent" aria-hidden="true" />
             <span className="relative flex min-w-0 items-center gap-2.5">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/20 text-white ring-1 ring-white/25"><CalendarDays className="h-4.5 w-4.5" /></span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-black/20 text-white ring-1 ring-white/25"><CalendarDays className="h-4 w-4" /></span>
               <span className="min-w-0">
-                <span className="block truncate text-[15px] font-extrabold tracking-[-0.01em] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">Reserve your slot</span>
-                <span className="mt-0.5 block text-[10px] font-semibold text-white/80">Hold your place for later today</span>
+                <span className="block truncate text-[14px] font-extrabold tracking-[-0.015em] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]">Reserve your slot</span>
+                <span className="mt-0.5 block text-[10px] font-semibold text-white/80">Arrive when it matters</span>
               </span>
             </span>
-            <ChevronRight className="relative h-5 w-5 shrink-0 text-white cta-arrow-nudge" />
+            <ChevronRight className="relative h-4.5 w-4.5 shrink-0 text-white cta-arrow-nudge" />
           </button>
         </section>
 
@@ -228,7 +250,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
 
-        <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]"><Scissors className="h-4 w-4" /></span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
+        <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]">{CATEGORY_ICONS[category] || <Scissors className="h-4 w-4" />}</span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
 
         <section id="service-menu">
           <SectionTitle eyebrow="Choose your services" title="Service menu" />
@@ -286,17 +308,22 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             </button>
           )}
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : 'Join Queue'}</button>
+            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : queueDisplay.ctaLabel}</button>
             <button
               type="button"
               onClick={() => setPremiumLockedOpen(true)}
               aria-label="Premium calendar booking, coming soon"
-              className="relative flex min-h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-[0_10px_20px_-10px_rgba(120,86,20,0.55)] transition active:scale-[0.98]"
+              className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl shadow-[0_10px_20px_-10px_rgba(120,86,20,0.55)] transition active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}
             >
-              <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
+              {/* Shimmer stays clipped to its own rounded layer so the lock
+                  badge below — which intentionally sits partly outside the
+                  button's own box — is never cut off by overflow-hidden. */}
+              <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">
+                <span className="absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
+              </span>
               <CalendarDays className="relative h-4.5 w-4.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" />
-              <span className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+              <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
                 <Lock className="h-2 w-2" />
               </span>
             </button>

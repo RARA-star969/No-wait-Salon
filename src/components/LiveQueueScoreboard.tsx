@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
-import { LiveSignalBlip } from './LiveSignalBlip';
 
 /**
  * The one reusable "premium live scoreboard" visual language — a glassy
@@ -25,8 +24,6 @@ type Props = {
   variant?: 'capsule' | 'panel';
   onTap?: () => void;
   className?: string;
-  /** Same travel-in/blink-green/travel-out signal dot as the hero live card. */
-  showSignalBlip?: boolean;
 };
 
 /** Flags a value as "just changed" for ~900ms so the UI can pulse it once. */
@@ -61,7 +58,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric; compact: boolean }> = ({
   );
 };
 
-export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel', onTap, className = '', showSignalBlip = false }) => {
+export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel', onTap, className = '' }) => {
   const compact = variant === 'capsule';
   const Wrapper = onTap ? 'button' : 'div';
 
@@ -91,7 +88,6 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
           </span>
           Live
         </span>
-        {showSignalBlip && <LiveSignalBlip />}
       </span>
 
       <span className={`relative flex min-w-0 flex-1 ${compact ? 'items-center gap-4' : 'mt-2.5 grid gap-2'}`} style={!compact ? { gridTemplateColumns: `repeat(${metrics.length}, minmax(0,1fr))` } : undefined}>

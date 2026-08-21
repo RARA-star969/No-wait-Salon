@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import {
   Scissors,
@@ -168,6 +168,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const homeScrollRef = useRef<HTMLDivElement>(null);
+  // Home and Salon Detail share one scroll container. Without this, opening
+  // a salon from a scrolled-down nearby-salons list would land mid-page —
+  // it would inherit Home's scroll position instead of starting at its own
+  // hero. Runs synchronously before paint so there is no visible jump.
+  useLayoutEffect(() => {
+    if (currentScreen === 'salon' && homeScrollRef.current) {
+      homeScrollRef.current.scrollTop = 0;
+    }
+  }, [currentScreen, selectedSalon.id]);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
   // every second (which previously restarted the QR camera).
