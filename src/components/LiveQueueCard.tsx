@@ -74,11 +74,13 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   return (
     <section
       id="live-queue-hero-card"
-      className={`relative overflow-hidden rounded-[20px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_18px_38px_-18px_rgba(6,44,40,0.65)] ring-1 ring-white/[0.06] ${className}`}
+      className={`relative overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] px-4 py-3.5 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.14),inset_0_1px_0_rgba(255,255,255,0.22),inset_0_0_0_1px_rgba(255,255,255,0.05),0_0_26px_-6px_rgba(94,224,180,0.38),0_18px_38px_-18px_rgba(6,44,40,0.65)] ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
       <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/20 blur-3xl" aria-hidden="true" />
+      {/* Glassy top sheen — premium "live-device" surface highlight, purely decorative. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.08] to-transparent" aria-hidden="true" />
 
       <div className="relative flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">

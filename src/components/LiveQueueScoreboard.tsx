@@ -67,10 +67,10 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
       type={onTap ? 'button' : undefined}
       onClick={onTap}
       aria-label={onTap ? 'Return to live queue' : undefined}
-      className={`live-scoreboard relative isolate overflow-hidden text-left ring-1 ring-white/10 ${
+      className={`live-scoreboard relative isolate overflow-hidden text-left ${
         compact
-          ? 'flex items-center gap-3 rounded-full px-3.5 py-2 shadow-[0_14px_32px_-10px_rgba(6,44,40,0.65)]'
-          : 'rounded-2xl px-4 py-3.5 shadow-[0_14px_32px_-14px_rgba(6,44,40,0.55)]'
+          ? 'flex items-center gap-3 rounded-full px-3.5 py-2 shadow-[0_0_0_1px_rgba(255,255,255,0.16),inset_0_1px_0_rgba(255,255,255,0.24),inset_0_0_0_1px_rgba(255,255,255,0.06),0_0_20px_-6px_rgba(94,224,180,0.4),0_14px_32px_-10px_rgba(6,44,40,0.65)]'
+          : 'rounded-2xl px-4 py-3.5 shadow-[0_14px_32px_-14px_rgba(6,44,40,0.55)] ring-1 ring-white/10'
       } ${className}`}
       style={{
         background: 'linear-gradient(135deg, rgba(11,74,68,0.94), rgba(15,107,98,0.9) 55%, rgba(15,118,110,0.88))',
@@ -79,6 +79,11 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
       }}
     >
       <span className="live-scoreboard-glow pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-[#5EE0B4]/25 blur-2xl" aria-hidden="true" />
+      {/* Glassy top sheen on the capsule only — the same "live-device" surface
+          highlight as the main card, so the two read as siblings. */}
+      {compact && (
+        <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.1] to-transparent" aria-hidden="true" />
+      )}
 
       <span className="relative flex shrink-0 items-center gap-1.5">
         <span className={`live-chip-pulse inline-flex items-center gap-1 rounded-full bg-[#EF4444]/90 font-bold uppercase tracking-[0.08em] text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'}`}>
