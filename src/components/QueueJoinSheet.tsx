@@ -3,11 +3,11 @@ import { AlertCircle, Check, ChevronRight, Clock, LoaderCircle, Scissors, Sparkl
 import type { Barber, CustomerProfile, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
 import { formatDurationLabel } from '../shared/durationFormat';
+import { sumDurationMinutes } from '../shared/serviceSelection';
 import { selectableStylists, STYLIST_STATUS_LABEL, stylistLiveStatus } from '../shared/staffAvailability';
 import type { LiveQueueMetrics } from '../shared/liveQueueMetrics';
 import { couponTotals } from '../shared/couponValidation';
 import { CustomerAvatar } from './CustomerAvatar';
-import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
 
@@ -79,7 +79,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
   const [viewServicesOpen, setViewServicesOpen] = useState(false);
   const [profileBarber, setProfileBarber] = useState<Barber | null>(null);
   const preview = useMemo(() => buildJoinPreview(queue, barbers), [queue, barbers]);
-  const totalDurationMin = useMemo(() => services.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0), [services]);
+  const totalDurationMin = useMemo(() => sumDurationMinutes(services), [services]);
   const totalPriceInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
   // Same resolveCoupon math the Price Breakdown uses, over the same salon
   // offers and the same applied code, so "To pay" never disagrees with it.
@@ -130,17 +130,12 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {liveQueueMetrics ? (
-            /* Customer app: the exact same live card as Salon Detail, fed by
-               the same derived metrics, so the two can never disagree. */
-            <LiveQueueCard
-              waitLabel={liveQueueMetrics.waitMinutes > 0 ? liveQueueMetrics.waitLabel : 'Ready now'}
-              peopleAhead={liveQueueMetrics.waitingCount}
-              readyChairs={liveQueueMetrics.availableBarbers}
-              totalChairs={liveQueueMetrics.activeBarbers}
-            />
-          ) : (
-            /* Public QR page: unchanged panel summary from buildJoinPreview. */
+          {/* Customer app (liveQueueMetrics present): no live card here —
+              the floating capsule on Salon Detail stays visible behind this
+              sheet for the whole flow, so this would just duplicate it. */}
+          {!liveQueueMetrics && (
+            /* Public QR page: unchanged panel summary from buildJoinPreview —
+               that surface has no floating capsule, so this stays as-is. */
             <LiveQueueScoreboard
               variant="panel"
               metrics={[

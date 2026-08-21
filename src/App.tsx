@@ -702,7 +702,6 @@ export default function App() {
                   setSelectedService={setSelectedService}
                   selectedServiceIds={selectedServiceIds}
                   setSelectedServiceIds={setSelectedServiceIds}
-                  suppressLiveCapsule={isJoinSheetOpen}
                   appliedCouponCode={appliedCouponCode}
                   onApplyCoupon={setAppliedCouponCode}
                   onRemoveCoupon={() => setAppliedCouponCode(null)}

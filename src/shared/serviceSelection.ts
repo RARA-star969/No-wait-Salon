@@ -34,13 +34,22 @@ export type ServiceSelectionTotals = {
   names: string[];
 };
 
+/**
+ * Single source of truth for "how long will this take" — used by both the
+ * Salon Detail dock (via selectionTotals below) and the Join Queue sheet's
+ * "To pay" Session row, so the two surfaces can never disagree.
+ */
+export function sumDurationMinutes(services: { durationMin: number }[]): number {
+  return services.reduce((sum, service) => sum + (Number(service.durationMin) || 0), 0);
+}
+
 export function selectionTotals(services: SalonProfileService[], selectedIds: ReadonlySet<string> | string[]): ServiceSelectionTotals {
   const ids = selectedIds instanceof Set ? selectedIds : new Set(selectedIds);
   const chosen = services.filter((service) => ids.has(service.id));
   return {
     count: chosen.length,
     totalPriceInr: chosen.reduce((sum, service) => sum + (Number(service.priceInr) || 0), 0),
-    totalDurationMin: chosen.reduce((sum, service) => sum + (Number(service.durationMin) || 0), 0),
+    totalDurationMin: sumDurationMinutes(chosen),
     names: chosen.map((service) => service.name),
   };
 }
