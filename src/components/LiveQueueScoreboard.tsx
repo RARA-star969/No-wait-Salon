@@ -43,8 +43,8 @@ function useFlashOnChange(value: React.ReactNode): boolean {
 const MetricValue: React.FC<{ metric: ScoreboardMetric; compact: boolean }> = ({ metric, compact }) => {
   const flashing = useFlashOnChange(metric.value);
   return (
-    <div className="min-w-0 shrink-0">
-      <p className={`flex items-center whitespace-nowrap font-bold uppercase tracking-[0.12em] text-white/60 ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+    <div className={`min-w-0 shrink-0 ${compact ? 'flex flex-col items-center text-center' : ''}`}>
+      <p className={`flex items-center whitespace-nowrap font-bold uppercase tracking-[0.12em] text-white/60 ${compact ? 'justify-center text-[8px]' : 'text-[9px]'}`}>
         {metric.label}
       </p>
       <p

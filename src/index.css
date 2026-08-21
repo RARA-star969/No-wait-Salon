@@ -99,6 +99,23 @@ body.barcode-scanner-active #qr-scanner-scrim {
   animation: scoreboard-breathe 3.6s ease-in-out infinite;
 }
 
+/* Live queue hero card background: a faint scrolling line-graph, reusing the
+   queue-waveform keyframe above — GPU-only transform, no per-frame JS. */
+.queue-waveform-line {
+  animation: queue-waveform 9s linear infinite;
+}
+
+/* A gentle breathing emphasis for "Your Turn" — noticeable without being a
+   flashy attention-grab. Opacity + scale only. */
+@keyframes attention-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.74; transform: scale(1.035); }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.9s ease-in-out infinite;
+}
+
 .live-scoreboard-glow {
   animation: scoreboard-glow-drift 4.2s ease-in-out infinite;
 }
@@ -238,7 +255,9 @@ body.barcode-scanner-active #qr-scanner-scrim {
   .add-to-dock-ping,
   .open-dot-bounce,
   .capsule-settle-in,
-  .sheet-flip-in {
+  .sheet-flip-in,
+  .queue-waveform-line,
+  .attention-pulse {
     animation: none;
   }
 

@@ -134,12 +134,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const scoreboardMetrics = [
     {
       key: 'time',
-      label: (
-        <span className="inline-flex items-center gap-1">
-          <Clock className="h-2.5 w-2.5" aria-hidden="true" />
-          Time
-        </span>
-      ),
+      label: 'Time',
       value: waitMinutes > 0 ? <TimeValue label={waitLabel} /> : 'Now',
     },
     { key: 'position', label: 'Position', value: positionLabel },
@@ -159,7 +154,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           into a floating capsule, only while that card is scrolled out of view. */}
       <div
         aria-hidden={!showScoreboard}
-        className={`fixed inset-x-0 top-0 z-40 flex justify-center px-4 pt-[max(0.75rem,env(safe-area-inset-top))] transition-all duration-300 ease-out ${
+        className={`fixed inset-x-0 top-0 z-40 flex justify-center px-4 pt-[max(1.1rem,calc(env(safe-area-inset-top)+0.35rem))] transition-all duration-300 ease-out ${
           showScoreboard ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
         }`}
       >

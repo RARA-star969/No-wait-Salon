@@ -37,7 +37,7 @@ function useFlashOnChange<T>(value: T): boolean {
 }
 
 /** Value on top, single-line label below — never a generated/duplicated helper line. */
-const Stat: React.FC<{ label: string; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
+const Stat: React.FC<{ label: React.ReactNode; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
   <div className="min-w-0 text-center">
     <p
       className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
@@ -66,10 +66,20 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   const display = deriveQueueDisplayState(peopleAhead, readyChairs);
   const primaryStat =
     display.state === 'ready_now'
-      ? { value: '#1', label: 'Your Turn' }
+      ? { value: '#1', label: <span className="attention-pulse">Your Turn</span> }
       : display.state === 'your_turn'
-        ? { value: 'Your Turn', label: '' }
-        : { value: <TimeValue label={waitLabel} />, label: 'Wait Time' };
+        ? {
+            // Stacked, not a flat "Your Turn" line, with a subtle breathing
+            // emphasis so this state reads as distinct at a glance.
+            value: (
+              <span className="attention-pulse flex flex-col items-center leading-[1.05]">
+                <span>Your</span>
+                <span>Turn</span>
+              </span>
+            ),
+            label: '',
+          }
+        : { value: <TimeValue label={waitLabel} />, label: 'Waiting' };
 
   return (
     <section
@@ -81,6 +91,25 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
       <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/20 blur-3xl" aria-hidden="true" />
       {/* Glassy top sheen — premium "live-device" surface highlight, purely decorative. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.08] to-transparent" aria-hidden="true" />
+      {/* Faint scrolling line-graph — a subtle "live, updating" trading-chart
+          feel. Doubled path, translated by exactly half its width via the
+          queue-waveform keyframe, so the loop seam is invisible. Pure CSS
+          transform, no per-frame JS. */}
+      <svg
+        className="queue-waveform-line pointer-events-none absolute inset-x-0 bottom-0 h-12 w-[200%] text-white/[0.08]"
+        viewBox="0 0 800 60"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M0 40 L40 30 L80 44 L120 22 L160 36 L200 16 L240 32 L280 24 L320 42 L360 20 L400 40 L440 30 L480 44 L520 22 L560 36 L600 16 L640 32 L680 24 L720 42 L760 20 L800 40"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
 
       <div className="relative flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
