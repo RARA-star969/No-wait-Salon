@@ -152,6 +152,13 @@ export interface SalonOffer {
   minimumBill?: string;
   validity?: string;
   terms?: string;
+  /** Redemption code a customer types in to apply this offer at checkout. Absent/empty means this is a display-only banner, not a coupon. */
+  code?: string;
+  discountType?: 'percent' | 'flat';
+  /** Paired with discountType: a percent (0-100) or a flat rupee amount. */
+  discountValue?: number;
+  /** Numeric minimum bill for real validation — minimumBill above stays the pre-formatted display string. */
+  minimumBillInr?: number;
 }
 
 export interface SalonGalleryItem {

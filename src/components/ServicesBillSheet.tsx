@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Tag, X } from 'lucide-react';
-import type { ServiceItem } from '../types';
+import { Check, Tag, X } from 'lucide-react';
+import type { SalonOffer, ServiceItem } from '../types';
 import { formatDurationLabel } from '../shared/durationFormat';
+import { resolveCoupon } from '../shared/couponValidation';
 
 /**
  * The one financial-summary sheet design shared by "tap the price" on the
  * salon page/action dock (Price Breakdown) and "View services" inside the
  * Join Queue sheet (View Services). Same row alignment, same divider, same
- * Subtotal/Total footer — so the two never drift into separate designs.
+ * Subtotal → Discount → Total footer — so the two never drift into separate
+ * designs, and — because both call sites pass the same `appliedCouponCode`
+ * and the same salon `offers`, resolved here through the one shared
+ * `resolveCoupon` — never drift into separate numbers either.
  *
- * Deliberately has no discount/coupon logic wired up yet: `showCoupon` opts
- * a call site into an honest coupon-code input that never fabricates a
- * discount — applying always reports that coupons aren't live yet, so the
- * footer structure (Subtotal → Discount → Total) is ready for a real one
- * without inventing production pricing behaviour today.
+ * `showCoupon` opts a call site into the code-entry row (Price Breakdown);
+ * View Services only ever displays whatever is already applied.
  */
 type Props = {
   open: boolean;
@@ -22,21 +23,39 @@ type Props = {
   services: ServiceItem[];
   showDuration?: boolean;
   showCoupon?: boolean;
+  offers?: SalonOffer[];
+  appliedCouponCode?: string | null;
+  onApplyCoupon?: (code: string) => void;
+  onRemoveCoupon?: () => void;
   onClose: () => void;
 };
 
-export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, services, showDuration = true, showCoupon = false, onClose }) => {
-  const [couponCode, setCouponCode] = useState('');
-  const [couponMessage, setCouponMessage] = useState('');
+export const ServicesBillSheet: React.FC<Props> = ({
+  open,
+  title,
+  eyebrow,
+  services,
+  showDuration = true,
+  showCoupon = false,
+  offers = [],
+  appliedCouponCode = null,
+  onApplyCoupon,
+  onRemoveCoupon,
+  onClose,
+}) => {
+  const [couponInput, setCouponInput] = useState('');
   if (!open) return null;
-  const subtotal = services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0);
-  // No fees/discounts wired up yet, so total mirrors subtotal — the two rows
-  // stay separate so a future discount line only has to change the total.
-  const total = subtotal;
 
-  const applyCoupon = () => {
-    if (!couponCode.trim()) return;
-    setCouponMessage("Coupons aren't live yet — your total is unchanged.");
+  const subtotal = services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0);
+  const coupon = resolveCoupon(appliedCouponCode, offers, subtotal);
+  const discountInr = coupon.status === 'applied' ? coupon.discountInr : 0;
+  const total = Math.max(0, subtotal - discountInr);
+
+  const submitCoupon = () => {
+    const code = couponInput.trim();
+    if (!code || !onApplyCoupon) return;
+    onApplyCoupon(code);
+    setCouponInput('');
   };
 
   return (
@@ -59,17 +78,17 @@ export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, servi
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          <div className="rounded-2xl border border-[#E1E7E6] bg-white p-4">
-            <div className="space-y-3">
+          <div className="overflow-hidden rounded-2xl border border-[#E3EAE8] bg-white shadow-[0_8px_20px_-16px_rgba(15,40,37,0.3)]">
+            <div className="space-y-3 px-4 pb-1 pt-4">
               {services.map((service) => (
                 <div key={service.id} className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[#17201F]">{service.name}</p>
+                    <p className="truncate text-[12.5px] font-bold text-[#17201F]">{service.name}</p>
                     {showDuration && (
-                      <p className="mt-0.5 text-[11px] text-[#788582]">{formatDurationLabel(service.durationMin)}</p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-[#8A9694]">{formatDurationLabel(service.durationMin)}</p>
                     )}
                   </div>
-                  <span className="shrink-0 text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+                  <span className="shrink-0 text-[12.5px] font-bold tabular-nums text-[#17201F]">₹{service.priceInr}</span>
                 </div>
               ))}
               {services.length === 0 && (
@@ -77,41 +96,77 @@ export const ServicesBillSheet: React.FC<Props> = ({ open, title, eyebrow, servi
               )}
             </div>
 
-            <div className="my-4 h-px bg-[#E7ECEB]" />
-
             {showCoupon && (
-              <div className="mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#DDE7E5] bg-[#F8FAFA] px-3">
-                    <Tag className="h-3.5 w-3.5 shrink-0 text-[#0F766E]" />
-                    <input
-                      value={couponCode}
-                      onChange={(event) => { setCouponCode(event.target.value); setCouponMessage(''); }}
-                      placeholder="Coupon code"
-                      className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-[#17201F] outline-none placeholder:text-[#9AA6A3]"
-                    />
+              <div className="px-4 pb-1 pt-3">
+                {coupon.status === 'applied' || coupon.status === 'below_minimum' ? (
+                  <div className="flex items-center justify-between gap-2 rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] px-3 py-2.5">
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs font-bold text-[#0F766E]">
+                      <Tag className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate uppercase tracking-[0.04em]">{coupon.offer.code}</span>
+                      <span className="font-semibold text-[#5C7773]">applied</span>
+                    </span>
+                    <button type="button" onClick={onRemoveCoupon} className="shrink-0 text-[11px] font-bold text-[#8A9694] underline underline-offset-2">
+                      Remove
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={applyCoupon}
-                    className="h-11 shrink-0 rounded-xl bg-[#0F766E] px-4 text-xs font-bold text-white transition active:scale-[0.98]"
-                  >
-                    Apply
-                  </button>
-                </div>
-                {couponMessage && <p className="mt-2 text-[11px] font-medium text-[#8A6516]" role="status">{couponMessage}</p>}
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#DDE7E5] bg-[#F8FAFA] px-3">
+                      <Tag className="h-3.5 w-3.5 shrink-0 text-[#0F766E]" />
+                      <input
+                        value={couponInput}
+                        onChange={(event) => setCouponInput(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === 'Enter') submitCoupon(); }}
+                        placeholder="Coupon code"
+                        className="min-w-0 flex-1 bg-transparent text-xs font-semibold uppercase tracking-[0.04em] text-[#17201F] outline-none placeholder:text-[#9AA6A3] placeholder:normal-case placeholder:tracking-normal"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={submitCoupon}
+                      className="h-11 shrink-0 rounded-xl bg-[#0F766E] px-4 text-xs font-bold text-white transition active:scale-[0.98]"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                )}
+                {coupon.status === 'invalid' && (
+                  <p role="alert" className="mt-2 text-[11px] font-semibold text-[#B4472F]">That code isn't valid for this salon.</p>
+                )}
+                {coupon.status === 'below_minimum' && (
+                  <p role="alert" className="mt-2 text-[11px] font-semibold text-[#8A6516]">
+                    Add ₹{coupon.shortfallInr} more to unlock this offer (minimum bill ₹{coupon.minimumBillInr}).
+                  </p>
+                )}
+                {coupon.status === 'applied' && (
+                  <p role="status" className="mt-2 flex items-center gap-1 text-[11px] font-semibold text-[#0F766E]">
+                    <Check className="h-3 w-3" /> {coupon.offer.title} applied — you saved ₹{coupon.discountInr}.
+                  </p>
+                )}
               </div>
             )}
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-[#5C6B68]">
+            <div className="mt-1 space-y-1.5 px-4 pb-4 pt-3">
+              <div className="flex items-center justify-between text-[11.5px] font-semibold text-[#788582]">
                 <span>Subtotal</span>
-                <span>₹{subtotal}</span>
+                <span className="tabular-nums">₹{subtotal}</span>
               </div>
-              <div className="flex items-center justify-between pt-1 text-base font-bold text-[#17201F]">
-                <span>Total</span>
-                <span>₹{total}</span>
-              </div>
+              {coupon.status === 'applied' && discountInr > 0 && (
+                <div className="flex items-center justify-between text-[11.5px] font-semibold text-[#0F766E]">
+                  <span className="flex items-center gap-1.5">
+                    Discount
+                    <span className="rounded-full border border-[#BFE3D5] bg-[#E9F6F2] px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.04em] text-[#0F766E]">
+                      {coupon.offer.code}
+                    </span>
+                  </span>
+                  <span className="tabular-nums">−₹{discountInr}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between bg-gradient-to-b from-[#0F2C28] to-[#0F766E] px-4 py-3">
+              <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-white/70">Total</span>
+              <span className="text-xl font-extrabold tracking-[-0.02em] tabular-nums text-white">₹{total}</span>
             </div>
           </div>
         </div>

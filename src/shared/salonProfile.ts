@@ -54,6 +54,7 @@ export function normaliseOffers(offers: unknown): SalonOffer[] {
         const record = offer as Partial<SalonOffer>;
         const title = text(record.title);
         if (!title) return null;
+        const discountType = record.discountType === 'percent' || record.discountType === 'flat' ? record.discountType : undefined;
         return {
           id: text(record.id) || `offer-${index}`,
           title,
@@ -61,6 +62,10 @@ export function normaliseOffers(offers: unknown): SalonOffer[] {
           minimumBill: text(record.minimumBill),
           validity: text(record.validity),
           terms: text(record.terms),
+          code: text(record.code) || undefined,
+          discountType,
+          discountValue: Number.isFinite(Number(record.discountValue)) ? Number(record.discountValue) : undefined,
+          minimumBillInr: Number.isFinite(Number(record.minimumBillInr)) ? Number(record.minimumBillInr) : undefined,
         };
       }
       return null;

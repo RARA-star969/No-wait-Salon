@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, ChevronRight, LoaderCircle, Scissors, Sparkles, Star, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Clock, LoaderCircle, Scissors, Sparkles, Star, X } from 'lucide-react';
 import type { Barber, CustomerProfile, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
 import { formatDurationLabel } from '../shared/durationFormat';
 import { selectableStylists, STYLIST_STATUS_LABEL, stylistLiveStatus } from '../shared/staffAvailability';
+import type { LiveQueueMetrics } from '../shared/liveQueueMetrics';
+import { couponTotals } from '../shared/couponValidation';
 import { CustomerAvatar } from './CustomerAvatar';
+import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
 
@@ -28,6 +31,24 @@ type Props = {
   customerName?: string;
   /** Full profile, used to render the customer's actual uploaded photo. */
   customerProfile?: CustomerProfile | null;
+  /**
+   * When provided, the live section renders the exact same LiveQueueCard as
+   * the customer Salon Detail page, fed by these already-derived metrics —
+   * so the two surfaces can never disagree. Omit to keep the previous panel
+   * summary computed from `buildJoinPreview`; the public QR page (which
+   * renders this same sheet) intentionally never passes this, so its live
+   * summary and calculations are unaffected by this prop's existence.
+   */
+  liveQueueMetrics?: LiveQueueMetrics;
+  /**
+   * The one applied-coupon source of truth, owned by the app shell. Resolved
+   * here with the same `couponTotals` Salon Detail's Price Breakdown uses,
+   * against this same salon's real offers — never a separately stored
+   * discount. Omitted by the public QR page, which keeps its own checkout.
+   */
+  appliedCouponCode?: string | null;
+  onApplyCoupon?: (code: string) => void;
+  onRemoveCoupon?: () => void;
   onClose: () => void;
   onConfirm: (preferredBarberId: string) => void;
 };
@@ -47,6 +68,10 @@ export const QueueJoinSheet: React.FC<Props> = ({
   error,
   customerName,
   customerProfile,
+  liveQueueMetrics,
+  appliedCouponCode,
+  onApplyCoupon,
+  onRemoveCoupon,
   onClose,
   onConfirm,
 }) => {
@@ -56,6 +81,9 @@ export const QueueJoinSheet: React.FC<Props> = ({
   const preview = useMemo(() => buildJoinPreview(queue, barbers), [queue, barbers]);
   const totalDurationMin = useMemo(() => services.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0), [services]);
   const totalPriceInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
+  // Same resolveCoupon math the Price Breakdown uses, over the same salon
+  // offers and the same applied code, so "To pay" never disagrees with it.
+  const bill = useMemo(() => couponTotals(appliedCouponCode, salon.offers || [], totalPriceInr), [appliedCouponCode, salon.offers, totalPriceInr]);
   const serviceLabel = services.map((item) => item.name).join(' + ') || 'Service';
   const displayName = customerProfile?.name?.trim() || customerName;
 
@@ -102,40 +130,64 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Live queue facts — same reusable scoreboard language as the salon
-              page's sticky capsule, so the two never visually drift apart. */}
-          <LiveQueueScoreboard
-            variant="panel"
-            metrics={[
-              { key: 'ahead', label: 'People ahead', value: preview.peopleAhead },
-              { key: 'position', label: 'Your position', value: `#${preview.projectedPosition}` },
-              { key: 'wait', label: 'Est. time', value: preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m` },
-              { key: 'chairs', label: 'Chairs available', value: preview.openChairs },
-            ]}
-          />
+          {liveQueueMetrics ? (
+            /* Customer app: the exact same live card as Salon Detail, fed by
+               the same derived metrics, so the two can never disagree. */
+            <LiveQueueCard
+              waitLabel={liveQueueMetrics.waitMinutes > 0 ? liveQueueMetrics.waitLabel : 'Ready now'}
+              peopleAhead={liveQueueMetrics.waitingCount}
+              readyChairs={liveQueueMetrics.availableBarbers}
+              totalChairs={liveQueueMetrics.activeBarbers}
+            />
+          ) : (
+            /* Public QR page: unchanged panel summary from buildJoinPreview. */
+            <LiveQueueScoreboard
+              variant="panel"
+              metrics={[
+                { key: 'ahead', label: 'People ahead', value: preview.peopleAhead },
+                { key: 'position', label: 'Your position', value: `#${preview.projectedPosition}` },
+                { key: 'wait', label: 'Est. time', value: preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m` },
+                { key: 'chairs', label: 'Chairs available', value: preview.openChairs },
+              ]}
+            />
+          )}
 
-          {/* Session summary — this is the customer's own service duration,
+          {/* Payment summary — "To pay" is the final, already-discounted
+              amount; the service name(s) move to a small corner tag so the
+              row still reads correctly whether one service is selected or
+              five. Session duration is the customer's own service time,
               never to be confused with how long the queue itself will take. */}
-          <section className="mt-4 rounded-2xl border border-[#E1E7E6] bg-white p-4">
-            <div className="flex items-start justify-between gap-3">
+          <section className="relative mt-4 rounded-[18px] border border-[#E3EAE8] bg-gradient-to-b from-white to-[#FBFDFC] p-4 shadow-[0_10px_24px_-18px_rgba(15,40,37,0.28)]">
+            <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#17201F]">{serviceLabel}</p>
-                {totalDurationMin > 0 ? (
-                  <p className="mt-1 text-[11px] font-semibold text-[#60716E]">
-                    Your session · approx. {formatDurationLabel(totalDurationMin)}
-                  </p>
-                ) : null}
+                <p className="text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#5C7773]">To pay</p>
+                <p className="mt-1 text-[26px] font-extrabold leading-none tracking-[-0.03em] tabular-nums text-[#0F2C28]">
+                  <sup className="mr-0.5 text-sm font-bold text-[#3E5A55]">₹</sup>{bill.totalInr}
+                </p>
               </div>
-              {totalPriceInr > 0 ? <span className="shrink-0 text-base font-bold text-[#17201F]">₹{totalPriceInr}</span> : null}
+              {serviceLabel && <p className="max-w-[120px] shrink-0 truncate text-right text-[10.5px] font-bold text-[#8A9694]">{serviceLabel}</p>}
             </div>
-            <div className="mt-3 flex items-center justify-between border-t border-[#EEF2F1] pt-3">
-              <span className="text-[11px] font-semibold text-[#788582]">
+
+            {totalDurationMin > 0 && (
+              <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[#E1EEEA] bg-[#F1F8F6] px-2.5 py-2">
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#E4F3EF] to-[#D6ECE6] text-[#0F766E] shadow-[inset_0_0_0_1px_rgba(15,118,110,0.12)]">
+                  <Clock className="h-3.5 w-3.5" />
+                </span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#5C7773]">Session</span>
+                  <span className="text-xs font-extrabold text-[#17332F]">{formatDurationLabel(totalDurationMin)}</span>
+                </span>
+              </div>
+            )}
+
+            <div className="mt-3 flex items-center justify-between border-t border-[#EDF2F1] pt-3">
+              <span className="text-[10.5px] font-semibold text-[#8A9694]">
                 {services.length} {services.length === 1 ? 'service' : 'services'} selected
               </span>
               <button
                 type="button"
                 onClick={() => setViewServicesOpen(true)}
-                className="flex items-center gap-1 text-[11px] font-bold text-[#0F766E]"
+                className="flex min-h-[26px] items-center gap-1 border-b border-dashed border-[#BFDAD6] py-0.5 text-[11px] font-bold text-[#0F766E]"
               >
                 View services
                 <ChevronRight className="h-3 w-3" />
@@ -217,6 +269,8 @@ export const QueueJoinSheet: React.FC<Props> = ({
         title="Your services"
         eyebrow={`${services.length} ${services.length === 1 ? 'service' : 'services'} selected`}
         services={services}
+        offers={salon.offers}
+        appliedCouponCode={appliedCouponCode}
         onClose={() => setViewServicesOpen(false)}
       />
 

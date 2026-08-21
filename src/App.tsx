@@ -23,6 +23,7 @@ import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQue
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 import { businessQrService } from './services/businessQrService';
 import { resolveAppReadiness } from './shared/profileReadiness';
+import { deriveLiveQueueMetrics } from './shared/liveQueueMetrics';
 import { QueueJoinSheet } from './components/QueueJoinSheet';
 import { AccountOnboarding } from './components/AccountOnboarding';
 
@@ -109,6 +110,18 @@ export default function App() {
   const [isJoinSheetOpen, setIsJoinSheetOpen] = useState(false);
   const [joinSheetBusy, setJoinSheetBusy] = useState(false);
   const [joinSheetError, setJoinSheetError] = useState('');
+  // Same derivation the Salon Detail page uses, so its live card and the
+  // Join Queue sheet's live card never disagree.
+  const liveQueueMetrics = deriveLiveQueueMetrics(queue, barbers);
+
+  // The one applied-coupon source of truth: Salon Detail's Price Breakdown,
+  // the Join Queue "To pay" line, and Join Queue's View Services all derive
+  // their discount from this same code plus the same salon.offers, via
+  // resolveCoupon — never a separately stored discount amount.
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  useEffect(() => {
+    setAppliedCouponCode(null);
+  }, [selectedSalon.id]);
 
   // Booking verification gate: guests browse freely, but tapping Join Queue
   // without a verified, complete profile opens this instead of the join
@@ -689,6 +702,10 @@ export default function App() {
                   setSelectedService={setSelectedService}
                   selectedServiceIds={selectedServiceIds}
                   setSelectedServiceIds={setSelectedServiceIds}
+                  suppressLiveCapsule={isJoinSheetOpen}
+                  appliedCouponCode={appliedCouponCode}
+                  onApplyCoupon={setAppliedCouponCode}
+                  onRemoveCoupon={() => setAppliedCouponCode(null)}
                   queue={queue}
                   barbers={barbers}
                   userEntry={userEntry}
@@ -844,6 +861,10 @@ export default function App() {
         error={joinSheetError}
         customerName={customerProfile?.name}
         customerProfile={customerProfile}
+        liveQueueMetrics={liveQueueMetrics}
+        appliedCouponCode={appliedCouponCode}
+        onApplyCoupon={setAppliedCouponCode}
+        onRemoveCoupon={() => setAppliedCouponCode(null)}
         onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />

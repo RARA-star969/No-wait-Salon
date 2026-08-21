@@ -193,7 +193,18 @@ function rowToSalon(row: SalonRow): Salon {
   const hoursRows = db.prepare('SELECT * FROM salon_hours WHERE salon_id = ? ORDER BY day_of_week').all(row.id) as Array<Record<string, string | number>>;
   const services = serviceRows.map((service) => ({ id: String(service.id), name: String(service.name), durationMin: Number(service.duration_min), priceInr: Number(service.price_inr), description: String(service.description || ''), icon: String(service.image_url || '') }));
   const barbers = staffRows.map((staff) => ({ id: String(staff.id), name: String(staff.name), status: String(staff.working_status) as Barber['status'] }));
-  const offers = offerRows.map((offer) => ({ id: String(offer.id), title: String(offer.title), discount: String(offer.discount_text), minimumBill: Number(offer.minimum_bill) ? `₹${offer.minimum_bill}` : '', validity: [offer.start_date, offer.end_date].filter(Boolean).join(' – '), terms: String(offer.terms) }));
+  const offers = offerRows.map((offer) => ({
+    id: String(offer.id),
+    title: String(offer.title),
+    discount: String(offer.discount_text),
+    minimumBill: Number(offer.minimum_bill) ? `₹${offer.minimum_bill}` : '',
+    validity: [offer.start_date, offer.end_date].filter(Boolean).join(' – '),
+    terms: String(offer.terms),
+    code: String(offer.code || '') || undefined,
+    discountType: offer.discount_type === 'percent' ? 'percent' as const : 'flat' as const,
+    discountValue: Number(offer.discount_value) || 0,
+    minimumBillInr: Number(offer.minimum_bill) || 0,
+  }));
   const gallery = mediaRows.filter((media) => media.media_type === 'gallery').map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name) }));
   return {
     id: row.id,
@@ -318,6 +329,18 @@ for (const [column, ddl] of [
 
 const customerProfileColumns = new Set((db.prepare('PRAGMA table_info(customer_profile)').all() as Array<{ name: string }>).map((column) => column.name));
 if (!customerProfileColumns.has('marketing_consent')) db.exec('ALTER TABLE customer_profile ADD COLUMN marketing_consent INTEGER NOT NULL DEFAULT 0');
+
+// Additive coupon fields: an offer with a non-empty code becomes redeemable
+// at checkout, not just a display banner. Existing offers default to no code
+// (discount_type/value unused), so nothing already configured changes.
+const salonOfferColumns = new Set((db.prepare('PRAGMA table_info(salon_offer)').all() as Array<{ name: string }>).map((column) => column.name));
+for (const [column, ddl] of [
+  ['code', "code TEXT NOT NULL DEFAULT ''"],
+  ['discount_type', "discount_type TEXT NOT NULL DEFAULT 'flat'"],
+  ['discount_value', 'discount_value INTEGER NOT NULL DEFAULT 0'],
+] as const) {
+  if (!salonOfferColumns.has(column)) db.exec(`ALTER TABLE salon_offer ADD COLUMN ${ddl}`);
+}
 
 // Lightweight attribution for customers acquired by scanning a salon QR with a
 // plain phone camera. Deliberately minimal: no marketing engine, just fields.
@@ -786,9 +809,14 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
   replace('salon_offer', Array.isArray(body.offers) ? body.offers : [], (row, index) => {
     const title = cleanText(row.title, 120); if (!title) throw new Error('Every offer needs a title.');
     const minimum = Number(row.minimum_bill ?? 0); if (!Number.isFinite(minimum) || minimum < 0) throw new Error('Minimum bill cannot be negative.');
-    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(cleanText(row.id, 100) || randomUUID(), salonId, title, cleanText(row.discount_text, 120), cleanText(row.description, 1000), minimum, cleanText(row.start_date, 10), cleanText(row.end_date, 10), cleanText(row.terms, 2000), cleanText(row.image_url, 1000), asBoolean(row.active) ? 1 : 0, index, now, now);
+    const code = cleanText(row.code, 40);
+    const discountType = row.discount_type === 'percent' ? 'percent' : 'flat';
+    const discountValue = Number(row.discount_value ?? 0);
+    if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Discount value for ${title} cannot be negative.`);
+    if (discountType === 'percent' && discountValue > 100) throw new Error(`Discount percent for ${title} cannot exceed 100.`);
+    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, code, discount_type, discount_value, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(cleanText(row.id, 100) || randomUUID(), salonId, title, cleanText(row.discount_text, 120), cleanText(row.description, 1000), minimum, cleanText(row.start_date, 10), cleanText(row.end_date, 10), cleanText(row.terms, 2000), cleanText(row.image_url, 1000), asBoolean(row.active) ? 1 : 0, index, code, discountType, discountValue, now, now);
   });
   replace('salon_media', Array.isArray(body.media) ? body.media : [], (row, index) => {
     const url = cleanText(row.url, 2000); if (!url) throw new Error('Every gallery item needs an image URL.');

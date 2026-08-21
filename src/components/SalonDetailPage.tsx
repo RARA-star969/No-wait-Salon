@@ -3,6 +3,7 @@ import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronD
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { deriveQueueDisplayState } from '../shared/queueDisplayState';
+import { deriveLiveQueueMetrics } from '../shared/liveQueueMetrics';
 import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
@@ -24,6 +25,16 @@ type Props = {
   onJoin: () => void;
   onReserve: () => void;
   userEntry: QueueItem | null;
+  /** True while the Join Queue sheet is open: its own live card would
+   *  otherwise duplicate this page's floating capsule, so the capsule stays
+   *  hidden for as long as this is true, regardless of scroll position. The
+   *  existing scroll-driven `showScoreboard` state is untouched — this only
+   *  gates whether that decision is allowed to render. */
+  suppressLiveCapsule?: boolean;
+  /** The one applied-coupon source of truth, owned by App.tsx. */
+  appliedCouponCode?: string | null;
+  onApplyCoupon?: (code: string) => void;
+  onRemoveCoupon?: () => void;
 };
 
 const serviceCategory = (name: string) => {
@@ -45,7 +56,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   'Facial': <ScanFace className="h-4 w-4" />,
 };
 
-export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, onBack, onJoin, onReserve, userEntry }) => {
+export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, onBack, onJoin, onReserve, userEntry, suppressLiveCapsule, appliedCouponCode, onApplyCoupon, onRemoveCoupon }) => {
   const [saved, setSaved] = useState(false);
   const [visited, setVisited] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -64,19 +75,14 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [beenHereSheetOpen, setBeenHereSheetOpen] = useState(false);
   // Micro-bounce on the sticky dock whenever the selection count changes.
   const [dockBounce, setDockBounce] = useState(false);
-  const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
-  const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
-  const availableBarbers = barbers.filter((barber) => barber.status === 'available').length;
-  const waitMinutes = activeBarbers ? Math.ceil(waiting.length * 15 / activeBarbers) : 0;
+  // Single source of truth, also used by the Join Queue sheet's live card, so
+  // the two surfaces can never disagree about people ahead or ready chairs.
+  const { waitingCount, activeBarbers, availableBarbers, waitMinutes, waitLabel } = deriveLiveQueueMetrics(queue, barbers);
   // Shared with the public web page so the same salon never reads differently.
   const profile = useMemo(
-    () => toSalonProfile(salon, { liveWaitMinutes: waitMinutes, waitingCustomers: waiting.length }),
-    [salon, waitMinutes, waiting.length],
+    () => toSalonProfile(salon, { liveWaitMinutes: waitMinutes, waitingCustomers: waitingCount }),
+    [salon, waitMinutes, waitingCount],
   );
-  // The live-queue USP card shows only the value ("8 min") — never the word
-  // "wait" — so this stays local rather than the shared salonProfile label
-  // (which other surfaces, like the salon list "Current wait" row, keep as-is).
-  const waitLabel = formatDurationLabel(waitMinutes);
   const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name)))), [profile.services]);
   const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
 
@@ -125,12 +131,18 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     if (showScoreboard) setCapsuleEnterKey((key) => key + 1);
   }, [showScoreboard]);
 
+  // Derived, not a separate state machine: the capsule is exactly what
+  // showScoreboard already decided, minus the window where the Join Queue
+  // sheet has its own live card on screen. Closing the sheet doesn't force
+  // the capsule back — it just stops masking whatever showScoreboard is.
+  const capsuleVisible = showScoreboard && !suppressLiveCapsule;
+
   const scrollToLiveQueue = () => {
     liveQueueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const positionLabel = waiting.length === 0 ? 'Next' : `#${waiting.length + 1}`;
-  const queueDisplay = deriveQueueDisplayState(waiting.length, availableBarbers);
+  const positionLabel = waitingCount === 0 ? 'Next' : `#${waitingCount + 1}`;
+  const queueDisplay = deriveQueueDisplayState(waitingCount, availableBarbers);
   const scoreboardMetrics = [
     {
       key: 'time',
@@ -151,11 +163,13 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   return (
     <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
       {/* Signature sticky "live scoreboard": the main live-queue card, morphed
-          into a floating capsule, only while that card is scrolled out of view. */}
+          into a floating capsule, only while that card is scrolled out of view
+          — and never while the Join Queue sheet already shows its own live
+          card, so the two can't both be on screen at once. */}
       <div
-        aria-hidden={!showScoreboard}
+        aria-hidden={!capsuleVisible}
         className={`fixed inset-x-0 top-0 z-40 flex justify-center px-4 pt-[max(1.1rem,calc(env(safe-area-inset-top)+0.35rem))] transition-all duration-300 ease-out ${
-          showScoreboard ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
+          capsuleVisible ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
         }`}
       >
         <div key={capsuleEnterKey} className="w-full max-w-xl capsule-settle-in">
@@ -213,7 +227,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <section ref={liveQueueSectionRef}>
           <LiveQueueCard
             waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
-            peopleAhead={waiting.length}
+            peopleAhead={waitingCount}
             readyChairs={availableBarbers}
             totalChairs={activeBarbers}
           />
@@ -333,6 +347,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         services={profile.services.filter((service) => selectedServiceIds.includes(service.id))}
         showDuration={false}
         showCoupon
+        offers={profile.offers}
+        appliedCouponCode={appliedCouponCode}
+        onApplyCoupon={onApplyCoupon}
+        onRemoveCoupon={onRemoveCoupon}
         onClose={() => setPriceBreakdownOpen(false)}
       />
 

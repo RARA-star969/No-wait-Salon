@@ -92,6 +92,15 @@ interface CustomerAppProps {
   barbers: Barber[];
   userEntry: QueueItem | null;
   completedEntry: QueueItem | null;
+  /** True while the Join Queue sheet is open — passed straight through to
+   *  SalonDetailPage so its floating capsule hides while that sheet shows
+   *  its own live card. */
+  suppressLiveCapsule?: boolean;
+  /** The one applied-coupon source of truth, owned by App.tsx and passed
+   *  straight through to SalonDetailPage's Price Breakdown. */
+  appliedCouponCode?: string | null;
+  onApplyCoupon?: (code: string) => void;
+  onRemoveCoupon?: () => void;
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
   onCancelQueue: (reason?: { code: string; text: string }) => void;
@@ -122,6 +131,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   barbers,
   userEntry,
   completedEntry,
+  suppressLiveCapsule,
+  appliedCouponCode,
+  onApplyCoupon,
+  onRemoveCoupon,
   onJoinClick,
   onSelectSlotClick,
   onCancelQueue,
@@ -665,6 +678,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
           onReserve={() => setScreen('slots')}
           userEntry={userEntry}
+          suppressLiveCapsule={suppressLiveCapsule}
+          appliedCouponCode={appliedCouponCode}
+          onApplyCoupon={onApplyCoupon}
+          onRemoveCoupon={onRemoveCoupon}
         />
         </div>
       )}
