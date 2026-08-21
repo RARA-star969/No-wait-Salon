@@ -23,7 +23,7 @@ import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../s
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
-import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { LiveQueueCard } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { QueueJoinSheet } from './QueueJoinSheet';
@@ -196,15 +196,6 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   }, [peopleAhead, barbersActive]);
 
   const estimatedWait = estimatedWaitRange.label;
-
-  // Trend arrows on the live queue hero card: a lightweight client-side read
-  // of "did this number move since the last snapshot", nothing more.
-  const previousAhead = useRef(peopleAhead);
-  const [aheadTrend, setAheadTrend] = useState<QueueTrend>('steady');
-  useEffect(() => {
-    setAheadTrend(peopleAhead < previousAhead.current ? 'down' : peopleAhead > previousAhead.current ? 'up' : 'steady');
-    previousAhead.current = peopleAhead;
-  }, [peopleAhead]);
 
   const acknowledgeTurn = () => {
     setShowTurnPopup(false);
@@ -496,7 +487,6 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
             <LiveQueueCard
               waitLabel={isQueued ? estimatedWait : profile.liveWaitMinutes > 0 ? waitLabel(profile.liveWaitMinutes) : 'Ready now'}
               peopleAhead={isQueued ? peopleAhead : waiting}
-              peopleAheadTrend={aheadTrend}
               readyChairs={barbersAvailable}
               totalChairs={barbersActive}
               live={business.queueAccepting}

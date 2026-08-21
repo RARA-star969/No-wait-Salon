@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
+import { LiveSignalBlip } from './LiveSignalBlip';
 
 /**
  * The one reusable "premium live scoreboard" visual language — a glassy
@@ -24,6 +25,8 @@ type Props = {
   variant?: 'capsule' | 'panel';
   onTap?: () => void;
   className?: string;
+  /** Same travel-in/blink-green/travel-out signal dot as the hero live card. */
+  showSignalBlip?: boolean;
 };
 
 /** Flags a value as "just changed" for ~900ms so the UI can pulse it once. */
@@ -58,7 +61,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric; compact: boolean }> = ({
   );
 };
 
-export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel', onTap, className = '' }) => {
+export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel', onTap, className = '', showSignalBlip = false }) => {
   const compact = variant === 'capsule';
   const Wrapper = onTap ? 'button' : 'div';
 
@@ -67,9 +70,9 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
       type={onTap ? 'button' : undefined}
       onClick={onTap}
       aria-label={onTap ? 'Return to live queue' : undefined}
-      className={`live-scoreboard relative isolate overflow-hidden text-left ${
+      className={`live-scoreboard relative isolate overflow-hidden text-left ring-1 ring-white/10 ${
         compact
-          ? 'flex items-center gap-3 rounded-full px-3.5 py-2 shadow-[0_10px_28px_-10px_rgba(6,44,40,0.6)]'
+          ? 'flex items-center gap-3 rounded-full px-3.5 py-2 shadow-[0_14px_32px_-10px_rgba(6,44,40,0.65)]'
           : 'rounded-2xl px-4 py-3.5 shadow-[0_14px_32px_-14px_rgba(6,44,40,0.55)]'
       } ${className}`}
       style={{
@@ -80,12 +83,15 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, variant = 'panel
     >
       <span className="live-scoreboard-glow pointer-events-none absolute -right-6 -top-8 h-20 w-20 rounded-full bg-[#5EE0B4]/25 blur-2xl" aria-hidden="true" />
 
-      <span className={`live-chip-pulse relative inline-flex shrink-0 items-center gap-1 rounded-full bg-[#EF4444]/90 font-bold uppercase tracking-[0.08em] text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'}`}>
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+      <span className="relative flex shrink-0 items-center gap-1.5">
+        <span className={`live-chip-pulse inline-flex items-center gap-1 rounded-full bg-[#EF4444]/90 font-bold uppercase tracking-[0.08em] text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[9px]'}`}>
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+          </span>
+          Live
         </span>
-        Live
+        {showSignalBlip && <LiveSignalBlip />}
       </span>
 
       <span className={`relative flex min-w-0 flex-1 ${compact ? 'items-center gap-4' : 'mt-2.5 grid gap-2'}`} style={!compact ? { gridTemplateColumns: `repeat(${metrics.length}, minmax(0,1fr))` } : undefined}>

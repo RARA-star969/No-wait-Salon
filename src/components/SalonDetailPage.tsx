@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, PhoneCall, Plus, Scissors, Share2, Sparkles, Store, Timer, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, PhoneCall, Plus, Scissors, Share2, Sparkles, Store, Timer, UserCheck, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
-import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
 import { ServicesBillSheet } from './ServicesBillSheet';
+import { AnimatedSalonName } from './AnimatedSalonName';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { formatDurationLabel } from '../shared/durationFormat';
 
@@ -36,7 +37,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [saved, setSaved] = useState(false);
   const [visited, setVisited] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
-  const [payBillOpen, setPayBillOpen] = useState(false);
+  const [premiumLockedOpen, setPremiumLockedOpen] = useState(false);
   const [priceBreakdownOpen, setPriceBreakdownOpen] = useState(false);
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>('All');
   const liveQueueSectionRef = useRef<HTMLDivElement>(null);
@@ -91,16 +92,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     }
   };
 
-  // Trend arrow compares against the previous render's numbers, purely a
-  // client-side visual cue layered on top of the server-authoritative queue.
-  const previousStats = useRef({ waitingCount: waiting.length });
-  const [aheadTrend, setAheadTrend] = useState<QueueTrend>('steady');
-  useEffect(() => {
-    const prev = previousStats.current;
-    setAheadTrend(waiting.length < prev.waitingCount ? 'down' : waiting.length > prev.waitingCount ? 'up' : 'steady');
-    previousStats.current = { waitingCount: waiting.length };
-  }, [waiting.length]);
-
   // The signature sticky scoreboard: appears the moment the main live-queue
   // card scrolls out of view, and morphs back away the moment it returns.
   useEffect(() => {
@@ -113,6 +104,14 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  // Remounts the capsule's inner element each time it becomes visible, so
+  // its one-shot "lift and settle" animation replays on every re-entry
+  // instead of only the first time.
+  const [capsuleEnterKey, setCapsuleEnterKey] = useState(0);
+  useEffect(() => {
+    if (showScoreboard) setCapsuleEnterKey((key) => key + 1);
+  }, [showScoreboard]);
 
   const scrollToLiveQueue = () => {
     liveQueueSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -142,8 +141,8 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           showScoreboard ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
         }`}
       >
-        <div className="w-full max-w-xl">
-          <LiveQueueScoreboard variant="capsule" metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
+        <div key={capsuleEnterKey} className="w-full max-w-xl capsule-settle-in">
+          <LiveQueueScoreboard variant="capsule" metrics={scoreboardMetrics} onTap={scrollToLiveQueue} showSignalBlip />
         </div>
       </div>
 
@@ -165,8 +164,11 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
-              <div className="flex items-center gap-2"><span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4]' : 'bg-[#E58C82]'}`} /><span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span></div>
-              <h1 className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]">{salon.name}</h1>
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
+              </div>
+              <AnimatedSalonName name={salon.name} className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]" />
               <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
             </div>
           </div>
@@ -184,8 +186,8 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
       </section>
 
       <div className="space-y-5 px-4 py-4">
-        <section className="grid grid-cols-4 gap-2">
-          <QuickAction icon={<Clock3 />} label={salon.isOpen ? 'Open' : 'Closed'} secondary={salon.openingHours.split('·')[1]?.trim()} onClick={() => setOpenHoursSheetOpen(true)} />
+        <section className="grid grid-cols-4 gap-2.5">
+          <QuickAction icon={<CalendarDays />} label="Schedule" onClick={() => setOpenHoursSheetOpen(true)} />
           <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
           <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
           <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setBeenHereSheetOpen(true)} active={visited} />
@@ -195,7 +197,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <LiveQueueCard
             waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
             peopleAhead={waiting.length}
-            peopleAheadTrend={aheadTrend}
             readyChairs={availableBarbers}
             totalChairs={activeBarbers}
           />
@@ -225,12 +226,12 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
         </section>
 
-        {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
+        {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
 
         <section><SectionTitle eyebrow="Explore" title="Services" /><div className="flex gap-2 overflow-x-auto pb-1">{categories.map((category) => <a key={category} href="#service-menu" className="flex min-w-[104px] flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-4 text-center"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F3F1] text-[#0F766E]"><Scissors className="h-4 w-4" /></span><span className="mt-2 text-[11px] font-bold">{category}</span></a>)}</div></section>
 
         <section id="service-menu">
-          <SectionTitle eyebrow="Choose your services" title="Service menu" secondary={totals.count ? `${totals.count} selected` : 'Select services'} />
+          <SectionTitle eyebrow="Choose your services" title="Service menu" />
           <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
             {SERVICE_FILTERS.map((filter) => (
               <button
@@ -258,11 +259,11 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#0F766E]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
+        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#0F766E]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
+        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
-        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
+        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
       {/* Premium sticky action dock: elevated glass/mirror panel, safe-area
@@ -287,18 +288,22 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <div className="grid grid-cols-[1fr_auto] gap-2">
             <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm disabled:opacity-50 disabled:shadow-none">{userEntry ? 'View live queue' : 'Join Queue'}</button>
             <button
-              onClick={() => setPayBillOpen(true)}
-              className="relative flex min-h-13 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-4 text-xs font-bold text-[#3B2A08] transition active:scale-[0.98]"
-              style={{ background: 'linear-gradient(120deg, #8A6A2C, #D6B676, #8A6A2C)' }}
+              type="button"
+              onClick={() => setPremiumLockedOpen(true)}
+              aria-label="Premium calendar booking, coming soon"
+              className="relative flex min-h-13 w-13 shrink-0 items-center justify-center overflow-hidden rounded-2xl shadow-[0_10px_20px_-10px_rgba(120,86,20,0.55)] transition active:scale-[0.98]"
+              style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}
             >
               <span className="pointer-events-none absolute inset-0 -translate-x-full gold-shimmer bg-gradient-to-r from-transparent via-white/35 to-transparent" aria-hidden="true" />
-              <Lock className="relative h-3.5 w-3.5" />
-              <span className="relative">Pay Bill</span>
+              <CalendarDays className="relative h-4.5 w-4.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]" />
+              <span className="absolute -right-1 -top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+                <Lock className="h-2 w-2" />
+              </span>
             </button>
           </div>
         </div>
       </div>
-      {payBillOpen && <PayBillSheet salonName={salon.name} onClose={() => setPayBillOpen(false)} />}
+      {premiumLockedOpen && <PremiumLockedSheet onClose={() => setPremiumLockedOpen(false)} />}
       <ServicesBillSheet
         open={priceBreakdownOpen}
         title="Price breakdown"
@@ -313,6 +318,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <StoreAddressSheet
           salonName={salon.name}
           address={salon.address}
+          locationLabel={`${salon.distanceKm} km away · ${salon.category || 'Salon & grooming'}`}
           phoneNumber={salon.phoneNumber}
           directionsUrl={directionsUrl}
           onClose={() => setAddressSheetOpen(false)}
@@ -360,7 +366,12 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
   };
 
   return (
-    <div id={`service-opt-${service.id}`} className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 transition-all ${active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9]' : 'border-[#E0E7E6]'}`}>
+    <div
+      id={`service-opt-${service.id}`}
+      className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.16)] transition-all ${
+        active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9] shadow-[0_6px_20px_-10px_rgba(79,157,149,0.35)]' : 'border-[#E0E7E6]'
+      }`}
+    >
       <div className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
         {service.description && (
@@ -396,11 +407,24 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
           onClick={handleAdd}
           aria-pressed={active}
           aria-label={active ? `Remove ${service.name}` : `Add ${service.name}`}
-          className={`mt-2 flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold transition active:scale-95 ${
+          className={`mt-2 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition-all duration-300 active:scale-95 ${
             active ? 'bg-[#0F766E] text-white' : 'border border-[#0F766E]/30 text-[#0F766E]'
           }`}
         >
-          {active ? <Check className="h-3 w-3" /> : <Plus className="h-3 w-3" />}
+          <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+            <Plus
+              className={`absolute h-3 w-3 transition-all duration-300 ${
+                active ? 'translate-x-2 rotate-90 opacity-0' : 'translate-x-0 rotate-0 opacity-100'
+              }`}
+            />
+            <span
+              className={`absolute grid h-3.5 w-3.5 place-items-center rounded-full bg-white/25 transition-all duration-300 ${
+                active ? 'scale-100 opacity-100' : 'scale-0 opacity-0'
+              }`}
+            >
+              <Check className="h-2.5 w-2.5" />
+            </span>
+          </span>
           {active ? 'Added' : 'Add'}
         </button>
       </div>
@@ -409,17 +433,85 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
 };
 
 const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; href?: string; onClick?: () => void; active?: boolean; disabled?: boolean }> = ({ icon, label, secondary, href, onClick, active, disabled }) => {
-  const content = <><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${active ? 'bg-[#B9E4DC] text-[#075E55]' : 'bg-white/10 text-white'} [&>svg]:h-4 [&>svg]:w-4`}>{icon}</span><span className="mt-2 text-[10px] font-bold leading-tight">{label}</span>{secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-white/55">{secondary}</span>}</>;
-  const classes = `flex min-h-[92px] flex-col items-center rounded-2xl bg-[#1D3734] px-1.5 py-2.5 text-center text-white ${disabled ? 'opacity-45' : ''}`;
-  return href ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className={classes}>{content}</a> : <button type="button" onClick={onClick} disabled={disabled} className={classes}>{content}</button>;
+  const content = (
+    <>
+      <span
+        className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
+          active ? 'bg-[#5EE0B4] text-[#0B3A34]' : 'bg-white text-[#0F766E]'
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="mt-2.5 text-[10px] font-bold leading-tight text-white">{label}</span>
+      {secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-white/55">{secondary}</span>}
+    </>
+  );
+  const classes = `relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06] transition ${
+    disabled ? 'opacity-45' : 'active:scale-[0.97]'
+  }`;
+  const style = { background: 'linear-gradient(160deg, #234742 0%, #16302C 75%)' };
+  return href
+    ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className={classes} style={style}>{content}</a>
+    : <button type="button" onClick={onClick} disabled={disabled} className={classes} style={style}>{content}</button>;
 };
 
 const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?: string }> = ({ eyebrow, title, secondary }) => <div className="mb-3 flex items-end justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#73827F]">{eyebrow}</p><h2 className="mt-0.5 text-lg font-bold tracking-[-0.025em]">{title}</h2></div>{secondary && <span className="text-[10px] font-semibold text-[#0F766E]">{secondary}</span>}</div>;
 
-const PayBillSheet: React.FC<{ salonName: string; onClose: () => void }> = ({ salonName, onClose }) => {
-  const [amount, setAmount] = useState('');
-  return <div className="fixed inset-0 z-50 flex items-end bg-black/55" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}><section role="dialog" aria-modal="true" aria-label="Pay salon bill" className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4"><div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0]" /><div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">Pay Bill</p><h2 className="mt-1 text-xl font-bold">{salonName}</h2></div><button onClick={onClose} aria-label="Close Pay Bill" className="flex h-9 w-9 items-center justify-center rounded-full bg-white"><X className="h-4 w-4" /></button></div><label className="mt-5 block text-xs font-semibold">Bill amount</label><div className="mt-2 flex h-14 items-center rounded-xl border border-[#D8E2E0] bg-white px-4"><span className="text-lg font-bold">₹</span><input value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, '').slice(0, 7))} inputMode="numeric" placeholder="0" className="h-full min-w-0 flex-1 bg-transparent px-2 text-xl font-bold outline-none" /></div><div className="mt-4 rounded-xl border border-[#DCE5E3] bg-white p-3 text-[11px] leading-5 text-[#647370]">Secure payment provider is not connected yet. No payment will be processed or marked successful from this preview.</div><button disabled className="mt-4 h-12 w-full rounded-xl bg-[#0F766E] text-sm font-bold text-white opacity-45">Continue to secure payment</button></section></div>;
-};
+/**
+ * Locked premium calendar CTA on the sticky dock — same dark teal/gold
+ * "Premium unlocks" theme used on the Reserve Future Window screen, so the
+ * two locked surfaces never feel like separate products. One-time flip-open
+ * reveal, honest "coming soon" content, real close control.
+ */
+const PremiumLockedSheet: React.FC<{ onClose: () => void }> = ({ onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <section
+      role="dialog"
+      aria-modal="true"
+      aria-label="Premium calendar booking, coming soon"
+      className="sheet-flip-in relative w-full overflow-hidden rounded-t-3xl p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-white sm:max-w-sm sm:rounded-3xl sm:pb-6"
+      style={{ background: 'linear-gradient(135deg, #1D3734, #12211F 60%, #0B1817)' }}
+    >
+      <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#E7C673]/20 blur-3xl" aria-hidden="true" />
+      <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20 sm:hidden" />
+      <div className="relative flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: 'linear-gradient(135deg, #7A5B21, #E7C673 55%, #7A5B21)' }}>
+            <div aria-hidden="true" className="gold-shimmer pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+            <CalendarDays className="relative h-4 w-4 text-white" />
+          </span>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#E7C673]">Premium unlocks</p>
+            <h2 className="text-lg font-bold">Calendar booking</h2>
+          </div>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/15"><X className="h-4 w-4" /></button>
+      </div>
+      <p className="relative mt-3 text-xs leading-5 text-white/70">
+        Booking a specific future date isn't live yet — coming soon. Here's what unlocks with it:
+      </p>
+      <div className="relative mt-4 space-y-2.5">
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><Clock className="h-3.5 w-3.5" /></span>
+          <div>
+            <p className="text-xs font-bold">Priority arrival window</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-white/60">A wider grace period so a late arrival never loses the slot.</p>
+          </div>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><UserCheck className="h-3.5 w-3.5" /></span>
+          <div>
+            <p className="text-xs font-bold">Auto-hold your favourite stylist</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-white/60">Reserve with the same stylist across future visits.</p>
+          </div>
+        </div>
+      </div>
+      <span className="relative mt-4 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: 'linear-gradient(120deg, #7A5B21, #E7C673)', color: '#2B1E06' }}>
+        <Lock className="h-3 w-3" /> Coming soon
+      </span>
+    </section>
+  </div>
+);
 
 /** Generic bottom-sheet shell shared by the quick-action placeholder sheets below. */
 const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }> = ({ icon, eyebrow, title, onClose, children }) => (
@@ -442,9 +534,10 @@ const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow: strin
 );
 
 /** Salon address + reach-out actions — real UI, dummy CTA wiring for now. */
-const StoreAddressSheet: React.FC<{ salonName: string; address: string; phoneNumber?: string; directionsUrl: string; onClose: () => void }> = ({ salonName, address, phoneNumber, directionsUrl, onClose }) => (
+const StoreAddressSheet: React.FC<{ salonName: string; address: string; locationLabel: string; phoneNumber?: string; directionsUrl: string; onClose: () => void }> = ({ salonName, address, locationLabel, phoneNumber, directionsUrl, onClose }) => (
   <QuickActionSheetShell icon={<MapPin className="h-4 w-4" />} eyebrow="Store location" title={salonName} onClose={onClose}>
-    <p className="mt-4 rounded-2xl border border-[#E1E7E6] bg-white p-4 text-xs leading-5 text-[#4C5A58] [overflow-wrap:anywhere]">{address}</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-[#0F766E]"><MapPin className="h-3.5 w-3.5 shrink-0" />{locationLabel}</p>
+    <p className="mt-2 rounded-2xl border border-[#E1E7E6] bg-white p-4 text-xs leading-5 text-[#4C5A58] shadow-[0_2px_10px_-6px_rgba(15,40,37,0.15)] [overflow-wrap:anywhere]">{address}</p>
     <div className="mt-4 grid grid-cols-2 gap-2.5">
       {phoneNumber ? (
         <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] bg-white text-xs font-bold text-[#17201F]"><PhoneCall className="h-4 w-4 text-[#0F766E]" />Call salon</a>
