@@ -56,6 +56,11 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <b className="min-w-0 max-w-full truncate font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
+              {item.token && (
+                <span className="shrink-0 rounded-md bg-[#0F766E]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#0F766E]">
+                  {item.token}
+                </span>
+              )}
               <span className="shrink-0 rounded bg-[#EEF3F2] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#4E625F]">
                 {sourceBadge(item)}
               </span>

@@ -83,10 +83,27 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
+/* Salon detail dock: one-shot "service selected" nudge on Join Queue. */
+@keyframes join-bounce {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.045);
+  }
+  60% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
-  .animate-\[queue-waveform_3\.2s_linear_infinite\] {
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .animate-\[join-bounce_360ms_cubic-bezier\(0\.34\,1\.56\,0\.64\,1\)\] {
     animation: none;
   }
 

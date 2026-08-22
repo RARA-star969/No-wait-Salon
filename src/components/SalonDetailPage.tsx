@@ -78,6 +78,20 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     previousStats.current = { waitMinutes, waitingCount: waiting.length };
   }, [waitMinutes, waiting.length]);
 
+  // One-shot "just selected a service" feedback on the Join Queue button;
+  // fires only on an increase so deselecting never re-triggers it.
+  const previousServiceCount = useRef(totals.count);
+  const [joinBounce, setJoinBounce] = useState(false);
+  useEffect(() => {
+    if (totals.count > previousServiceCount.current) {
+      setJoinBounce(true);
+      const timer = setTimeout(() => setJoinBounce(false), 360);
+      previousServiceCount.current = totals.count;
+      return () => clearTimeout(timer);
+    }
+    previousServiceCount.current = totals.count;
+  }, [totals.count]);
+
   const directionsUrl = `https://maps.google.com/?q=${salon.latitude},${salon.longitude}`;
   const shareSalon = async () => {
     const shareData = { title: salon.name, text: `${salon.name}\n${salon.address}`, url: directionsUrl };
@@ -182,16 +196,20 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-[#DDE5E3] bg-white/95 px-3 pt-2.5 pb-[max(.75rem,env(safe-area-inset-bottom))] backdrop-blur-md">
-        {!userEntry && totals.count > 0 && (
-          <div className="mx-auto mb-2 flex max-w-xl items-center justify-between text-[11px] font-semibold text-[#4C5A58]">
-            <span>{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min</span>
-            <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
+      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pt-2.5 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-xl">
+          <div className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-out ${!userEntry && totals.count > 0 ? 'mb-2 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="min-h-0">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#E0E7E6] bg-white/95 px-4 py-2.5 shadow-[0_14px_28px_-16px_rgba(23,32,31,0.35)] backdrop-blur-md">
+                <span className="text-[11px] font-semibold text-[#4C5A58]">{totals.count} {totals.count === 1 ? 'service' : 'services'} selected · {totals.totalDurationMin} min session</span>
+                <span className="text-sm font-bold text-[#17201F]">₹{totals.totalPriceInr}</span>
+              </div>
+            </div>
           </div>
-        )}
-        <div className="mx-auto grid max-w-xl grid-cols-[1fr_auto] gap-2">
-          <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className="min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white sm:text-sm disabled:opacity-50">{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
-          <button onClick={() => setPayBillOpen(true)} className="min-h-13 rounded-xl border border-[#BFD6D2] bg-white px-4 text-xs font-bold text-[#0F766E]">Pay Bill</button>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className={`min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_14px_26px_-12px_rgba(15,118,110,0.55)] sm:text-sm ${joinBounce ? 'animate-[join-bounce_360ms_cubic-bezier(0.34,1.56,0.64,1)]' : ''}`}>{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
+            <button id="reserve-slot-btn" onClick={onReserve} aria-label="Reserve a future queue window" className="flex min-h-13 items-center justify-center rounded-xl border border-[#BFD6D2] bg-white px-4 text-[#0F766E] shadow-[0_10px_22px_-14px_rgba(23,32,31,0.3)]"><CalendarDays className="h-5 w-5" /></button>
+          </div>
         </div>
       </div>
       {payBillOpen && <PayBillSheet salonName={salon.name} onClose={() => setPayBillOpen(false)} />}

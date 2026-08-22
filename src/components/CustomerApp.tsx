@@ -8,7 +8,6 @@ import {
   ChevronRight,
   ArrowLeft,
   Calendar,
-  AlertCircle,
   CheckCircle2,
   PhoneCall,
   Navigation,
@@ -48,6 +47,7 @@ import { getNotificationPermissionStatus } from '../services/notificationService
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
+import { LiveTicket, type JourneyStage, type TicketPerson } from './LiveTicket';
 import { StickyScanQrButton } from './StickyScanQrButton';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
@@ -94,6 +94,7 @@ interface CustomerAppProps {
   onJoinClick: () => void;
   onSelectSlotClick: (slot: string) => void;
   onCancelQueue: (reason?: { code: string; text: string }) => void;
+  onAcknowledge: () => void;
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   onTestPush: (type: 'approaching' | 'called' | 'reserved_nearing') => void;
@@ -125,6 +126,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onJoinClick,
   onSelectSlotClick,
   onCancelQueue,
+  onAcknowledge,
   permissionStatus,
   onRequestPermission,
   onTestPush,
@@ -285,6 +287,40 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       : peopleAhead === 0
         ? 'No wait · Ready now'
         : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+
+  // Live Ticket: exactly Joined / In Queue / Upcoming / Your Turn, driven by
+  // the same server-authoritative status the rest of the tracking screen
+  // already uses — "Joined" is just a brief window right after createdAt so
+  // the very first paint doesn't jump straight to "In Queue".
+  const journeyStage: JourneyStage = !userEntry
+    ? 'joined'
+    : userEntry.status === 'Serving'
+      ? 'your-turn'
+      : userEntry.status === 'Called'
+        ? 'upcoming'
+        : Date.now() - userEntry.createdAt < 10_000
+          ? 'joined'
+          : 'in-queue';
+  const ticketPosition = !userEntry || userEntry.status === 'Called' || userEntry.status === 'Serving' ? 0 : peopleAhead + 1;
+
+  // Two ahead, the customer, two behind — the same active-queue ordering
+  // `peopleAhead` already uses, just windowed around this booking instead of
+  // counted. No name, no phone: only a first-name initial (or photo, if the
+  // account actually has one) and position.
+  const ticketPeopleAround: TicketPerson[] = (() => {
+    if (!userEntry) return [];
+    const ordered = queue
+      .filter((item) => ['Waiting', 'Called', 'Serving'].includes(item.status))
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const myIndex = ordered.findIndex((item) => item.id === userEntry.id);
+    if (myIndex < 0) return [];
+    return ordered.slice(Math.max(0, myIndex - 2), myIndex + 3).map((item) => ({
+      id: item.id,
+      label: item.id === userEntry.id ? 'You' : (item.name || '?').trim().slice(0, 1).toUpperCase(),
+      photoUrl: item.customerPhotoUrl,
+      isMe: item.id === userEntry.id,
+    }));
+  })();
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
   const visibleSalons = nearbySalons?.filter((salon) => {
@@ -863,122 +899,49 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </p>
           </div>
 
-          {/* Main Tracking Card in Natural Tones */}
-          <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
-            <div className="flex items-center gap-4">
-              <div
-                id="tracking-position-badge"
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 ${
-                  userEntry?.status === 'Called'
-                    ? 'bg-[#FAF0E6] text-[#A66020] border-2 border-[#A66020] animate-pulse'
-                    : userEntry?.status === 'Serving'
-                      ? 'bg-[#E7F5F2] text-[#0F766E] border-2 border-[#0F766E]'
-                      : userEntry?.status === 'Reserved'
-                        ? 'bg-[#0F766E]/10 text-[#0F766E]'
-                        : 'bg-[#0F766E] text-white'
-                }`}
-              >
-                {userEntry?.status === 'Reserved'
-                  ? '✓'
-                  : userEntry?.status === 'Called'
-                    ? '!'
-                    : userEntry?.status === 'Serving'
-                      ? '✂'
-                      : peopleAhead + 1}
+          {/* Main ticket area. Reserved (future-slot) bookings keep the
+              original status card — the token ticket is for an active live
+              queue position, which a Reserved entry does not hold yet. */}
+          {userEntry?.status === 'Reserved' ? (
+            <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
+              <div className="flex items-center gap-4">
+                <div id="tracking-position-badge" className="w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 bg-[#0F766E]/10 text-[#0F766E]">
+                  ✓
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">RESERVED WINDOW</span>
+                  <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
+                    Reserved for {userEntry.reservedFor}
+                  </b>
+                </div>
               </div>
-
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">
-                  {userEntry?.status === 'Reserved'
-                    ? 'RESERVED WINDOW'
-                    : userEntry?.status === 'Called'
-                      ? 'COUNTER READY'
-                      : userEntry?.status === 'Serving'
-                        ? 'IN SERVICE'
-                        : 'YOUR POSITION'}
-                </span>
-                <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
-                  {userEntry?.status === 'Reserved'
-                    ? `Reserved for ${userEntry.reservedFor}`
-                    : userEntry?.status === 'Called'
-                      ? 'Please arrive at salon'
-                      : userEntry?.status === 'Serving'
-                        ? `Chair: ${userEntry.barberName || 'Barber ready'}`
-                        : peopleAhead === 0
-                          ? 'You are next in line'
-                          : `${peopleAhead} ${peopleAhead === 1 ? 'person' : 'people'} ahead`}
-                </b>
-              </div>
-            </div>
-
-            {/* Notice Box */}
-            <div
-              id="tracking-notice-box"
-              className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 ${
-                userEntry?.status === 'Called'
-                  ? 'bg-[#FAF0E6] text-[#A66020] border border-[#A66020]/30'
-                  : userEntry?.status === 'Serving'
-                    ? 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/30'
-                    : userEntry?.status === 'Reserved'
-                      ? 'bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]'
-                      : 'bg-[#F8FAFA] text-[#17201F] border border-[#E1E7E6]'
-              }`}
-            >
-              {userEntry?.status === 'Called' ? (
-                <AlertCircle className="w-4 h-4 text-[#A66020] shrink-0 mt-0.5" />
-              ) : (
+              <div id="tracking-notice-box" className="p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]">
                 <CheckCircle2 className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
+                <span>Your slot at <b>{userEntry.reservedFor}</b> is held. We will update you with live notifications.</span>
+              </div>
+              {userEntry && canCancel(userEntry.status) && (
+                <button
+                  id="cancel-queue-entry-btn"
+                  onClick={() => setCancelSheetOpen(true)}
+                  className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
+                >
+                  Cancel your ticket
+                </button>
               )}
-              <div>
-                {userEntry?.status === 'Called' && (
-                  <span>
-                    <b>Barber {userEntry.barberName || 'Staff'} is ready!</b> Please step in within 10 minutes.
-                  </span>
-                )}
-                {userEntry?.status === 'Serving' && (
-                  <span>
-                    Currently in grooming chair with <b>{userEntry.barberName}</b>. Relax and enjoy your cut!
-                  </span>
-                )}
-                {userEntry?.status === 'Reserved' && (
-                  <span>
-                    Your slot at <b>{userEntry.reservedFor}</b> is held. We will update you with live notifications.
-                  </span>
-                )}
-                {(!userEntry || userEntry.status === 'Waiting') && (
-                  <span>
-                    {peopleAhead === 0
-                      ? 'You are next in line! Head over to the salon entrance now.'
-                      : "You're confirmed in live queue. Relax—we'll alert your mobile when it's your turn."}
-                  </span>
-                )}
-              </div>
             </div>
-
-            {/* Queue Details Grid */}
-            <div className="grid grid-cols-2 gap-2 pt-3 border-t border-[#E1E7E6] text-xs">
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Estimated Wait
-                </span>
-                <span className="font-sans font-bold text-[#0F766E] text-base">
-                  {userEntry?.status === 'Called'
-                    ? 'Ready Now'
-                    : userEntry?.status === 'Serving'
-                      ? 'In Progress'
-                      : waitDisplay}
-                </span>
-              </div>
-              <div>
-                <span className="text-[#6F7C7A] text-[10px] uppercase font-bold tracking-wider block">
-                  Active Barbers
-                </span>
-                <span className="font-bold text-[#17201F] text-sm mt-0.5 block">
-                  {activeBarbersCount} available
-                </span>
-              </div>
-            </div>
-          </div>
+          ) : (
+            <LiveTicket
+              salonName={selectedSalon.name}
+              token={userEntry?.token || '—'}
+              position={ticketPosition}
+              waitLabel={userEntry?.status === 'Called' ? 'Ready now' : userEntry?.status === 'Serving' ? 'In progress' : waitDisplay}
+              stage={journeyStage}
+              acknowledgeEnabled={userEntry?.status === 'Called'}
+              onAcknowledge={onAcknowledge}
+              onCancel={() => setCancelSheetOpen(true)}
+              peopleAround={ticketPeopleAround}
+            />
+          )}
 
           {/* Push Notifications Status & Alert Settings Card */}
           <div
@@ -1054,17 +1017,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               <span>Call Salon</span>
             </button>
           </div>
-
-          {/* Cancel Queue button */}
-          {userEntry && canCancel(userEntry.status) && (
-            <button
-              id="cancel-queue-entry-btn"
-              onClick={() => setCancelSheetOpen(true)}
-              className="w-full py-2 text-rose-700 hover:text-rose-900 font-semibold text-xs underline underline-offset-4 transition cursor-pointer"
-            >
-              Cancel my queue entry
-            </button>
-          )}
         </div>
       )}
 

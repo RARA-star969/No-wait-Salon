@@ -636,6 +636,7 @@ export default function App() {
                   onJoinClick={handleJoinClick}
                   onSelectSlotClick={handleSelectSlotClick}
                   onCancelQueue={handleCancelUserQueue}
+                  onAcknowledge={() => { if (userEntry) handleQueueAction(userEntry, 'Acknowledge'); }}
                   permissionStatus={permissionStatus}
                   onRequestPermission={handleRequestPermission}
                   onTestPush={handleTestNotification}

@@ -46,6 +46,10 @@ export interface QueueItem {
   totalPriceInr?: number;
   /** Stylist the customer asked for at join time. Empty means "any available". */
   preferredBarberId?: string;
+  /** Short human-readable ticket token (e.g. "SC-014"), stable for this booking's lifetime. Minted server-side; `id` remains the real key. */
+  token?: string;
+  /** Photo for this queue entry's customer, if their account has one — used only by the privacy-minimal "people around you" strip. */
+  customerPhotoUrl?: string;
 }
 
 export interface CustomerProfile {

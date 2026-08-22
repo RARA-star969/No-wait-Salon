@@ -21,7 +21,27 @@ type SalonState = {
   barbers: Barber[];
   completedList: QueueItem[];
   updatedAt: number;
+  /** Daily per-salon token sequence; resets whenever tokenDate rolls over. */
+  tokenSeq: number;
+  tokenDate: string;
 };
+
+/**
+ * Mints a stable, human-readable ticket token (e.g. "SC-014"): a short salon
+ * prefix plus a sequence number that resets once per day. Lives on SalonState
+ * itself so it survives everywhere the queue already persists — no separate
+ * counter table, no risk of colliding with another salon's sequence.
+ */
+function mintToken(state: SalonState): string {
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.tokenDate !== today) {
+    state.tokenDate = today;
+    state.tokenSeq = 0;
+  }
+  state.tokenSeq += 1;
+  const prefix = (state.salonId.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2) || 'NQ').toUpperCase();
+  return `${prefix}-${String(state.tokenSeq).padStart(3, '0')}`;
+}
 
 type QueueCommand =
   | { type: 'reset' }
@@ -530,19 +550,44 @@ function seedState(salonId: string): SalonState {
     }
     return { id: `b${index + 1}`, name: `Stylist ${index + 1}`, status: 'available' as const };
   });
-  return {
+  const state: SalonState = {
     salonId,
     version: 1,
     queue: isPrimaryDemoSalon ? structuredClone(INITIAL_QUEUE) : [],
     barbers: seededBarbers,
     completedList: [],
     updatedAt: now,
+    tokenSeq: 0,
+    tokenDate: new Date(now).toISOString().slice(0, 10),
   };
+  state.queue.forEach((item) => { if (!item.token) item.token = mintToken(state); });
+  return state;
+}
+
+/**
+ * Backfills token bookkeeping onto a state persisted before the token system
+ * existed, and writes the backfill straight back so a second read (a
+ * different SSE subscriber, a page refresh) sees the same tokens rather than
+ * minting a fresh set. Deliberately skips version/updatedAt: this is a
+ * transparent migration, not a state change any client needs to diff against.
+ */
+function ensureTokens(state: SalonState): SalonState {
+  let changed = false;
+  if (state.tokenSeq === undefined || state.tokenDate === undefined) {
+    state.tokenSeq = 0;
+    state.tokenDate = new Date(state.updatedAt || Date.now()).toISOString().slice(0, 10);
+    changed = true;
+  }
+  state.queue.forEach((item) => {
+    if (!item.token) { item.token = mintToken(state); changed = true; }
+  });
+  if (changed) db.prepare('UPDATE salon_state SET state_json = ? WHERE salon_id = ?').run(JSON.stringify(state), state.salonId);
+  return state;
 }
 
 function readState(salonId: string): SalonState {
   const row = db.prepare('SELECT state_json FROM salon_state WHERE salon_id = ?').get(salonId) as { state_json: string } | undefined;
-  if (row) return JSON.parse(row.state_json) as SalonState;
+  if (row) return ensureTokens(JSON.parse(row.state_json) as SalonState);
   const state = seedState(salonId);
   db.prepare('INSERT INTO salon_state (salon_id, version, state_json, updated_at) VALUES (?, ?, ?, ?)')
     .run(salonId, state.version, JSON.stringify(state), state.updatedAt);
@@ -556,8 +601,30 @@ function writeState(state: SalonState) {
     .run(state.version, JSON.stringify(state), state.updatedAt, state.salonId);
 }
 
+/**
+ * Attaches each queue entry's customer photo (if their account has one) at
+ * serve time only — never persisted in salon_state, so a later profile-photo
+ * change is reflected immediately rather than going stale. Reuses the same
+ * customer_profile table customer-facing profile reads already use; no new
+ * ownership of photo data is introduced.
+ */
+function withCustomerPhotos(state: SalonState): SalonState {
+  const customerIds = [...new Set(state.queue.map((item) => item.customerId).filter((id): id is string => Boolean(id)))];
+  if (!customerIds.length) return state;
+  const rows = db.prepare(`SELECT customer_id, profile_photo_url FROM customer_profile WHERE customer_id IN (${customerIds.map(() => '?').join(',')})`)
+    .all(...customerIds) as Array<{ customer_id: string; profile_photo_url: string }>;
+  const photoByCustomer = new Map(rows.filter((row) => row.profile_photo_url).map((row) => [row.customer_id, row.profile_photo_url]));
+  if (!photoByCustomer.size) return state;
+  return {
+    ...state,
+    queue: state.queue.map((item) => (item.customerId && photoByCustomer.has(item.customerId)
+      ? { ...item, customerPhotoUrl: photoByCustomer.get(item.customerId) }
+      : item)),
+  };
+}
+
 function publish(state: SalonState) {
-  const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
+  const payload = `event: state\ndata: ${JSON.stringify(withCustomerPhotos(state))}\n\n`;
   subscribers.get(state.salonId)?.forEach((response) => response.write(payload));
 }
 
@@ -599,12 +666,13 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       source: command.item.source || 'customer_app',
       id: randomUUID(),
       createdAt: Date.now(),
+      token: mintToken(state),
     });
     return state;
   }
 
   if (command.type === 'add_walkin') {
-    const item = { ...command.item, source: command.item.source || 'staff_walk_in' as const, id: randomUUID(), createdAt: Date.now(), isUser: false };
+    const item = { ...command.item, source: command.item.source || 'staff_walk_in' as const, id: randomUUID(), createdAt: Date.now(), isUser: false, token: mintToken(state) };
     if (command.startImmediately) {
       const barberIndex = findAvailableBarber(state, command.preferredBarberId);
       if (barberIndex < 0) throw new Error('No barber is currently available.');
@@ -1096,7 +1164,7 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
 
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
-  response.json(readState(request.params.salonId));
+  response.json(withCustomerPhotos(readState(request.params.salonId)));
 });
 
 app.get('/api/salons/:salonId/events', (request, response) => {
@@ -1108,7 +1176,7 @@ app.get('/api/salons/:salonId/events', (request, response) => {
     'X-Accel-Buffering': 'no',
   });
   response.flushHeaders();
-  response.write(`retry: 1500\nevent: state\ndata: ${JSON.stringify(readState(salonId))}\n\n`);
+  response.write(`retry: 1500\nevent: state\ndata: ${JSON.stringify(withCustomerPhotos(readState(salonId)))}\n\n`);
   const salonSubscribers = subscribers.get(salonId) || new Set<express.Response>();
   salonSubscribers.add(response);
   subscribers.set(salonId, salonSubscribers);
@@ -1156,7 +1224,7 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
     db.exec('COMMIT');
     publish(next);
     await postgresPersistence?.flushNow(['customer_booking','salon_state']);
-    response.json(next);
+    response.json(withCustomerPhotos(next));
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* transaction was not active */ }
     response.status(409).json({ error: error instanceof Error ? error.message : 'Unable to update the queue.' });
