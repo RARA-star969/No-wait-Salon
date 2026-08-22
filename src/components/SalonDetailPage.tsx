@@ -3,6 +3,7 @@ import { ArrowLeft, Bookmark, CalendarDays, Check, ChevronDown, ChevronRight, Cl
 import type { Barber, NearbySalon, QueueItem, Salon } from '../types';
 import { toSalonProfile, waitLabel as sharedWaitLabel } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
+import { LiveQueueCapsule } from './LiveQueueCapsule';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 
 type Props = {
@@ -82,6 +83,21 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   // fires only on an increase so deselecting never re-triggers it.
   const previousServiceCount = useRef(totals.count);
   const [joinBounce, setJoinBounce] = useState(false);
+
+  // Live Queue capsule: a sticky, zero-height anchor placed right where the
+  // full card ends means the capsule "docks" at the top the instant the
+  // card scrolls out of view, with no scroll-position math of our own.
+  // IntersectionObserver just drives which face (full card vs capsule) is
+  // visually shown at that point — the sticky behaviour itself is pure CSS.
+  const liveQueueCardRef = useRef<HTMLDivElement>(null);
+  const [liveQueueCollapsed, setLiveQueueCollapsed] = useState(false);
+  useEffect(() => {
+    const node = liveQueueCardRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(([entry]) => setLiveQueueCollapsed(!entry.isIntersecting), { threshold: 0 });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (totals.count > previousServiceCount.current) {
       setJoinBounce(true);
@@ -137,17 +153,30 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         </section>
 
         <section>
-          <LiveQueueCard
-            waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
-            waitDeltaLabel={waitTrend === 'down' ? '↓ moving' : waitTrend === 'up' ? '↑ busier' : undefined}
-            peopleAhead={waiting.length}
-            peopleAheadTrend={aheadTrend}
-            readyChairs={availableBarbers}
-            totalChairs={activeBarbers}
-            activityLabel={`${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} ahead · ${availableBarbers} of ${activeBarbers} chairs ready`}
-          />
+          <div ref={liveQueueCardRef}>
+            <LiveQueueCard
+              waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'}
+              waitDeltaLabel={waitTrend === 'down' ? '↓ moving' : waitTrend === 'up' ? '↑ busier' : undefined}
+              peopleAhead={waiting.length}
+              peopleAheadTrend={aheadTrend}
+              readyChairs={availableBarbers}
+              totalChairs={activeBarbers}
+              activityLabel={`${waiting.length} ${waiting.length === 1 ? 'person' : 'people'} ahead · ${availableBarbers} of ${activeBarbers} chairs ready`}
+            />
+          </div>
           <button onClick={onReserve} className="mt-2 flex w-full items-center justify-between rounded-2xl border border-[#C9E2DE] bg-[#E6F3F1] px-4 py-3 text-xs font-semibold text-[#235E58]"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Reserve a future queue window</span><ChevronRight className="h-4 w-4" /></button>
         </section>
+
+        {/* Live Queue capsule: a sticky, zero-height anchor docks the compact
+            indicator at the top the instant the full card scrolls out of
+            view. Fixed positioning (not sticky-in-flow) so it keeps working
+            regardless of which ancestor scrolls, and sits above the Join
+            Queue sheet (z-[90]) so it stays visible while that sheet is open. */}
+        <div className="pointer-events-none fixed inset-x-0 top-[env(safe-area-inset-top)] z-[95] flex justify-center pt-2">
+          <div className={`transition-all duration-300 ${liveQueueCollapsed ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'}`}>
+            <LiveQueueCapsule waitLabel={waitMinutes > 0 ? waitLabel : 'Ready now'} peopleAhead={waiting.length} readyChairs={availableBarbers} />
+          </div>
+        </div>
 
         <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[#173E3A] to-[#3F746D] p-5 text-white">
           <div className="max-w-[72%]"><span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider"><Sparkles className="h-3 w-3" />At {salon.name}</span><h2 className="mt-3 text-lg font-bold leading-tight">Your next grooming visit, without the waiting room.</h2></div>

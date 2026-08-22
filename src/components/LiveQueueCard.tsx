@@ -80,11 +80,17 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
 
   return (
     <section
-      className={`relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-5 text-white shadow-[0_18px_40px_-16px_rgba(6,44,40,0.55)] ${className}`}
+      className={`relative overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0B4A44] via-[#0F6B62] to-[#0F766E] p-4 text-white shadow-[0_16px_34px_-16px_rgba(6,44,40,0.55)] ${className}`}
     >
       {/* Ambient glow, purely decorative and GPU-cheap. */}
       <div className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-[#5EE0B4]/25 blur-3xl" aria-hidden="true" />
       <div className="pointer-events-none absolute -left-14 bottom-0 h-32 w-32 rounded-full bg-[#0AA88C]/25 blur-3xl" aria-hidden="true" />
+      {/* Subtle periodic light sweep — a broad, soft diagonal band drifting
+          across the card every ~6s. Pure CSS transform, GPU-cheap, and
+          respects reduced-motion via the shared guard in index.css. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[22px]" aria-hidden="true">
+        <div className="absolute -inset-y-10 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[queue-light-sweep_6s_ease-in-out_infinite]" />
+      </div>
 
       <div className="relative flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]">
@@ -100,24 +106,25 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
         </span>
       </div>
 
-      <div className="relative mt-4 grid grid-cols-3 gap-3">
-        <Stat label="Approx. wait" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
+      <div className="relative mt-3.5 grid grid-cols-3 gap-3">
+        <Stat label="Time" value={waitLabel} flashing={waitFlash} delta={waitDeltaLabel && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-[#7DEFC6]">{waitDeltaLabel}</span>} />
         <Stat
-          label="People ahead"
+          label="Position"
           value={peopleAhead}
           flashing={aheadFlash}
           delta={<TrendBadge trend={peopleAheadTrend} label={peopleAheadTrend === 'down' ? '↓ moving' : peopleAheadTrend === 'up' ? '↑ busier' : undefined} />}
         />
         <Stat
-          label="Ready chairs"
+          label="Chairs"
           value={readyChairs}
           flashing={chairsFlash}
           delta={<span className={`inline-flex h-2 w-2 rounded-full ${chairsReady ? 'bg-[#5EE0B4]' : 'bg-white/30'}`} />}
         />
       </div>
 
-      {/* Lightweight waveform: a looping CSS animation, not a per-frame canvas. */}
-      <div className="relative mt-4 h-10 overflow-hidden rounded-xl bg-black/10">
+      {/* Lightweight waveform: a looping CSS animation, not a per-frame canvas.
+          Lives only in the full card — the capsule never shows it. */}
+      <div className="relative mt-3.5 h-8 overflow-hidden rounded-xl bg-black/10">
         <svg viewBox="0 0 200 40" preserveAspectRatio="none" className="h-full w-[200%] animate-[queue-waveform_3.2s_linear_infinite]">
           <path
             d="M0 20 C 8 8, 16 32, 24 20 S 40 8, 48 20 S 64 32, 72 20 S 88 8, 96 20 S 112 32, 120 20 S 136 8, 144 20 S 160 32, 168 20 S 184 8, 192 20 S 200 20, 200 20"
@@ -132,7 +139,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
         <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full bg-[#7DEFC6]" aria-hidden="true" />
       </div>
 
-      <div className="relative mt-4 flex items-center justify-between text-[11px] font-semibold text-white/75">
+      <div className="relative mt-3 flex items-center justify-between text-[11px] font-semibold text-white/75">
         <span className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" />
           {activityLabel || `${totalChairs} ${totalChairs === 1 ? 'chair' : 'chairs'} · ${readyChairs} ready`}
