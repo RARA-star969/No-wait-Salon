@@ -83,24 +83,9 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
-/* Salon detail dock: one-shot "service selected" nudge on Join Queue. */
-@keyframes join-bounce {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(1.045);
-  }
-  60% {
-    transform: scale(0.98);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
 /* Live Queue card: a broad, soft light band drifting across the card
-   periodically — subtle premium sheen, not a loading shimmer. */
+   periodically — subtle premium sheen, not a loading shimmer. Used by the
+   default (public QR) variant via the animate-[...] utility below. */
 @keyframes queue-light-sweep {
   0%, 20% {
     transform: translateX(0);
@@ -110,30 +95,156 @@ body.barcode-scanner-active #qr-scanner-scrim {
   }
 }
 
-/* Capsule morph: the collapsed indicator eases in/out with a touch of
-   overshoot so it reads as liquid rather than a hard toggle. */
-@keyframes capsule-morph-in {
-  0% {
-    opacity: 0;
-    transform: translateY(-10px) scale(0.85);
-  }
-  70% {
-    opacity: 1;
-    transform: translateY(1px) scale(1.03);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+/* Live scoreboard capsule: a slow breathing scale + glow drift so the
+   sticky "signature" summary reads as alive without being distracting. */
+@keyframes scoreboard-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+
+@keyframes scoreboard-glow-drift {
+  0%, 100% { opacity: 0.7; transform: translate(0, 0); }
+  50% { opacity: 1; transform: translate(-6px, 4px); }
+}
+
+.live-scoreboard {
+  animation: scoreboard-breathe 3.6s ease-in-out infinite;
+}
+
+.live-scoreboard-glow {
+  animation: scoreboard-glow-drift 4.2s ease-in-out infinite;
+}
+
+/* Salon Detail live-queue card background: a faint scrolling line-graph,
+   reusing the queue-waveform keyframe above — GPU-only transform. */
+.queue-waveform-line {
+  animation: queue-waveform 9s linear infinite;
+}
+
+/* A gentle breathing emphasis for "Your Turn"/"Now" — noticeable without
+   being a flashy attention-grab. Opacity + scale only. */
+@keyframes attention-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.74; transform: scale(1.035); }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.9s ease-in-out infinite;
+}
+
+/* Live chip: a soft pulsing ring so the LIVE indicator reads as truly live.
+   Shared by the Salon Detail card and its scoreboard capsule. */
+@keyframes live-chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.live-chip-pulse {
+  animation: live-chip-pulse 2.2s ease-out infinite;
+}
+
+/* Salon Detail sticky dock: a quick micro-bounce whenever the selection
+   changes, so adding/removing a service reads as the dock "catching" it. */
+@keyframes dock-bounce {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.03); }
+  65% { transform: scale(0.99); }
+}
+
+.dock-bounce {
+  animation: dock-bounce 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Service "Add" tap: a quick rise + fade near the tapped card, hinting the
+   item just flew into the sticky dock below. */
+@keyframes add-to-dock-ping {
+  0% { opacity: 0; transform: translateY(2px) scale(0.85); }
+  30% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1); }
+}
+
+.add-to-dock-ping {
+  animation: add-to-dock-ping 560ms ease-out forwards;
+}
+
+/* Salon hero "open now" dot: a small ball-like bounce so an open salon
+   reads as alive at a glance, not just a static coloured dot. */
+@keyframes open-dot-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-2.5px) scale(1.08); }
+  55% { transform: translateY(0) scale(0.96); }
+  75% { transform: translateY(-1px) scale(1.03); }
+}
+
+.open-dot-bounce {
+  animation: open-dot-bounce 1.8s ease-in-out infinite;
+}
+
+/* Salon name: a gentle letter-by-letter wave, left to right, once on
+   mount — a subtle premium flourish, never a distracting loop. */
+@keyframes name-wave-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.name-wave-letter {
+  display: inline-block;
+  opacity: 0;
+  animation: name-wave-in 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
+/* Floating live scoreboard capsule: settles in with a soft lift/drop plus a
+   brief blur, so it reads as condensing into place, not a plain slide-in. */
+@keyframes capsule-melt-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.85); filter: blur(3px); }
+  60% { opacity: 1; transform: translateY(1px) scale(1.02); filter: blur(0.5px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.capsule-melt-in {
+  animation: capsule-melt-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Salon Detail live-queue card: a broad, blurred white light sweep crossing
+   the surface every few seconds, like light catching a lens — not a
+   metallic shimmer stripe. */
+@keyframes light-sweep {
+  0%   { transform: translateX(-70%); opacity: 0; }
+  8%   { opacity: 0; }
+  20%  { opacity: 0.9; }
+  40%  { opacity: 0.9; }
+  55%  { transform: translateX(70%); opacity: 0; }
+  100% { transform: translateX(70%); opacity: 0; }
+}
+
+.light-sweep {
+  background: linear-gradient(100deg, transparent 38%, rgba(255,255,255,0.16) 48%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.16) 52%, transparent 62%);
+  filter: blur(14px);
+  animation: light-sweep 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
   .animate-\[qr-shell-in_220ms_ease-out\],
   .animate-\[queue-light-sweep_6s_ease-in-out_infinite\],
-  .animate-\[capsule-morph-in_420ms_cubic-bezier\(0\.22\,1\,0\.36\,1\)\],
   .animate-\[queue-waveform_3\.2s_linear_infinite\],
-  .animate-\[join-bounce_360ms_cubic-bezier\(0\.34\,1\.56\,0\.64\,1\)\] {
+  .live-scoreboard,
+  .live-scoreboard-glow,
+  .live-chip-pulse,
+  .dock-bounce,
+  .add-to-dock-ping,
+  .open-dot-bounce,
+  .capsule-melt-in,
+  .light-sweep,
+  .queue-waveform-line,
+  .attention-pulse {
+    animation: none;
+  }
+
+  .name-wave-letter {
+    opacity: 1;
+    transform: none;
     animation: none;
   }
 

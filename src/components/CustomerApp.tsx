@@ -87,6 +87,9 @@ interface CustomerAppProps {
   setSelectedService: (service: string) => void;
   selectedServiceIds: string[];
   setSelectedServiceIds: (ids: string[]) => void;
+  appliedOfferId: string | null;
+  onApplyOffer: (offerId: string) => void;
+  onRemoveOffer: () => void;
   queue: QueueItem[];
   barbers: Barber[];
   userEntry: QueueItem | null;
@@ -119,6 +122,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   setSelectedService,
   selectedServiceIds,
   setSelectedServiceIds,
+  appliedOfferId,
+  onApplyOffer,
+  onRemoveOffer,
   queue,
   barbers,
   userEntry,
@@ -654,6 +660,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           setSelectedService={setSelectedService}
           selectedServiceIds={selectedServiceIds}
           setSelectedServiceIds={setSelectedServiceIds}
+          appliedOfferId={appliedOfferId}
+          onApplyOffer={onApplyOffer}
+          onRemoveOffer={onRemoveOffer}
           onBack={() => setScreen('home')}
           onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
           onReserve={() => setScreen('slots')}

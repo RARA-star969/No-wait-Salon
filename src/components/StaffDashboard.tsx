@@ -29,8 +29,9 @@ import {
   Sparkles,
   History,
   Trash2,
+  Tag,
 } from 'lucide-react';
-import { QueueItem, Barber, Salon, ServiceItem } from '../types';
+import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
 
@@ -55,6 +56,7 @@ interface StaffDashboardProps {
   ) => void;
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
+  onSaveOffers: (offers: SalonOffer[]) => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -67,6 +69,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onQueueAction,
   queueAlert,
   onSaveStaff,
+  onSaveOffers,
 }) => {
   // Single ticking clock so every CALLED countdown re-renders each second.
   const [now, setNow] = useState(() => Date.now());
@@ -79,7 +82,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }, []);
 
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers'>('live');
 
   const waitingCount = queue.filter((x) => x.status === 'Waiting').length;
   const servingCount = queue.filter((x) => x.status === 'Serving').length;
@@ -224,9 +227,21 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <UserCheck className="w-3.5 h-3.5" />
               <span>Manage Staff</span>
             </button>
+            <button
+              id="staff-tab-offers"
+              onClick={() => setActiveTab('offers')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === 'offers'
+                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  : 'text-[#6F7C7A] hover:text-[#17201F]'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Offers</span>
+            </button>
           </div>
 
-          {activeTab !== 'staff' && (
+          {activeTab !== 'staff' && activeTab !== 'offers' && (
             <button
               id="add-walkin-popup-btn"
               onClick={() => setIsWalkinModalOpen(true)}
@@ -449,6 +464,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {activeTab === 'staff' && (
           <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
         )}
+        {activeTab === 'offers' && (
+          <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+        )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}
         audience="staff"
@@ -603,6 +621,154 @@ const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onS
         ))}
         <button id="manage-staff-add-btn" onClick={addStaff} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
           <Plus className="h-3.5 w-3.5" /> Add staff member
+        </button>
+      </div>
+    </div>
+  );
+};
+
+let manageOffersDraftId = 0;
+
+/**
+ * Operational offer/coupon management for the SAME salon_offer records
+ * Admin's salon editor and the customer-facing price breakdown read — writes
+ * go through the save_offers command, so an offer activated here is what
+ * the customer applies, same as ManageStaff above for the staff roster.
+ */
+const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[]; onSave: (offers: SalonOffer[]) => void }> = ({ offers, allServices, onSave }) => {
+  const [draft, setDraft] = useState<SalonOffer[]>(offers);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!dirty) setDraft(offers);
+  }, [offers, dirty]);
+
+  const update = (id: string, patch: Partial<SalonOffer>) => {
+    setDraft((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+    setDirty(true);
+  };
+
+  const toggleEligibleService = (id: string, serviceId: string) => {
+    setDraft((rows) => rows.map((row) => {
+      if (row.id !== id) return row;
+      const current = row.eligibleServiceIds || [];
+      const next = current.includes(serviceId) ? current.filter((sid) => sid !== serviceId) : [...current, serviceId];
+      return { ...row, eligibleServiceIds: next };
+    }));
+    setDirty(true);
+  };
+
+  const addOffer = () => {
+    manageOffersDraftId += 1;
+    setDraft((rows) => [
+      ...rows,
+      { id: `new-${Date.now()}-${manageOffersDraftId}`, title: '', discount: '', code: '', discountType: 'percent', discountValue: 0, minimumBillInr: 0, active: true, eligibleServiceIds: [] },
+    ]);
+    setDirty(true);
+  };
+
+  const removeOffer = (id: string) => {
+    setDraft((rows) => rows.filter((row) => row.id !== id));
+    setDirty(true);
+  };
+
+  const save = () => {
+    onSave(draft);
+    setDirty(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className={`${ui.card} p-4`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="block text-xs font-bold text-[#17201F]">Offers &amp; discounts</span>
+            <span className="mt-0.5 block text-[10px] text-[#6F7C7A]">Same records customers see in Price breakdown &middot; percent or fixed ₹, minimum bill, validity</span>
+          </div>
+          <button
+            id="manage-offers-save-btn"
+            onClick={save}
+            disabled={!dirty}
+            className={`${ui.primaryButton} px-3 py-2 text-xs disabled:opacity-40`}
+          >
+            {dirty ? 'Save changes' : 'Saved'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {draft.map((offer) => (
+          <div key={offer.id} id={`manage-offer-row-${offer.id}`} className={`${ui.card} p-3.5 ${offer.active === false ? 'opacity-55' : ''}`}>
+            <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Title
+                <input value={offer.title} onChange={(e) => update(offer.id, { title: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Festive Special" />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Code (optional)
+                <input value={offer.code || ''} onChange={(e) => update(offer.id, { code: e.target.value.toUpperCase() })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-bold uppercase text-[#17201F]" placeholder="FEST20" />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Discount type
+                <select value={offer.discountType || 'percent'} onChange={(e) => update(offer.id, { discountType: e.target.value as 'percent' | 'fixed' })} className="h-9 rounded-lg border border-[#E1E7E6] px-2 text-xs font-bold text-[#17201F] normal-case">
+                  <option value="percent">Percentage %</option>
+                  <option value="fixed">Fixed ₹</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Discount value
+                <input type="number" min={0} value={offer.discountValue ?? 0} onChange={(e) => update(offer.id, { discountValue: Number(e.target.value) })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F]" />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Minimum bill ₹
+                <input type="number" min={0} value={offer.minimumBillInr ?? 0} onChange={(e) => update(offer.id, { minimumBillInr: Number(e.target.value) })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F]" />
+              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-[11px] font-bold text-[#17201F]">
+                  <input type="checkbox" checked={offer.active !== false} onChange={(e) => update(offer.id, { active: e.target.checked })} className="h-4 w-4 accent-[#0F766E]" />
+                  Active
+                </label>
+                <button id={`manage-offer-remove-${offer.id}`} onClick={() => removeOffer(offer.id)} aria-label={`Remove ${offer.title || 'offer'}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] text-rose-600">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                Start date
+                <input type="date" value={offer.startDate || ''} onChange={(e) => update(offer.id, { startDate: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F]" />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                End date
+                <input type="date" value={offer.endDate || ''} onChange={(e) => update(offer.id, { endDate: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F]" />
+              </label>
+              <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
+                Terms (optional)
+                <input value={offer.terms || ''} onChange={(e) => update(offer.id, { terms: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Not combinable with other offers" />
+              </label>
+            </div>
+            {allServices.length > 0 && (
+              <div className="mt-3 border-t border-[#EEF3F2] pt-3">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Eligible services (none checked = all services)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {allServices.map((service) => {
+                    const on = (offer.eligibleServiceIds || []).includes(service.id);
+                    return (
+                      <button
+                        key={service.id}
+                        type="button"
+                        onClick={() => toggleEligibleService(offer.id, service.id)}
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
+                      >
+                        {service.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <button id="manage-offers-add-btn" onClick={addOffer} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
+          <Plus className="h-3.5 w-3.5" /> Add offer
         </button>
       </div>
     </div>

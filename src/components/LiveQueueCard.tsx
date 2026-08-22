@@ -1,5 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
+import { useMetricFlash } from '../shared/useMetricFlash';
+import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
+import { LIVE_QUEUE_GRADIENT, LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
+import { TimeValue } from './TimeValue';
 
 /**
  * The hero USP: a premium teal/emerald live-queue card shared by the
@@ -8,6 +12,11 @@ import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
  *
  * Pure CSS keyframes drive the pulse/waveform motion — no per-frame JS —
  * so this stays cheap on low-end mobile browsers.
+ *
+ * `variant="salon"` is the compact Salon Detail presentation (Time /
+ * Position / Chairs, softened rim, periodic light sweep), recovered from
+ * APK build #45's source. The default variant below is untouched — it's
+ * still what the public QR page and Join Queue's public branch render.
  */
 
 export type QueueTrend = 'up' | 'down' | 'steady';
@@ -22,6 +31,7 @@ export type LiveQueueCardProps = {
   activityLabel?: string;
   queueMovingLabel?: string;
   live?: boolean;
+  variant?: 'default' | 'salon';
   className?: string;
 };
 
@@ -61,6 +71,20 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.Reac
   </div>
 );
 
+/** Salon Detail's compact card: value on top, single-line label below. */
+const SalonStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
+  <div className="min-w-0 text-center">
+    <p
+      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
+        dense ? 'text-[15px]' : 'text-[22px]'
+      } ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}
+    >
+      {value}
+    </p>
+    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label || ' '}</p>
+  </div>
+);
+
 export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   waitLabel,
   waitDeltaLabel,
@@ -71,12 +95,88 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
   activityLabel,
   queueMovingLabel = 'Steady',
   live = true,
+  variant = 'default',
   className = '',
 }) => {
   const waitFlash = useFlashOnChange(waitLabel);
   const aheadFlash = useFlashOnChange(peopleAhead);
   const chairsFlash = useFlashOnChange(readyChairs);
   const chairsReady = readyChairs > 0;
+
+  // Salon Detail variant hooks (always called, so hook order never depends
+  // on which variant renders — cheap and unused by the default branch).
+  const salonWaitFlash = useMetricFlash(waitLabel);
+  const salonChairsFlash = useMetricFlash(readyChairs);
+  const position = liveQueuePosition(peopleAhead, readyChairs);
+  const positionFlash = useMetricFlash(position.positionLabel);
+
+  if (variant === 'salon') {
+    return (
+      <section
+        id="live-queue-hero-card"
+        className={`relative overflow-hidden rounded-[22px] px-4 py-2.5 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_0_20px_rgba(94,224,180,0.06),0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
+        style={{ background: LIVE_QUEUE_GRADIENT }}
+      >
+        {/* Luminous edge — softened, not neon: low-alpha masked gradient rim. */}
+        <div
+          className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
+          style={{
+            background: LIVE_QUEUE_RIM_FULL,
+            WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+          }}
+          aria-hidden="true"
+        />
+        <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#5EE0B4]/16 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/14 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[46%] bg-gradient-to-b from-white/[0.09] to-transparent" aria-hidden="true" />
+        {/* Periodic bulb-glow sweep: a broad, blurred light crossing the
+            surface every few seconds — reads as light catching a lens. */}
+        <div className="light-sweep pointer-events-none absolute -inset-x-[60%] -inset-y-[40%]" aria-hidden="true" />
+        {/* Faint scrolling line-graph — full-card-only. */}
+        <svg
+          className="queue-waveform-line pointer-events-none absolute inset-x-0 bottom-0 h-9 w-[200%] text-white/[0.08]"
+          viewBox="0 0 800 60"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M0 40 L40 30 L80 44 L120 22 L160 36 L200 16 L240 32 L280 24 L320 42 L360 20 L400 40 L440 30 L480 44 L520 22 L560 36 L600 16 L640 32 L680 24 L720 42 L760 20 L800 40"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        <div className="relative flex items-center justify-between gap-2">
+          <span className={`inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'live-chip-pulse' : ''}`}>
+            <span className="relative flex h-1.5 w-1.5">
+              {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+            </span>
+            Live
+          </span>
+          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">
+            {totalChairs} {totalChairs === 1 ? 'chair' : 'chairs'} today
+          </span>
+        </div>
+
+        <div className="relative mt-2.5 grid grid-cols-3 gap-3">
+          <SalonStat label="Time" value={<TimeValue label={waitLabel} />} flashing={salonWaitFlash} />
+          <SalonStat
+            label="Position"
+            value={<span className={position.state !== 'waiting' ? 'attention-pulse' : ''}>{position.positionLabel}</span>}
+            flashing={positionFlash}
+            dense={position.state !== 'waiting'}
+          />
+          <SalonStat label="Chairs" value={readyChairs} flashing={salonChairsFlash} />
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

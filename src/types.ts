@@ -50,6 +50,11 @@ export interface QueueItem {
   token?: string;
   /** Photo for this queue entry's customer, if their account has one — used only by the privacy-minimal "people around you" strip. */
   customerPhotoUrl?: string;
+  /** Offer applied at join time. Server re-validates and recomputes `discountInr`
+   *  from the live salon_offer record — a client-supplied discount is never trusted. */
+  appliedOfferId?: string;
+  /** Amount actually deducted, server-computed. `totalPriceInr` is already net of this. */
+  discountInr?: number;
 }
 
 export interface CustomerProfile {
@@ -148,6 +153,20 @@ export interface SalonOffer {
   minimumBill?: string;
   validity?: string;
   terms?: string;
+  /** Redeemable code shown to the customer, e.g. "FEST20". Optional — a
+   *  tap-to-apply offer from the list doesn't need one. */
+  code?: string;
+  /** Structured fields powering real discount math — the free-text `discount`
+   *  above stays for display, these drive `evaluateCoupon()`. Absent on an
+   *  offer that's display-only (no real applicable discount). */
+  discountType?: 'percent' | 'fixed';
+  discountValue?: number;
+  minimumBillInr?: number;
+  startDate?: string;
+  endDate?: string;
+  active?: boolean;
+  /** Service ids this offer applies to. Empty/absent means every service. */
+  eligibleServiceIds?: string[];
 }
 
 export interface SalonGalleryItem {

@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, X } from 'lucide-react';
-import type { Barber, QueueItem, Salon, ServiceItem } from '../types';
-import { buildJoinPreview } from '../shared/joinPreview';
+import { AlertCircle, Check, ChevronRight, Clock, LoaderCircle, Sparkles, Tag, Ticket, X } from 'lucide-react';
+import type { Barber, QueueItem, Salon, SalonOffer, ServiceItem } from '../types';
+import { LIVE_QUEUE_GRADIENT, LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
+import { evaluateCoupon } from '../shared/couponPricing';
+import { PriceBreakdownSheet } from './PriceBreakdownSheet';
 
 /** "Any available stylist" is modelled as an explicit choice, not an absence. */
 export const ANY_STYLIST = '';
@@ -17,6 +19,13 @@ type Props = {
   error?: string;
   /** Name we already hold, shown so the customer can see we did not forget it. */
   customerName?: string;
+  /** Offers available at this salon and the one currently applied, if any —
+   *  owned by App.tsx so Salon Detail's own price breakdown and this sheet's
+   *  TO PAY can never disagree about which offer is active. */
+  offers: SalonOffer[];
+  appliedOfferId: string | null;
+  onApplyOffer: (offerId: string) => void;
+  onRemoveOffer: () => void;
   onClose: () => void;
   onConfirm: (preferredBarberId: string) => void;
 };
@@ -35,19 +44,30 @@ export const QueueJoinSheet: React.FC<Props> = ({
   busy,
   error,
   customerName,
+  offers,
+  appliedOfferId,
+  onApplyOffer,
+  onRemoveOffer,
   onClose,
   onConfirm,
 }) => {
   const [stylist, setStylist] = useState<string>(ANY_STYLIST);
-  const preview = useMemo(() => buildJoinPreview(queue, barbers), [queue, barbers]);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const totalDurationMin = useMemo(() => services.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0), [services]);
-  const totalPriceInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
-  const serviceLabel = services.map((item) => item.name).join(' + ') || 'Service';
+  const subtotalInr = useMemo(() => services.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0), [services]);
+  const serviceIds = useMemo(() => services.map((item) => item.id), [services]);
+  const appliedOffer = offers.find((offer) => offer.id === appliedOfferId);
+  const appliedResult = appliedOffer ? evaluateCoupon(appliedOffer, { subtotalInr, serviceIds }) : undefined;
+  const discountInr = appliedResult?.eligible ? appliedResult.discountInr : 0;
+  const totalPriceInr = Math.max(0, subtotalInr - discountInr);
 
   // Each opening starts from "any available" rather than inheriting a stylist
-  // chosen for an earlier visit.
+  // chosen for an earlier visit, and the breakdown sheet starts closed.
   useEffect(() => {
-    if (open) setStylist(ANY_STYLIST);
+    if (open) {
+      setStylist(ANY_STYLIST);
+      setBreakdownOpen(false);
+    }
   }, [open]);
 
   if (!open) return null;
@@ -84,28 +104,44 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Service summary — chosen already, shown for confirmation only.
-              Live queue facts (people ahead/position/wait) already live on
-              the salon page's Live Queue card, directly above this sheet's
-              trigger — repeating them here was redundant. */}
+          {/* TO PAY — total + session, deliberately no service name here: the
+              header stays clean/breathable whether 1 or many services are
+              selected. Live queue facts (people ahead/position/wait) already
+              live on the salon page's Live Queue card, directly above this
+              sheet's trigger — repeating them here was redundant. */}
           <section className="rounded-2xl border border-[#E1E7E6] bg-white p-4">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#73827F]">
-              {services.length > 1 ? 'Your services' : 'Your service'}
-            </p>
-            <div className="mt-2 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#17201F]">{serviceLabel}</p>
-                {services.length === 1 && services[0]?.description && (
-                  <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#788582]">{services[0].description}</p>
-                )}
-                {totalDurationMin > 0 ? (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#60716E]">
-                    <Clock className="h-3 w-3" /> {totalDurationMin} min
-                  </p>
-                ) : null}
-              </div>
-              {totalPriceInr > 0 ? <span className="shrink-0 text-base font-bold text-[#17201F]">₹{totalPriceInr}</span> : null}
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#73827F]">To pay</p>
             </div>
+            <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.02em] text-[#17201F]">₹{totalPriceInr}</p>
+            {discountInr > 0 && appliedOffer && (
+              <p id="to-pay-discount-note" className="mt-1 flex items-center gap-1 text-[11px] font-bold text-[#0F766E]">
+                <Tag className="h-3 w-3" /> {appliedOffer.title} applied · saved ₹{discountInr}
+              </p>
+            )}
+            {totalDurationMin > 0 && (
+              <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[#E7EEEC] bg-[#F6FAF9] px-2.5 py-2">
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#0F766E] to-[#0B4A44] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
+                  <Clock className="h-3.5 w-3.5" />
+                </span>
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
+                  <span className="text-xs font-extrabold text-[#0B211E]">{totalDurationMin} min</span>
+                </span>
+              </div>
+            )}
+            <button
+              type="button"
+              id="view-services-btn"
+              onClick={() => setBreakdownOpen(true)}
+              className="mt-3 flex w-full items-center justify-between gap-3 border-t border-[#EEF3F2] pt-3 text-left"
+            >
+              <span className="text-[11px] font-semibold text-[#4C5A58]">{services.length} {services.length === 1 ? 'service' : 'services'} selected</span>
+              <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-[#0F766E]">
+                View services
+                <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            </button>
           </section>
 
           {/* Stylist choice. */}
@@ -117,7 +153,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
             <p className="mt-1 text-[11px] text-[#788582]">Pick a favourite, or let the salon seat you sooner.</p>
 
             <div className="mt-3 space-y-2.5">
-              <AnyStylistCard selected={stylist === ANY_STYLIST} onSelect={() => setStylist(ANY_STYLIST)} openChairs={preview.openChairs} workingChairs={preview.workingChairs} />
+              <AnyStylistCard selected={stylist === ANY_STYLIST} onSelect={() => setStylist(ANY_STYLIST)} />
               {barbers.filter((barber) => barber.active !== false).map((barber) => (
                 <StylistCard
                   key={barber.id}
@@ -144,50 +180,70 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="px-5 pt-4">
+          {/* Get Token — same premium teal mirror/lens material as the Salon
+              Detail Live Queue card, floating directly on the sheet with no
+              white slab behind it. */}
           <button
             id="confirm-join-queue-btn"
             type="button"
             disabled={busy}
             onClick={() => onConfirm(stylist)}
-            className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#0F766E] text-[15px] font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
+            className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl text-[15px] font-bold text-white shadow-[0_16px_32px_-16px_rgba(6,44,40,0.6)] transition active:scale-[0.99] disabled:opacity-60"
+            style={{ background: LIVE_QUEUE_GRADIENT }}
           >
-            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
-            Join Queue
+            <span
+              className="pointer-events-none absolute inset-0 rounded-2xl p-px"
+              style={{
+                background: LIVE_QUEUE_RIM_FULL,
+                WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+                WebkitMaskComposite: 'xor',
+                maskComposite: 'exclude',
+              }}
+              aria-hidden="true"
+            />
+            <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 rounded-t-2xl bg-gradient-to-b from-white/[0.14] to-transparent" aria-hidden="true" />
+            <span className="relative flex items-center gap-2">
+              {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Ticket className="h-4 w-4" />}
+              Get Token
+            </span>
           </button>
           <p className="mt-2 text-center text-[11px] text-[#788582]">
             You can cancel any time before you are called.
           </p>
         </div>
       </div>
+
+      {breakdownOpen && (
+        <PriceBreakdownSheet
+          services={services}
+          offers={offers}
+          appliedOfferId={appliedOfferId}
+          onApplyOffer={onApplyOffer}
+          onRemoveOffer={onRemoveOffer}
+          onClose={() => setBreakdownOpen(false)}
+        />
+      )}
     </div>
   );
 };
 
-const AnyStylistCard: React.FC<{ selected: boolean; onSelect: () => void; openChairs: number; workingChairs: number }> = ({
-  selected,
-  onSelect,
-  openChairs,
-  workingChairs,
-}) => (
+/** Compact outlined pill — deliberately smaller/quieter than the named
+ *  stylist profile cards below it, since "any available" isn't a person. */
+const AnyStylistCard: React.FC<{ selected: boolean; onSelect: () => void }> = ({ selected, onSelect }) => (
   <button
     id="stylist-any"
     type="button"
     onClick={onSelect}
     aria-pressed={selected}
-    className={`relative flex w-full items-center gap-3 rounded-2xl border p-3.5 text-left transition ${
-      selected ? 'border-transparent bg-gradient-to-br from-[#173B38] to-[#2C5B55] shadow-[0_10px_22px_-14px_rgba(15,118,110,0.6)]' : 'border-[#E2EAE9] bg-white'
+    className={`flex w-full items-center gap-2 rounded-full border px-3.5 py-2.5 text-left transition ${
+      selected ? 'border-[#0F766E] bg-[#F1FAF9]' : 'border-[#E2EAE9] bg-white'
     }`}
   >
-    {selected && <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-white text-[#173B38]"><Check className="h-3 w-3" /></span>}
-    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${selected ? 'bg-white/15' : 'bg-[#EEF3F2]'}`}>
-      <Sparkles className={`h-4.5 w-4.5 ${selected ? 'text-white' : 'text-[#0F766E]'}`} />
+    <Sparkles className={`h-3.5 w-3.5 shrink-0 ${selected ? 'text-[#0F766E]' : 'text-[#788582]'}`} />
+    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#17201F]">
+      Any available stylist <span className="font-semibold text-[#788582]">· Fastest option</span>
     </span>
-    <span className="min-w-0 flex-1">
-      <span className={`block truncate text-sm font-bold ${selected ? 'text-white' : 'text-[#17201F]'}`}>Any available stylist</span>
-      <span className={`mt-0.5 block truncate text-[11px] ${selected ? 'text-white/70' : 'text-[#788582]'}`}>
-        {openChairs > 0 ? `Ready now · ${openChairs} of ${workingChairs} chairs free` : 'Usually the fastest way to be seated'}
-      </span>
-    </span>
+    {selected && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#0F766E] text-white"><Check className="h-3 w-3" /></span>}
   </button>
 );
 

@@ -5,11 +5,12 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { INITIAL_BARBERS, INITIAL_QUEUE, SALONS } from '../src/data/mockData.ts';
-import type { Barber, QueueItem, Salon } from '../src/types.ts';
+import type { Barber, QueueItem, Salon, SalonOffer } from '../src/types.ts';
 import {initPostgresPersistence} from './postgresPersistence.ts';
 import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
+import {evaluateCoupon} from '../src/shared/couponPricing.ts';
 
 // Configurable arrival grace period; a future per-salon setting can override this.
 const GRACE_WINDOW_MS = graceWindowMs(graceMinutes(process.env.QUEUE_GRACE_MINUTES));
@@ -50,7 +51,8 @@ type QueueCommand =
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
   | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
   | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string }
-  | { type: 'save_staff'; staff: unknown[] };
+  | { type: 'save_staff'; staff: unknown[] }
+  | { type: 'save_offers'; offers: unknown[] };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -189,6 +191,21 @@ db.exec(`
   );
 `);
 
+// salon_offer grew structured discount math (percent/fixed value, a
+// redeemable code, per-service eligibility) on top of its original
+// free-text fields — additive columns on the existing table, not a second
+// coupon table, so Admin's editor and Staff's Offers tab share one model.
+const salonOfferColumns = new Set((db.prepare('PRAGMA table_info(salon_offer)').all() as Array<{ name: string }>).map((column) => column.name));
+const additiveSalonOfferColumns: Record<string, string> = {
+  code: "TEXT NOT NULL DEFAULT ''",
+  discount_type: "TEXT NOT NULL DEFAULT 'percent'",
+  discount_value: 'INTEGER NOT NULL DEFAULT 0',
+  eligible_service_ids_json: "TEXT NOT NULL DEFAULT '[]'",
+};
+for (const [column, definition] of Object.entries(additiveSalonOfferColumns)) {
+  if (!salonOfferColumns.has(column)) db.exec(`ALTER TABLE salon_offer ADD COLUMN ${column} ${definition}`);
+}
+
 const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const nowForSeed = Date.now();
 for (const salon of SALONS) {
@@ -230,7 +247,22 @@ function rowToSalon(row: SalonRow): Salon {
   const hoursRows = db.prepare('SELECT * FROM salon_hours WHERE salon_id = ? ORDER BY day_of_week').all(row.id) as Array<Record<string, string | number>>;
   const services = serviceRows.map((service) => ({ id: String(service.id), name: String(service.name), durationMin: Number(service.duration_min), priceInr: Number(service.price_inr), description: String(service.description || ''), icon: String(service.image_url || '') }));
   const barbers = staffRows.map(staffRowToBarber);
-  const offers = offerRows.map((offer) => ({ id: String(offer.id), title: String(offer.title), discount: String(offer.discount_text), minimumBill: Number(offer.minimum_bill) ? `₹${offer.minimum_bill}` : '', validity: [offer.start_date, offer.end_date].filter(Boolean).join(' – '), terms: String(offer.terms) }));
+  const offers = offerRows.map((offer) => ({
+    id: String(offer.id),
+    title: String(offer.title),
+    discount: String(offer.discount_text),
+    minimumBill: Number(offer.minimum_bill) ? `₹${offer.minimum_bill}` : '',
+    validity: [offer.start_date, offer.end_date].filter(Boolean).join(' – '),
+    terms: String(offer.terms),
+    code: String(offer.code || '') || undefined,
+    discountType: Number(offer.discount_value) > 0 ? (offer.discount_type === 'fixed' ? ('fixed' as const) : ('percent' as const)) : undefined,
+    discountValue: Number(offer.discount_value) > 0 ? Number(offer.discount_value) : undefined,
+    minimumBillInr: Number(offer.minimum_bill) || undefined,
+    startDate: String(offer.start_date || '') || undefined,
+    endDate: String(offer.end_date || '') || undefined,
+    active: true,
+    eligibleServiceIds: offer.eligible_service_ids_json ? (JSON.parse(String(offer.eligible_service_ids_json)) as string[]) : undefined,
+  }));
   const gallery = mediaRows.filter((media) => media.media_type === 'gallery').map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name) }));
   return {
     id: row.id,
@@ -729,6 +761,14 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     return state;
   }
 
+  if (command.type === 'save_offers') {
+    // Staff Dashboard's Offers tab writes through the exact same table (and
+    // the exact same validation) Admin's salon editor already uses — one
+    // offer model, two front doors, same as save_staff above.
+    saveOfferList(state.salonId, command.offers, Date.now());
+    return state;
+  }
+
   if (command.type === 'join') {
     if (!command.item.sessionId) throw new Error('Customer session is required.');
     if (state.queue.some((item) => item.sessionId === command.item.sessionId)) throw new Error('You already have an active booking at this salon.');
@@ -738,6 +778,36 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     const requested = command.item.preferredBarberId
       ? state.barbers.find((barber) => barber.id === command.item.preferredBarberId)
       : undefined;
+    // The applied offer is only ever a client HINT. The actual discount is
+    // recomputed here from the live salon_offer row — a client-supplied
+    // discountInr is never trusted or persisted as-is.
+    let totalPriceInr = command.item.totalPriceInr;
+    let appliedOfferId: string | undefined;
+    let discountInr: number | undefined;
+    if (command.item.appliedOfferId && typeof totalPriceInr === 'number') {
+      const offerRow = db.prepare('SELECT * FROM salon_offer WHERE id = ? AND salon_id = ? AND active = 1')
+        .get(command.item.appliedOfferId, state.salonId) as Record<string, string | number> | undefined;
+      if (offerRow) {
+        const offer: SalonOffer = {
+          id: String(offerRow.id),
+          title: String(offerRow.title),
+          discount: String(offerRow.discount_text),
+          discountType: offerRow.discount_type === 'fixed' ? 'fixed' : 'percent',
+          discountValue: Number(offerRow.discount_value) || 0,
+          minimumBillInr: Number(offerRow.minimum_bill) || undefined,
+          startDate: String(offerRow.start_date || '') || undefined,
+          endDate: String(offerRow.end_date || '') || undefined,
+          active: true,
+          eligibleServiceIds: offerRow.eligible_service_ids_json ? (JSON.parse(String(offerRow.eligible_service_ids_json)) as string[]) : undefined,
+        };
+        const result = evaluateCoupon(offer, { subtotalInr: totalPriceInr, serviceIds: [] });
+        if (result.eligible) {
+          appliedOfferId = offer.id;
+          discountInr = result.discountInr;
+          totalPriceInr = Math.max(0, totalPriceInr - result.discountInr);
+        }
+      }
+    }
     state.queue.push({
       ...command.item,
       preferredBarberId: requested?.id,
@@ -746,6 +816,9 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       id: randomUUID(),
       createdAt: Date.now(),
       token: mintToken(state),
+      totalPriceInr,
+      appliedOfferId,
+      discountInr,
     });
     return state;
   }
@@ -919,6 +992,31 @@ function saveStaffList(salonId: string, rows: unknown[], now: number) {
   });
 }
 
+/**
+ * Bulk-replaces a salon's offers/coupons in salon_offer — the single write
+ * path shared by Admin's salon editor and Staff Dashboard's Offers tab, so
+ * the discount a customer applies is always backed by this one table.
+ */
+function saveOfferList(salonId: string, rows: unknown[], now: number) {
+  db.prepare('DELETE FROM salon_offer WHERE salon_id = ?').run(salonId);
+  rows.forEach((raw, index) => {
+    const row = (raw || {}) as Record<string, unknown>;
+    const title = cleanText(row.title, 120); if (!title) throw new Error('Every offer needs a title.');
+    const minimum = Number(row.minimum_bill ?? 0); if (!Number.isFinite(minimum) || minimum < 0) throw new Error('Minimum bill cannot be negative.');
+    const discountType = String(row.discount_type) === 'fixed' ? 'fixed' : 'percent';
+    const discountValue = Number(row.discount_value ?? 0);
+    if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Discount value for ${title} cannot be negative.`);
+    if (discountType === 'percent' && discountValue > 100) throw new Error(`Percentage discount for ${title} cannot exceed 100.`);
+    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, code, discount_type, discount_value, eligible_service_ids_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        cleanText(row.id, 100) || randomUUID(), salonId, title, cleanText(row.discount_text, 120), cleanText(row.description, 1000), minimum,
+        cleanText(row.start_date, 10), cleanText(row.end_date, 10), cleanText(row.terms, 2000), cleanText(row.image_url, 1000), asBoolean(row.active) ? 1 : 0, index,
+        cleanText(row.code, 40), discountType, discountValue, JSON.stringify(Array.isArray(row.eligible_service_ids) ? row.eligible_service_ids : []), now, now,
+      );
+  });
+}
+
 function saveSalonRelations(salonId: string, body: Record<string, unknown>, now: number) {
   const replace = (table: string, rows: unknown[], insert: (row: Record<string, unknown>, index: number) => void) => {
     db.prepare(`DELETE FROM ${table} WHERE salon_id = ?`).run(salonId);
@@ -941,13 +1039,7 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
       .run(cleanText(row.id, 100) || randomUUID(), salonId, name, cleanText(row.category, 80), price, duration, cleanText(row.description, 1000), cleanText(row.image_url ?? row.imageUrl, 1000), asBoolean(row.active) ? 1 : 0, index, now, now);
   });
   saveStaffList(salonId, Array.isArray(body.staff) ? body.staff : [], now);
-  replace('salon_offer', Array.isArray(body.offers) ? body.offers : [], (row, index) => {
-    const title = cleanText(row.title, 120); if (!title) throw new Error('Every offer needs a title.');
-    const minimum = Number(row.minimum_bill ?? 0); if (!Number.isFinite(minimum) || minimum < 0) throw new Error('Minimum bill cannot be negative.');
-    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(cleanText(row.id, 100) || randomUUID(), salonId, title, cleanText(row.discount_text, 120), cleanText(row.description, 1000), minimum, cleanText(row.start_date, 10), cleanText(row.end_date, 10), cleanText(row.terms, 2000), cleanText(row.image_url, 1000), asBoolean(row.active) ? 1 : 0, index, now, now);
-  });
+  saveOfferList(salonId, Array.isArray(body.offers) ? body.offers : [], now);
   replace('salon_media', Array.isArray(body.media) ? body.media : [], (row, index) => {
     const url = cleanText(row.url, 2000); if (!url) throw new Error('Every gallery item needs an image URL.');
     db.prepare(`INSERT INTO salon_media (id, salon_id, media_type, url, caption, featured, sort_order, created_at, updated_at)

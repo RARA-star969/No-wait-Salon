@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { QueueItem, Barber, Salon, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
+import { QueueItem, Barber, Salon, SalonOffer, ViewMode, CustomerScreen, OtpAction, PushNotification, CustomerAuthSession, CustomerProfile } from './types';
 import { SALONS, INITIAL_BARBERS, INITIAL_QUEUE } from './data/mockData';
 import { fetchSalonProfile } from './services/salonDiscoveryService';
 import { Header } from './components/Header';
@@ -21,6 +21,7 @@ import { realtimeQueueService, type SalonSnapshot } from './services/realtimeQue
 import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from './services/customerAccountService';
 import { businessQrService } from './services/businessQrService';
 import { resolveAppReadiness } from './shared/profileReadiness';
+import { offerDiscountLabel } from './shared/couponPricing';
 import { QueueJoinSheet } from './components/QueueJoinSheet';
 import { AccountOnboarding } from './components/AccountOnboarding';
 
@@ -51,6 +52,10 @@ export default function App() {
   const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
+  // The one applied-offer source of truth: Salon Detail's price breakdown,
+  // the Join Queue sheet's TO PAY, and its own View Services breakdown all
+  // read this same id, so they can never show a different offer applied.
+  const [appliedOfferId, setAppliedOfferId] = useState<string | null>(null);
   const [currentScreen, setCurrentScreen] = useState<CustomerScreen>('home');
   const qrRouteMatch = window.location.pathname.match(/^\/q\/([^/]+)\/?$/);
   const isQrRoute = Boolean(qrRouteMatch);
@@ -356,6 +361,41 @@ export default function App() {
     });
   };
 
+  // Staff Dashboard's Offers tab writes through save_offers, the same
+  // salon_offer table Admin's salon editor already uses. The command
+  // endpoint only returns queue/barber state (not the salon record), so a
+  // fresh salon profile is re-read afterwards to pick up the new offers.
+  const handleSaveOffers = async (offers: SalonOffer[]) => {
+    await runCommand({
+      type: 'save_offers',
+      offers: offers.map((offer) => ({
+        id: offer.id.startsWith('new-') ? undefined : offer.id,
+        title: offer.title,
+        // Staff's editor only sets the structured type/value fields — derive
+        // the free-text badge ("20% OFF") from them so the offers carousel
+        // (which still reads the plain string) isn't left blank.
+        discount_text: offer.discount || offerDiscountLabel(offer),
+        minimum_bill: offer.minimumBillInr ?? 0,
+        start_date: offer.startDate ?? '',
+        end_date: offer.endDate ?? '',
+        terms: offer.terms ?? '',
+        active: offer.active !== false,
+        code: offer.code ?? '',
+        discount_type: offer.discountType ?? 'percent',
+        discount_value: offer.discountValue ?? 0,
+        eligible_service_ids: offer.eligibleServiceIds ?? [],
+      })),
+    });
+    const fresh = await fetchSalonProfile(selectedSalon.id);
+    if (fresh) setSelectedSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+  };
+
+  // Client-side selection only — App.tsx's `join` command sends this id as a
+  // hint, but the server re-validates and recomputes the discount itself
+  // from the live salon_offer row before it ever touches totalPriceInr.
+  const handleApplyOffer = (offerId: string) => setAppliedOfferId(offerId);
+  const handleRemoveOffer = () => setAppliedOfferId(null);
+
   const handleAddWalkin = (
     name: string,
     phone: string,
@@ -478,11 +518,15 @@ export default function App() {
             createdAt: Date.now(),
             estimatedDurationMin: chosenServices.reduce((sum, item) => sum + (Number(item.durationMin) || 0), 0) || 30,
             preferredBarberId: preferredBarberId || undefined,
+            // A hint only — the server re-validates against the live
+            // salon_offer row and recomputes the discount itself.
+            appliedOfferId: appliedOfferId || undefined,
           },
         });
         applySnapshot(snapshot);
       }
       setIsJoinSheetOpen(false);
+      setAppliedOfferId(null);
       triggerPushNotification(
         `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
         `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
@@ -647,6 +691,9 @@ export default function App() {
                   setSelectedService={setSelectedService}
                   selectedServiceIds={selectedServiceIds}
                   setSelectedServiceIds={setSelectedServiceIds}
+                  appliedOfferId={appliedOfferId}
+                  onApplyOffer={handleApplyOffer}
+                  onRemoveOffer={handleRemoveOffer}
                   queue={queue}
                   barbers={barbers}
                   userEntry={userEntry}
@@ -726,6 +773,7 @@ export default function App() {
                   onQueueAction={handleQueueAction}
                   queueAlert={queueAlert}
                   onSaveStaff={handleSaveStaff}
+                  onSaveOffers={handleSaveOffers}
                 />
               </div>
             </section>
@@ -804,6 +852,10 @@ export default function App() {
         busy={joinSheetBusy}
         error={joinSheetError}
         customerName={customerProfile?.name}
+        offers={selectedSalon.offers || []}
+        appliedOfferId={appliedOfferId}
+        onApplyOffer={handleApplyOffer}
+        onRemoveOffer={handleRemoveOffer}
         onClose={() => { setIsJoinSheetOpen(false); setJoinSheetError(''); }}
         onConfirm={(preferredBarberId) => void confirmJoinFromSheet(preferredBarberId)}
       />

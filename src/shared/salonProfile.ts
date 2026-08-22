@@ -61,6 +61,14 @@ export function normaliseOffers(offers: unknown): SalonOffer[] {
           minimumBill: text(record.minimumBill),
           validity: text(record.validity),
           terms: text(record.terms),
+          code: text(record.code) || undefined,
+          discountType: record.discountType === 'fixed' ? 'fixed' : record.discountType === 'percent' ? 'percent' : undefined,
+          discountValue: Number.isFinite(Number(record.discountValue)) && Number(record.discountValue) > 0 ? Number(record.discountValue) : undefined,
+          minimumBillInr: Number.isFinite(Number(record.minimumBillInr)) && Number(record.minimumBillInr) > 0 ? Number(record.minimumBillInr) : undefined,
+          startDate: text(record.startDate) || undefined,
+          endDate: text(record.endDate) || undefined,
+          active: record.active !== false,
+          eligibleServiceIds: Array.isArray(record.eligibleServiceIds) ? record.eligibleServiceIds.filter((id): id is string => typeof id === 'string') : undefined,
         };
       }
       return null;
