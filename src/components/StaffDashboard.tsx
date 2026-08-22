@@ -28,8 +28,9 @@ import {
   UserPlus,
   Sparkles,
   History,
+  Trash2,
 } from 'lucide-react';
-import { QueueItem, Barber, Salon } from '../types';
+import { QueueItem, Barber, Salon, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
 
@@ -53,6 +54,7 @@ interface StaffDashboardProps {
     specificBarberIndex?: number
   ) => void;
   queueAlert: string;
+  onSaveStaff: (staff: Barber[]) => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -64,6 +66,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   onAddWalkin,
   onQueueAction,
   queueAlert,
+  onSaveStaff,
 }) => {
   // Single ticking clock so every CALLED countdown re-renders each second.
   const [now, setNow] = useState(() => Date.now());
@@ -76,7 +79,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }, []);
 
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'history'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff'>('live');
 
   const waitingCount = queue.filter((x) => x.status === 'Waiting').length;
   const servingCount = queue.filter((x) => x.status === 'Serving').length;
@@ -209,16 +212,30 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <History className="w-3.5 h-3.5" />
               <span>Bookings</span>
             </button>
+            <button
+              id="staff-tab-manage-staff"
+              onClick={() => setActiveTab('staff')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === 'staff'
+                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  : 'text-[#6F7C7A] hover:text-[#17201F]'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>Manage Staff</span>
+            </button>
           </div>
 
-          <button
-            id="add-walkin-popup-btn"
-            onClick={() => setIsWalkinModalOpen(true)}
-            className={`${ui.primaryButton} flex items-center gap-1.5 px-3 py-2 text-xs`}
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>+ ADD WALK-IN</span>
-          </button>
+          {activeTab !== 'staff' && (
+            <button
+              id="add-walkin-popup-btn"
+              onClick={() => setIsWalkinModalOpen(true)}
+              className={`${ui.primaryButton} flex items-center gap-1.5 px-3 py-2 text-xs`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>+ ADD WALK-IN</span>
+            </button>
+          )}
         </div>
 
         {/* Alert message */}
@@ -428,6 +445,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             )}
           </div>
         )}
+
+        {activeTab === 'staff' && (
+          <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
+        )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}
         audience="staff"
@@ -448,6 +469,142 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         barbers={barbers}
         onAddWalkin={onAddWalkin}
       />
+    </div>
+  );
+};
+
+let manageStaffDraftId = 0;
+
+/**
+ * Operational staff management for the SAME salon_staff records the
+ * customer-facing stylist list reads — writes go through the save_staff
+ * command, which reconciles into the live queue state immediately, so a
+ * change here reaches Customer App without a queue reset.
+ */
+const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onSave: (staff: Barber[]) => void }> = ({ barbers, allServices, onSave }) => {
+  const [draft, setDraft] = useState<Barber[]>(barbers);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!dirty) setDraft(barbers);
+  }, [barbers, dirty]);
+
+  const update = (id: string, patch: Partial<Barber>) => {
+    setDraft((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+    setDirty(true);
+  };
+
+  const toggleSkill = (id: string, serviceId: string) => {
+    setDraft((rows) => rows.map((row) => {
+      if (row.id !== id) return row;
+      const current = row.serviceIds || [];
+      const next = current.includes(serviceId) ? current.filter((sid) => sid !== serviceId) : [...current, serviceId];
+      return { ...row, serviceIds: next };
+    }));
+    setDirty(true);
+  };
+
+  const addStaff = () => {
+    manageStaffDraftId += 1;
+    setDraft((rows) => [...rows, { id: `new-${Date.now()}-${manageStaffDraftId}`, name: '', role: 'Barber', status: 'available', active: true, serviceIds: [] }]);
+    setDirty(true);
+  };
+
+  const removeStaff = (id: string) => {
+    setDraft((rows) => rows.filter((row) => row.id !== id));
+    setDirty(true);
+  };
+
+  const save = () => {
+    onSave(draft);
+    setDirty(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className={`${ui.card} p-4`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <span className="block text-xs font-bold text-[#17201F]">Staff profiles</span>
+            <span className="mt-0.5 block text-[10px] text-[#6F7C7A]">Same records customers see in Join Queue &middot; photo, role, skills, duty status</span>
+          </div>
+          <button
+            id="manage-staff-save-btn"
+            onClick={save}
+            disabled={!dirty}
+            className={`${ui.primaryButton} px-3 py-2 text-xs disabled:opacity-40`}
+          >
+            {dirty ? 'Save changes' : 'Saved'}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {draft.map((staff) => (
+          <div key={staff.id} id={`manage-staff-row-${staff.id}`} className={`${ui.card} p-3.5 ${staff.active === false ? 'opacity-55' : ''}`}>
+            <div className="flex items-start gap-3">
+              {staff.photoUrl ? (
+                <img src={staff.photoUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#173B38] to-[#3F746D] text-sm font-bold text-white">
+                  {(staff.name || '?').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
+                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                  Name
+                  <input value={staff.name} onChange={(e) => update(staff.id, { name: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Full name" />
+                </label>
+                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                  Role / title
+                  <input value={staff.role || ''} onChange={(e) => update(staff.id, { role: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Senior Barber" />
+                </label>
+                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
+                  Photo URL
+                  <input value={staff.photoUrl || ''} onChange={(e) => update(staff.id, { photoUrl: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="https://…" />
+                </label>
+                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+                  Duty status
+                  <select value={staff.status} onChange={(e) => update(staff.id, { status: e.target.value as Barber['status'] })} className="h-9 rounded-lg border border-[#E1E7E6] px-2 text-xs font-bold text-[#17201F] normal-case">
+                    <option value="available">Available</option>
+                    <option value="busy">Busy</option>
+                    <option value="unavailable">Off duty</option>
+                  </select>
+                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="flex items-center gap-2 text-[11px] font-bold text-[#17201F]">
+                    <input type="checkbox" checked={staff.active !== false} onChange={(e) => update(staff.id, { active: e.target.checked })} className="h-4 w-4 accent-[#0F766E]" />
+                    Visible to customers
+                  </label>
+                  <button id={`manage-staff-remove-${staff.id}`} onClick={() => removeStaff(staff.id)} aria-label={`Remove ${staff.name || 'staff member'}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] text-rose-600">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            {allServices.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[#EEF3F2] pt-3">
+                {allServices.map((service) => {
+                  const on = (staff.serviceIds || []).includes(service.id);
+                  return (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => toggleSkill(staff.id, service.id)}
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
+                    >
+                      {service.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+        <button id="manage-staff-add-btn" onClick={addStaff} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
+          <Plus className="h-3.5 w-3.5" /> Add staff member
+        </button>
+      </div>
     </div>
   );
 };

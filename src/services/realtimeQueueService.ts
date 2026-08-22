@@ -19,7 +19,8 @@ export type QueueCommand =
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
   | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
-  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string };
+  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string }
+  | { type: 'save_staff'; staff: unknown[] };
 
 const request = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const controller = new AbortController();

@@ -88,6 +88,14 @@ export interface Barber {
   status: 'available' | 'busy' | 'unavailable';
   currentCustomerName?: string;
   avatarBg?: string;
+  /** From salon_staff.photo_url — same record Admin/Manage Staff edit. */
+  photoUrl?: string;
+  /** From salon_staff.role, e.g. "Senior Barber". Defaults to "Barber" server-side. */
+  role?: string;
+  /** From salon_staff.service_ids_json — service ids this stylist performs. */
+  serviceIds?: string[];
+  /** From salon_staff.active — false means hidden from customers, kept for Manage Staff. */
+  active?: boolean;
 }
 
 export interface ServiceItem {

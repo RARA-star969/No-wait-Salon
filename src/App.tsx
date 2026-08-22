@@ -338,6 +338,24 @@ export default function App() {
     await runCommand({ type: 'toggle_barber', barberId: barber.id });
   };
 
+  // Manage Staff writes the whole roster through save_staff, same shape
+  // Admin's salon editor already sends — the server reconciles it into live
+  // state immediately, so this reaches Customer App without a queue reset.
+  const handleSaveStaff = async (staff: Barber[]) => {
+    await runCommand({
+      type: 'save_staff',
+      staff: staff.map((member) => ({
+        id: member.id.startsWith('new-') ? undefined : member.id,
+        name: member.name,
+        role: member.role,
+        photo_url: member.photoUrl,
+        working_status: member.status,
+        active: member.active !== false,
+        service_ids: member.serviceIds || [],
+      })),
+    });
+  };
+
   const handleAddWalkin = (
     name: string,
     phone: string,
@@ -707,6 +725,7 @@ export default function App() {
                   onAddWalkin={handleAddWalkin}
                   onQueueAction={handleQueueAction}
                   queueAlert={queueAlert}
+                  onSaveStaff={handleSaveStaff}
                 />
               </div>
             </section>

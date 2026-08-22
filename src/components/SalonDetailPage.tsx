@@ -207,7 +207,9 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             </div>
           </div>
           <div className="grid grid-cols-[1fr_auto] gap-2">
-            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className={`min-h-13 min-w-0 rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_14px_26px_-12px_rgba(15,118,110,0.55)] sm:text-sm ${joinBounce ? 'animate-[join-bounce_360ms_cubic-bezier(0.34,1.56,0.64,1)]' : ''}`}>{userEntry ? 'View live queue' : `Join Queue · ${selectedService}`}</button>
+            <button id="join-live-queue-btn" onClick={onJoin} disabled={!userEntry && totals.count === 0} className={`flex min-h-13 min-w-0 items-center justify-center rounded-xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_14px_26px_-12px_rgba(15,118,110,0.55)] sm:text-sm ${joinBounce ? 'animate-[join-bounce_360ms_cubic-bezier(0.34,1.56,0.64,1)]' : ''}`}>
+              <span className="min-w-0 truncate">{userEntry ? 'View live queue' : totals.count > 0 ? `Join Queue · ${selectedService}` : 'Join Queue'}</span>
+            </button>
             <button id="reserve-slot-btn" onClick={onReserve} aria-label="Reserve a future queue window" className="flex min-h-13 items-center justify-center rounded-xl border border-[#BFD6D2] bg-white px-4 text-[#0F766E] shadow-[0_10px_22px_-14px_rgba(23,32,31,0.3)]"><CalendarDays className="h-5 w-5" /></button>
           </div>
         </div>

@@ -49,7 +49,8 @@ type QueueCommand =
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
   | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
-  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string };
+  | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string }
+  | { type: 'save_staff'; staff: unknown[] };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -205,6 +206,22 @@ for (const salon of SALONS) {
     .run(salon.id, index, '09:00', '21:00'));
 }
 
+/** Single mapping from a salon_staff row to the client Barber shape — used
+ * everywhere a Barber is read, so the customer-facing stylist list, Manage
+ * Staff, and the live queue state can never disagree about what a staff
+ * record looks like. */
+function staffRowToBarber(row: Record<string, string | number>): Barber {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    status: String(row.working_status) as Barber['status'],
+    photoUrl: row.photo_url ? String(row.photo_url) : undefined,
+    role: row.role ? String(row.role) : undefined,
+    serviceIds: row.service_ids_json ? (JSON.parse(String(row.service_ids_json)) as string[]) : undefined,
+    active: row.active === undefined ? true : Number(row.active) === 1,
+  };
+}
+
 function rowToSalon(row: SalonRow): Salon {
   const serviceRows = db.prepare('SELECT * FROM salon_service WHERE salon_id = ? AND active = 1 ORDER BY sort_order, created_at').all(row.id) as Array<Record<string, string | number>>;
   const staffRows = db.prepare('SELECT * FROM salon_staff WHERE salon_id = ? AND active = 1 ORDER BY sort_order, created_at').all(row.id) as Array<Record<string, string | number>>;
@@ -212,7 +229,7 @@ function rowToSalon(row: SalonRow): Salon {
   const mediaRows = db.prepare('SELECT * FROM salon_media WHERE salon_id = ? ORDER BY sort_order, created_at').all(row.id) as Array<Record<string, string | number>>;
   const hoursRows = db.prepare('SELECT * FROM salon_hours WHERE salon_id = ? ORDER BY day_of_week').all(row.id) as Array<Record<string, string | number>>;
   const services = serviceRows.map((service) => ({ id: String(service.id), name: String(service.name), durationMin: Number(service.duration_min), priceInr: Number(service.price_inr), description: String(service.description || ''), icon: String(service.image_url || '') }));
-  const barbers = staffRows.map((staff) => ({ id: String(staff.id), name: String(staff.name), status: String(staff.working_status) as Barber['status'] }));
+  const barbers = staffRows.map(staffRowToBarber);
   const offers = offerRows.map((offer) => ({ id: String(offer.id), title: String(offer.title), discount: String(offer.discount_text), minimumBill: Number(offer.minimum_bill) ? `₹${offer.minimum_bill}` : '', validity: [offer.start_date, offer.end_date].filter(Boolean).join(' – '), terms: String(offer.terms) }));
   const gallery = mediaRows.filter((media) => media.media_type === 'gallery').map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name) }));
   return {
@@ -256,10 +273,52 @@ function readOnboardedSalons(): Salon[] {
 }
 
 function readSalonBarbers(salonId: string): Barber[] {
-  const rows = db.prepare("SELECT id, name, working_status FROM salon_staff WHERE salon_id = ? AND active = 1 ORDER BY sort_order").all(salonId) as Array<{ id: string; name: string; working_status: Barber['status'] }>;
-  if (rows.length) return rows.map((row) => ({ id: row.id, name: row.name, status: row.working_status }));
+  const rows = db.prepare('SELECT * FROM salon_staff WHERE salon_id = ? AND active = 1 ORDER BY sort_order').all(salonId) as Array<Record<string, string | number>>;
+  if (rows.length) return rows.map(staffRowToBarber);
   const row = db.prepare('SELECT barbers_json FROM salon WHERE id = ? AND onboarded = 1').get(salonId) as { barbers_json: string } | undefined;
   return row ? JSON.parse(row.barbers_json) as Barber[] : [];
+}
+
+/**
+ * Reconciles live queue state against the current salon_staff config: adds
+ * newly-added/reactivated staff, drops deactivated ones (unless they are
+ * mid-service, so a chair is never yanked out from under a live booking),
+ * and refreshes name/photo/role/skills for everyone else — while always
+ * preserving the live-only fields (status, currentCustomerName) for staff
+ * who already existed in state. Without this, a Manage Staff change made
+ * after a salon's queue has started would never reach the live view until
+ * a full reset.
+ */
+function reconcileBarbers(state: SalonState): boolean {
+  const configured = readSalonBarbers(state.salonId);
+  if (!configured.length) return false;
+  const configuredById = new Map(configured.map((barber) => [barber.id, barber]));
+  const liveById = new Map(state.barbers.map((barber) => [barber.id, barber]));
+  let changed = false;
+
+  const next: Barber[] = [];
+  for (const config of configured) {
+    const live = liveById.get(config.id);
+    if (live) {
+      const merged: Barber = { ...live, name: config.name, photoUrl: config.photoUrl, role: config.role, serviceIds: config.serviceIds, active: config.active };
+      if (JSON.stringify(merged) !== JSON.stringify(live)) changed = true;
+      next.push(merged);
+    } else {
+      next.push({ ...config, status: 'available' });
+      changed = true;
+    }
+  }
+  // Drop staff removed/deactivated in config, unless they are mid-service —
+  // a live chair is never pulled out from under a booking in progress.
+  for (const live of state.barbers) {
+    if (!configuredById.has(live.id) && live.status === 'busy') {
+      next.push(live);
+    } else if (!configuredById.has(live.id)) {
+      changed = true;
+    }
+  }
+  if (changed) state.barbers = next;
+  return changed;
 }
 db.exec(`
   CREATE TABLE IF NOT EXISTS otp_challenge (
@@ -543,12 +602,18 @@ function seedState(salonId: string): SalonState {
   const isPrimaryDemoSalon = salonId === 'salon-1';
   const configuredBarbers = readSalonBarbers(salonId);
   const baseBarbers = configuredBarbers.length ? configuredBarbers : INITIAL_BARBERS;
+  // The demo salon's canned "Arjun is mid-cut with Aman" opening state comes
+  // from INITIAL_BARBERS by position, but the id always comes from the real
+  // salon_staff config — never overridden — so reconcileBarbers can match
+  // this state back against config on every later read instead of treating
+  // every configured stylist as a stranger.
   const seededBarbers = baseBarbers.map((configured, index) => {
-    const existing = isPrimaryDemoSalon ? INITIAL_BARBERS[index] : configured;
-    if (existing) {
-      return isPrimaryDemoSalon ? structuredClone(existing) : { ...structuredClone(existing), status: 'available' as const, currentCustomerName: undefined };
-    }
-    return { id: `b${index + 1}`, name: `Stylist ${index + 1}`, status: 'available' as const };
+    const demoFlavor = isPrimaryDemoSalon ? INITIAL_BARBERS[index] : undefined;
+    return {
+      ...structuredClone(configured),
+      status: demoFlavor?.status ?? 'available',
+      currentCustomerName: demoFlavor?.currentCustomerName,
+    };
   });
   const state: SalonState = {
     salonId,
@@ -587,7 +652,11 @@ function ensureTokens(state: SalonState): SalonState {
 
 function readState(salonId: string): SalonState {
   const row = db.prepare('SELECT state_json FROM salon_state WHERE salon_id = ?').get(salonId) as { state_json: string } | undefined;
-  if (row) return ensureTokens(JSON.parse(row.state_json) as SalonState);
+  if (row) {
+    const state = ensureTokens(JSON.parse(row.state_json) as SalonState);
+    if (reconcileBarbers(state)) db.prepare('UPDATE salon_state SET state_json = ? WHERE salon_id = ?').run(JSON.stringify(state), state.salonId);
+    return state;
+  }
   const state = seedState(salonId);
   db.prepare('INSERT INTO salon_state (salon_id, version, state_json, updated_at) VALUES (?, ?, ?, ?)')
     .run(salonId, state.version, JSON.stringify(state), state.updatedAt);
@@ -647,6 +716,16 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     const barber = state.barbers[index];
     if (barber.status === 'busy') throw new Error('A barber serving a customer cannot go off duty.');
     state.barbers[index] = { ...barber, status: barber.status === 'available' ? 'unavailable' : 'available' };
+    return state;
+  }
+
+  if (command.type === 'save_staff') {
+    // Manage Staff writes through the exact same table (and the exact same
+    // validation) Admin's salon editor already uses — one staff model, two
+    // front doors. Reconciling immediately means this shows up in the live
+    // queue view without waiting for the next natural state read.
+    saveStaffList(state.salonId, command.staff, Date.now());
+    reconcileBarbers(state);
     return state;
   }
 
@@ -823,6 +902,23 @@ function adminSalonDetail(id: string) {
   };
 }
 
+/**
+ * Bulk-replaces a salon's staff roster in salon_staff — the single write
+ * path for staff profiles, shared by Admin's salon editor and Staff
+ * Dashboard's Manage Staff so neither can drift into a second staff model.
+ */
+function saveStaffList(salonId: string, rows: unknown[], now: number) {
+  db.prepare('DELETE FROM salon_staff WHERE salon_id = ?').run(salonId);
+  rows.forEach((raw, index) => {
+    const row = (raw || {}) as Record<string, unknown>;
+    const name = cleanText(row.name, 100); if (!name) throw new Error('Every staff member needs a name.');
+    const status = ['available', 'busy', 'unavailable'].includes(String(row.working_status)) ? String(row.working_status) : 'available';
+    db.prepare(`INSERT INTO salon_staff (id, salon_id, name, photo_url, role, service_ids_json, working_status, active, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(cleanText(row.id, 100) || randomUUID(), salonId, name, cleanText(row.photo_url, 1000), cleanText(row.role, 80) || 'Barber', JSON.stringify(Array.isArray(row.service_ids) ? row.service_ids : []), status, asBoolean(row.active) ? 1 : 0, index, now, now);
+  });
+}
+
 function saveSalonRelations(salonId: string, body: Record<string, unknown>, now: number) {
   const replace = (table: string, rows: unknown[], insert: (row: Record<string, unknown>, index: number) => void) => {
     db.prepare(`DELETE FROM ${table} WHERE salon_id = ?`).run(salonId);
@@ -844,13 +940,7 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(cleanText(row.id, 100) || randomUUID(), salonId, name, cleanText(row.category, 80), price, duration, cleanText(row.description, 1000), cleanText(row.image_url ?? row.imageUrl, 1000), asBoolean(row.active) ? 1 : 0, index, now, now);
   });
-  replace('salon_staff', Array.isArray(body.staff) ? body.staff : [], (row, index) => {
-    const name = cleanText(row.name, 100); if (!name) throw new Error('Every staff member needs a name.');
-    const status = ['available', 'busy', 'unavailable'].includes(String(row.working_status)) ? String(row.working_status) : 'available';
-    db.prepare(`INSERT INTO salon_staff (id, salon_id, name, photo_url, role, service_ids_json, working_status, active, sort_order, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(cleanText(row.id, 100) || randomUUID(), salonId, name, cleanText(row.photo_url, 1000), cleanText(row.role, 80) || 'Barber', JSON.stringify(Array.isArray(row.service_ids) ? row.service_ids : []), status, asBoolean(row.active) ? 1 : 0, index, now, now);
-  });
+  saveStaffList(salonId, Array.isArray(body.staff) ? body.staff : [], now);
   replace('salon_offer', Array.isArray(body.offers) ? body.offers : [], (row, index) => {
     const title = cleanText(row.title, 120); if (!title) throw new Error('Every offer needs a title.');
     const minimum = Number(row.minimum_bill ?? 0); if (!Number.isFinite(minimum) || minimum < 0) throw new Error('Minimum bill cannot be negative.');
