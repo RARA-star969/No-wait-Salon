@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, Users, X } from 'lucide-react';
+import { AlertCircle, Check, Clock, LoaderCircle, Scissors, Sparkles, X } from 'lucide-react';
 import type { Barber, QueueItem, Salon, ServiceItem } from '../types';
 import { buildJoinPreview } from '../shared/joinPreview';
 
@@ -84,28 +84,11 @@ export const QueueJoinSheet: React.FC<Props> = ({
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          {/* Live queue facts, from the same maths the live ticket uses. */}
-          <section className="rounded-2xl border border-[#BFDAD6] bg-[#E6F3F1] p-4">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#14B8A6] opacity-70" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#0F766E]" />
-              </span>
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#4E7772]">Live queue</p>
-            </div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              <Stat label="People ahead" value={String(preview.peopleAhead)} />
-              <Stat label="Your position" value={`#${preview.projectedPosition}`} />
-              <Stat label="Est. wait" value={preview.estimatedWaitMinutes === 0 ? 'Now' : `${preview.estimatedWaitMinutes}m`} />
-            </div>
-            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-[#5C7773]">
-              <Users className="h-3.5 w-3.5" />
-              {preview.openChairs} of {preview.workingChairs} {preview.workingChairs === 1 ? 'chair' : 'chairs'} free right now
-            </p>
-          </section>
-
-          {/* Service summary — chosen already, shown for confirmation only. */}
-          <section className="mt-4 rounded-2xl border border-[#E1E7E6] bg-white p-4">
+          {/* Service summary — chosen already, shown for confirmation only.
+              Live queue facts (people ahead/position/wait) already live on
+              the salon page's Live Queue card, directly above this sheet's
+              trigger — repeating them here was redundant. */}
+          <section className="rounded-2xl border border-[#E1E7E6] bg-white p-4">
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#73827F]">
               {services.length > 1 ? 'Your services' : 'Your service'}
             </p>
@@ -179,13 +162,6 @@ export const QueueJoinSheet: React.FC<Props> = ({
     </div>
   );
 };
-
-const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="rounded-xl bg-white/70 p-2.5 text-center">
-    <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#5C7773]">{label}</p>
-    <p className="mt-0.5 text-lg font-bold tracking-[-0.02em] text-[#125B54]">{value}</p>
-  </div>
-);
 
 const AnyStylistCard: React.FC<{ selected: boolean; onSelect: () => void; openChairs: number; workingChairs: number }> = ({
   selected,
