@@ -10,6 +10,11 @@ on:
       - 'fix/**'
       - 'feat/**'
   workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Override the API the APK talks to (defaults to production). Use this to point a test build at a preview/test backend.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ jobs:
   customer-debug-apk:
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: https://no-wait-salon-api.onrender.com
+      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://no-wait-salon-api.onrender.com' }}
 
     steps:
       - name: Check out source
