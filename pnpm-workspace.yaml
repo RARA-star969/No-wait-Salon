@@ -2,4 +2,4 @@ allowBuilds:
   '@google/genai': true
   esbuild: true
   protobufjs: true
-  puppeteer: set this to true or false
+  puppeteer: true
