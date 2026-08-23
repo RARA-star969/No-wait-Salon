@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: no-wait-salon-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /tmp/no-wait-salon-data
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_POOL_MAX
+        value: 10
+      - key: ALLOWED_ORIGINS
+        value: capacitor://localhost,http://localhost,https://no-wait-salon-admin.onrender.com
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

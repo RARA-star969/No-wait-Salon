@@ -1,0 +1,270 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-natural-bg: #F4F7F6;
+  --color-natural-card: #FFFFFF;
+  --color-natural-sub: #F8FAFA;
+  --color-natural-text: #17201F;
+  --color-natural-muted: #6F7C7A;
+  --color-natural-border: #E1E7E6;
+  --color-natural-olive: #0F766E;
+  --color-natural-olive-hover: #0B665F;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: #F4F7F6;
+  color: #17201F;
+  margin: 0;
+}
+
+/* Phase 1. The scanner renders in a portal on <body>, outside #root, so Home
+   can be hidden the moment the scanner opens - before any camera work or
+   WebView transparency begins. Nothing can composite Home through the shell. */
+body.scanner-open #root {
+  visibility: hidden;
+}
+
+body.scanner-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Phase 3. While the native ML Kit preview runs the WebView must be
+   see-through so the camera plane behind it is visible. */
+body.barcode-scanner-active,
+body.barcode-scanner-active #root {
+  background: transparent !important;
+}
+
+/* The dimming scrim would otherwise hide the native camera plane entirely. */
+body.barcode-scanner-active #qr-scanner-scrim {
+  background: transparent !important;
+}
+
+/* Scanner opens as a dedicated surface: fade the dark field in, then let the
+   transparency swap happen once the native preview is live. */
+@keyframes qr-shell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes qr-scan-sweep {
+  0% {
+    transform: translateY(0.75rem);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(17.25rem);
+    opacity: 0;
+  }
+}
+
+/* Live queue hero card: a looping waveform, translated by exactly half its
+   doubled width so the seam is invisible and no JS has to drive it per frame. */
+@keyframes queue-waveform {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Live Queue card: a broad, soft light band drifting across the card
+   periodically — subtle premium sheen, not a loading shimmer. Used by the
+   default (public QR) variant via the animate-[...] utility below. */
+@keyframes queue-light-sweep {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  55%, 100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Live scoreboard capsule: a slow breathing scale + glow drift so the
+   sticky "signature" summary reads as alive without being distracting. */
+@keyframes scoreboard-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+
+@keyframes scoreboard-glow-drift {
+  0%, 100% { opacity: 0.7; transform: translate(0, 0); }
+  50% { opacity: 1; transform: translate(-6px, 4px); }
+}
+
+.live-scoreboard {
+  animation: scoreboard-breathe 3.6s ease-in-out infinite;
+}
+
+.live-scoreboard-glow {
+  animation: scoreboard-glow-drift 4.2s ease-in-out infinite;
+}
+
+/* Salon Detail live-queue card background: a faint scrolling line-graph,
+   reusing the queue-waveform keyframe above — GPU-only transform. */
+.queue-waveform-line {
+  animation: queue-waveform 9s linear infinite;
+}
+
+/* A gentle breathing emphasis for "Your Turn"/"Now" — noticeable without
+   being a flashy attention-grab. Opacity + scale only. */
+@keyframes attention-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.74; transform: scale(1.035); }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.9s ease-in-out infinite;
+}
+
+/* Live chip: a soft pulsing ring so the LIVE indicator reads as truly live.
+   Shared by the Salon Detail card and its scoreboard capsule. */
+@keyframes live-chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.live-chip-pulse {
+  animation: live-chip-pulse 2.2s ease-out infinite;
+}
+
+/* Salon Detail sticky dock: a quick micro-bounce whenever the selection
+   changes, so adding/removing a service reads as the dock "catching" it. */
+@keyframes dock-bounce {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.03); }
+  65% { transform: scale(0.99); }
+}
+
+.dock-bounce {
+  animation: dock-bounce 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Service "Add" tap: a quick rise + fade near the tapped card, hinting the
+   item just flew into the sticky dock below. */
+@keyframes add-to-dock-ping {
+  0% { opacity: 0; transform: translateY(2px) scale(0.85); }
+  30% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1); }
+}
+
+.add-to-dock-ping {
+  animation: add-to-dock-ping 560ms ease-out forwards;
+}
+
+/* Salon hero "open now" dot: a small ball-like bounce so an open salon
+   reads as alive at a glance, not just a static coloured dot. */
+@keyframes open-dot-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-2.5px) scale(1.08); }
+  55% { transform: translateY(0) scale(0.96); }
+  75% { transform: translateY(-1px) scale(1.03); }
+}
+
+.open-dot-bounce {
+  animation: open-dot-bounce 1.8s ease-in-out infinite;
+}
+
+/* Salon name: a gentle letter-by-letter wave, left to right, once on
+   mount — a subtle premium flourish, never a distracting loop. */
+@keyframes name-wave-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.name-wave-letter {
+  display: inline-block;
+  opacity: 0;
+  animation: name-wave-in 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
+/* Floating live scoreboard capsule: settles in with a soft lift/drop plus a
+   brief blur, so it reads as condensing into place, not a plain slide-in. */
+@keyframes capsule-melt-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.85); filter: blur(3px); }
+  60% { opacity: 1; transform: translateY(1px) scale(1.02); filter: blur(0.5px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.capsule-melt-in {
+  animation: capsule-melt-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Salon Detail live-queue card: a broad, blurred white light sweep crossing
+   the surface every few seconds, like light catching a lens — not a
+   metallic shimmer stripe. */
+@keyframes light-sweep {
+  0%   { transform: translateX(-70%); opacity: 0; }
+  8%   { opacity: 0; }
+  20%  { opacity: 0.9; }
+  40%  { opacity: 0.9; }
+  55%  { transform: translateX(70%); opacity: 0; }
+  100% { transform: translateX(70%); opacity: 0; }
+}
+
+.light-sweep {
+  background: linear-gradient(100deg, transparent 38%, rgba(255,255,255,0.16) 48%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.16) 52%, transparent 62%);
+  filter: blur(14px);
+  animation: light-sweep 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
+  .animate-\[qr-shell-in_220ms_ease-out\],
+  .animate-\[queue-light-sweep_6s_ease-in-out_infinite\],
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .live-scoreboard,
+  .live-scoreboard-glow,
+  .live-chip-pulse,
+  .dock-bounce,
+  .add-to-dock-ping,
+  .open-dot-bounce,
+  .capsule-melt-in,
+  .light-sweep,
+  .queue-waveform-line,
+  .attention-pulse {
+    animation: none;
+  }
+
+  .name-wave-letter {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  #sticky-scan-qr,
+  #sticky-scan-qr * {
+    transition: none !important;
+  }
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 2px;
+}

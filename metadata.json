@@ -1,0 +1,6 @@
+{
+  "name": "No-Wait Salon",
+  "description": "Live queue management and wait-time tracking MVP with real-time push notifications for nearing queue positions and reserved slots.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
