@@ -23,6 +23,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
+import { formatDurationRangeLabel } from '../shared/durationFormat';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
@@ -275,6 +276,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     };
   }, []);
 
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (userEntry?.status !== 'Called') return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [userEntry?.status]);
+
   const activeBarbersCount = barbers.filter((b) => b.status !== 'unavailable').length;
   const waitingCustomers = queue.filter((x) => x.status === 'Waiting');
   
@@ -297,27 +306,32 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       ? 'Confirming wait'
       : peopleAhead === 0
         ? 'No wait · Ready now'
-        : `${Math.max(5, estimatedMinutes - 5)}–${estimatedMinutes + 5} min`;
+        : formatDurationRangeLabel(Math.max(5, estimatedMinutes - 5), estimatedMinutes + 5);
 
-  // Live Ticket: exactly Joined / In Queue / Upcoming / Your Turn, driven by
-  // the same server-authoritative status the rest of the tracking screen
-  // already uses — "Joined" is just a brief window right after createdAt so
-  // the very first paint doesn't jump straight to "In Queue".
+  const joinedAtTimeLabel = userEntry?.createdAt
+    ? new Date(userEntry.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+    : undefined;
+
+  const calledAtTimeLabel = userEntry?.calledAt
+    ? new Date(userEntry.calledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+    : undefined;
+
+  const callTimerRemainingLabel = userEntry?.status === 'Called'
+    ? formatCountdown(remainingMs(userEntry, now))
+    : undefined;
+
+  const callExpired = userEntry?.status === 'Called' && remainingMs(userEntry, now) <= 0;
+
   const journeyStage: JourneyStage = !userEntry
     ? 'joined'
-    : userEntry.status === 'Serving'
+    : userEntry.status === 'Serving' || userEntry.status === 'Called'
       ? 'your-turn'
-      : userEntry.status === 'Called'
+      : (peopleAhead <= 1 || estimatedMinutes <= 10)
         ? 'upcoming'
-        : Date.now() - userEntry.createdAt < 10_000
-          ? 'joined'
-          : 'in-queue';
+        : 'in-queue';
+
   const ticketPosition = !userEntry || userEntry.status === 'Called' || userEntry.status === 'Serving' ? 0 : peopleAhead + 1;
 
-  // Two ahead, the customer, two behind — the same active-queue ordering
-  // `peopleAhead` already uses, just windowed around this booking instead of
-  // counted. No name, no phone: only a first-name initial (or photo, if the
-  // account actually has one) and position.
   const ticketPeopleAround: TicketPerson[] = (() => {
     if (!userEntry) return [];
     const ordered = queue
@@ -325,12 +339,28 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       .sort((a, b) => a.createdAt - b.createdAt);
     const myIndex = ordered.findIndex((item) => item.id === userEntry.id);
     if (myIndex < 0) return [];
-    return ordered.slice(Math.max(0, myIndex - 2), myIndex + 3).map((item) => ({
-      id: item.id,
-      label: item.id === userEntry.id ? 'You' : (item.name || '?').trim().slice(0, 1).toUpperCase(),
-      photoUrl: item.customerPhotoUrl,
-      isMe: item.id === userEntry.id,
-    }));
+    return ordered.slice(Math.max(0, myIndex - 2), myIndex + 3).map((item, idx, arr) => {
+      const positionNum = queue
+        .filter((q) => ['Waiting', 'Called', 'Serving'].includes(q.status))
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .findIndex((q) => q.id === item.id) + 1;
+      const isMe = item.id === userEntry.id;
+      const absoluteIdx = queue.filter((q) => ['Waiting', 'Called', 'Serving'].includes(q.status)).sort((a, b) => a.createdAt - b.createdAt).findIndex((q) => q.id === item.id);
+      const relLabel = isMe
+        ? 'Current token'
+        : absoluteIdx < myIndex
+          ? 'Ahead of you'
+          : 'Behind you';
+
+      return {
+        id: item.id,
+        label: isMe ? 'YOU' : (item.name || 'Customer').trim().slice(0, 1).toUpperCase(),
+        positionNumber: positionNum,
+        relLabel,
+        photoUrl: item.customerPhotoUrl,
+        isMe,
+      };
+    });
   })();
 
   // Services chosen so far, falling back to the legacy single-select name —
@@ -774,6 +804,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               onAcknowledge={onAcknowledge}
               onCancel={() => setCancelSheetOpen(true)}
               peopleAround={ticketPeopleAround}
+              joinedAtTimeLabel={joinedAtTimeLabel}
+              calledAtTimeLabel={calledAtTimeLabel}
+              callTimerRemainingLabel={callTimerRemainingLabel}
+              isCalledState={userEntry?.status === 'Called'}
+              isUpcomingState={userEntry?.status === 'Waiting' && (peopleAhead <= 1 || estimatedMinutes <= 10)}
+              isAcknowledged={Boolean(userEntry?.acknowledgedAt)}
+              callExpired={callExpired}
+              upcomingPeopleAhead={peopleAhead}
+              upcomingApproxTimeLabel={waitDisplay}
             />
           )}
 

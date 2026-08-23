@@ -71,6 +71,22 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 
             <p className="mt-1 truncate text-[11px] font-medium text-[#17201F]">{item.service}</p>
 
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-[#6F7C7A]">
+              {item.createdAt && (
+                <span>Joined {new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+              )}
+              {item.calledAt && (
+                <span>&middot; Called {new Date(item.calledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+              )}
+              {item.status === 'Called' && (
+                item.acknowledgedAt ? (
+                  <span className="font-bold text-[#0F766E]">&middot; Customer acknowledged &middot; On the way &check;</span>
+                ) : (
+                  <span className="font-semibold text-amber-700">&middot; Waiting for response</span>
+                )
+              )}
+            </div>
+
             {state.detailLines.length > 0 && (
               <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
                 {state.detailLines.map((line) => (

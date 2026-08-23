@@ -23,13 +23,26 @@ export function formatDurationLabel(totalMinutes: number): string {
   if (minutes < MINUTES_PER_DAY) {
     const hours = Math.floor(minutes / MINUTES_PER_HOUR);
     const remainder = minutes % MINUTES_PER_HOUR;
-    // 12+ hours drops the minutes remainder — coarser granularity reads cleaner.
     if (minutes >= TWELVE_HOURS_MIN || remainder === 0) return `${hours} hr`;
-    return `${hours} hr ${remainder} min`;
+    const remainderStr = String(remainder).padStart(2, '0');
+    return `${hours} hr ${remainderStr} min`;
   }
 
   const days = Math.floor(minutes / MINUTES_PER_DAY);
   const remainingHours = Math.floor((minutes % MINUTES_PER_DAY) / MINUTES_PER_HOUR);
   const dayLabel = `${days} day${days === 1 ? '' : 's'}`;
   return remainingHours === 0 ? dayLabel : `${dayLabel} ${remainingHours} hr`;
+}
+
+export function formatDurationRangeLabel(minMinutes: number, maxMinutes: number): string {
+  const minM = Math.max(0, Math.round(Number(minMinutes) || 0));
+  const maxM = Math.max(minM, Math.round(Number(maxMinutes) || 0));
+
+  if (minM === maxM) return formatDurationLabel(minM);
+
+  if (minM < MINUTES_PER_HOUR && maxM < MINUTES_PER_HOUR) {
+    return `${minM}–${maxM} min`;
+  }
+
+  return `${formatDurationLabel(minM)} – ${formatDurationLabel(maxM)}`;
 }

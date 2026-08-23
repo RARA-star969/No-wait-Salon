@@ -6,6 +6,8 @@ export type JourneyStage = 'joined' | 'in-queue' | 'upcoming' | 'your-turn';
 export type TicketPerson = {
   id: string;
   label: string;
+  positionNumber?: number;
+  relLabel?: string;
   photoUrl?: string;
   isMe?: boolean;
 };
@@ -21,6 +23,15 @@ type Props = {
   onAcknowledge: () => void;
   onCancel: () => void;
   peopleAround: TicketPerson[];
+  joinedAtTimeLabel?: string;
+  calledAtTimeLabel?: string;
+  callTimerRemainingLabel?: string;
+  isCalledState?: boolean;
+  isUpcomingState?: boolean;
+  isAcknowledged?: boolean;
+  callExpired?: boolean;
+  upcomingPeopleAhead?: number;
+  upcomingApproxTimeLabel?: string;
 };
 
 const JOURNEY_STEPS: { key: JourneyStage; label: string }[] = [
@@ -31,11 +42,6 @@ const JOURNEY_STEPS: { key: JourneyStage; label: string }[] = [
 ];
 const STAGE_ORDER: JourneyStage[] = ['joined', 'in-queue', 'upcoming', 'your-turn'];
 
-/**
- * The customer's post-join Live Ticket: a two-portion digital chip in the
- * same teal mirror language as LiveQueueCard, draggable in 3D with momentum.
- * Shape is locked (do not redesign the silhouette) — see .lt-clip below.
- */
 export const LiveTicket: React.FC<Props> = ({
   salonName,
   token,
@@ -47,6 +53,15 @@ export const LiveTicket: React.FC<Props> = ({
   onAcknowledge,
   onCancel,
   peopleAround,
+  joinedAtTimeLabel,
+  calledAtTimeLabel,
+  callTimerRemainingLabel,
+  isCalledState,
+  isUpcomingState,
+  isAcknowledged,
+  callExpired,
+  upcomingPeopleAhead = 1,
+  upcomingApproxTimeLabel = '5–10 min',
 }) => {
   const ticketRef = useRef<HTMLDivElement>(null);
   const angleRef = useRef(0);
@@ -146,7 +161,7 @@ export const LiveTicket: React.FC<Props> = ({
   const stageIndex = STAGE_ORDER.indexOf(stage);
 
   return (
-    <div className="lt-root">
+    <div className="lt-root w-full">
       <style>{`
         .lt-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;perspective:1200px;touch-action:pan-y;padding:10px 0 16px 0;filter:drop-shadow(0 28px 40px rgba(4,38,35,.46)) drop-shadow(0 10px 18px rgba(15,118,110,.25));}
         .lt-ticket{position:relative;width:290px;height:172px;transform-style:preserve-3d;cursor:grab;will-change:transform;}
@@ -221,8 +236,23 @@ export const LiveTicket: React.FC<Props> = ({
                   <span className="lt-token" id="live-ticket-token">{token}</span>
                   <span className="lt-token-label">Your token</span>
                   <div className="lt-stats">
-                    <div><div className="lt-stat-l">Position</div><div className="lt-stat-v">{position <= 0 ? 'Now' : `#${position}`}</div></div>
-                    <div><div className="lt-stat-l">Est. wait</div><div className="lt-stat-v">{waitLabel}</div></div>
+                    {isCalledState ? (
+                      <>
+                        <div>
+                          <div className="lt-stat-l">Called At</div>
+                          <div className="lt-stat-v text-[#5EE0B4]">{calledAtTimeLabel || 'Just now'}</div>
+                        </div>
+                        <div>
+                          <div className="lt-stat-l">Time Left</div>
+                          <div className="lt-stat-v text-amber-300 font-mono tracking-wider">{callTimerRemainingLabel || '05:00'}</div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div><div className="lt-stat-l">Position</div><div className="lt-stat-v">{position <= 0 ? 'Now' : `#${position}`}</div></div>
+                        <div><div className="lt-stat-l">Est. wait</div><div className="lt-stat-v">{waitLabel}</div></div>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="lt-stub">
@@ -264,10 +294,10 @@ export const LiveTicket: React.FC<Props> = ({
       {/* Status journey */}
       <div className="mt-5 flex w-full items-start gap-0" role="list" aria-label="Booking status">
         {JOURNEY_STEPS.map((step, index) => {
-          const done = index < stageIndex;
+          const done = index < stageIndex || (step.key === 'joined');
           const active = index === stageIndex;
           return (
-            <div key={step.key} role="listitem" className="relative flex flex-1 flex-col items-center gap-1.5">
+            <div key={step.key} role="listitem" className="relative flex flex-1 flex-col items-center gap-1">
               {index > 0 && (
                 <span
                   className={`absolute left-[-50%] top-[5px] h-0.5 w-full ${done || active ? 'bg-[#0F766E]' : 'bg-[#E1E7E6]'}`}
@@ -275,72 +305,143 @@ export const LiveTicket: React.FC<Props> = ({
                 />
               )}
               <span
-                className={`relative z-[1] h-[11px] w-[11px] rounded-full border-2 border-white ${
-                  done ? 'bg-[#0F766E] shadow-[0_0_0_1px_#0F766E]' : active ? 'bg-[#0F766E] shadow-[0_0_0_4px_rgba(15,118,110,0.25)]' : 'bg-[#E1E7E6] shadow-[0_0_0_1px_#E1E7E6]'
+                className={`relative z-[1] flex items-center justify-center rounded-full border-2 border-white transition-all ${
+                  active
+                    ? 'h-[13px] w-[13px] bg-[#0F766E] shadow-[0_0_0_4px_rgba(15,118,110,0.28)] animate-pulse'
+                    : done
+                      ? 'h-[11px] w-[11px] bg-[#0F766E] shadow-[0_0_0_1px_#0F766E]'
+                      : 'h-[11px] w-[11px] bg-[#E1E7E6] shadow-[0_0_0_1px_#E1E7E6]'
                 }`}
               />
               <span className={`text-center text-[9px] font-bold uppercase tracking-wide ${active ? 'text-[#17201F]' : done ? 'text-[#0F766E]' : 'text-[#6F7C7A]'}`}>
                 {step.label}
               </span>
+              {step.key === 'joined' && joinedAtTimeLabel && (
+                <span className="text-[9px] font-semibold text-[#0F766E]/90">{joinedAtTimeLabel}</span>
+              )}
             </div>
           );
         })}
       </div>
 
-      {/* CTAs */}
-      <div className="mt-5 flex w-full flex-col gap-2">
-        <button
-          id="im-on-my-way-btn"
-          type="button"
-          disabled={!acknowledgeEnabled || acknowledgeBusy}
-          onClick={onAcknowledge}
-          aria-disabled={!acknowledgeEnabled}
-          className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-opacity ${
-            acknowledgeEnabled ? 'bg-[#0F766E] text-white shadow-[0_12px_22px_-12px_rgba(15,118,110,0.6)]' : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55'
-          }`}
-        >
-          {acknowledgeBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-          I&rsquo;m on my way
-        </button>
+      {/* Realtime Preparation / Calling Module */}
+      {isCalledState ? (
+        <div className="mt-5 flex w-full flex-col items-center rounded-[18px] border border-amber-200/80 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-white p-4 shadow-[0_12px_28px_-10px_rgba(217,119,6,0.18)]">
+          <div className="flex items-center gap-2 text-amber-700">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-600" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-wider">Salon is calling you</span>
+          </div>
+          <p className="mt-1 text-center text-xs font-bold text-[#17201F]">It&rsquo;s time to head in</p>
+
+          {callExpired ? (
+            <p className="mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-center text-[11px] font-semibold text-rose-700">
+              Call window expired &mdash; the salon may move to the next customer.
+            </p>
+          ) : (
+            <div className="mt-3 flex flex-col items-center">
+              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-800/70">Arrive Within</span>
+              <span className="font-mono text-2xl font-black text-amber-900">{callTimerRemainingLabel || '05:00'}</span>
+            </div>
+          )}
+        </div>
+      ) : isUpcomingState ? (
+        <div className="mt-5 flex w-full flex-col items-center rounded-[18px] border border-[#0F766E]/20 bg-gradient-to-b from-[#0F766E]/10 via-[#0F766E]/5 to-white p-4 shadow-[0_12px_28px_-10px_rgba(15,118,110,0.15)]">
+          <div className="flex items-center gap-2 text-[#0F766E]">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#0F766E]" />
+            </span>
+            <span className="text-[11px] font-black uppercase tracking-wider">You&rsquo;re Almost Up</span>
+          </div>
+          <p className="mt-1 text-center text-xs font-bold text-[#17201F]">
+            {upcomingPeopleAhead <= 1 ? 'Next in line' : `${upcomingPeopleAhead} people ahead`} &middot; Approx. {upcomingApproxTimeLabel}
+          </p>
+          <div className="mt-2.5 rounded-xl bg-white/80 px-3 py-2 text-center text-[11px] font-semibold text-[#0B4A44] shadow-sm backdrop-blur-sm">
+            Get ready to head over. Your turn is approaching. Stay nearby.
+          </div>
+        </div>
+      ) : null}
+
+      {/* Primary Action Buttons */}
+      <div className="mt-5 flex w-full flex-col gap-2.5">
+        {isAcknowledged ? (
+          <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-[#0F766E]/30 bg-[#0F766E]/10 text-[12.5px] font-bold text-[#0F766E] shadow-sm">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-white">✓</span>
+            Salon notified &mdash; you&rsquo;re on your way
+          </div>
+        ) : (
+          <button
+            id="im-on-my-way-btn"
+            type="button"
+            disabled={!acknowledgeEnabled || acknowledgeBusy}
+            onClick={onAcknowledge}
+            aria-disabled={!acknowledgeEnabled}
+            className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-all ${
+              acknowledgeEnabled
+                ? 'bg-[#0F766E] text-white shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] cursor-pointer'
+                : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55 cursor-not-allowed'
+            }`}
+          >
+            {acknowledgeBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+            I&rsquo;m on my way
+          </button>
+        )}
         <button
           id="cancel-ticket-btn"
           type="button"
           onClick={onCancel}
-          className="text-center text-[11px] font-bold text-rose-700 underline underline-offset-4"
+          className="text-center text-[11px] font-bold text-rose-700 underline underline-offset-4 cursor-pointer"
         >
           Cancel your ticket
         </button>
       </div>
 
-      {/* People around you */}
+      {/* Enhanced 3D People Around You */}
       {peopleAround.length > 0 && (
-        <div className="mt-5 w-full">
-          <p className="mb-2 text-center text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">People around you in queue</p>
-          <div className="flex items-end justify-center gap-3.5">
-            {peopleAround.map((person, index) => (
-              <React.Fragment key={person.id}>
-                {index > 0 && <span className="mb-5 h-0.5 w-4 bg-[#DDE5E3]" aria-hidden="true" />}
-                <div className="flex flex-col items-center gap-1.5">
+        <div className="mt-6 w-full">
+          <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">People around you in queue</p>
+          <div className="flex items-center justify-center gap-2.5 overflow-x-auto py-2">
+            {peopleAround.map((person) => (
+              <div
+                key={person.id}
+                className={`flex flex-col items-center justify-center rounded-[16px] p-2.5 transition-all ${
+                  person.isMe
+                    ? 'min-w-[88px] border-2 border-[#0F766E] bg-gradient-to-b from-[#0F766E]/15 via-white to-white shadow-[0_10px_22px_-8px_rgba(15,118,110,0.35)] scale-105 z-[2]'
+                    : 'min-w-[72px] border border-[#E1E7E6] bg-white/90 shadow-sm'
+                }`}
+              >
+                <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[#0F766E]' : 'text-[#8A9694]'}`}>
+                  {person.positionNumber ? `#${person.positionNumber}` : ''}
+                </span>
+                <div className="my-1.5 flex items-center justify-center">
                   {person.photoUrl ? (
                     <img
                       src={person.photoUrl}
                       alt=""
-                      className={`rounded-full border-2 border-white object-cover shadow-[0_0_0_1px_#DDE5E3] ${person.isMe ? 'h-[52px] w-[52px] shadow-[0_0_0_3px_#0F766E]' : 'h-[38px] w-[38px]'}`}
+                      className={`rounded-full border-2 border-white object-cover ${person.isMe ? 'h-[44px] w-[44px] shadow-[0_0_0_2px_#0F766E]' : 'h-[34px] w-[34px]'}`}
                     />
                   ) : (
                     <span
                       className={`flex items-center justify-center rounded-full font-bold ${
-                        person.isMe ? 'h-[52px] w-[52px] bg-[#0F766E] text-sm text-white shadow-[0_0_0_3px_#0F766E]' : 'h-[38px] w-[38px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
+                        person.isMe
+                          ? 'h-[44px] w-[44px] bg-[#0F766E] text-sm text-white shadow-[0_4px_12px_rgba(15,118,110,0.4)]'
+                          : 'h-[34px] w-[34px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
                       }`}
                     >
                       {person.isMe ? 'You' : person.label.slice(0, 1).toUpperCase()}
                     </span>
                   )}
-                  <span className={`text-[9px] font-bold uppercase tracking-wide ${person.isMe ? 'text-[#0F766E]' : 'text-[#6F7C7A]'}`}>
-                    {person.isMe ? 'You' : person.label}
-                  </span>
                 </div>
-              </React.Fragment>
+                <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[#0F766E]' : 'text-[#17201F]'}`}>
+                  {person.isMe ? 'YOU' : person.label}
+                </span>
+                <span className="text-[8px] font-bold text-[#6F7C7A]">
+                  {person.relLabel || (person.isMe ? 'Current token' : 'In queue')}
+                </span>
+              </div>
             ))}
           </div>
         </div>
