@@ -49,7 +49,7 @@ type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair'; barberId?: string; reasonCode?: string; reasonText?: string }
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair' | 'Pay-online' | 'Pay-cash' | 'Confirm-cash-payment' | 'Submit-rating'; barberId?: string; reasonCode?: string; reasonText?: string; rating?: number; feedbackTags?: string[]; feedbackComment?: string }
   | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string }
   | { type: 'save_staff'; staff: unknown[] }
   | { type: 'save_offers'; offers: unknown[] };
@@ -1049,7 +1049,54 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     if (item.status !== 'Serving') throw new Error('Only an in-service customer can be completed.');
     releaseBarber(state, item);
     state.queue.splice(itemIndex, 1);
-    state.completedList = [{ ...item, status: 'Completed' as const, outcome: 'completed' as const, serviceCompletedAt: Date.now() }, ...state.completedList].slice(0, 100);
+    const finalPaymentStatus = item.paymentStatus === 'cash_pending' ? 'paid' : (item.paymentStatus || 'paid');
+    const finalPaymentMethod = item.paymentMethod || 'cash';
+    state.completedList = [
+      {
+        ...item,
+        status: 'Completed' as const,
+        outcome: 'completed' as const,
+        paymentStatus: finalPaymentStatus,
+        paymentMethod: finalPaymentMethod,
+        paidAt: item.paidAt || Date.now(),
+        serviceCompletedAt: Date.now(),
+      },
+      ...state.completedList,
+    ].slice(0, 100);
+  } else if (command.action === 'Pay-online') {
+    state.queue[itemIndex] = {
+      ...item,
+      paymentMethod: 'online',
+      paymentStatus: 'paid',
+      paidAt: Date.now(),
+    };
+  } else if (command.action === 'Pay-cash') {
+    state.queue[itemIndex] = {
+      ...item,
+      paymentMethod: 'cash',
+      paymentStatus: 'cash_pending',
+    };
+  } else if (command.action === 'Confirm-cash-payment') {
+    state.queue[itemIndex] = {
+      ...item,
+      paymentMethod: 'cash',
+      paymentStatus: 'paid',
+      paidAt: Date.now(),
+    };
+  } else if (command.action === 'Submit-rating') {
+    const updated = {
+      ...item,
+      rating: command.rating,
+      feedbackTags: command.feedbackTags,
+      feedbackComment: command.feedbackComment,
+    };
+    if (itemIndex >= 0) {
+      state.queue[itemIndex] = updated;
+    }
+    const compIdx = state.completedList.findIndex((c) => c.id === command.itemId);
+    if (compIdx >= 0) {
+      state.completedList[compIdx] = { ...state.completedList[compIdx], ...updated };
+    }
   } else if (command.action === 'Cancel-chair') {
     if (!canCancel(item.status)) throw new Error('Complete or finish the active service before cancelling this chair.');
     releaseBarber(state, item);

@@ -34,6 +34,8 @@ import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from '
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
+import { ThankYouScreen } from './ThankYouScreen';
+import { realtimeQueueService } from '../services/realtimeQueueService';
 import { QrScannerModal } from './QrScannerModal';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
@@ -809,10 +811,34 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               callTimerRemainingLabel={callTimerRemainingLabel}
               isCalledState={userEntry?.status === 'Called'}
               isUpcomingState={userEntry?.status === 'Waiting' && (peopleAhead <= 1 || estimatedMinutes <= 10)}
+              isServingState={userEntry?.status === 'Serving'}
               isAcknowledged={Boolean(userEntry?.acknowledgedAt)}
               callExpired={callExpired}
               upcomingPeopleAhead={peopleAhead}
               upcomingApproxTimeLabel={waitDisplay}
+              totalPriceInr={userEntry?.totalPriceInr || 250}
+              discountInr={userEntry?.discountInr || 0}
+              servicesList={userEntry?.services || [userEntry?.service || selectedService || 'Haircut']}
+              paymentStatus={userEntry?.paymentStatus || 'unpaid'}
+              paymentMethod={userEntry?.paymentMethod}
+              onPayOnline={() => {
+                if (userEntry) {
+                  realtimeQueueService.command(selectedSalon.id, {
+                    type: 'queue_action',
+                    itemId: userEntry.id,
+                    action: 'Pay-online',
+                  });
+                }
+              }}
+              onPayCash={() => {
+                if (userEntry) {
+                  realtimeQueueService.command(selectedSalon.id, {
+                    type: 'queue_action',
+                    itemId: userEntry.id,
+                    action: 'Pay-cash',
+                  });
+                }
+              }}
             />
           )}
 
@@ -893,38 +919,37 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         </div>
       )}
 
-      {/* 5. SERVICE COMPLETE SCREEN */}
+      {/* 5. NEW SERVICE COMPLETE & THANK YOU EXPERIENCE */}
       {currentScreen === 'complete' && (
-        <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[#F8FAFA] p-5 animate-in fade-in duration-200">
-          <div className="rounded-2xl border border-[#C8E3DF] bg-white p-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E] ring-1 ring-[#C8E3DF]">
-              <CheckCircle2 className="h-7 w-7" />
-            </div>
-            <span className="mt-4 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">Service complete</span>
-            <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[#17201F]">Looking sharp.</h1>
-            <p className="mx-auto mt-2 max-w-[300px] text-xs leading-relaxed text-[#6F7C7A]">
-              Your {completedEntry?.service || selectedService} at {selectedSalon.name} is complete. Thanks for visiting us today.
-            </p>
-
-            <div className="mt-5 grid grid-cols-2 gap-2 text-left">
-              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Service</span>
-                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.service || selectedService}</span>
-              </div>
-              <div className="rounded-xl border border-[#E1E7E6] bg-[#F8FAFA] p-3">
-                <span className="block text-[9px] font-bold uppercase tracking-wider text-[#7A8785]">Stylist</span>
-                <span className="mt-1 block truncate text-xs font-semibold text-[#273230]">{completedEntry?.barberName || 'Salon team'}</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setScreen('home')}
-              className="mt-5 w-full rounded-xl bg-[#0F766E] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#0B665F] active:scale-[0.99]"
-            >
-              Find another service
-            </button>
-          </div>
+        <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[#F8FAFA] animate-in fade-in duration-200">
+          <ThankYouScreen
+            item={completedEntry || userEntry || {
+              id: 'demo-completed',
+              name: customerProfile?.name || 'Ritik',
+              service: selectedService || 'Haircut',
+              status: 'Completed',
+              createdAt: Date.now() - 3600000,
+              totalPriceInr: 250,
+              paymentStatus: 'paid',
+              paymentMethod: 'cash',
+              token: 'SC-014',
+            }}
+            salonName={selectedSalon.name}
+            onBackToHome={() => setScreen('home')}
+            onSubmitRating={(rating, tags, comment) => {
+              const target = completedEntry || userEntry;
+              if (target) {
+                realtimeQueueService.command(selectedSalon.id, {
+                  type: 'queue_action',
+                  itemId: target.id,
+                  action: 'Submit-rating',
+                  rating,
+                  feedbackTags: tags,
+                  feedbackComment: comment,
+                });
+              }
+            }}
+          />
         </div>
       )}
 

@@ -1,5 +1,8 @@
 export type QueueStatus = 'Waiting' | 'Called' | 'Serving' | 'Reserved' | 'Completed' | 'NoShow' | 'Cancelled';
 
+export type PaymentStatus = 'unpaid' | 'cash_pending' | 'paid' | 'waived';
+export type PaymentMethod = 'cash' | 'online' | 'upi' | 'card';
+
 /** Terminal outcome of a queue entry, kept distinct from a completed service. */
 export type QueueOutcome =
   | 'completed'
@@ -55,6 +58,13 @@ export interface QueueItem {
   appliedOfferId?: string;
   /** Amount actually deducted, server-computed. `totalPriceInr` is already net of this. */
   discountInr?: number;
+  /** Payment tracking */
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethod;
+  paidAt?: number;
+  rating?: number;
+  feedbackTags?: string[];
+  feedbackComment?: string;
 }
 
 export interface CustomerProfile {

@@ -87,6 +87,39 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
               )}
             </div>
 
+            {/* Serving Billing & Payment Module */}
+            {item.status === 'Serving' && (
+              <div className="mt-2.5 rounded-xl border border-[#0F766E]/25 bg-white p-2.5 shadow-sm space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between font-bold text-[#17201F]">
+                  <span className="text-[#5E6C6A]">Bill Total</span>
+                  <span className="font-mono text-sm font-black text-[#0F766E]">₹{item.totalPriceInr || 250}</span>
+                </div>
+                {item.discountInr ? (
+                  <div className="flex items-center justify-between text-[10px] text-emerald-700 font-semibold">
+                    <span>Discount Applied</span>
+                    <span>-₹{item.discountInr}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between pt-1.5 border-t border-[#E1E7E6]">
+                  <span className="font-bold text-[#5E6C6A]">Payment</span>
+                  {item.paymentStatus === 'cash_pending' ? (
+                    <span id={`cash-pending-pill-${item.id}`} className="flex items-center gap-1 font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full text-[9.5px]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-ping" />
+                      CASH PENDING
+                    </span>
+                  ) : item.paymentStatus === 'paid' ? (
+                    <span className="font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-full text-[9.5px]">
+                      ✓ PAID ({item.paymentMethod === 'online' ? 'Online' : 'Cash'})
+                    </span>
+                  ) : (
+                    <span className="font-semibold text-[#6F7C7A] bg-[#E1E7E6] px-2 py-0.5 rounded-full text-[9.5px]">
+                      UNPAID
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {state.detailLines.length > 0 && (
               <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1">
                 {state.detailLines.map((line) => (
@@ -120,6 +153,17 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 
           {/* Wraps instead of overflowing; every button is the same height. */}
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {item.status === 'Serving' && item.paymentStatus === 'cash_pending' && (
+              <button
+                id={`confirm-cash-btn-${item.id}`}
+                type="button"
+                onClick={() => onAction(item, 'Confirm-cash-payment')}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-amber-600 text-white px-3 text-xs font-bold hover:bg-amber-700 shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <Check className="h-3.5 w-3.5" />
+                Confirm Cash (₹{item.totalPriceInr || 250})
+              </button>
+            )}
             {labelled.map((action) => (
               <button
                 key={action.id}

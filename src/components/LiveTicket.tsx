@@ -28,10 +28,18 @@ type Props = {
   callTimerRemainingLabel?: string;
   isCalledState?: boolean;
   isUpcomingState?: boolean;
+  isServingState?: boolean;
   isAcknowledged?: boolean;
   callExpired?: boolean;
   upcomingPeopleAhead?: number;
   upcomingApproxTimeLabel?: string;
+  totalPriceInr?: number;
+  discountInr?: number;
+  servicesList?: string[];
+  paymentStatus?: 'unpaid' | 'cash_pending' | 'paid' | 'waived';
+  paymentMethod?: 'cash' | 'online' | 'upi' | 'card';
+  onPayOnline?: () => void;
+  onPayCash?: () => void;
 };
 
 const JOURNEY_STEPS: { key: JourneyStage; label: string }[] = [
@@ -58,10 +66,18 @@ export const LiveTicket: React.FC<Props> = ({
   callTimerRemainingLabel,
   isCalledState,
   isUpcomingState,
+  isServingState,
   isAcknowledged,
   callExpired,
   upcomingPeopleAhead = 1,
   upcomingApproxTimeLabel = '5–10 min',
+  totalPriceInr = 250,
+  discountInr = 0,
+  servicesList = [],
+  paymentStatus = 'unpaid',
+  paymentMethod,
+  onPayOnline,
+  onPayCash,
 }) => {
   const ticketRef = useRef<HTMLDivElement>(null);
   const angleRef = useRef(0);
@@ -236,7 +252,18 @@ export const LiveTicket: React.FC<Props> = ({
                   <span className="lt-token" id="live-ticket-token">{token}</span>
                   <span className="lt-token-label">Your token</span>
                   <div className="lt-stats">
-                    {isCalledState ? (
+                    {isServingState ? (
+                      <>
+                        <div>
+                          <div className="lt-stat-l">Status</div>
+                          <div className="lt-stat-v text-[#5EE0B4]">In Chair</div>
+                        </div>
+                        <div>
+                          <div className="lt-stat-l">Bill Total</div>
+                          <div className="lt-stat-v text-white font-mono tracking-wider">₹{totalPriceInr}</div>
+                        </div>
+                      </>
+                    ) : isCalledState ? (
                       <>
                         <div>
                           <div className="lt-stat-l">Called At</div>
@@ -366,85 +393,159 @@ export const LiveTicket: React.FC<Props> = ({
       ) : null}
 
       {/* Primary Action Buttons */}
-      <div className="mt-5 flex w-full flex-col gap-2.5">
-        {isAcknowledged ? (
-          <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-[#0F766E]/30 bg-[#0F766E]/10 text-[12.5px] font-bold text-[#0F766E] shadow-sm">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-white">✓</span>
-            Salon notified &mdash; you&rsquo;re on your way
-          </div>
-        ) : (
+      {!isServingState && (
+        <div className="mt-5 flex w-full flex-col gap-2.5">
+          {isAcknowledged ? (
+            <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-[#0F766E]/30 bg-[#0F766E]/10 text-[12.5px] font-bold text-[#0F766E] shadow-sm">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-white">✓</span>
+              Salon notified &mdash; you&rsquo;re on your way
+            </div>
+          ) : (
+            <button
+              id="im-on-my-way-btn"
+              type="button"
+              disabled={!acknowledgeEnabled || acknowledgeBusy}
+              onClick={onAcknowledge}
+              aria-disabled={!acknowledgeEnabled}
+              className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-all ${
+                acknowledgeEnabled
+                  ? 'bg-[#0F766E] text-white shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] cursor-pointer'
+                  : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55 cursor-not-allowed'
+              }`}
+            >
+              {acknowledgeBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              I&rsquo;m on my way
+            </button>
+          )}
           <button
-            id="im-on-my-way-btn"
+            id="cancel-ticket-btn"
             type="button"
-            disabled={!acknowledgeEnabled || acknowledgeBusy}
-            onClick={onAcknowledge}
-            aria-disabled={!acknowledgeEnabled}
-            className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-all ${
-              acknowledgeEnabled
-                ? 'bg-[#0F766E] text-white shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] cursor-pointer'
-                : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55 cursor-not-allowed'
-            }`}
+            onClick={onCancel}
+            className="text-center text-[11px] font-bold text-rose-700 underline underline-offset-4 cursor-pointer"
           >
-            {acknowledgeBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-            I&rsquo;m on my way
+            Cancel your ticket
           </button>
-        )}
-        <button
-          id="cancel-ticket-btn"
-          type="button"
-          onClick={onCancel}
-          className="text-center text-[11px] font-bold text-rose-700 underline underline-offset-4 cursor-pointer"
-        >
-          Cancel your ticket
-        </button>
-      </div>
+        </div>
+      )}
 
-      {/* Enhanced 3D People Around You */}
-      {peopleAround.length > 0 && (
-        <div className="mt-6 w-full">
-          <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">People around you in queue</p>
-          <div className="flex items-center justify-center gap-2.5 overflow-x-auto py-2">
-            {peopleAround.map((person) => (
-              <div
-                key={person.id}
-                className={`flex flex-col items-center justify-center rounded-[16px] p-2.5 transition-all ${
-                  person.isMe
-                    ? 'min-w-[88px] border-2 border-[#0F766E] bg-gradient-to-b from-[#0F766E]/15 via-white to-white shadow-[0_10px_22px_-8px_rgba(15,118,110,0.35)] scale-105 z-[2]'
-                    : 'min-w-[72px] border border-[#E1E7E6] bg-white/90 shadow-sm'
-                }`}
-              >
-                <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[#0F766E]' : 'text-[#8A9694]'}`}>
-                  {person.positionNumber ? `#${person.positionNumber}` : ''}
-                </span>
-                <div className="my-1.5 flex items-center justify-center">
-                  {person.photoUrl ? (
-                    <img
-                      src={person.photoUrl}
-                      alt=""
-                      className={`rounded-full border-2 border-white object-cover ${person.isMe ? 'h-[44px] w-[44px] shadow-[0_0_0_2px_#0F766E]' : 'h-[34px] w-[34px]'}`}
-                    />
-                  ) : (
-                    <span
-                      className={`flex items-center justify-center rounded-full font-bold ${
-                        person.isMe
-                          ? 'h-[44px] w-[44px] bg-[#0F766E] text-sm text-white shadow-[0_4px_12px_rgba(15,118,110,0.4)]'
-                          : 'h-[34px] w-[34px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
-                      }`}
-                    >
-                      {person.isMe ? 'You' : person.label.slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[#0F766E]' : 'text-[#17201F]'}`}>
-                  {person.isMe ? 'YOU' : person.label}
-                </span>
-                <span className="text-[8px] font-bold text-[#6F7C7A]">
-                  {person.relLabel || (person.isMe ? 'Current token' : 'In queue')}
-                </span>
+      {/* Service & Billing Module OR People Around You */}
+      {isServingState ? (
+        <div id="service-billing-module" className="mt-6 w-full space-y-3 rounded-[20px] border border-[#0F766E]/20 bg-gradient-to-b from-[#0F766E]/10 via-white to-white p-4 shadow-[0_14px_30px_-10px_rgba(15,118,110,0.22)]">
+          <div className="flex items-center justify-between border-b border-[#E1E7E6] pb-2.5">
+            <div className="flex items-center gap-2 text-[#0F766E]">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
+              </span>
+              <span className="text-[11px] font-black uppercase tracking-wider">Service &amp; Billing</span>
+            </div>
+            <span className="text-[10px] font-bold text-[#0B4A44] bg-[#0F766E]/10 px-2 py-0.5 rounded-full">
+              In Chair
+            </span>
+          </div>
+
+          {/* Service & Breakdown */}
+          <div className="space-y-1.5 text-xs text-[#17201F]">
+            <div className="flex items-center justify-between font-medium">
+              <span className="text-[#5E6C6A]">Services</span>
+              <span className="font-bold">{servicesList.length ? servicesList.join(' + ') : 'Haircut'}</span>
+            </div>
+            {discountInr > 0 && (
+              <div className="flex items-center justify-between text-emerald-700 text-[11px] font-semibold">
+                <span>Offer Discount</span>
+                <span>-₹{discountInr}</span>
               </div>
-            ))}
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-[#E1E7E6]">
+              <span className="font-bold text-[#17201F]">Total Payable</span>
+              <span className="text-xl font-black text-[#0B4A44] font-mono">₹{totalPriceInr}</span>
+            </div>
+          </div>
+
+          {/* Payment Actions */}
+          <div className="pt-2">
+            {paymentStatus === 'paid' ? (
+              <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-emerald-300 bg-emerald-50 text-[12.5px] font-bold text-emerald-800 shadow-sm">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</span>
+                Paid ₹{totalPriceInr} via {paymentMethod === 'online' ? 'Online Payment' : 'Cash'}
+              </div>
+            ) : paymentStatus === 'cash_pending' ? (
+              <div className="flex flex-col items-center gap-1 rounded-[13px] border border-amber-300 bg-amber-50 p-3 text-center shadow-sm">
+                <span className="text-[11px] font-extrabold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Cash Payment Reported
+                </span>
+                <p className="text-[10px] font-medium text-amber-900">Waiting for salon staff to confirm cash collection.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <button
+                  id="pay-online-btn"
+                  type="button"
+                  onClick={onPayOnline}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] bg-[#0F766E] text-white text-[12.5px] font-bold shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] transition cursor-pointer"
+                >
+                  Pay Bill (₹{totalPriceInr})
+                </button>
+                <button
+                  id="pay-cash-btn"
+                  type="button"
+                  onClick={onPayCash}
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[13px] border border-[#E1E7E6] bg-white text-[11.5px] font-bold text-[#5E6C6A] hover:bg-[#F8FAFA] transition cursor-pointer"
+                >
+                  💵 Paid Cash to Salon
+                </button>
+              </div>
+            )}
           </div>
         </div>
+      ) : (
+        peopleAround.length > 0 && (
+          <div className="mt-6 w-full">
+            <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">People around you in queue</p>
+            <div className="flex items-center justify-center gap-2.5 overflow-x-auto py-2">
+              {peopleAround.map((person) => (
+                <div
+                  key={person.id}
+                  className={`flex flex-col items-center justify-center rounded-[16px] p-2.5 transition-all ${
+                    person.isMe
+                      ? 'min-w-[88px] border-2 border-[#0F766E] bg-gradient-to-b from-[#0F766E]/15 via-white to-white shadow-[0_10px_22px_-8px_rgba(15,118,110,0.35)] scale-105 z-[2]'
+                      : 'min-w-[72px] border border-[#E1E7E6] bg-white/90 shadow-sm'
+                  }`}
+                >
+                  <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[#0F766E]' : 'text-[#8A9694]'}`}>
+                    {person.positionNumber ? `#${person.positionNumber}` : ''}
+                  </span>
+                  <div className="my-1.5 flex items-center justify-center">
+                    {person.photoUrl ? (
+                      <img
+                        src={person.photoUrl}
+                        alt=""
+                        className={`rounded-full border-2 border-white object-cover ${person.isMe ? 'h-[44px] w-[44px] shadow-[0_0_0_2px_#0F766E]' : 'h-[34px] w-[34px]'}`}
+                      />
+                    ) : (
+                      <span
+                        className={`flex items-center justify-center rounded-full font-bold ${
+                          person.isMe
+                            ? 'h-[44px] w-[44px] bg-[#0F766E] text-sm text-white shadow-[0_4px_12px_rgba(15,118,110,0.4)]'
+                            : 'h-[34px] w-[34px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
+                        }`}
+                      >
+                        {person.isMe ? 'You' : person.label.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[#0F766E]' : 'text-[#17201F]'}`}>
+                    {person.isMe ? 'YOU' : person.label}
+                  </span>
+                  <span className="text-[8px] font-bold text-[#6F7C7A]">
+                    {person.relLabel || (person.isMe ? 'Current token' : 'In queue')}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
       )}
     </div>
   );
