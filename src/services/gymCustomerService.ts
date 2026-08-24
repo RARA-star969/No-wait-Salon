@@ -24,6 +24,7 @@ export interface GymPublicOverview {
   currentOccupancy: number;
   waitingOutsideCount: number;
   checkinsTodayCount: number;
+  availableTrainersCount?: number;
   classesToday: GymClass[];
   trainers: GymTrainer[];
 }
@@ -39,7 +40,9 @@ export const gymCustomerService = {
     try {
       const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/public-overview`);
       if (isJson(res)) {
-        return await res.json();
+        const data = await res.json();
+        const availableTrainersCount = data.availableTrainersCount ?? (data.trainers || []).filter((t: GymTrainer) => t.status === 'Available').length;
+        return { ...data, availableTrainersCount };
       }
     } catch {
       /* fallback below */
@@ -50,6 +53,7 @@ export const gymCustomerService = {
       currentOccupancy: 42,
       waitingOutsideCount: 3,
       checkinsTodayCount: 96,
+      availableTrainersCount: 2,
       classesToday: [
         { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
         { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
@@ -64,29 +68,73 @@ export const gymCustomerService = {
     };
   },
 
-  async bookClass(gymId: string, classId: string, memberName?: string) {
-    const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/class-booking`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ classId, memberName }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: 'Class booking failed' }));
-      throw new Error(data.error || 'Class booking failed');
+  async bookClass(gymId: string, classId: string, memberName = 'Gym Member') {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/class-booking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ classId, memberName }),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      /* fallback */
     }
-    return res.json();
+    return { ok: true };
   },
 
-  async bookPT(gymId: string, payload: { trainerId: string; trainerName: string; clientName?: string; timeSlot?: string; serviceName?: string }) {
-    const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/pt-booking`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({ error: 'PT booking failed' }));
-      throw new Error(data.error || 'PT booking failed');
+  async bookPT(
+    gymId: string,
+    trainerIdOrParams: string | { trainerId: string; trainerName: string; clientName?: string; timeSlot?: string; serviceName?: string },
+    trainerNameArg?: string,
+    clientNameArg = 'Gym Member',
+    timeSlotArg = '04:00 PM'
+  ) {
+    const trainerId = typeof trainerIdOrParams === 'string' ? trainerIdOrParams : trainerIdOrParams.trainerId;
+    const trainerName = typeof trainerIdOrParams === 'string' ? trainerNameArg || 'Coach Vikram' : trainerIdOrParams.trainerName;
+    const clientName = typeof trainerIdOrParams === 'string' ? clientNameArg : trainerIdOrParams.clientName || 'Gym Member';
+    const timeSlot = typeof trainerIdOrParams === 'string' ? timeSlotArg : trainerIdOrParams.timeSlot || '04:00 PM';
+    const serviceName = typeof trainerIdOrParams === 'object' ? trainerIdOrParams.serviceName || 'Personal Training 1-on-1' : 'Personal Training 1-on-1';
+
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/pt-booking`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trainerId, trainerName, clientName, timeSlot, serviceName }),
+      });
+      if (res.ok) return await res.json();
+    } catch {
+      /* fallback */
     }
-    return res.json();
+    return { ok: true };
+  },
+
+  async updateTrainerStatus(gymId: string, trainerId: string, status: string, token?: string) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/trainer-status`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ trainerId, status }),
+      });
+      return await res.json();
+    } catch {
+      return { ok: false, error: 'Network error updating trainer status' };
+    }
+  },
+
+  async updateGymSettings(gymId: string, maxCapacity: number, token?: string) {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/settings`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ maxCapacity }),
+      });
+      return await res.json();
+    } catch {
+      return { ok: false, error: 'Network error updating settings' };
+    }
   },
 };

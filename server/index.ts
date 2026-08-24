@@ -1562,7 +1562,8 @@ app.get('/api/gym/:gymId/overview', (request, response) => {
     return response.status(403).json({ error: 'Cross-business access denied.' });
   }
   const state = getGymState(gymId);
-  response.json(state);
+  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  response.json({ ...state, availableTrainersCount });
 });
 
 app.post('/api/gym/:gymId/checkin', (request, response) => {
@@ -1599,7 +1600,42 @@ app.get('/api/gym/:gymId/public-overview', (request, response) => {
     return response.status(404).json({ error: 'Gym business not found.' });
   }
   const state = getGymState(gymId);
-  response.json(state);
+  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  response.json({ ...state, availableTrainersCount });
+});
+
+app.post('/api/gym/:gymId/trainer-status', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (session && session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Cross-business access denied.' });
+  }
+  const trainerId = cleanText(request.body?.trainerId, 100);
+  const status = cleanText(request.body?.status, 50);
+  const state = getGymState(gymId);
+  const trainer = state.trainers.find((t) => t.id === trainerId);
+  if (!trainer) return response.status(404).json({ error: 'Trainer not found.' });
+  trainer.status = status;
+  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  response.json({ ok: true, trainer, availableTrainersCount, state });
+});
+
+app.post('/api/gym/:gymId/settings', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (session && session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Cross-business access denied.' });
+  }
+  if (session && session.role !== 'owner' && session.role !== 'manager') {
+    return response.status(403).json({ error: 'Only Gym Owners can modify facility settings.' });
+  }
+  const newCapacity = parseInt(request.body?.maxCapacity, 10);
+  if (isNaN(newCapacity) || newCapacity < 1) {
+    return response.status(400).json({ error: 'Invalid maximum capacity value.' });
+  }
+  const state = getGymState(gymId);
+  state.maxCapacity = newCapacity;
+  response.json({ ok: true, maxCapacity: state.maxCapacity, state });
 });
 
 app.post('/api/gym/:gymId/class-booking', (request, response) => {

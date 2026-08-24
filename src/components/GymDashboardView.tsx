@@ -19,6 +19,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { StaffRole } from '../shared/categoryDashboardResolver';
+import { gymCustomerService } from '../services/gymCustomerService';
 
 interface GymDashboardViewProps {
   gymId: string;
@@ -37,9 +38,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   activeModule,
   onModuleSelect,
 }) => {
-  // Gym live operational state (capacity 80, inside 42, waiting 3, checkins 96)
+  // Gym live operational state (capacity 100, inside 42, waiting 3, checkins 96)
   const [occupancy, setOccupancy] = useState(42);
-  const maxCapacity = 80;
+  const [maxCapacity, setMaxCapacity] = useState(100);
+  const [maxCapacityInput, setMaxCapacityInput] = useState('100');
   const [waitingCount, setWaitingCount] = useState(3);
   const [checkinsCount, setCheckinsCount] = useState(96);
   const [actionFeedback, setActionFeedback] = useState<string>('');
@@ -57,10 +59,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
   ]);
 
-  const [trainersList] = useState([
+  const [trainersList, setTrainersList] = useState([
     { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
-    { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89 },
-    { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94 },
+    { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'Available', rating: 4.8, reviewCount: 89 },
+    { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'In Class', rating: 4.9, reviewCount: 94 },
   ]);
 
   const [ptBookings] = useState([
@@ -91,6 +93,41 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const handleAdmitQueueMember = (id: string) => {
     setQueueList((prev) => prev.filter((item) => item.id !== id));
     handleCheckIn();
+  };
+
+  const handleTrainerStatusChange = async (trainerId: string, newStatus: string) => {
+    setTrainersList((prev) =>
+      prev.map((t) => (t.id === trainerId ? { ...t, status: newStatus } : t))
+    );
+    try {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('staff_token') || undefined : undefined;
+      const res = await gymCustomerService.updateTrainerStatus(gymId, trainerId, newStatus, token);
+      if (res.ok) {
+        setActionFeedback(`Trainer status updated to ${newStatus}`);
+        setTimeout(() => setActionFeedback(''), 3000);
+      }
+    } catch {
+      /* fallback */
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    const parsed = parseInt(String(maxCapacityInput), 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setActionFeedback('Error: Maximum capacity must be at least 1');
+      setTimeout(() => setActionFeedback(''), 3000);
+      return;
+    }
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('staff_token') || undefined : undefined;
+    const res = await gymCustomerService.updateGymSettings(gymId, parsed, token);
+    if (res.ok) {
+      setMaxCapacity(parsed);
+      setActionFeedback(`Gym max capacity updated to ${parsed}`);
+      setTimeout(() => setActionFeedback(''), 3000);
+    } else if (res.error) {
+      setActionFeedback(`Error: ${res.error}`);
+      setTimeout(() => setActionFeedback(''), 3000);
+    }
   };
 
   const isOwner = role === 'owner';
@@ -407,16 +444,31 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         {activeModule === 'trainers' && (
           <div className="rounded-2xl border border-[#DDE5E3] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-[#17201F]">Trainers & Coaches Roster</h3>
-            <p className="text-xs text-[#6F7C7A]">Certified fitness staff assigned to Iron House Gym.</p>
+            <p className="text-xs text-[#6F7C7A]">Manage operational status for certified coaches assigned to Iron House Gym.</p>
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               {trainersList.map((t) => (
-                <div key={t.id} className="rounded-xl border border-[#EAEFEF] bg-[#F8FAFA] p-4 text-xs">
-                  <div className="font-bold text-[#17201F]">{t.name}</div>
-                  <div className="text-[11px] text-[#0F766E]">{t.role}</div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] text-[#778481]">
-                    <span>★ {t.rating} ({t.reviewCount} reviews)</span>
-                    <span className="rounded bg-[#E8F0EE] px-1.5 py-0.5 font-bold text-[#0F766E]">{t.status}</span>
+                <div key={t.id} className="space-y-2 rounded-xl border border-[#EAEFEF] bg-[#F8FAFA] p-4 text-xs">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-[#17201F]">{t.name}</div>
+                      <div className="text-[11px] text-[#0F766E]">{t.role}</div>
+                    </div>
+                    <span className="text-[10px] text-[#778481]">★ {t.rating}</span>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold text-[#5C6E6B]">Operational Status</label>
+                    <select
+                      id={`trainer-status-select-${t.id}`}
+                      value={t.status}
+                      onChange={(e) => handleTrainerStatusChange(t.id, e.target.value)}
+                      className="w-full rounded-lg border border-[#DDE5E3] bg-white px-2.5 py-1.5 text-xs font-bold text-[#0F766E] focus:border-[#0F766E] focus:outline-none"
+                    >
+                      <option value="Available">Available</option>
+                      <option value="Busy">Busy</option>
+                      <option value="In Class">In Class</option>
+                      <option value="Off Duty">Off Duty</option>
+                    </select>
                   </div>
                 </div>
               ))}
@@ -464,8 +516,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                 <div>
                   <label className="font-bold text-[#5C6E6B]">Maximum Facility Capacity</label>
                   <input
+                    id="gym-max-capacity-input"
                     type="number"
-                    defaultValue={80}
+                    value={maxCapacityInput}
+                    onChange={(e) => setMaxCapacityInput(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-3.5 py-2 text-xs text-[#17201F]"
                   />
                 </div>
@@ -478,11 +532,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   />
                 </div>
                 <button
-                  onClick={() => {
-                    setActionFeedback('Gym settings updated!');
-                    setTimeout(() => setActionFeedback(''), 3000);
-                  }}
-                  className="rounded-xl bg-[#0F766E] px-4 py-2 text-xs font-bold text-white shadow-sm"
+                  id="save-gym-settings-btn"
+                  onClick={handleSaveSettings}
+                  className="rounded-xl bg-[#0F766E] px-4 py-2 text-xs font-bold text-white shadow-sm transition active:scale-95"
                 >
                   Save Settings
                 </button>

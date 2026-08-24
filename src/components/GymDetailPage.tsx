@@ -26,6 +26,8 @@ import {
 import { Salon, SalonOffer, ServiceItem } from '../types';
 import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer } from '../services/gymCustomerService';
 import { evaluateCoupon } from '../shared/couponPricing';
+import { GymLiveCard } from './GymLiveCard';
+import { GymFloatingCapsule } from './GymFloatingCapsule';
 
 interface GymDetailPageProps {
   salon: Salon;
@@ -47,6 +49,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [selectedTrainer, setSelectedTrainer] = useState<GymTrainer | null>(null);
   const [ptBookingModalOpen, setPtBookingModalOpen] = useState(false);
   const [classBookingModalOpen, setClassBookingModalOpen] = useState<GymClass | null>(null);
+  const [isCardVisible, setIsCardVisible] = useState(true);
 
   // Poll live operational state every 2 seconds to share Staff Dashboard updates in real time
   useEffect(() => {
@@ -70,6 +73,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       clearInterval(interval);
     };
   }, [salon.id]);
+
+  useEffect(() => {
+    const cardEl = document.getElementById('gym-live-card');
+    if (!cardEl) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsCardVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(cardEl);
+    return () => observer.disconnect();
+  }, [loading]);
 
   const maxCap = overview?.maxCapacity || 80;
   const currentOcc = overview?.currentOccupancy || 42;
@@ -199,51 +215,28 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         </div>
       </div>
 
+      {/* Floating Gym Live Capsule when main card is scrolled out of view */}
+      {!isCardVisible && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] capsule-melt-in">
+          <GymFloatingCapsule
+            currentOccupancy={currentOcc}
+            maxCapacity={maxCap}
+            availableTrainersCount={overview?.availableTrainersCount ?? 2}
+            onTap={() => {
+              document.getElementById('gym-live-card')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          />
+        </div>
+      )}
+
       <div className="space-y-5 p-5">
         {/* 2. LIVE CROWD / CAPACITY — PRIMARY USP */}
-        <div id="gym-live-capacity-card" className="rounded-2xl border border-[#0F766E]/20 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between border-b border-[#EAEFEF] pb-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#E7F5F2] text-[#0F766E]">
-                <Users className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="text-sm font-extrabold text-[#17201F]">Live Gym Crowd</h2>
-                <p className="text-[10px] text-[#6F7C7A]">Real-time occupancy synced from Staff check-in</p>
-              </div>
-            </div>
-            <span className="flex items-center gap-1 rounded-full bg-[#E7F5F2] px-2.5 py-0.5 text-[10px] font-extrabold text-[#0F766E]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6] animate-pulse" />
-              Live Sync
-            </span>
-          </div>
-
-          <div className="mt-4 flex items-baseline justify-between">
-            <div>
-              <span className="text-3xl font-extrabold text-[#17201F]">{currentOcc}</span>
-              <span className="text-sm font-semibold text-[#6F7C7A]"> / {maxCap} Inside</span>
-            </div>
-            <span className={`rounded-lg px-2.5 py-1 text-xs font-extrabold ${
-              occPercent > 90 ? 'bg-red-100 text-red-700' : occPercent > 70 ? 'bg-amber-100 text-amber-800' : 'bg-[#E7F5F2] text-[#0F766E]'
-            }`}>
-              {crowdStatus} ({occPercent}%)
-            </span>
-          </div>
-
-          {/* Capacity Bar */}
-          <div className="mt-3 h-3.5 w-full overflow-hidden rounded-full bg-[#EAEFEF]">
-            <div
-              className={`h-full transition-all duration-500 ${
-                occPercent > 90 ? 'bg-red-600' : occPercent > 70 ? 'bg-amber-500' : 'bg-[#0F766E]'
-              }`}
-              style={{ width: `${Math.min(occPercent, 100)}%` }}
-            />
-          </div>
-
-          <div className="mt-3 flex items-center justify-between text-[11px] font-semibold text-[#6F7C7A]">
-            <span>{maxCap - currentOcc} Slots Available</span>
-            <span>{waitingCount} Waiting Outside</span>
-          </div>
+        <div id="gym-live-capacity-card">
+          <GymLiveCard
+            currentOccupancy={currentOcc}
+            maxCapacity={maxCap}
+            availableTrainersCount={overview?.availableTrainersCount ?? 2}
+          />
         </div>
 
         {/* 3. TODAY'S CLASSES */}
