@@ -21,7 +21,7 @@ services:
     name: no-wait-salon-web-test
     runtime: docker
     plan: free
-    branch: main
+    branch: test/main-mirror
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
