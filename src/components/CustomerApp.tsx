@@ -21,16 +21,22 @@ import {
   LocateFixed,
   LoaderCircle,
   QrCode,
+  Search,
 } from 'lucide-react';
-import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile } from '../types';
+import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
+import { AddressManagementModal } from './AddressManagementModal';
+import { LocationSelectScreen } from './LocationSelectScreen';
+import { AddAddressScreen } from './AddAddressScreen';
+import { RequestAddressScreen } from './RequestAddressScreen';
+import { CATEGORY_THEME_MAP } from './CustomerHomeComponents';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton } from './CustomerHomeComponents';
+import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
@@ -179,8 +185,84 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [isChangingLocation, setIsChangingLocation] = useState(false);
   const [nearbySalons, setNearbySalons] = useState<NearbySalon[]>([]);
   const [locationLabel, setLocationLabel] = useState('');
+  const [selectedAddressLabel, setSelectedAddressLabel] = useState('Home Me');
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
+  const [mainCategories, setMainCategories] = useState<CategoryItemConfig[]>(DEFAULT_MAIN_CATEGORIES);
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
+  const [isListening, setIsListening] = useState(false);
+  const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  const handleVoiceSearch = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceFeedback('Voice search is not supported on this browser. Please type your search.');
+      setTimeout(() => setVoiceFeedback(null), 4000);
+      return;
+    }
+
+    if (isListening) {
+      try { recognitionRef.current?.stop(); } catch (_) {}
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setVoiceFeedback('Listening... Speak now');
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setSalonSearch(transcript);
+        setVoiceFeedback(`Heard: "${transcript}"`);
+      };
+
+      recognition.onerror = (event: any) => {
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          setVoiceFeedback('Microphone access denied. Please allow mic permissions.');
+        } else {
+          setVoiceFeedback('Voice search stopped.');
+        }
+        setTimeout(() => setVoiceFeedback(null), 4000);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setTimeout(() => setVoiceFeedback(null), 4000);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      setIsListening(false);
+      setVoiceFeedback('Unable to start speech recognition. Please type your search.');
+      setTimeout(() => setVoiceFeedback(null), 4000);
+    }
+  }, [isListening]);
+
+  useEffect(() => {
+    fetch(`${(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'')}/api/main-categories`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.categories) && data.categories.length) {
+          setMainCategories(data.categories);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [selectedReservationDay, setSelectedReservationDay] = useState<'today' | 'tomorrow' | 'day3' | 'day4'>('today');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -384,6 +466,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
   }) || [];
 
+  const categoryFilteredSalons = visibleSalons.filter((salon) => {
+    const catId = (salon.mainCategoryId || 'salon').toLowerCase();
+    return catId === activeCategoryId.toLowerCase();
+  });
+  const activeCategoryObj = mainCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
+
   // The single authoritative pre-Home sequence: landing, then permissions
   // (location, notifications) — only then is the guest-accessible Home
   // reachable. Identity (OTP + profile) is deliberately not part of this
@@ -506,62 +594,124 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     );
   }
 
+  if (currentScreen === 'location-select') {
+    return (
+      <LocationSelectScreen
+        onBack={() => setScreen('home')}
+        currentLabel={selectedAddressLabel}
+        currentAddress={locationLabel}
+        onSelectAddress={(addr) => {
+          if (addr.label) setSelectedAddressLabel(addr.label);
+          if (addr.fullAddress || addr.area) setLocationLabel(addr.fullAddress || `${addr.area}, ${addr.city}`);
+        }}
+        userToken={customerAuth?.token}
+        onUseGps={() => setIsChangingLocation(true)}
+        onNavigateAddAddress={() => { setEditingAddress(null); setScreen('add-address'); }}
+        onNavigateRequestAddress={() => setScreen('request-address')}
+        onEditAddress={(addr) => { setEditingAddress(addr); setScreen('add-address'); }}
+      />
+    );
+  }
+
+  if (currentScreen === 'add-address') {
+    return (
+      <AddAddressScreen
+        onBack={() => setScreen('location-select')}
+        userToken={customerAuth?.token}
+        editingAddress={editingAddress}
+        onAddressSaved={(addr) => {
+          if (addr.label) setSelectedAddressLabel(addr.label);
+          if (addr.fullAddress || addr.area) setLocationLabel(addr.fullAddress || `${addr.area}, ${addr.city}`);
+        }}
+      />
+    );
+  }
+
+  if (currentScreen === 'request-address') {
+    return (
+      <RequestAddressScreen
+        onBack={() => setScreen('location-select')}
+        userToken={customerAuth?.token}
+        onRequestSubmitted={(areaName) => {
+          setVoiceFeedback(`Requested area coverage for "${areaName}"`);
+          setTimeout(() => setVoiceFeedback(null), 4000);
+        }}
+      />
+    );
+  }
+
   return (
     <div ref={homeScrollRef} className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className="min-h-full bg-[#F8FAFA] animate-in fade-in duration-300">
-          <div className="border-b border-[#E7ECEB] bg-[#F8FAFA] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
+        <div id="customer-home-screen" className={`min-h-full transition-colors duration-500 animate-in fade-in ${
+          (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).joinedBg
+        }`}>
+          {/* Header */}
+          <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
             <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F766E] text-white">
-                    <Scissors className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[17px] font-bold tracking-[-0.025em] text-[#17201F]">No-Wait Salon</p>
-                    <p className="truncate text-[10px] font-medium text-[#71807E]">Find your chair, skip the wait</p>
-                  </div>
+              {/* LEFT: Address Title + Short Address */}
+              <button
+                type="button"
+                onClick={() => setScreen('location-select')}
+                className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
+                aria-label="Open address management"
+              >
+                <div className="flex items-center gap-1.5 text-slate-900">
+                  <MapPin className="h-4 w-4 shrink-0 text-teal-600" />
+                  <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
                 </div>
-              </div>
+                <p className="truncate text-[11px] font-semibold text-slate-500 max-w-[220px] sm:max-w-xs">
+                  {locationLabel || 'Indiranagar, Bengaluru'}
+                </p>
+              </button>
+
+              {/* RIGHT: Compact 3D Wallet + Profile controls ONLY */}
               <div className="flex shrink-0 items-center gap-2">
-                <button type="button" onClick={openScanner} aria-label="Scan business QR" className="grid h-10 w-10 place-items-center rounded-xl border border-[#DDE7E5] bg-white text-[#0F766E] transition hover:bg-[#EAF6F4]">
-                  <QrCode className="h-[18px] w-[18px]" />
-                </button>
                 <WalletButton />
                 <ProfileButton onClick={() => setScreen('profile')} />
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsChangingLocation(true)}
-              className="mt-4 flex w-full items-center justify-between gap-2 rounded-xl px-1 py-2 text-left transition hover:bg-[#F0F6F5]"
-              aria-label="Change current location"
-            >
-              <span className="flex min-w-0 items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#E5F3F1] text-[#0F766E]">
-                  <MapPin className="h-4 w-4" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">Your location</span>
-                  <span className="block truncate text-xs font-semibold text-[#25302F]">{locationLabel}</span>
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#E5F3F1] px-2.5 py-1.5 text-[10px] font-bold text-[#0F766E]">
-                <LocateFixed className="h-3.5 w-3.5" />
-                Change
-              </span>
-            </button>
-
-            <div className="mt-3">
-              <SalonSearchBar value={salonSearch} onChange={setSalonSearch} />
+            {/* Large Search Box with rotating placeholder & inner mic button */}
+            <div className="mt-3.5">
+              <SalonSearchBar
+                value={salonSearch}
+                onChange={setSalonSearch}
+                categories={mainCategories}
+                activeCategoryName={activeCategoryObj.name}
+                isListening={isListening}
+                onVoiceSearch={handleVoiceSearch}
+                voiceFeedback={voiceFeedback}
+              />
             </div>
           </div>
 
-          <div className="space-y-5 bg-[#F8FAFA] px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-4 sm:px-5">
+          <div className="space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
 
-          <PromotionalBanner />
+          {/* Sculpted Connected Category Tabs */}
+          <TopCategoryTabs
+            categories={mainCategories}
+            selectedCategoryId={activeCategoryId}
+            onSelectCategory={setActiveCategoryId}
+          />
+
+          {/* Dynamic Theme Banner */}
+          <PromotionalBanner category={activeCategoryObj} />
+
+          {/* Full Address Management Modal */}
+          <AddressManagementModal
+            isOpen={isAddressModalOpen}
+            onClose={() => setIsAddressModalOpen(false)}
+            currentLabel={selectedAddressLabel}
+            currentAddress={locationLabel}
+            onSelectAddress={(addr) => {
+              if (addr.label) setSelectedAddressLabel(addr.label);
+              if (addr.fullAddress || addr.area) setLocationLabel(addr.fullAddress || `${addr.area}, ${addr.city}`);
+            }}
+            userToken={customerAuth?.token}
+            onUseGps={() => setIsChangingLocation(true)}
+          />
 
           {userEntry && (
             <div
@@ -595,8 +745,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           <div>
             <div className="mb-3 flex items-end justify-between gap-4 px-1">
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]">Nearby salons</span>
-                <h2 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-[#17201F]">Choose your chair</h2>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]">
+                  {activeCategoryObj.name} Businesses
+                </span>
+                <h2 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-[#17201F]">
+                  {activeCategoryId === 'salon' ? 'Choose your chair' : `Explore ${activeCategoryObj.name}`}
+                </h2>
               </div>
               <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-[#0F766E]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
@@ -608,26 +762,46 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               {nearbySalons.length === 0 && isRestoringLocation && (
                 <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
                   <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-[#0F766E]" />
-                  <p className="mt-3 text-xs leading-5 text-[#788582]">Refreshing salons near {locationLabel || 'you'}…</p>
+                  <p className="mt-3 text-xs leading-5 text-[#788582]">Refreshing businesses near {locationLabel || 'you'}…</p>
                 </div>
               )}
 
               {nearbySalons.length === 0 && !isRestoringLocation && (
                 <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
                   <MapPin className="mx-auto h-6 w-6 text-[#7EA7A2]" />
-                  <h3 className="mt-3 text-sm font-bold text-[#25302F]">No salons available in your area yet.</h3>
-                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more salon partners.</p>
+                  <h3 className="mt-3 text-sm font-bold text-[#25302F]">No businesses available in your area yet.</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more partners.</p>
                   <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
                 </div>
               )}
-              {nearbySalons.length > 0 && visibleSalons.length === 0 && (
-                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
-                  <h3 className="text-sm font-bold text-[#25302F]">No matching salons found.</h3>
-                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try a salon name, area, or service.</p>
-                  <button type="button" onClick={() => setSalonSearch('')} className="mt-4 text-xs font-bold text-[#0F766E]">Clear search</button>
+
+              {nearbySalons.length > 0 && salonSearch.trim() !== '' && categoryFilteredSalons.length === 0 && (
+                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center space-y-2">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F0F6F5] text-[#0F766E]">
+                    <Search className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-[#25302F]">No matching {activeCategoryObj.name} listings found</h3>
+                  <p className="text-xs leading-5 text-[#788582] max-w-xs mx-auto">
+                    No results found for &ldquo;{salonSearch}&rdquo; under {activeCategoryObj.name}. Try another term or switch categories.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSalonSearch('')}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#EAF5F3] px-4 py-2 text-xs font-bold text-[#0F766E] hover:bg-[#DDF0ED] transition"
+                  >
+                    Clear search
+                  </button>
                 </div>
               )}
-              {visibleSalons.map((salon) => {
+
+              {nearbySalons.length > 0 && salonSearch.trim() === '' && categoryFilteredSalons.length === 0 && (
+                <CategoryLandingState
+                  category={activeCategoryObj}
+                  onExploreSalons={() => setActiveCategoryId('salon')}
+                />
+              )}
+
+              {categoryFilteredSalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
                 const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
                 return (

@@ -1,44 +1,53 @@
 import git from 'isomorphic-git';
+import http from 'isomorphic-git/http/node';
 import fs from 'fs';
-import path from 'path';
+import { execSync } from 'child_process';
 
-const dir = process.cwd();
+async function freezeAndPush() {
+  const dir = '.';
+  console.log('--- STAGING & COMMITTING WORKING TREE VIA ISOMORPHIC-GIT ---');
 
-async function freeze() {
-  const branch = await git.currentBranch({ fs, dir });
-  console.log('CURRENT_BRANCH:', branch);
+  const matrix = await git.statusMatrix({ fs, dir });
+  const modified = matrix.filter(row => row[1] !== row[2] || row[2] !== row[3]).map(row => row[0]);
 
-  const status = await git.statusMatrix({ fs, dir });
-  const modified = status.filter(row => row[1] !== row[2] || row[2] !== row[3]);
-  console.log('UNCOMMITTED_FILES:', modified.length);
-  modified.forEach(r => console.log(' -', r[0]));
-
-  for (const row of modified) {
-    const filepath = row[0];
-    if (fs.existsSync(path.join(dir, filepath))) {
-      await git.add({ fs, dir, filepath });
+  console.log(`Staging ${modified.length} changed files...`);
+  for (const file of modified) {
+    if (fs.existsSync(file)) {
+      await git.add({ fs, dir, filepath: file });
     } else {
-      await git.remove({ fs, dir, filepath });
+      await git.remove({ fs, dir, filepath: file });
     }
   }
 
-  const log = await git.log({ fs, dir, depth: 1 });
-  let headSha = log[0].oid;
+  const sha = await git.commit({
+    fs,
+    dir,
+    author: {
+      name: 'RARA-star969',
+      email: 'ritiksinghroth@gmail.com',
+    },
+    message: 'FEAT: Reworked Multi-Category Home, Full Dedicated Location Experience, Address Management & Data Isolation',
+  });
 
-  if (modified.length > 0) {
-    headSha = await git.commit({
-      fs,
-      dir,
-      author: { name: 'Antigravity AI', email: 'antigravity@google.com' },
-      message: 'feat: service start, billing, payment and new thank-you experience'
-    });
-    console.log('COMMITTED_FEATURE_SHA:', headSha);
-  } else {
-    console.log('FEATURE_HEAD_SHA:', headSha);
-  }
+  console.log('✔ COMMITTED FEATURE & MAIN HEAD SHA:', sha);
+
+  // Get GitHub token from gh auth token
+  const token = execSync('/Users/ritiksinghroth/.local/bin/gh auth token', { encoding: 'utf8' }).trim();
+
+  console.log('Pushing main branch to origin via isomorphic-git...');
+  const pushRes = await git.push({
+    fs,
+    http,
+    dir,
+    remote: 'origin',
+    ref: 'main',
+    onAuth: () => ({ username: token }),
+  });
+
+  console.log('✔ PUSH SUCCESSFUL! Main HEAD SHA:', sha);
 }
 
-freeze().catch(err => {
-  console.error('Error during freeze:', err);
+freezeAndPush().catch((err) => {
+  console.error('Git Freeze & Push Error:', err);
   process.exit(1);
 });

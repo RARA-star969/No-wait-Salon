@@ -132,6 +132,55 @@ export interface ServiceItem {
   icon?: string;
 }
 
+export interface MainCategory {
+  id: string;
+  name: string;
+  iconName: string;
+  label: string;
+  description?: string;
+  displayOrder: number;
+  active: boolean;
+  isDefault?: boolean;
+  businessCount?: number;
+  themeKey?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  bannerImageUrl?: string;
+  bannerHeadline?: string;
+  bannerSubheadline?: string;
+  bannerCtaText?: string;
+}
+
+export interface UserAddress {
+  id: string;
+  customerId: string;
+  label: string;
+  fullAddress: string;
+  buildingName?: string;
+  area: string;
+  city: string;
+  state?: string;
+  pinCode?: string;
+  landmark?: string;
+  latitude: number;
+  longitude: number;
+  isDefault: boolean;
+  distanceKm?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AddressRequest {
+  id: string;
+  customerId: string;
+  areaName: string;
+  city: string;
+  pinCode: string;
+  comments?: string;
+  status: 'pending' | 'reviewed';
+  createdAt: number;
+}
+
 export interface Salon {
   id: string;
   name: string;
@@ -146,6 +195,7 @@ export interface Salon {
   longitude: number;
   openingHours: string;
   category?: string;
+  mainCategoryId?: string;
   phoneNumber?: string;
   description?: string;
   coverImageUrl?: string;
@@ -203,7 +253,17 @@ export interface NearbySalon extends Salon {
 }
 
 export type ViewMode = 'split' | 'customer' | 'staff';
-export type CustomerScreen = 'home' | 'salon' | 'slots' | 'tracking' | 'complete' | 'profile' | 'edit-profile';
+export type CustomerScreen =
+  | 'home'
+  | 'salon'
+  | 'slots'
+  | 'tracking'
+  | 'complete'
+  | 'profile'
+  | 'edit-profile'
+  | 'location-select'
+  | 'add-address'
+  | 'request-address';
 
 export interface OtpAction {
   type: 'slot' | 'profile';

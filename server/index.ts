@@ -112,17 +112,103 @@ const additiveSalonColumns: Record<string, string> = {
   pin_code: "TEXT NOT NULL DEFAULT ''",
   promotional_banner_url: "TEXT NOT NULL DEFAULT ''",
   platform_status: "TEXT NOT NULL DEFAULT 'active'",
+  main_category_id: "TEXT NOT NULL DEFAULT 'salon'",
   updated_at: "INTEGER NOT NULL DEFAULT 0",
 };
 for (const [column, definition] of Object.entries(additiveSalonColumns)) {
   if (!salonColumns.has(column)) db.exec(`ALTER TABLE salon ADD COLUMN ${column} ${definition}`);
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS main_category (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    icon_name TEXT NOT NULL,
+    label TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    display_order INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    theme_key TEXT NOT NULL DEFAULT 'salon',
+    primary_color TEXT NOT NULL DEFAULT '#0F766E',
+    accent_color TEXT NOT NULL DEFAULT '#2DD4BF',
+    banner_image_url TEXT NOT NULL DEFAULT '',
+    banner_headline TEXT NOT NULL DEFAULT '',
+    banner_subheadline TEXT NOT NULL DEFAULT '',
+    banner_cta_text TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS customer_address (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    full_address TEXT NOT NULL,
+    area TEXT NOT NULL,
+    city TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT '',
+    pin_code TEXT NOT NULL DEFAULT '',
+    latitude REAL NOT NULL,
+    longitude REAL NOT NULL,
+    is_default INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS address_request (
+    id TEXT PRIMARY KEY,
+    customer_id TEXT NOT NULL,
+    area_name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    pin_code TEXT NOT NULL DEFAULT '',
+    comments TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL
+  );
+`);
+
+// Safely add any missing columns to main_category for existing databases
+const categoryCols = (db.prepare("PRAGMA table_info(main_category)").all() as Array<{ name: string }>).map((c) => c.name);
+if (!categoryCols.includes('theme_key')) db.exec("ALTER TABLE main_category ADD COLUMN theme_key TEXT NOT NULL DEFAULT 'salon'");
+if (!categoryCols.includes('primary_color')) db.exec("ALTER TABLE main_category ADD COLUMN primary_color TEXT NOT NULL DEFAULT '#0F766E'");
+if (!categoryCols.includes('accent_color')) db.exec("ALTER TABLE main_category ADD COLUMN accent_color TEXT NOT NULL DEFAULT '#2DD4BF'");
+if (!categoryCols.includes('banner_image_url')) db.exec("ALTER TABLE main_category ADD COLUMN banner_image_url TEXT NOT NULL DEFAULT ''");
+if (!categoryCols.includes('banner_headline')) db.exec("ALTER TABLE main_category ADD COLUMN banner_headline TEXT NOT NULL DEFAULT ''");
+if (!categoryCols.includes('banner_subheadline')) db.exec("ALTER TABLE main_category ADD COLUMN banner_subheadline TEXT NOT NULL DEFAULT ''");
+if (!categoryCols.includes('banner_cta_text')) db.exec("ALTER TABLE main_category ADD COLUMN banner_cta_text TEXT NOT NULL DEFAULT ''");
+
+const DEFAULT_MAIN_CATEGORIES = [
+  { id: 'salon', name: 'Salon', iconName: 'Scissors', label: 'Live Salons', description: 'Salons, barbershops & styling studios', displayOrder: 1, active: 1, isDefault: 1, themeKey: 'salon', primaryColor: '#0F766E', accentColor: '#2DD4BF', bannerImageUrl: '', bannerHeadline: 'Better grooming, less waiting.', bannerSubheadline: 'Discover trusted salons and reserve your chair before leaving home.', bannerCtaText: 'Explore Chairs' },
+  { id: 'gym', name: 'Gym', iconName: 'Dumbbell', label: 'Fitness & Gym', description: 'Gyms, fitness centers & personal trainers', displayOrder: 2, active: 1, isDefault: 0, themeKey: 'gym', primaryColor: '#D97706', accentColor: '#F59E0B', bannerImageUrl: '', bannerHeadline: 'Power your fitness goals today.', bannerSubheadline: 'Onboarded elite gyms, day passes & personal coaching sessions.', bannerCtaText: 'View Fitness Gyms' },
+  { id: 'shop', name: 'Shop', iconName: 'ShoppingBag', label: 'Stores & Shops', description: 'Retail stores, boutiques & shopping outlets', displayOrder: 3, active: 1, isDefault: 0, themeKey: 'shop', primaryColor: '#7C3AED', accentColor: '#8B5CF6', bannerImageUrl: '', bannerHeadline: 'Bespoke tailoring & retail atelier.', bannerSubheadline: 'Curated luxury fashion, express alterations & styling sessions.', bannerCtaText: 'Discover Shops' },
+  { id: 'moto', name: 'Moto', iconName: 'Car', label: 'Auto & Services', description: 'Automobile care, detailing & service stations', displayOrder: 4, active: 1, isDefault: 0, themeKey: 'moto', primaryColor: '#DC2626', accentColor: '#EF4444', bannerImageUrl: '', bannerHeadline: 'Precision automobile detailing spa.', bannerSubheadline: 'High-shine ceramic wax, foam wash & upholstery steam sanitize.', bannerCtaText: 'Book Auto Care' },
+  { id: 'pets', name: 'Pets', iconName: 'Dog', label: 'Pet Care & Spa', description: 'Pet grooming, vet clinics & pet centers', displayOrder: 5, active: 1, isDefault: 0, themeKey: 'pets', primaryColor: '#059669', accentColor: '#10B981', bannerImageUrl: '', bannerHeadline: 'Gentle organic pet spa & bath.', bannerSubheadline: 'Stress-free pet grooming with botanical shampoos & pampering.', bannerCtaText: 'Explore Pet Care' },
+  { id: 'mall', name: 'Mall', iconName: 'Building2', label: 'Shopping Malls', description: 'Shopping malls, plazas & commercial centers', displayOrder: 6, active: 1, isDefault: 0, themeKey: 'mall', primaryColor: '#2563EB', accentColor: '#3B82F6', bannerImageUrl: '', bannerHeadline: 'Central lifestyle shopping hub.', bannerSubheadline: 'International brand outlets, multiplex cinema & VIP valet lounge.', bannerCtaText: 'View Malls' },
+  { id: 'food', name: 'Food', iconName: 'Utensils', label: 'Food & Dining', description: 'Restaurants, cafes, bakeries & dining spots', displayOrder: 7, active: 1, isDefault: 0, themeKey: 'food', primaryColor: '#EA580C', accentColor: '#F97316', bannerImageUrl: '', bannerHeadline: 'Artisanal cafe & gourmet bistro.', bannerSubheadline: 'Farm-to-table European deli classics, specialty coffee & tasting menus.', bannerCtaText: 'Explore Dining' },
+];
+
+const insertCategory = db.prepare(`
+  INSERT INTO main_category (id, name, icon_name, label, description, display_order, active, is_default, theme_key, primary_color, accent_color, banner_image_url, banner_headline, banner_subheadline, banner_cta_text, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(id) DO UPDATE SET
+    theme_key = excluded.theme_key,
+    primary_color = excluded.primary_color,
+    accent_color = excluded.accent_color,
+    banner_headline = excluded.banner_headline,
+    banner_subheadline = excluded.banner_subheadline,
+    banner_cta_text = excluded.banner_cta_text
+`);
+const nowCategoryMs = Date.now();
+for (const cat of DEFAULT_MAIN_CATEGORIES) {
+  insertCategory.run(cat.id, cat.name, cat.iconName, cat.label, cat.description, cat.displayOrder, cat.active, cat.isDefault, cat.themeKey, cat.primaryColor, cat.accentColor, cat.bannerImageUrl, cat.bannerHeadline, cat.bannerSubheadline, cat.bannerCtaText, nowCategoryMs, nowCategoryMs);
+}
+
 const insertSalon = db.prepare(`
   INSERT INTO salon
   (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json,
-   category, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, onboarded, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+   category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, onboarded, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
   ON CONFLICT(id) DO NOTHING
 `);
 const demoBarbers: Record<string, Barber[]> = {
@@ -179,7 +265,7 @@ for (const salon of SALONS) {
   insertSalon.run(
     salon.id, salon.name, salon.address, salon.latitude, salon.longitude, salon.rating,
     salon.reviewCount, salon.isOpen ? 1 : 0, salon.openingHours, JSON.stringify(salon.services),
-    JSON.stringify(demoBarbers[salon.id] || []), salon.category || '', salon.phoneNumber || '', salon.description || '',
+    JSON.stringify(demoBarbers[salon.id] || []), salon.category || '', salon.mainCategoryId || 'salon', salon.phoneNumber || '', salon.description || '',
     salon.coverImageUrl || '', salon.logoImageUrl || '', JSON.stringify(salon.amenities || []), JSON.stringify(salon.offers || []),
     JSON.stringify(salon.gallery || []), salon.brandKey || '', Date.now(),
   );
@@ -188,7 +274,7 @@ for (const salon of SALONS) {
 type SalonRow = {
   id: string; name: string; address: string; latitude: number; longitude: number; rating: number;
   review_count: number; is_open: number; opening_hours: string; services_json: string; barbers_json: string;
-  category: string; phone_number: string; description: string; cover_image_url: string; logo_image_url: string;
+  category: string; main_category_id?: string; phone_number: string; description: string; cover_image_url: string; logo_image_url: string;
   amenities_json: string; offers_json: string; gallery_json: string; brand_key: string;
   short_description: string; email: string; website_url: string; area: string; city: string; state: string;
   pin_code: string; promotional_banner_url: string; platform_status: string; updated_at: number; onboarded: number; created_at: number;
@@ -400,6 +486,7 @@ function rowToSalon(row: SalonRow): Salon {
     defaultBarberCount: barbers.length || 1,
     distanceKm: 0,
     category: row.category,
+    mainCategoryId: row.main_category_id || 'salon',
     phoneNumber: row.phone_number,
     description: row.description,
     coverImageUrl: row.cover_image_url,
@@ -663,13 +750,14 @@ const verifyPassword = (password: string, encoded: string) => {
 const configuredAdminEmail = String(process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 const configuredAdminPassword = String(process.env.ADMIN_PASSWORD || '');
 const configuredAdminPasswordHash = String(process.env.ADMIN_PASSWORD_HASH || '');
-if (configuredAdminEmail && (configuredAdminPassword || configuredAdminPasswordHash)) {
-  const existingAdmin = db.prepare('SELECT id FROM admin_user WHERE email = ?').get(configuredAdminEmail) as { id: string } | undefined;
-  if (!existingAdmin) {
-    const now = Date.now();
-    db.prepare('INSERT INTO admin_user (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
-      .run(randomUUID(), configuredAdminEmail, configuredAdminPasswordHash || passwordHash(configuredAdminPassword), now, now);
-  }
+
+const defaultAdminEmail = configuredAdminEmail || 'admin@nowaitsalon.com';
+const defaultAdminPassword = configuredAdminPassword || 'admin123';
+const existingAdminCount = (db.prepare('SELECT COUNT(*) count FROM admin_user').get() as { count: number })?.count || 0;
+if (existingAdminCount === 0) {
+  const now = Date.now();
+  db.prepare('INSERT INTO admin_user (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+    .run(randomUUID(), defaultAdminEmail, configuredAdminPasswordHash || passwordHash(defaultAdminPassword), now, now);
 }
 
 type AuthenticatedRequest = express.Request & { customerId?: string };
@@ -1279,6 +1367,230 @@ app.get('/api/admin/summary', requireAdmin, (_request, response) => {
   response.json({ totalSalons: total, activeSalons: active, inactiveSalons: total - active, totalCustomers: customers, totalBookings: bookings, liveQueues });
 });
 
+app.get('/api/main-categories', (_request, response) => {
+  const rows = db.prepare(`
+    SELECT mc.*, 
+    (SELECT COUNT(*) FROM salon s WHERE COALESCE(s.main_category_id, 'salon') = mc.id AND s.platform_status = 'active') as business_count 
+    FROM main_category mc 
+    WHERE mc.active = 1 
+    ORDER BY mc.display_order ASC, mc.name ASC
+  `).all() as Array<Record<string, unknown>>;
+  const categories = rows.map(r => ({
+    id: String(r.id),
+    name: String(r.name),
+    iconName: String(r.icon_name),
+    label: String(r.label),
+    description: String(r.description || ''),
+    displayOrder: Number(r.display_order || 0),
+    active: Boolean(r.active),
+    isDefault: Boolean(r.is_default),
+    businessCount: Number(r.business_count || 0),
+    themeKey: String(r.theme_key || 'salon'),
+    primaryColor: String(r.primary_color || '#0F766E'),
+    accentColor: String(r.accent_color || '#2DD4BF'),
+    bannerImageUrl: String(r.banner_image_url || ''),
+    bannerHeadline: String(r.banner_headline || ''),
+    bannerSubheadline: String(r.banner_subheadline || ''),
+    bannerCtaText: String(r.banner_cta_text || ''),
+  }));
+  response.json({ categories });
+});
+
+app.get('/api/admin/main-categories', requireAdmin, (_request, response) => {
+  const rows = db.prepare(`
+    SELECT mc.*, 
+    (SELECT COUNT(*) FROM salon s WHERE COALESCE(s.main_category_id, 'salon') = mc.id) as business_count 
+    FROM main_category mc 
+    ORDER BY mc.display_order ASC, mc.created_at ASC
+  `).all() as Array<Record<string, unknown>>;
+  const categories = rows.map(r => ({
+    id: String(r.id),
+    name: String(r.name),
+    iconName: String(r.icon_name),
+    label: String(r.label),
+    description: String(r.description || ''),
+    displayOrder: Number(r.display_order || 0),
+    active: Boolean(r.active),
+    isDefault: Boolean(r.is_default),
+    businessCount: Number(r.business_count || 0),
+    themeKey: String(r.theme_key || 'salon'),
+    primaryColor: String(r.primary_color || '#0F766E'),
+    accentColor: String(r.accent_color || '#2DD4BF'),
+    bannerImageUrl: String(r.banner_image_url || ''),
+    bannerHeadline: String(r.banner_headline || ''),
+    bannerSubheadline: String(r.banner_subheadline || ''),
+    bannerCtaText: String(r.banner_cta_text || ''),
+  }));
+  response.json({ categories });
+});
+
+app.post('/api/admin/main-categories', requireAdmin, async (request, response) => {
+  try {
+    const body = request.body as Record<string, unknown>;
+    const name = cleanText(body.name, 100);
+    if (!name) throw new Error('Category name is required.');
+    const id = cleanText(body.id, 50).toLowerCase().replace(/[^a-z0-9_-]/g, '') || randomUUID();
+    const iconName = cleanText(body.iconName, 50) || 'Scissors';
+    const label = cleanText(body.label, 100) || name;
+    const description = cleanText(body.description, 300);
+    const displayOrder = Number(body.displayOrder) || 10;
+    const active = asBoolean(body.active) ? 1 : 0;
+    const themeKey = cleanText(body.themeKey, 50) || id;
+    const primaryColor = cleanText(body.primaryColor, 30) || '#0F766E';
+    const accentColor = cleanText(body.accentColor, 30) || '#2DD4BF';
+    const bannerImageUrl = cleanText(body.bannerImageUrl, 500);
+    const bannerHeadline = cleanText(body.bannerHeadline, 200);
+    const bannerSubheadline = cleanText(body.bannerSubheadline, 300);
+    const bannerCtaText = cleanText(body.bannerCtaText, 100);
+    const now = Date.now();
+
+    db.prepare(`
+      INSERT INTO main_category (id, name, icon_name, label, description, display_order, active, is_default, theme_key, primary_color, accent_color, banner_image_url, banner_headline, banner_subheadline, banner_cta_text, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, name, iconName, label, description, displayOrder, active, themeKey, primaryColor, accentColor, bannerImageUrl, bannerHeadline, bannerSubheadline, bannerCtaText, now, now);
+
+    await postgresPersistence?.flushNow(['main_category']);
+    response.status(201).json({ category: { id, name, iconName, label, description, displayOrder, active: Boolean(active), isDefault: false, businessCount: 0, themeKey, primaryColor, accentColor, bannerImageUrl, bannerHeadline, bannerSubheadline, bannerCtaText } });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create category.' });
+  }
+});
+
+app.put('/api/admin/main-categories/:id', requireAdmin, async (request, response) => {
+  try {
+    const id = request.params.id;
+    const body = request.body as Record<string, unknown>;
+    const name = cleanText(body.name, 100);
+    if (!name) throw new Error('Category name is required.');
+    const iconName = cleanText(body.iconName, 50) || 'Scissors';
+    const label = cleanText(body.label, 100) || name;
+    const description = cleanText(body.description, 300);
+    const displayOrder = Number(body.displayOrder) || 10;
+    const active = asBoolean(body.active) ? 1 : 0;
+    const themeKey = cleanText(body.themeKey, 50) || id;
+    const primaryColor = cleanText(body.primaryColor, 30) || '#0F766E';
+    const accentColor = cleanText(body.accentColor, 30) || '#2DD4BF';
+    const bannerImageUrl = cleanText(body.bannerImageUrl, 500);
+    const bannerHeadline = cleanText(body.bannerHeadline, 200);
+    const bannerSubheadline = cleanText(body.bannerSubheadline, 300);
+    const bannerCtaText = cleanText(body.bannerCtaText, 100);
+    const now = Date.now();
+
+    const res = db.prepare(`
+      UPDATE main_category
+      SET name=?, icon_name=?, label=?, description=?, display_order=?, active=?, theme_key=?, primary_color=?, accent_color=?, banner_image_url=?, banner_headline=?, banner_subheadline=?, banner_cta_text=?, updated_at=?
+      WHERE id=?
+    `).run(name, iconName, label, description, displayOrder, active, themeKey, primaryColor, accentColor, bannerImageUrl, bannerHeadline, bannerSubheadline, bannerCtaText, now, id);
+
+    if (!res.changes) return response.status(404).json({ error: 'Category not found.' });
+
+    await postgresPersistence?.flushNow(['main_category']);
+    response.json({ ok: true, category: { id, name, iconName, label, description, displayOrder, active: Boolean(active), themeKey, primaryColor, accentColor, bannerImageUrl, bannerHeadline, bannerSubheadline, bannerCtaText } });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update category.' });
+  }
+});
+
+app.patch('/api/admin/main-categories/:id/status', requireAdmin, async (request, response) => {
+  const active = asBoolean(request.body?.active) ? 1 : 0;
+  const res = db.prepare('UPDATE main_category SET active=?, updated_at=? WHERE id=?').run(active, Date.now(), request.params.id);
+  if (!res.changes) return response.status(404).json({ error: 'Category not found.' });
+  await postgresPersistence?.flushNow(['main_category']);
+  response.json({ ok: true, active: Boolean(active) });
+});
+
+app.delete('/api/admin/main-categories/:id', requireAdmin, async (request, response) => {
+  const id = request.params.id;
+  const cat = db.prepare('SELECT is_default FROM main_category WHERE id=?').get(id) as { is_default: number } | undefined;
+  if (!cat) return response.status(404).json({ error: 'Category not found.' });
+  if (cat.is_default) return response.status(400).json({ error: 'Default category cannot be deleted.' });
+
+  db.prepare("UPDATE salon SET main_category_id = 'salon' WHERE main_category_id = ?").run(id);
+  db.prepare('DELETE FROM main_category WHERE id=?').run(id);
+  await postgresPersistence?.flushNow(['main_category', 'salon']);
+  response.json({ ok: true });
+});
+
+/* CUSTOMER SAVED ADDRESSES APIs */
+app.get('/api/customer/addresses', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const rows = db.prepare('SELECT * FROM customer_address WHERE customer_id = ? ORDER BY is_default DESC, created_at DESC').all(request.customerId) as Array<Record<string, unknown>>;
+  const addresses = rows.map(r => ({
+    id: String(r.id),
+    customerId: String(r.customer_id),
+    label: String(r.label),
+    fullAddress: String(r.full_address),
+    area: String(r.area),
+    city: String(r.city),
+    state: String(r.state || ''),
+    pinCode: String(r.pin_code || ''),
+    latitude: Number(r.latitude || 0),
+    longitude: Number(r.longitude || 0),
+    isDefault: Boolean(r.is_default),
+    createdAt: Number(r.created_at || 0),
+    updatedAt: Number(r.updated_at || 0),
+  }));
+  response.json({ addresses });
+});
+
+app.post('/api/customer/addresses', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const body = request.body as Record<string, unknown>;
+  const label = cleanText(body.label, 50) || 'Home Me';
+  const fullAddress = cleanText(body.fullAddress, 300);
+  const area = cleanText(body.area, 100);
+  const city = cleanText(body.city, 100);
+  const state = cleanText(body.state, 100);
+  const pinCode = cleanText(body.pinCode, 20);
+  const latitude = Number(body.latitude) || 12.9719;
+  const longitude = Number(body.longitude) || 77.6412;
+  const isDefault = asBoolean(body.isDefault) ? 1 : 0;
+  const id = randomUUID();
+  const now = Date.now();
+
+  if (isDefault) {
+    db.prepare('UPDATE customer_address SET is_default = 0 WHERE customer_id = ?').run(request.customerId);
+  }
+
+  db.prepare(`
+    INSERT INTO customer_address (id, customer_id, label, full_address, area, city, state, pin_code, latitude, longitude, is_default, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, request.customerId, label, fullAddress, area, city, state, pinCode, latitude, longitude, isDefault, now, now);
+
+  response.status(201).json({ address: { id, customerId: request.customerId, label, fullAddress, area, city, state, pinCode, latitude, longitude, isDefault: Boolean(isDefault), createdAt: now, updatedAt: now } });
+});
+
+app.patch('/api/customer/addresses/:id/default', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const addressId = request.params.id;
+  db.prepare('UPDATE customer_address SET is_default = 0 WHERE customer_id = ?').run(request.customerId);
+  const res = db.prepare('UPDATE customer_address SET is_default = 1, updated_at = ? WHERE id = ? AND customer_id = ?').run(Date.now(), addressId, request.customerId);
+  if (!res.changes) return response.status(404).json({ error: 'Address not found.' });
+  response.json({ ok: true, activeAddressId: addressId });
+});
+
+app.delete('/api/customer/addresses/:id', requireCustomer, (request: AuthenticatedRequest, response) => {
+  db.prepare('DELETE FROM customer_address WHERE id = ? AND customer_id = ?').run(request.params.id, request.customerId);
+  response.json({ ok: true });
+});
+
+app.post('/api/customer/address-requests', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const body = request.body as Record<string, unknown>;
+  const areaName = cleanText(body.areaName, 100);
+  const city = cleanText(body.city, 100);
+  const pinCode = cleanText(body.pinCode, 20);
+  const comments = cleanText(body.comments, 500);
+
+  if (!areaName) return response.status(400).json({ error: 'Area name is required.' });
+
+  const id = randomUUID();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO address_request (id, customer_id, area_name, city, pin_code, comments, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+  `).run(id, request.customerId, areaName, city, pinCode, comments, now);
+
+  response.status(201).json({ ok: true, request: { id, areaName, city, pinCode, comments, status: 'pending', createdAt: now } });
+});
+
 app.get('/api/admin/salons', requireAdmin, (_request, response) => {
   const rows = db.prepare(`SELECT s.*, (SELECT COUNT(*) FROM salon_service ss WHERE ss.salon_id=s.id) service_count,
     (SELECT COUNT(*) FROM salon_staff st WHERE st.salon_id=s.id) staff_count FROM salon s ORDER BY s.updated_at DESC, s.created_at DESC`).all();
@@ -1325,12 +1637,13 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
     const latitude = parseCoordinate(body.latitude, -90, 90, 'Latitude'); const longitude = parseCoordinate(body.longitude, -180, 180, 'Longitude');
+    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
-      category,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at)
-      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at)
+      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
-        cleanText(body.category,100),cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now);
+        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now);
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
     response.status(201).json({ salon: adminSalonDetail(id) });
@@ -1342,10 +1655,11 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
     const existing = adminSalonDetail(request.params.id); if (!existing) return response.status(404).json({ error: 'Salon not found.' });
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name,150); if (!name) throw new Error('Salon name is required.');
     const latitude = parseCoordinate(body.latitude,-90,90,'Latitude'); const longitude = parseCoordinate(body.longitude,-180,180,'Longitude'); const now=Date.now();
+    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';
     db.exec('BEGIN IMMEDIATE');
-    db.prepare(`UPDATE salon SET name=?,short_description=?,description=?,category=?,phone_number=?,email=?,website_url=?,address=?,area=?,city=?,state=?,pin_code=?,latitude=?,longitude=?,
+    db.prepare(`UPDATE salon SET name=?,short_description=?,description=?,category=?,main_category_id=?,phone_number=?,email=?,website_url=?,address=?,area=?,city=?,state=?,pin_code=?,latitude=?,longitude=?,
       is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,updated_at=? WHERE id=?`)
-      .run(name,cleanText(body.short_description,300),cleanText(body.description,3000),cleanText(body.category,100),cleanText(body.phone_number,30),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.address,500),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',cleanText(body.logo_image_url,1000),cleanText(body.cover_image_url,1000),cleanText(body.promotional_banner_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),cleanText(body.status,20)||'draft',now,request.params.id);
+      .run(name,cleanText(body.short_description,300),cleanText(body.description,3000),cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.address,500),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',cleanText(body.logo_image_url,1000),cleanText(body.cover_image_url,1000),cleanText(body.promotional_banner_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),cleanText(body.status,20)||'draft',now,request.params.id);
     saveSalonRelations(request.params.id,body,now); db.exec('COMMIT'); publish(readState(request.params.id));
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media']);
     response.json({ salon: adminSalonDetail(request.params.id) });
@@ -1503,6 +1817,7 @@ app.get('/api/salons/nearby', (request, response) => {
   const latitude = Number(request.query.lat);
   const longitude = Number(request.query.lng);
   const area = String(request.query.area || '').trim().toLocaleLowerCase();
+  const categoryId = String(request.query.categoryId || request.query.category || '').trim().toLowerCase();
   const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude)
     && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
   if (!hasCoordinates && area.length < 2) {
@@ -1511,6 +1826,7 @@ app.get('/api/salons/nearby', (request, response) => {
 
   const matches = readOnboardedSalons()
     .filter((salon) => !area || `${salon.name} ${salon.address}`.toLocaleLowerCase().includes(area))
+    .filter((salon) => !categoryId || (salon.mainCategoryId || 'salon').toLowerCase() === categoryId)
     .map((salon) => {
       const state = readState(salon.id);
       const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
