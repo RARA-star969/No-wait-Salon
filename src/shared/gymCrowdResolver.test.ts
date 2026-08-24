@@ -55,7 +55,7 @@ test('Trainer Availability Counter', async (t) => {
 
 test('Category Resolution: Gym vs Salon', async (t) => {
   await t.test('mainCategoryId = gym resolves to Gym Live Card & Capsule', () => {
-    const mainCategoryId = 'gym';
+    const mainCategoryId: string = 'gym';
     const isGym = mainCategoryId === 'gym';
     const isSalon = mainCategoryId === 'salon';
     assert.equal(isGym, true);
@@ -63,7 +63,7 @@ test('Category Resolution: Gym vs Salon', async (t) => {
   });
 
   await t.test('mainCategoryId = salon preserves existing Salon Live Queue Card & Capsule', () => {
-    const mainCategoryId = 'salon';
+    const mainCategoryId: string = 'salon';
     const isGym = mainCategoryId === 'gym';
     const isSalon = mainCategoryId === 'salon';
     assert.equal(isGym, false);
