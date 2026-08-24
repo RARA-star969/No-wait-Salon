@@ -1592,6 +1592,50 @@ app.post('/api/gym/:gymId/checkout', (request, response) => {
   response.json({ ok: true, state });
 });
 
+app.get('/api/gym/:gymId/public-overview', (request, response) => {
+  const gymId = request.params.gymId;
+  const salon = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE id = ?").get(gymId) as any;
+  if (!salon || salon.main_category_id !== 'gym') {
+    return response.status(404).json({ error: 'Gym business not found.' });
+  }
+  const state = getGymState(gymId);
+  response.json(state);
+});
+
+app.post('/api/gym/:gymId/class-booking', (request, response) => {
+  const gymId = request.params.gymId;
+  const classId = cleanText(request.body?.classId, 100);
+  const memberName = cleanText(request.body?.memberName, 100) || 'Gym Member';
+  const state = getGymState(gymId);
+  const targetClass = state.classesToday.find((c) => c.id === classId);
+  if (!targetClass) return response.status(404).json({ error: 'Class not found.' });
+  if (targetClass.enrolled >= targetClass.maxCapacity) {
+    return response.status(400).json({ error: 'Class is fully booked.' });
+  }
+  targetClass.enrolled += 1;
+  response.json({ ok: true, class: targetClass, state });
+});
+
+app.post('/api/gym/:gymId/pt-booking', (request, response) => {
+  const gymId = request.params.gymId;
+  const trainerId = cleanText(request.body?.trainerId, 100);
+  const trainerName = cleanText(request.body?.trainerName, 100) || 'Coach Vikram';
+  const clientName = cleanText(request.body?.clientName, 100) || 'Gym Client';
+  const timeSlot = cleanText(request.body?.timeSlot, 50) || '04:00 PM';
+  const serviceName = cleanText(request.body?.serviceName, 100) || 'Personal Training 1-on-1';
+
+  const state = getGymState(gymId);
+  const newBooking = {
+    id: `pt-${Date.now()}`,
+    clientName,
+    time: timeSlot,
+    trainer: trainerName,
+    service: serviceName,
+    status: 'Confirmed',
+  };
+  response.json({ ok: true, booking: newBooking, state });
+});
+
 app.post('/api/admin/login', (request, response) => {
   const email = cleanText(request.body?.email, 200).toLowerCase();
   const password = String(request.body?.password || '');

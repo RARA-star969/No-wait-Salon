@@ -39,6 +39,7 @@ import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
+import { GymDetailPage } from './GymDetailPage';
 import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
 import { ThankYouScreen } from './ThankYouScreen';
 import { realtimeQueueService } from '../services/realtimeQueueService';
@@ -871,24 +872,33 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       {currentScreen === 'salon' && (
         <div className="relative min-h-full">
         {queueError && <div role="alert" className="absolute left-4 right-4 top-4 z-20 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{queueError}</div>}
-        <SalonDetailPage
-          salon={selectedSalon}
-          nearbySalons={nearbySalons}
-          queue={queue}
-          barbers={barbers}
-          selectedService={selectedService}
-          setSelectedService={setSelectedService}
-          selectedServiceIds={selectedServiceIds}
-          setSelectedServiceIds={setSelectedServiceIds}
-          appliedOfferId={appliedOfferId}
-          onApplyOffer={onApplyOffer}
-          onRemoveOffer={onRemoveOffer}
-          onBack={() => setScreen('home')}
-          onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
-          onReserve={() => setScreen('slots')}
-          userEntry={userEntry}
-          isJoinSheetOpen={isJoinSheetOpen}
-        />
+        {(selectedSalon.mainCategoryId || 'salon').toLowerCase() === 'gym' ? (
+          <GymDetailPage
+            salon={selectedSalon}
+            onBack={() => setScreen('home')}
+            onApplyOffer={onApplyOffer}
+            appliedOfferId={appliedOfferId}
+          />
+        ) : (
+          <SalonDetailPage
+            salon={selectedSalon}
+            nearbySalons={nearbySalons}
+            queue={queue}
+            barbers={barbers}
+            selectedService={selectedService}
+            setSelectedService={setSelectedService}
+            selectedServiceIds={selectedServiceIds}
+            setSelectedServiceIds={setSelectedServiceIds}
+            appliedOfferId={appliedOfferId}
+            onApplyOffer={onApplyOffer}
+            onRemoveOffer={onRemoveOffer}
+            onBack={() => setScreen('home')}
+            onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
+            onReserve={() => setScreen('slots')}
+            userEntry={userEntry}
+            isJoinSheetOpen={isJoinSheetOpen}
+          />
+        )}
         </div>
       )}
 
