@@ -315,6 +315,14 @@ db.exec(`
     token_hash TEXT PRIMARY KEY, admin_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
     FOREIGN KEY(admin_id) REFERENCES admin_user(id)
   );
+  CREATE TABLE IF NOT EXISTS staff_account (
+    id TEXT PRIMARY KEY, business_id TEXT NOT NULL, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'owner', active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    FOREIGN KEY(business_id) REFERENCES salon(id)
+  );
+  CREATE TABLE IF NOT EXISTS staff_session (
+    token_hash TEXT PRIMARY KEY, staff_id TEXT NOT NULL, business_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
+    FOREIGN KEY(staff_id) REFERENCES staff_account(id)
+  );
 `);
 
 // Additive columns on existing tables
@@ -760,8 +768,88 @@ if (existingAdminCount === 0) {
     .run(randomUUID(), defaultAdminEmail, configuredAdminPasswordHash || passwordHash(defaultAdminPassword), now, now);
 }
 
+const demoStaffAccounts = [
+  { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
+  { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
+  { id: 'staff-acc-gym-1-owner', businessId: 'gym-1', email: 'ironhouse-owner@nowaitsalon.test', password: 'staff123', name: 'Vikram (Owner)', role: 'owner' },
+  { id: 'staff-acc-gym-1-trainer', businessId: 'gym-1', email: 'ironhouse-trainer@nowaitsalon.test', password: 'staff123', name: 'Coach Vikram', role: 'trainer' },
+];
+
+for (const acc of demoStaffAccounts) {
+  const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id);
+  if (!existing) {
+    const now = Date.now();
+    db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
+      .run(acc.id, acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, now);
+  }
+}
+
 type AuthenticatedRequest = express.Request & { customerId?: string };
 type AdminRequest = express.Request & { adminId?: string };
+type StaffRequest = express.Request & {
+  staffSession?: {
+    staffId: string;
+    email: string;
+    name: string;
+    role: string;
+    businessId: string;
+    businessName: string;
+    mainCategoryId: string;
+  };
+};
+
+function resolveStaffSession(request: express.Request) {
+  const authorization = request.headers.authorization || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+
+  const testBusinessHeader = String(request.headers['x-test-business-id'] || '').trim();
+  const testRoleHeader = String(request.headers['x-test-staff-role'] || '').trim();
+
+  if (token) {
+    const session = db.prepare(`
+      SELECT ss.staff_id, ss.business_id, sa.email, sa.name, sa.role, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id
+      FROM staff_session ss
+      JOIN staff_account sa ON ss.staff_id = sa.id
+      JOIN salon s ON ss.business_id = s.id
+      WHERE ss.token_hash = ? AND ss.expires_at > ? AND sa.active = 1
+    `).get(hashCode(token), Date.now()) as { staff_id: string; business_id: string; email: string; name: string; role: string; business_name: string; main_category_id: string } | undefined;
+
+    if (session) {
+      return {
+        staffId: session.staff_id,
+        email: session.email,
+        name: session.name,
+        role: session.role,
+        businessId: session.business_id,
+        businessName: session.business_name,
+        mainCategoryId: session.main_category_id,
+      };
+    }
+  }
+
+  if (testBusinessHeader && process.env.NODE_ENV !== 'production') {
+    const account = db.prepare(`
+      SELECT sa.id as staff_id, sa.email, sa.name, sa.role, s.id as business_id, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id
+      FROM salon s
+      LEFT JOIN staff_account sa ON sa.business_id = s.id AND (sa.role = ? OR ? = '')
+      WHERE s.id = ?
+    `).get(testRoleHeader || 'owner', testRoleHeader || 'owner', testBusinessHeader) as { staff_id?: string; email?: string; name?: string; role?: string; business_id: string; business_name: string; main_category_id: string } | undefined;
+
+    if (account) {
+      return {
+        staffId: account.staff_id || `test-${account.business_id}`,
+        email: account.email || `test@${account.business_id}.test`,
+        name: account.name || `${account.business_name} Staff`,
+        role: account.role || testRoleHeader || 'owner',
+        businessId: account.business_id,
+        businessName: account.business_name,
+        mainCategoryId: account.main_category_id,
+      };
+    }
+  }
+
+  return undefined;
+}
 
 function requireAdmin(request: AdminRequest, response: express.Response, next: express.NextFunction) {
   const authorization = request.headers.authorization || '';
@@ -1338,6 +1426,171 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
       .run(cleanText(row.id, 100) || randomUUID(), salonId, cleanText(row.media_type, 30) || 'gallery', url, cleanText(row.caption, 200), asBoolean(row.featured) ? 1 : 0, index, now, now);
   });
 }
+
+const gymStates = new Map<string, {
+  gymId: string;
+  maxCapacity: number;
+  currentOccupancy: number;
+  waitingOutsideCount: number;
+  checkinsTodayCount: number;
+  classesToday: Array<{ id: string; title: string; time: string; trainer: string; enrolled: number; maxCapacity: number }>;
+  trainers: Array<{ id: string; name: string; role: string; status: string; rating: number; reviewCount: number }>;
+  entryQueue: Array<{ id: string; name: string; memberId: string; arrivedAt: number; status: 'Waiting' | 'Admitted' }>;
+}>();
+
+function getGymState(gymId: string) {
+  let state = gymStates.get(gymId);
+  if (!state) {
+    state = {
+      gymId,
+      maxCapacity: 80,
+      currentOccupancy: 42,
+      waitingOutsideCount: 3,
+      checkinsTodayCount: 96,
+      classesToday: [
+        { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
+        { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
+        { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
+        { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
+      ],
+      trainers: [
+        { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
+        { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89 },
+        { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94 },
+      ],
+      entryQueue: [
+        { id: 'q1', name: 'Rohan Sharma', memberId: 'IH-1082', arrivedAt: Date.now() - 5 * 60000, status: 'Waiting' },
+        { id: 'q2', name: 'Priya Patel', memberId: 'IH-1094', arrivedAt: Date.now() - 3 * 60000, status: 'Waiting' },
+        { id: 'q3', name: 'Amit Verma', memberId: 'IH-1102', arrivedAt: Date.now() - 1 * 60000, status: 'Waiting' },
+      ],
+    };
+    gymStates.set(gymId, state);
+  }
+  return state;
+}
+
+app.post('/api/staff/login', (request, response) => {
+  const email = cleanText(request.body?.email, 200).toLowerCase();
+  const password = String(request.body?.password || '');
+  const account = db.prepare(`
+    SELECT sa.*, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id
+    FROM staff_account sa
+    JOIN salon s ON sa.business_id = s.id
+    WHERE sa.email = ? AND sa.active = 1
+  `).get(email) as any;
+
+  if (!account || !verifyPassword(password, account.password_hash)) {
+    return response.status(401).json({ error: 'Invalid staff email or password.' });
+  }
+
+  const token = `staff_${randomUUID()}${randomUUID().replaceAll('-', '')}`;
+  const now = Date.now();
+  db.prepare('INSERT INTO staff_session (token_hash, staff_id, business_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(hashCode(token), account.id, account.business_id, now + 30 * 24 * 60 * 60_000, now);
+
+  response.json({
+    token,
+    staff: { id: account.id, email: account.email, name: account.name, role: account.role },
+    business: { id: account.business_id, name: account.business_name, mainCategoryId: account.main_category_id },
+  });
+});
+
+app.get('/api/staff/session', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) {
+    if (process.env.NODE_ENV !== 'production') {
+      const defaultSalon = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE platform_status = 'active' ORDER BY id ASC LIMIT 1").get() as any;
+      if (defaultSalon) {
+        return response.json({
+          token: 'dev-token',
+          staff: { id: 'dev-owner', email: 'dev-owner@test.com', name: `${defaultSalon.name} Owner`, role: 'owner' },
+          business: { id: defaultSalon.id, name: defaultSalon.name, mainCategoryId: defaultSalon.main_category_id },
+        });
+      }
+    }
+    return response.status(401).json({ error: 'Not authenticated as staff.' });
+  }
+  response.json({
+    token: request.headers.authorization?.slice(7).trim() || 'active-session',
+    staff: { id: session.staffId, email: session.email, name: session.name, role: session.role },
+    business: { id: session.businessId, name: session.businessName, mainCategoryId: session.mainCategoryId },
+  });
+});
+
+app.post('/api/staff/test-switch', (request, response) => {
+  if (process.env.NODE_ENV === 'production') {
+    return response.status(403).json({ error: 'Test switcher is disabled in production.' });
+  }
+  const businessId = cleanText(request.body?.businessId, 100);
+  const role = cleanText(request.body?.role, 50) || 'owner';
+
+  const salonRow = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE id = ?").get(businessId) as any;
+  if (!salonRow) return response.status(404).json({ error: 'Business not found.' });
+
+  const staffAccount = db.prepare('SELECT * FROM staff_account WHERE business_id = ? AND (role = ? OR ? = "") LIMIT 1').get(businessId, role, role) as any;
+
+  const token = `test_token_${businessId}_${role}_${Date.now()}`;
+  const now = Date.now();
+  const staffId = staffAccount?.id || `test-${businessId}-${role}`;
+  const staffName = staffAccount?.name || (role === 'trainer' ? 'Coach Vikram' : `${salonRow.name} ${role === 'owner' ? 'Owner' : 'Staff'}`);
+  const staffEmail = staffAccount?.email || `test-${role}@${businessId}.test`;
+
+  if (staffAccount) {
+    db.prepare('INSERT INTO staff_session (token_hash, staff_id, business_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(hashCode(token), staffAccount.id, businessId, now + 30 * 24 * 60 * 60_000, now);
+  }
+
+  response.json({
+    token,
+    staff: { id: staffId, email: staffEmail, name: staffName, role },
+    business: { id: salonRow.id, name: salonRow.name, mainCategoryId: salonRow.main_category_id },
+  });
+});
+
+app.post('/api/staff/logout', (request, response) => {
+  const token = String(request.headers.authorization || '').slice(7).trim();
+  if (token) {
+    db.prepare('DELETE FROM staff_session WHERE token_hash = ?').run(hashCode(token));
+  }
+  response.json({ ok: true });
+});
+
+app.get('/api/gym/:gymId/overview', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (session && session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Cross-business access denied.' });
+  }
+  const state = getGymState(gymId);
+  response.json(state);
+});
+
+app.post('/api/gym/:gymId/checkin', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (session && session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Cross-business access denied.' });
+  }
+  const state = getGymState(gymId);
+  if (state.currentOccupancy >= state.maxCapacity) {
+    return response.status(400).json({ error: 'Gym is currently at maximum capacity.' });
+  }
+  state.currentOccupancy += 1;
+  state.checkinsTodayCount += 1;
+  if (state.waitingOutsideCount > 0) state.waitingOutsideCount -= 1;
+  response.json({ ok: true, state });
+});
+
+app.post('/api/gym/:gymId/checkout', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (session && session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Cross-business access denied.' });
+  }
+  const state = getGymState(gymId);
+  if (state.currentOccupancy > 0) state.currentOccupancy -= 1;
+  response.json({ ok: true, state });
+});
 
 app.post('/api/admin/login', (request, response) => {
   const email = cleanText(request.body?.email, 200).toLowerCase();
