@@ -21,7 +21,7 @@ services:
     name: no-wait-salon-web-test
     runtime: docker
     plan: free
-    branch: feat/public-qr-web-join
+    branch: main
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
