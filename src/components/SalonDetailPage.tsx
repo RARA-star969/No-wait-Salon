@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
+import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, Dumbbell, ExternalLink, Flame, Info, Lock, MapPin, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X, Zap, Activity } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
@@ -13,23 +13,6 @@ import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } 
 import { formatDurationLabel } from '../shared/durationFormat';
 import { LockedCalendarIcon } from './LockedCalendarIcon';
 import { HairCare3DIcon, Beard3DIcon, MassageSpa3DIcon, HairColour3DIcon, Facial3DIcon } from './ExploreService3DIcons';
-
-/**
- * Recovered to match APK build #45's source (commit 434289e, workflow run
- * 32535322434) as closely as possible — layout, spacing, service section,
- * Live Queue card/capsule, page hierarchy, and dock proportions. Two
- * deliberate departures from APK45, both requested explicitly:
- *   1. Zero services selected never disables/fades Join Queue.
- *   2. The bottom dock has no background slab — the two buttons float
- *      directly on the page (safe-area padding + shadow only).
- * The dock's Calendar button and mid-page "reserve ahead" card both call
- * the real onReserve flow (setScreen('slots') in CustomerApp), not APK45's
- * fake "Premium unlocks / coming soon" lock — that lock would be a
- * regression of already-working newer functionality. Tapping the dock
- * summary opens the same PriceBreakdownSheet used by the Join Queue sheet's
- * "View services" — one component, one applied-offer id, so the two can
- * never disagree.
- */
 
 type Props = {
   salon: Salon;
@@ -50,8 +33,15 @@ type Props = {
   isJoinSheetOpen?: boolean;
 };
 
-const serviceCategory = (name: string) => {
+const serviceCategory = (name: string, mainCategoryId?: string) => {
   const value = name.toLocaleLowerCase();
+  if (mainCategoryId === 'gym') {
+    if (value.includes('strength') || value.includes('pass') || value.includes('day')) return 'Strength';
+    if (value.includes('personal') || value.includes('training') || value.includes('coach')) return 'Personal Training';
+    if (value.includes('cardio') || value.includes('hiit') || value.includes('zone')) return 'Cardio & HIIT';
+    if (value.includes('functional') || value.includes('conditioning')) return 'Functional';
+    return 'Fitness & Gym';
+  }
   if (value.includes('beard')) return 'Beard';
   if (value.includes('massage') || value.includes('spa')) return 'Massage & Spa';
   if (value.includes('colour')) return 'Hair Colour';
@@ -67,6 +57,11 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   'Massage & Spa': <MassageSpa3DIcon className="h-7 w-7" />,
   'Hair Colour': <HairColour3DIcon className="h-7 w-7" />,
   'Facial': <Facial3DIcon className="h-7 w-7" />,
+  'Strength': <Dumbbell className="h-6 w-6 text-[#0F766E]" />,
+  'Personal Training': <Zap className="h-6 w-6 text-[#0F766E]" />,
+  'Cardio & HIIT': <Flame className="h-6 w-6 text-[#0F766E]" />,
+  'Functional': <Activity className="h-6 w-6 text-[#0F766E]" />,
+  'Fitness & Gym': <Dumbbell className="h-6 w-6 text-[#0F766E]" />,
 };
 
 export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen }) => {
@@ -88,6 +83,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   const [dockBounce, setDockBounce] = useState(false);
   const previousServiceCount = useRef(0);
 
+  const isGym = (salon.mainCategoryId || '').toLowerCase() === 'gym';
   const waiting = queue.filter((item) => ['Waiting', 'Called'].includes(item.status));
   const activeBarbers = barbers.filter((barber) => barber.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((barber) => barber.status === 'available').length;
@@ -98,7 +94,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     () => toSalonProfile(salon, { liveWaitMinutes: waitMinutes, waitingCustomers: waiting.length }),
     [salon, waitMinutes, waiting.length],
   );
-  const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name)))), [profile.services]);
+  const categories = useMemo(() => Array.from(new Set(profile.services.map((service) => serviceCategory(service.name, salon.mainCategoryId)))), [profile.services, salon.mainCategoryId]);
   const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
 
   const filteredServices = useMemo(() => filterServices(profile.services, serviceFilter), [profile.services, serviceFilter]);
@@ -137,10 +133,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
   // The signature sticky scoreboard: appears the moment the main live-queue
   // card scrolls out of view, and morphs back away the moment it returns.
-  // Stays visible through the whole Join Queue flow — the sheet no longer
-  // renders its own duplicate live card, so there's nothing to protect it
-  // from — until the ticket screen takes over (this page unmounts there,
-  // taking the capsule with it).
   useEffect(() => {
     const node = liveQueueSectionRef.current;
     if (!node || typeof IntersectionObserver === 'undefined') return;
@@ -152,7 +144,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
     return () => observer.disconnect();
   }, []);
 
-  const isScoreboardActive = showScoreboard || Boolean(isJoinSheetOpen);
+  const isScoreboardActive = !isGym && (showScoreboard || Boolean(isJoinSheetOpen));
 
   // Remounts the capsule's inner element each time it becomes visible, so
   // its one-shot "lift and settle" animation replays on every re-entry.
@@ -184,22 +176,18 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
   return (
     <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
-      {/* Signature floating capsule: a top-center notch/island, content-hugging
-          rather than a full-width bar, that stays visible — including through
-          the whole Join Queue flow — until the main live-queue card scrolls
-          back into view or the ticket screen is reached (this page unmounts
-          there, taking the capsule with it). Elevated to z-[95] so it stays
-          cleanly visible above the modal backdrop during Join Queue. */}
-      <div
-        aria-hidden={!isScoreboardActive}
-        className={`fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)+0.6rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
-          isScoreboardActive ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
-        }`}
-      >
-        <div key={capsuleEnterKey} className="capsule-melt-in">
-          <LiveQueueScoreboard metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
+      {!isGym && (
+        <div
+          aria-hidden={!isScoreboardActive}
+          className={`fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)+0.6rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
+            isScoreboardActive ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
+          }`}
+        >
+          <div key={capsuleEnterKey} className="capsule-melt-in">
+            <LiveQueueScoreboard metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
+          </div>
         </div>
-      </div>
+      )}
 
       <section className="relative min-h-[270px] overflow-hidden bg-[#173B38] text-white">
         {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
@@ -216,7 +204,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-5">
           <div className="flex items-end gap-3">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#E3F1EF] text-[#0F766E] shadow-lg">
-              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
+              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : isGym ? <Dumbbell className="h-7 w-7" /> : <Scissors className="h-7 w-7" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
               <div className="flex items-center gap-2">
@@ -224,7 +212,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
               </div>
               <AnimatedSalonName name={salon.name} className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]" />
-              <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
+              <p className="mt-1 text-xs font-medium text-white/75">{salon.category || (isGym ? 'Fitness & Strength Gym' : 'Salon & grooming')} · {salon.distanceKm} km away</p>
             </div>
           </div>
           <button
@@ -248,47 +236,61 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setBeenHereSheetOpen(true)} active={visited} />
         </section>
 
-        <section ref={liveQueueSectionRef} className="relative">
-          <LiveQueueCard
-            variant="salon"
-            waitLabel={waitLabel}
-            peopleAhead={waiting.length}
-            readyChairs={availableBarbers}
-            totalChairs={activeBarbers}
-          />
+        {!isGym && (
+          <section ref={liveQueueSectionRef} className="relative">
+            <LiveQueueCard
+              variant="salon"
+              waitLabel={waitLabel}
+              peopleAhead={waiting.length}
+              readyChairs={availableBarbers}
+              totalChairs={activeBarbers}
+            />
 
-          {/* Warm ambient blob behind the glass CTA — same decorative-glow
-              pattern used in LiveQueueCard, so the backdrop-blur below has
-              real content to filter. Purely decorative. */}
-          <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[#C9A24B]/55 blur-2xl" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[#0F766E]/30 blur-2xl" aria-hidden="true" />
+            {/* Warm ambient blob behind the glass CTA — same decorative-glow
+                pattern used in LiveQueueCard, so the backdrop-blur below has
+                real content to filter. Purely decorative. */}
+            <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[#C9A24B]/55 blur-2xl" aria-hidden="true" />
+            <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[#0F766E]/30 blur-2xl" aria-hidden="true" />
 
-          {/* Secondary future-booking CTA: translucent warm glass, deliberately
-              quieter than the Live Queue hero above it — "later", not "now".
-              Calls the real reserve flow (setScreen('slots') in CustomerApp),
-              not a locked placeholder. */}
-          <button
-            onClick={onReserve}
-            id="reserve-future-window-btn"
-            className="relative mt-2 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#E7C673]/55 bg-[#8A6A2C]/22 px-3.5 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_8px_20px_-16px_rgba(90,64,20,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
-          >
-            <span className="flex min-w-0 items-center gap-2.5">
-              <LockedCalendarIcon size="sm" />
-              <span className="min-w-0">
-                <span className="block truncate text-[12.5px] font-bold text-[#3E2F13]">Choose a future time</span>
-                <span className="mt-0.5 block truncate text-[10px] font-medium text-[#5C4A28]">Skip the wait — reserve ahead</span>
+            {/* Secondary future-booking CTA: translucent warm glass, deliberately
+                quieter than the Live Queue hero above it — "later", not "now".
+                Calls the real reserve flow (setScreen('slots') in CustomerApp),
+                not a locked placeholder. */}
+            <button
+              onClick={onReserve}
+              id="reserve-future-window-btn"
+              className="relative mt-2 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#E7C673]/55 bg-[#8A6A2C]/22 px-3.5 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_8px_20px_-16px_rgba(90,64,20,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <LockedCalendarIcon size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate text-[12.5px] font-bold text-[#3E2F13]">Choose a future time</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-medium text-[#5C4A28]">Skip the wait — reserve ahead</span>
+                </span>
               </span>
-            </span>
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-[#E7C673]/60 bg-white/20 px-2.5 py-1 text-[10px] font-bold text-[#5B420F] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-sm">
-              Reserve
-              <ChevronRight className="h-3 w-3" />
-            </span>
-          </button>
-        </section>
+              <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-[#E7C673]/60 bg-white/20 px-2.5 py-1 text-[10px] font-bold text-[#5B420F] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-sm">
+                Reserve
+                <ChevronRight className="h-3 w-3" />
+              </span>
+            </button>
+          </section>
+        )}
 
         <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[#173E3A] to-[#3F746D] p-5 text-white">
-          <div className="max-w-[72%]"><span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider"><Sparkles className="h-3 w-3" />At {salon.name}</span><h2 className="mt-3 text-lg font-bold leading-tight">Your next grooming visit, without the waiting room.</h2></div>
-          <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
+          <div className="max-w-[72%]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider">
+              <Sparkles className="h-3 w-3" />
+              At {salon.name}
+            </span>
+            <h2 className="mt-3 text-lg font-bold leading-tight">
+              {isGym ? 'Your next fitness session, on your schedule.' : 'Your next grooming visit, without the waiting room.'}
+            </h2>
+          </div>
+          {isGym ? (
+            <Dumbbell className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
+          ) : (
+            <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
+          )}
         </section>
 
         {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
@@ -456,28 +458,39 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               </div>
             </div>
           </div>
-          <div className="relative grid grid-cols-[1fr_auto] gap-2">
-            <button
-              id="join-live-queue-btn"
-              onClick={onJoin}
-              className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
+          {isGym ? (
+            <a
+              id="gym-view-services-btn"
+              href="#service-menu"
+              className="relative flex min-h-13 w-full min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-4 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm"
             >
               <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
-              <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
-            </button>
-            <button
-              id="reserve-slot-btn"
-              type="button"
-              onClick={onReserve}
-              aria-label="Reserve a future queue window"
-              className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[#E7C673]/60 bg-[#8A6A2C]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_18px_-12px_rgba(90,64,20,0.45)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
-            >
-              <CalendarDays className="relative h-4.5 w-4.5 text-[#3E2D0C]" />
-              <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
-                <Lock className="h-2 w-2" />
-              </span>
-            </button>
-          </div>
+              <span className="relative min-w-0 truncate">View Services & Pricing</span>
+            </a>
+          ) : (
+            <div className="relative grid grid-cols-[1fr_auto] gap-2">
+              <button
+                id="join-live-queue-btn"
+                onClick={onJoin}
+                className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
+              >
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
+                <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
+              </button>
+              <button
+                id="reserve-slot-btn"
+                type="button"
+                onClick={onReserve}
+                aria-label="Reserve a future queue window"
+                className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[#E7C673]/60 bg-[#8A6A2C]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_18px_-12px_rgba(90,64,20,0.45)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
+              >
+                <CalendarDays className="relative h-4.5 w-4.5 text-[#3E2D0C]" />
+                <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+                  <Lock className="h-2 w-2" />
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import {
   Scissors,
+  Dumbbell,
   MapPin,
   Clock,
   Users,
@@ -820,8 +821,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     }`}
                   >
                     <div className="flex items-start gap-3.5 p-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E8F5F3] text-[#0F766E]">
-                        <Scissors className="h-5 w-5" />
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[#E8F5F3] text-[#0F766E]">
+                        {salon.logoImageUrl ? (
+                          <img src={salon.logoImageUrl} alt={salon.name} className="h-full w-full object-cover" />
+                        ) : salon.mainCategoryId === 'gym' ? (
+                          <Dumbbell className="h-5 w-5" />
+                        ) : (
+                          <Scissors className="h-5 w-5" />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
