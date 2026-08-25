@@ -114,6 +114,18 @@ const migrations=[{
   sql: `
     ALTER TABLE salon ADD COLUMN IF NOT EXISTS main_category_id TEXT NOT NULL DEFAULT 'salon';
   `
+},{
+  version: 8,
+  name: 'fix_seed_categories',
+  sql: `
+    UPDATE salon SET main_category_id = 'salon' WHERE id IN ('salon-1', 'salon-2');
+    UPDATE salon SET main_category_id = 'gym' WHERE id = 'gym-1';
+    UPDATE salon SET main_category_id = 'shop' WHERE id = 'shop-1';
+    UPDATE salon SET main_category_id = 'moto' WHERE id = 'moto-1';
+    UPDATE salon SET main_category_id = 'pets' WHERE id = 'pets-1';
+    UPDATE salon SET main_category_id = 'mall' WHERE id = 'mall-1';
+    UPDATE salon SET main_category_id = 'food' WHERE id = 'food-1';
+  `
 }];
 
 export async function runMigrations(db:Database){
