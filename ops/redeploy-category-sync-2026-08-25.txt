@@ -1,0 +1,1 @@
+Operational redeploy trigger: refresh production runtime so Iron House Gym main_category_id=gym is hydrated from Neon into the live SQLite cache.
