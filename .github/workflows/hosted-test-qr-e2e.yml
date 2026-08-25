@@ -1,0 +1,95 @@
+name: Hosted TEST QR lifecycle
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/category-aware-staff-dashboard
+    paths:
+      - '.github/workflows/hosted-test-qr-e2e.yml'
+      - 'scratch/apply_qr_e2e_runtime_fixes.cjs'
+      - 'scratch/verify_hosted_qr_staff_e2e.cjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hosted-test-qr-e2e
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout TEST branch
+        uses: actions/checkout@v4
+        with:
+          ref: test/category-aware-staff-dashboard
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Apply scoped runtime fixes
+        run: node scratch/apply_qr_e2e_runtime_fixes.cjs
+
+      - name: Commit scoped fixes to TEST
+        shell: bash
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "OpenAI E2E Fix"
+            git config user.email "actions@users.noreply.github.com"
+            git add server/index.ts src/components/PublicSalonPage.tsx src/services/businessQrService.ts render-test.yaml
+            git commit -m "fix: complete hosted QR lifecycle parity"
+            git push origin HEAD:test/category-aware-staff-dashboard
+          fi
+          echo "DEPLOY_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Full tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Puppeteer Chrome
+        run: npx puppeteer browsers install chrome
+
+      - name: Wait for exact Render TEST commit
+        env:
+          VERIFY_URL: https://no-wait-salon-web-test.onrender.com
+        run: |
+          node <<'NODE'
+          const base = process.env.VERIFY_URL;
+          const expected = process.env.DEPLOY_SHA;
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          (async () => {
+            for (let i = 1; i <= 72; i++) {
+              try {
+                const r = await fetch(`${base}/api/health`, { cache: 'no-store' });
+                const j = await r.json();
+                console.log(`Render poll ${i}: status=${r.status} commit=${j.commit || 'unknown'}`);
+                if (r.ok && j.commit === expected) process.exit(0);
+              } catch (e) {
+                console.log(`Render poll ${i}: ${e.message}`);
+              }
+              await sleep(10000);
+            }
+            console.error(`Render did not reach expected commit ${expected}`);
+            process.exit(1);
+          })();
+          NODE
+
+      - name: Real hosted QR + Staff E2E
+        env:
+          VERIFY_URL: https://no-wait-salon-web-test.onrender.com
+        run: node scratch/verify_hosted_qr_staff_e2e.cjs
