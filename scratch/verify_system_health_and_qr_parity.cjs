@@ -73,7 +73,7 @@ async function verifySystemHealthAndQrParity() {
 
     // Fallback GET public token if admin API not used
     if (!qrToken) {
-      const publicQrRes = await fetch(`${TEST_URL}/api/public/qr-token/salon-1`).catch(() => null);
+      const publicQrRes = await fetch(`${TEST_URL}/api/business-qr-public/salon-1`).catch(() => null);
       if (publicQrRes && publicQrRes.ok) {
         const pJson = await publicQrRes.json();
         qrToken = pJson.token || pJson.publicToken || '';
