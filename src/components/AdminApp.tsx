@@ -79,6 +79,7 @@ const emptySalon = () => ({
   short_description: '',
   description: '',
   category: '',
+  main_category_id: 'salon',
   phone_number: '',
   email: '',
   website_url: '',
@@ -1106,6 +1107,7 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
               <select
                 value={form.main_category_id || 'salon'}
                 onChange={(e) => set('main_category_id', e.target.value)}
+                required
                 className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
               >
                 {mainCats.map((c) => (
