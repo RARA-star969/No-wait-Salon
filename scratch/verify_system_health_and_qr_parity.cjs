@@ -3,8 +3,8 @@ const puppeteer = require('puppeteer');
 const CHROME_PATH = '/Users/ritiksinghroth/.cache/puppeteer/chrome/mac-152.0.7977.42/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing';
 const TEST_URL = process.env.VERIFY_URL || 'http://localhost:3000';
 
-async function verifySystemHealthAndQrParity() {
-  console.log(`Starting Real QR Route Verification & System Health against ${TEST_URL}...`);
+async function verifyFullEndToEndQrJourneyAndSystemHealth() {
+  console.log(`=== Starting Full Real E2E QR Token Journey Verification on ${TEST_URL} ===`);
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
@@ -14,8 +14,8 @@ async function verifySystemHealthAndQrParity() {
   const results = {};
 
   try {
-    // --- 1. ADMIN DATA STABILITY ---
-    console.log('\n--- 1. Testing Admin Data Stability ---');
+    // --- STEP 1: ADMIN DASHBOARD STABILITY ---
+    console.log('\n--- 1. Testing Admin Dashboard Stability & Authentication ---');
     const pageAdmin = await browser.newPage();
     await pageAdmin.setViewport({ width: 1280, height: 900 });
     await pageAdmin.goto(`${TEST_URL}/admin`, { waitUntil: 'networkidle2' });
@@ -38,7 +38,7 @@ async function verifySystemHealthAndQrParity() {
     adminToken = await pageAdmin.evaluate(() => localStorage.getItem('no_wait_admin_token') || '');
 
     const initialText = await pageAdmin.evaluate(() => document.body.innerText);
-    const hasDashboardMetrics = initialText.includes('Total businesses') || initialText.includes('Overview') || initialText.includes('Platform Admin') || initialText.includes('Salons & Businesses');
+    const hasDashboardMetrics = initialText.includes('Platform Admin') || initialText.includes('Overview') || initialText.includes('Total businesses') || initialText.includes('Salons & Businesses');
     results.admin_dashboardLoaded = hasDashboardMetrics;
     console.log('Admin Dashboard loaded:', hasDashboardMetrics);
 
@@ -54,11 +54,9 @@ async function verifySystemHealthAndQrParity() {
     results.admin_zeroDataFlashPrevented = !zeroDataFlashed;
     console.log('Admin Zero-Data Flash prevented across reloads:', !zeroDataFlashed);
 
-    // --- 2. FETCH REAL PUBLIC QR TOKEN FOR /q/:token ---
+    // --- STEP 2: RESOLVE REAL PUBLIC QR TOKEN ---
     console.log('\n--- 2. Fetching Real Public QR Token for /q/:token ---');
     let qrToken = '';
-    
-    // Method A: Admin API
     if (adminToken) {
       const qrRes = await fetch(`${TEST_URL}/api/admin/businesses/salon-1/qr`, {
         headers: { Authorization: `Bearer ${adminToken}` }
@@ -69,7 +67,6 @@ async function verifySystemHealthAndQrParity() {
       }
     }
 
-    // Method B: Public token API endpoint
     if (!qrToken) {
       const publicQrRes = await fetch(`${TEST_URL}/api/business-qr-public/salon-1`).catch(() => null);
       if (publicQrRes && publicQrRes.ok) {
@@ -78,28 +75,27 @@ async function verifySystemHealthAndQrParity() {
       }
     }
 
-    if (!qrToken) {
-      throw new Error('Failed to resolve real public QR token for salon-1');
-    }
+    if (!qrToken) throw new Error('Could not resolve public QR token for salon-1');
 
     const realQrUrl = `${TEST_URL}/q/${qrToken}`;
     console.log(`REAL Public QR URL: ${realQrUrl}`);
 
+    // --- STEP 3: CUSTOMER QR OPEN & SALON DETAIL PAGE PARITY ---
+    console.log('\n--- 3. Opening Real /q/:token Customer Route ---');
     const pageQr = await browser.newPage();
     await pageQr.setViewport({ width: 414, height: 896, isMobile: true, hasTouch: true });
     await pageQr.goto(realQrUrl, { waitUntil: 'networkidle2' });
-    await pageQr.waitForFunction(() => document.body.innerText.includes('Sharpcut Studio'), { timeout: 8000 }).catch(() => null);
+    await pageQr.waitForFunction(() => document.body.innerText.includes('Sharpcut Studio'), { timeout: 8000 });
 
-    // Verify /q/:token renders shared SalonDetailPage
     const qrText = await pageQr.evaluate(() => document.body.innerText);
     const rendersSharedSalonDetail = qrText.includes('Sharpcut Studio') &&
       (qrText.includes('Service menu') || qrText.includes('Choose your services') || qrText.includes('Hair Care') || qrText.includes('Haircut')) &&
       (qrText.includes('Join Queue') || qrText.includes('Select services') || qrText.includes('in the queue'));
     results.qr_rendersSharedSalonDetail = rendersSharedSalonDetail;
-    console.log('Real /q/:token route renders shared SalonDetailPage:', rendersSharedSalonDetail);
+    console.log('Real /q/:token renders shared SalonDetailPage:', rendersSharedSalonDetail);
 
-    // --- 3. FULL QR CUSTOMER TOKEN JOURNEY ON /q/:token ---
-    console.log('\n--- 3. Testing Complete Customer Token Journey on Real /q/:token ---');
+    // --- STEP 4: JOIN QUEUE -> WAITING STATE ---
+    console.log('\n--- 4. Customer Joins Queue on /q/:token ---');
     await pageQr.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('button'));
       const j = btns.find((b) => b.textContent.includes('Join Queue') || b.textContent.includes('Get Token'));
@@ -137,7 +133,7 @@ async function verifySystemHealthAndQrParity() {
       const nameIn = await pageQr.$('input[placeholder*="Rahul" i]');
       if (nameIn) {
         await nameIn.click();
-        await nameIn.type('Test QR Customer');
+        await nameIn.type('E2E QR Customer');
         await pageQr.evaluate((el) => {
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -166,17 +162,132 @@ async function verifySystemHealthAndQrParity() {
     }
     await new Promise((r) => setTimeout(r, 3500));
 
-    // Refresh page during Waiting state and check ticket persistence
+    // Assert Waiting state
+    const waitingText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const isWaiting = waitingText.includes('waiting') || waitingText.includes('queue') || waitingText.includes('token');
+    results.qr_state_waiting = isWaiting;
+    console.log('Customer QR reached Waiting state:', isWaiting);
+
+    // Persistence Check 1: Refresh during Waiting
     await pageQr.reload({ waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 1500));
-    const reloadedText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
-    const persistedTicket = reloadedText.includes("queue") || reloadedText.includes("token") || reloadedText.includes("waiting") || reloadedText.includes("sharpcut");
-    results.qr_joinedQueueSuccessfully = persistedTicket;
-    results.qr_sessionPersistedOnReload = persistedTicket;
-    console.log('Real /q/:token joined queue successfully & persisted:', persistedTicket);
+    const waitingReloadText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const waitingPersisted = waitingReloadText.includes('waiting') || waitingReloadText.includes('queue') || waitingReloadText.includes('token');
+    results.qr_refresh_waiting_persisted = waitingPersisted;
+    console.log('Waiting state persisted across browser refresh:', waitingPersisted);
 
-    // --- 4. ADMIN DEACTIVATION IMPACT ON REAL /q/:token ---
-    console.log('\n--- 4. Testing Deactivation Impact on Real /q/:token ---');
+    // --- STEP 5: OPEN STAFF DASHBOARD & CALL CUSTOMER ---
+    console.log('\n--- 5. Staff Dashboard Calls Customer ---');
+    const pageStaff = await browser.newPage();
+    await pageStaff.setViewport({ width: 1280, height: 900 });
+    await pageStaff.goto(`${TEST_URL}/staff`, { waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // Click Call button for the customer on Staff Dashboard
+    await pageStaff.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const callBtn = btns.find((b) => b.textContent.trim() === 'Call');
+      if (callBtn) callBtn.click();
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Assert Called state on Customer QR Web (Page 1)
+    await pageQr.bringToFront();
+    await pageQr.waitForFunction(
+      () => document.body.innerText.toLowerCase().includes('called') ||
+            document.body.innerText.toLowerCase().includes('your turn') ||
+            document.body.innerText.toLowerCase().includes("i'm on my way") ||
+            document.body.innerText.toLowerCase().includes('on my way'),
+      { timeout: 8000 }
+    ).catch(() => null);
+
+    const calledText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const isCalled = calledText.includes('called') || calledText.includes('your turn') || calledText.includes("i'm on my way") || calledText.includes('on my way');
+    results.qr_state_called = isCalled;
+    console.log('Customer QR state updated to Called via SSE / Push:', isCalled);
+
+    // Persistence Check 2: Refresh during Called
+    await pageQr.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 1500));
+    const calledReloadText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const calledPersisted = calledReloadText.includes('called') || calledReloadText.includes('your turn') || calledReloadText.includes("on my way");
+    results.qr_refresh_called_persisted = calledPersisted;
+    console.log('Called state persisted across browser refresh:', calledPersisted);
+
+    // --- STEP 6: CUSTOMER PRESSES "I'M ON MY WAY" ---
+    console.log('\n--- 6. Customer Presses "I\'m on my way" ---');
+    await pageQr.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const wayBtn = btns.find((b) => b.textContent.toLowerCase().includes('on my way') || b.id === 'on-my-way-btn');
+      if (wayBtn) wayBtn.click();
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Verify Staff Dashboard receives acknowledgement
+    await pageStaff.bringToFront();
+    const staffTextAfterAck = await pageStaff.evaluate(() => document.body.innerText.toLowerCase());
+    const staffReceivedAck = staffTextAfterAck.includes('on the way') || staffTextAfterAck.includes('acknowledged') || staffTextAfterAck.includes('arriving') || staffTextAfterAck.includes('start');
+    results.staff_received_on_my_way_sync = staffReceivedAck;
+    console.log('Staff Dashboard received "I\'m on my way" sync:', staffReceivedAck);
+
+    // --- STEP 7: STAFF STARTS SERVICE ---
+    console.log('\n--- 7. Staff Starts Service ---');
+    await pageStaff.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const startBtn = btns.find((b) => b.textContent.trim() === 'Start');
+      if (startBtn) startBtn.click();
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Assert In Service state on Customer QR Web (Page 1)
+    await pageQr.bringToFront();
+    await pageQr.waitForFunction(
+      () => document.body.innerText.toLowerCase().includes('in service') ||
+            document.body.innerText.toLowerCase().includes('serving') ||
+            document.body.innerText.toLowerCase().includes('in chair'),
+      { timeout: 8000 }
+    ).catch(() => null);
+
+    const inServiceText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const isInService = inServiceText.includes('in service') || inServiceText.includes('serving') || inServiceText.includes('in chair');
+    results.qr_state_in_service = isInService;
+    console.log('Customer QR state updated to In Service:', isInService);
+
+    // Persistence Check 3: Refresh during In Service
+    await pageQr.reload({ waitUntil: 'networkidle2' });
+    await new Promise((r) => setTimeout(r, 1500));
+    const inServiceReloadText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const inServicePersisted = inServiceReloadText.includes('in service') || inServiceReloadText.includes('serving') || inServiceReloadText.includes('in chair');
+    results.qr_refresh_inservice_persisted = inServicePersisted;
+    console.log('In Service state persisted across browser refresh:', inServicePersisted);
+
+    // --- STEP 8: STAFF COMPLETES SERVICE -> THANK YOU SCREEN ---
+    console.log('\n--- 8. Staff Completes Service ---');
+    await pageStaff.bringToFront();
+    await pageStaff.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      const completeBtn = btns.find((b) => b.textContent.trim() === 'Complete');
+      if (completeBtn) completeBtn.click();
+    });
+    await new Promise((r) => setTimeout(r, 2500));
+
+    // Assert Completed / Thank You state on Customer QR Web (Page 1)
+    await pageQr.bringToFront();
+    await pageQr.waitForFunction(
+      () => document.body.innerText.toLowerCase().includes('thank') ||
+            document.body.innerText.toLowerCase().includes('complete') ||
+            document.body.innerText.toLowerCase().includes('rated') ||
+            document.body.innerText.toLowerCase().includes('feedback'),
+      { timeout: 8000 }
+    ).catch(() => null);
+
+    const completedText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
+    const isCompleted = completedText.includes('thank') || completedText.includes('complete') || completedText.includes('rating') || completedText.includes('feedback');
+    results.qr_state_completed_thankyou = isCompleted;
+    console.log('Customer QR reached Completed / Thank You screen:', isCompleted);
+
+    // --- STEP 9: ADMIN DEACTIVATION / REACTIVATION ---
+    console.log('\n--- 9. Testing Business Deactivation & Reactivation ---');
     if (adminToken) {
       await pageAdmin.bringToFront();
       await pageAdmin.evaluate(() => {
@@ -231,11 +342,11 @@ async function verifySystemHealthAndQrParity() {
 
     await browser.close();
 
-    console.log('\n=== REAL QR ROUTE VERIFICATION SUMMARY ===');
+    console.log('\n=== REAL E2E QR TOKEN JOURNEY VERIFICATION SUMMARY ===');
     console.log(JSON.stringify(results, null, 2));
     const allPassed = Object.values(results).every(Boolean);
     if (!allPassed) {
-      console.error('Some real QR verification steps failed!');
+      console.error('Some real E2E QR journey verification steps failed!');
       process.exit(1);
     }
   } catch (err) {
@@ -245,4 +356,4 @@ async function verifySystemHealthAndQrParity() {
   }
 }
 
-verifySystemHealthAndQrParity();
+verifyFullEndToEndQrJourneyAndSystemHealth();
