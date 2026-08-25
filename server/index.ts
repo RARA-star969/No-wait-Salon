@@ -793,11 +793,17 @@ if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
   ];
 
   for (const acc of demoStaffAccounts) {
-    const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id);
+    const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id) as { id: string } | undefined;
+    const now = Date.now();
     if (!existing) {
-      const now = Date.now();
       db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
         .run(acc.id, acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, now);
+    } else if (isExplicitTestDeployment) {
+      // Hosted TEST is disposable and must have deterministic credentials for a
+      // real /api/staff/login E2E. Production is unaffected because this branch
+      // can run only when the explicit test deployment marker is present.
+      db.prepare('UPDATE staff_account SET business_id=?, email=?, password_hash=?, name=?, role=?, active=1, updated_at=? WHERE id=?')
+        .run(acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, existing.id);
     }
   }
 }
@@ -857,7 +863,7 @@ function resolveStaffSession(request: express.Request) {
       return {
         staffId: account.staff_id || `test-${account.business_id}`,
         email: account.email || `test@${account.business_id}.test`,
-        name: account.name || `${account.business_name} Staff`,
+        name: account.name || `${account.businessName} Staff`,
         role: account.role || testRoleHeader || 'owner',
         businessId: account.business_id,
         businessName: account.business_name,
@@ -2238,7 +2244,7 @@ const toRadians = (degrees: number) => degrees * Math.PI / 180;
 const distanceBetweenKm = (latitude: number, longitude: number, salonLatitude: number, salonLongitude: number) => {
   const earthRadiusKm = 6371;
   const latitudeDelta = toRadians(salonLatitude - latitude);
-  const longitudeDelta = toRadians(salonLongitude - longitude);
+  const longitudeDelta = toRadians(longitude - longitude);
   const value = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(toRadians(latitude)) * Math.cos(toRadians(salonLatitude)) * Math.sin(longitudeDelta / 2) ** 2;
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
@@ -2297,7 +2303,7 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
   const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
   const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
   const liveWaitMinutes = activeBarbers ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
-  response.set('Cache-Control', 'no-store');
+  response.set('Cache-Control','no-store');
   response.json({ salon: { ...salon, platformStatus: row.platform_status, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
 });
 
