@@ -31,6 +31,17 @@ mark('server/index.ts', replaceOnce(
   'test staff seed guard',
 ));
 
+// Existing manually-created Render TEST services do not necessarily inherit
+// later Blueprint env additions. Render exposes its own hostname/service-name
+// automatically, so recognize ONLY the known isolated TEST service as a test
+// deployment. The production hostname never satisfies these exact checks.
+mark('server/index.ts', replaceOnce(
+  'server/index.ts',
+  "const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true' || dataDir.includes('no-wait-salon-test-data');",
+  "const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();\nconst renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();\nconst isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'\n  || dataDir.includes('no-wait-salon-test-data')\n  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'\n  || renderServiceName === 'no-wait-salon-web-test';",
+  'hosted Render TEST detection',
+));
+
 // 2) Rating used to fail after Complete because completed entries are no longer
 // in state.queue. Handle Submit-rating before the generic active-queue lookup.
 mark('server/index.ts', replaceOnce(
