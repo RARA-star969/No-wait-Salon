@@ -762,11 +762,15 @@ const configuredAdminPasswordHash = String(process.env.ADMIN_PASSWORD_HASH || ''
 
 const defaultAdminEmail = configuredAdminEmail || 'admin@nowaitsalon.com';
 const defaultAdminPassword = configuredAdminPassword || 'admin123';
-const existingAdminCount = (db.prepare('SELECT COUNT(*) count FROM admin_user').get() as { count: number })?.count || 0;
-if (existingAdminCount === 0) {
+const existingAdmin = db.prepare('SELECT id, email FROM admin_user LIMIT 1').get() as { id: string; email: string } | undefined;
+if (!existingAdmin) {
   const now = Date.now();
   db.prepare('INSERT INTO admin_user (id, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
     .run(randomUUID(), defaultAdminEmail, configuredAdminPasswordHash || passwordHash(defaultAdminPassword), now, now);
+} else {
+  const now = Date.now();
+  db.prepare('UPDATE admin_user SET email = ?, password_hash = ?, updated_at = ? WHERE id = ?')
+    .run(defaultAdminEmail, configuredAdminPasswordHash || passwordHash(defaultAdminPassword), now, existingAdmin.id);
 }
 
 if (process.env.NODE_ENV !== 'production') {
