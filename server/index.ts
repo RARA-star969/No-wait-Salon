@@ -116,10 +116,13 @@ const additiveSalonColumns: Record<string, string> = {
   platform_status: "TEXT NOT NULL DEFAULT 'active'",
   main_category_id: "TEXT NOT NULL DEFAULT 'salon'",
   updated_at: "INTEGER NOT NULL DEFAULT 0",
+  business_code: "TEXT",
+  profile_completed_at: "INTEGER",
 };
 for (const [column, definition] of Object.entries(additiveSalonColumns)) {
   if (!salonColumns.has(column)) db.exec(`ALTER TABLE salon ADD COLUMN ${column} ${definition}`);
 }
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code)');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS main_category (
@@ -139,7 +142,9 @@ db.exec(`
     banner_subheadline TEXT NOT NULL DEFAULT '',
     banner_cta_text TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    business_code TEXT UNIQUE,
+    profile_completed_at INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS customer_address (
@@ -728,7 +733,7 @@ export async function safeBackfillSeeds(db: any, persistence: any) {
       row.review_count, row.is_open, row.opening_hours, row.services_json,
       row.barbers_json, row.category, row.main_category_id, row.phone_number, row.description,
       row.cover_image_url, row.logo_image_url, row.amenities_json, row.offers_json,
-      row.gallery_json, row.brand_key, row.created_at
+      row.gallery_json, row.brand_key, row.created_at, salon.id === 'gym-1' ? 'IRONHOUSE01' : (salon.id === 'gym-2' ? 'VELOCITY01' : salon.id.replace(/[^A-Za-z0-9-]/g, '').toUpperCase()), null
     );
     
     if (res.changes > 0) {
@@ -1632,6 +1637,7 @@ app.get('/api/staff/session', (request, response) => {
 app.put('/api/staff/business/profile', (request, response) => {
   const session = resolveStaffSession(request);
   if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
   
   const body = request.body || {};
   const businessId = session.businessId;
