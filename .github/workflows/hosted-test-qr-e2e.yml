@@ -9,6 +9,7 @@ on:
       - '.github/workflows/hosted-test-qr-e2e.yml'
       - 'scratch/apply_qr_e2e_runtime_fixes.cjs'
       - 'scratch/fix_qr_join_flow.cjs'
+      - 'scratch/fix_qr_blank_transition.cjs'
       - 'scratch/verify_qr_join_only.cjs'
       - 'scratch/verify_hosted_qr_staff_e2e.cjs'
       - 'server/index.ts'
@@ -44,6 +45,9 @@ jobs:
 
       - name: Apply QR join flow repair
         run: node scratch/fix_qr_join_flow.cjs
+
+      - name: Apply QR blank-transition repair
+        run: node scratch/fix_qr_blank_transition.cjs
 
       - name: Commit scoped fixes to TEST
         shell: bash
