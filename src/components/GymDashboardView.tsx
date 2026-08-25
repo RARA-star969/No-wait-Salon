@@ -80,63 +80,58 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const ptBookings = state.ptBookings || []; // Assuming added later if needed
 
   const handleCheckIn = async () => {
-    if (occupancy >= maxCapacity) {
-      setActionFeedback('Warning: Gym is currently at maximum capacity!');
+    try {
+      const res = await gymStaffService.checkIn(gymId);
+      setState(res.state);
+      setActionFeedback('Check-in recorded!');
       setTimeout(() => setActionFeedback(''), 3000);
-      return;
+    } catch (err: any) {
+      setActionFeedback(err.message || 'Check-in failed');
+      setTimeout(() => setActionFeedback(''), 3000);
     }
-    setOccupancy((prev) => prev + 1);
-    setCheckinsCount((prev) => prev + 1);
-    if (waitingCount > 0) setWaitingCount((prev) => prev - 1);
-    setActionFeedback('Member checked in successfully!');
-    setTimeout(() => setActionFeedback(''), 3000);
   };
 
-  const handleCheckOut = () => {
-    if (occupancy > 0) setOccupancy((prev) => prev - 1);
-    setActionFeedback('Member checked out successfully!');
-    setTimeout(() => setActionFeedback(''), 3000);
+  const handleCheckOut = async () => {
+    if (occupancy <= 0) return;
+    try {
+      const res = await gymStaffService.checkOut(gymId);
+      setState(res.state);
+      setActionFeedback('Check-out recorded!');
+      setTimeout(() => setActionFeedback(''), 3000);
+    } catch (err: any) {
+      setActionFeedback(err.message || 'Check-out failed');
+      setTimeout(() => setActionFeedback(''), 3000);
+    }
   };
 
   const handleAdmitQueueMember = (id: string) => {
-    setQueueList((prev) => prev.filter((item) => item.id !== id));
-    handleCheckIn();
+    // left as frontend mockup or integrate if needed
   };
 
   const handleTrainerStatusChange = async (trainerId: string, newStatus: string) => {
-    setTrainersList((prev) =>
-      prev.map((t) => (t.id === trainerId ? { ...t, status: newStatus } : t))
-    );
-    try {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('staff_token') || undefined : undefined;
-      const res = await gymCustomerService.updateTrainerStatus(gymId, trainerId, newStatus, token);
-      if (res.ok) {
-        setActionFeedback(`Trainer status updated to ${newStatus}`);
-        setTimeout(() => setActionFeedback(''), 3000);
-      }
-    } catch {
-      /* fallback */
-    }
+    gymStaffService.updateTrainerStatus(gymId, trainerId, newStatus).then(res => {
+      setState(res.state);
+    }).catch(err => {
+      setActionFeedback(err.message);
+      setTimeout(() => setActionFeedback(''), 3000);
+    });
   };
 
   const handleSaveSettings = async () => {
-    const parsed = parseInt(String(maxCapacityInput), 10);
-    if (isNaN(parsed) || parsed < 1) {
-      setActionFeedback('Error: Maximum capacity must be at least 1');
-      setTimeout(() => setActionFeedback(''), 3000);
-      return;
-    }
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('staff_token') || undefined : undefined;
-    const res = await gymCustomerService.updateGymSettings(gymId, parsed, token);
-    if (res.ok) {
-      setMaxCapacity(parsed);
-      setActionFeedback(`Gym max capacity updated to ${parsed}`);
-      setTimeout(() => setActionFeedback(''), 3000);
-    } else if (res.error) {
-      setActionFeedback(`Error: ${res.error}`);
-      setTimeout(() => setActionFeedback(''), 3000);
+    const newCap = parseInt(maxCapacityInput, 10);
+    if (!isNaN(newCap) && newCap > 0) {
+      try {
+        const res = await gymStaffService.updateSettings(gymId, newCap);
+        setState(res.state);
+        setActionFeedback('Settings saved successfully!');
+        setTimeout(() => setActionFeedback(''), 3000);
+      } catch (err: any) {
+        setActionFeedback(err.message || 'Failed to update capacity');
+        setTimeout(() => setActionFeedback(''), 3000);
+      }
     }
   };
+
 
   const isOwner = role === 'owner';
   const isTrainer = role === 'trainer';

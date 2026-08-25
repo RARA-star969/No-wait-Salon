@@ -5,31 +5,7 @@ export const SERVICES: ServiceItem[] = [
   { id: 's2', name: 'Haircut + Beard', durationMin: 45, priceInr: 400, description: 'Hair grooming with beard styling & hot towel' },
   { id: 's3', name: 'Beard Trim & Shape', durationMin: 20, priceInr: 150, description: 'Sharp line-up, trimming and beard oil treatment' },
   { id: 's4', name: 'Detox Head Massage', durationMin: 25, priceInr: 300, description: 'Cooling scalp therapy with ayurvedic oils' },
-  { id: 's5', name: 'Hair Spa & Conditioning', durationMin: 40, priceInr: 550, description: 'Deep nourishing moisture treatment' },
-
-  {
-    id: 'gym-2',
-    name: 'Velocity Fitness Studio',
-    address: 'Koramangala, Bengaluru',
-    distanceKm: 2.1,
-    rating: 4.8,
-    reviewCount: 95,
-    isOpen: true,
-    services: [
-      { id: 'g1', name: 'Day Pass', durationMin: 120, priceInr: 250, description: 'Basic day access' },
-    ],
-    defaultBarberCount: 0,
-    latitude: 12.9352,
-    longitude: 77.6245,
-    openingHours: 'Mon–Sun · 6:00 AM–10:00 PM',
-    category: 'Fitness Studio',
-    description: 'A modern fitness studio.',
-    amenities: ['Air conditioned', 'Wi-Fi'],
-    offers: [],
-    gallery: [],
-    brandKey: 'velocity',
-    mainCategoryId: 'gym',
-  },
+  { id: 's5', name: 'Hair Spa & Conditioning', durationMin: 40, priceInr: 550, description: 'Deep nourishing moisture treatment' }
 ];
 
 export const SALONS: Salon[] = [
@@ -100,7 +76,6 @@ export const SALONS: Salon[] = [
   },
   {
     id: 'gym-1',
-    mainCategoryId: 'gym',
     name: 'Iron House Gym',
     address: '100 Feet Road, Indiranagar, Bengaluru 560038',
     distanceKm: 0.9,
@@ -243,6 +218,30 @@ export const SALONS: Salon[] = [
     gallery: [],
     brandKey: 'artisan-bistro',
     mainCategoryId: 'food',
+  },
+
+  {
+    id: 'gym-2',
+    name: 'Velocity Fitness Studio',
+    address: 'Koramangala, Bengaluru',
+    distanceKm: 2.1,
+    rating: 4.8,
+    reviewCount: 95,
+    isOpen: true,
+    services: [
+      { id: 'g1', name: 'Day Pass', durationMin: 120, priceInr: 250, description: 'Basic day access' },
+    ],
+    defaultBarberCount: 0,
+    latitude: 12.9352,
+    longitude: 77.6245,
+    openingHours: 'Mon–Sun · 6:00 AM–10:00 PM',
+    category: 'Fitness Studio',
+    description: 'A modern fitness studio.',
+    amenities: ['Air conditioned', 'Wi-Fi'],
+    offers: [],
+    gallery: [],
+    brandKey: 'velocity',
+    mainCategoryId: 'gym',
   },
 ];
 
