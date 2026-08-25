@@ -9,11 +9,12 @@ const migrations=[{
       id TEXT PRIMARY KEY,name TEXT NOT NULL,address TEXT NOT NULL,latitude DOUBLE PRECISION NOT NULL,longitude DOUBLE PRECISION NOT NULL,
       rating DOUBLE PRECISION NOT NULL,review_count INTEGER NOT NULL,is_open INTEGER NOT NULL DEFAULT 1,opening_hours TEXT NOT NULL,
       services_json TEXT NOT NULL,barbers_json TEXT NOT NULL,onboarded INTEGER NOT NULL DEFAULT 1,created_at BIGINT NOT NULL,
-      category TEXT NOT NULL DEFAULT '',phone_number TEXT NOT NULL DEFAULT '',description TEXT NOT NULL DEFAULT '',cover_image_url TEXT NOT NULL DEFAULT '',
-      logo_image_url TEXT NOT NULL DEFAULT '',amenities_json TEXT NOT NULL DEFAULT '[]',offers_json TEXT NOT NULL DEFAULT '[]',gallery_json TEXT NOT NULL DEFAULT '[]',
-      brand_key TEXT NOT NULL DEFAULT '',short_description TEXT NOT NULL DEFAULT '',email TEXT NOT NULL DEFAULT '',website_url TEXT NOT NULL DEFAULT '',
-      area TEXT NOT NULL DEFAULT '',city TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT '',pin_code TEXT NOT NULL DEFAULT '',promotional_banner_url TEXT NOT NULL DEFAULT '',
-      platform_status TEXT NOT NULL DEFAULT 'active',updated_at BIGINT NOT NULL DEFAULT 0
+      category TEXT NOT NULL DEFAULT '',main_category_id TEXT NOT NULL DEFAULT 'salon',phone_number TEXT NOT NULL DEFAULT '',description TEXT NOT NULL DEFAULT '',cover_image_url TEXT NOT NULL DEFAULT '',
+      logo_image_url TEXT NOT NULL DEFAULT '',amenities_json TEXT NOT NULL DEFAULT '[]',offers_json TEXT NOT NULL DEFAULT '[]',
+      gallery_json TEXT NOT NULL DEFAULT '[]',brand_key TEXT NOT NULL DEFAULT '',short_description TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',website_url TEXT NOT NULL DEFAULT '',area TEXT NOT NULL DEFAULT '',
+      city TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT '',pin_code TEXT NOT NULL DEFAULT '',
+      promotional_banner_url TEXT NOT NULL DEFAULT '',platform_status TEXT NOT NULL DEFAULT 'active',updated_at BIGINT NOT NULL DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS salon_hours (salon_id TEXT NOT NULL REFERENCES salon(id),day_of_week INTEGER NOT NULL,open_time TEXT NOT NULL DEFAULT '09:00',close_time TEXT NOT NULL DEFAULT '21:00',closed INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(salon_id,day_of_week));
     CREATE TABLE IF NOT EXISTS salon_service (id TEXT PRIMARY KEY,salon_id TEXT NOT NULL REFERENCES salon(id),name TEXT NOT NULL,category TEXT NOT NULL DEFAULT '',price_inr INTEGER NOT NULL,duration_min INTEGER NOT NULL,description TEXT NOT NULL DEFAULT '',image_url TEXT NOT NULL DEFAULT '',active INTEGER NOT NULL DEFAULT 1,sort_order INTEGER NOT NULL DEFAULT 0,created_at BIGINT NOT NULL,updated_at BIGINT NOT NULL);
@@ -106,6 +107,12 @@ const migrations=[{
   sql:`
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS services_json TEXT NOT NULL DEFAULT '[]';
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS total_price_inr INTEGER;
+  `
+},{
+  version: 7,
+  name: 'add_main_category_id_to_salon',
+  sql: `
+    ALTER TABLE salon ADD COLUMN IF NOT EXISTS main_category_id TEXT NOT NULL DEFAULT 'salon';
   `
 }];
 

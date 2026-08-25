@@ -699,6 +699,33 @@ if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from
 const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
 (db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
 if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
+
+async function safeBackfillSeeds(db, persistence) {
+  // We only insert missing salons. ON CONFLICT DO NOTHING ensures we don't overwrite.
+  const insertSalon = db.prepare(`
+    INSERT INTO salon (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json, onboarded, category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO NOTHING
+  `);
+  
+  let changes = 0;
+  for (const salon of SALONS) {
+    const res = insertSalon.run(
+      salon.id, salon.name, salon.address, salon.latitude, salon.longitude, salon.rating,
+      salon.reviewCount, salon.isOpen ? 1 : 0, salon.openingHours, JSON.stringify(salon.services),
+      JSON.stringify(demoBarbers[salon.id] || []), salon.category || '', salon.mainCategoryId || 'salon', salon.phoneNumber || '', salon.description || '',
+      salon.coverImageUrl || '', salon.logoImageUrl || '', JSON.stringify(salon.amenities || []), JSON.stringify(salon.offers || []),
+      JSON.stringify(salon.gallery || []), salon.brandKey || '', Date.now()
+    );
+    if (res.changes > 0) changes += res.changes;
+  }
+  
+  if (changes > 0 && persistence) {
+    await persistence.flushNow(['salon']);
+  }
+}
+await safeBackfillSeeds(db, postgresPersistence);
+
 // Diagnostic only: surfaces the active public QR token for each salon in the
 // boot log, since a fresh ephemeral SQLite file (no persistent disk) means
 // ensureBusinessQr mints a new random token on every deploy/restart.
@@ -2071,12 +2098,20 @@ app.post('/api/admin/businesses/:businessId/qr/regenerate',requireAdmin,async(re
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to replace this QR right now. Please try again.'})}
 });
 
+function resolveAdminMainCategoryId(body: Record<string, unknown>, fallback?: string) {
+  const candidate = cleanText(body.main_category_id || body.mainCategoryId, 50) || cleanText(fallback, 50);
+  if (!candidate) throw new Error('Main category is required.');
+  const category = db.prepare('SELECT id FROM main_category WHERE id = ?').get(candidate);
+  if (!category) throw new Error('Select a valid main category.');
+  return category.id;
+}
+
 app.post('/api/admin/salons', requireAdmin, async (request, response) => {
   try {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
     const latitude = parseCoordinate(body.latitude, -90, 90, 'Latitude'); const longitude = parseCoordinate(body.longitude, -180, 180, 'Longitude');
-    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';
+    const mainCategoryId = resolveAdminMainCategoryId(body);
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
       category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at)
@@ -2094,7 +2129,7 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
     const existing = adminSalonDetail(request.params.id); if (!existing) return response.status(404).json({ error: 'Salon not found.' });
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name,150); if (!name) throw new Error('Salon name is required.');
     const latitude = parseCoordinate(body.latitude,-90,90,'Latitude'); const longitude = parseCoordinate(body.longitude,-180,180,'Longitude'); const now=Date.now();
-    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';
+    const mainCategoryId = resolveAdminMainCategoryId(body, String((existing as Record<string,unknown>).main_category_id || 'salon'));
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`UPDATE salon SET name=?,short_description=?,description=?,category=?,main_category_id=?,phone_number=?,email=?,website_url=?,address=?,area=?,city=?,state=?,pin_code=?,latitude=?,longitude=?,
       is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,updated_at=? WHERE id=?`)

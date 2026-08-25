@@ -166,6 +166,7 @@ const norm = (raw: AnyRow) => ({
   ...raw,
   isOpen: Boolean(raw.isOpen),
   status: raw.status || raw.platform_status || 'draft',
+  main_category_id: raw.mainCategoryId || raw.main_category_id || 'salon',
   amenities: raw.amenities || [],
   hours: raw.hours || [],
   services: (raw.services || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
