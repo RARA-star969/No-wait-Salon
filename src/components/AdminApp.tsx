@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Building2, Users, CalendarCheck, Activity, LogOut, LayoutDashboard, Search, Plus, Pencil, Power, Save, X, ChevronLeft, Trash2, ImagePlus, Scissors, Tag, Clock3, Menu, QrCode, Download, Printer, Copy, RefreshCw, Layers} from 'lucide-react';
+import {Building2, Users, CalendarCheck, Activity, LogOut, LayoutDashboard, Search, Plus, Pencil, Power, Save, X, ChevronLeft, Trash2, ImagePlus, Scissors, Tag, Clock3, Menu, QrCode, Download, Printer, Copy, RefreshCw, Layers, Loader2, CheckCircle2, AlertTriangle} from 'lucide-react';
 
 const API=(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'');
 const TOKEN_KEY='no_wait_admin_token';
@@ -304,18 +304,207 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
   const [q,setQ]=useState('');
   const [catFilter,setCatFilter]=useState('all');
   const [error,setError]=useState('');
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<AnyRow | null>(null);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const load=()=>{
     api('/api/admin/salons').then(b=>setSalons(b.salons)).catch(e=>setError(e.message));
     api('/api/admin/main-categories').then(b=>setCategories(b.categories)).catch(()=>{});
   };
   useEffect(()=>{void load()},[]);
+
   const shown=salons.filter(s=>{
     const matchQuery = `${s.name} ${s.city} ${s.area}`.toLowerCase().includes(q.toLowerCase());
     const matchCat = catFilter === 'all' || (s.main_category_id || 'salon') === catFilter;
     return matchQuery && matchCat;
   });
-  const toggle=async(s:AnyRow)=>{await api(`/api/admin/salons/${s.id}/status`,{method:'PATCH',body:JSON.stringify({status:s.platform_status==='active'?'deactivated':'active'})});load()};
-  return <div><div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-3xl font-bold">Salons & Businesses</h1><p className="mt-1 text-slate-500">Create, update and control customer visibility across main categories.</p></div><button onClick={()=>onEdit('new')} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={18}/>Add new business</button></div><div className="mb-4 flex flex-wrap items-center gap-3"><div className="flex max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 flex-1 min-w-[240px]"><Search size={18} className="text-slate-400"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search business, city or area" className="h-11 w-full outline-none"/></div><select value={catFilter} onChange={e=>setCatFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none"><option value="all">All Categories</option>{categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></div>{error&&<p className="mb-4 text-red-600">{error}</p>}<div className="overflow-hidden rounded-2xl border border-slate-200 bg-white"><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>{['Business','Main Category','City / area','Status','Services','Staff','Last updated','Actions'].map(x=><th key={x} className="px-4 py-3">{x}</th>)}</tr></thead><tbody>{shown.map(s=>{const catObj=categories.find(c=>c.id===(s.main_category_id||'salon')); return <tr key={s.id} className="border-t border-slate-100"><td className="px-4 py-4 font-semibold">{s.name}</td><td className="px-4"><span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 capitalize">{catObj?.name || s.main_category_id || 'Salon'}</span></td><td className="px-4 text-slate-500">{[s.area,s.city].filter(Boolean).join(', ')||'—'}</td><td className="px-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wider ${s.platform_status==='active'?'bg-emerald-50 text-emerald-700 border border-emerald-200':s.platform_status==='deactivated'?'bg-rose-50 text-rose-700 border border-rose-200':'bg-slate-100 text-slate-600'}`}>{s.platform_status}</span></td><td className="px-4">{s.service_count}</td><td className="px-4">{s.staff_count}</td><td className="px-4 text-slate-500">{s.updated_at?new Date(s.updated_at).toLocaleDateString():'—'}</td><td className="px-4"><div className="flex gap-2"><button onClick={()=>onEdit(s.id)} className="rounded-lg border p-2 text-slate-600" title="Edit"><Pencil size={16}/></button><button onClick={()=>void toggle(s)} className={`rounded-lg border p-2 ${s.platform_status==='active'?'text-rose-600 hover:bg-rose-50':'text-emerald-600 hover:bg-emerald-50'}`} title={s.platform_status==='active'?'Deactivate business':'Reactivate business'}><Power size={16}/></button></div></td></tr>})}</tbody></table></div>{!shown.length&&<p className="p-10 text-center text-slate-500">No businesses found matching criteria.</p>}</div></div>
+
+  const executeStatusChange = async (s: AnyRow) => {
+    const nextStatus = s.platform_status === 'active' ? 'deactivated' : 'active';
+    setPendingStatusId(s.id);
+    setConfirmTarget(null);
+    try {
+      await api(`/api/admin/salons/${s.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      setSalons((prev) =>
+        prev.map((item) => (item.id === s.id ? { ...item, platform_status: nextStatus } : item))
+      );
+      load();
+      setToast({
+        type: 'success',
+        text: `"${s.name}" is now ${nextStatus === 'active' ? 'ACTIVE' : 'DEACTIVATED'}.`,
+      });
+    } catch (err) {
+      setToast({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Failed to update business status.',
+      });
+    } finally {
+      setPendingStatusId(null);
+    }
+  };
+
+  return (
+    <div>
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          id="admin-status-toast"
+          className={`fixed bottom-5 right-5 z-[9999] flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold shadow-xl backdrop-blur-md transition-all ${
+            toast.type === 'success'
+              ? 'border border-emerald-300 bg-emerald-900/90 text-emerald-50'
+              : 'border border-rose-300 bg-rose-900/90 text-rose-50'
+          }`}
+        >
+          {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
+          <span>{toast.text}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="ml-2 text-white/80 hover:text-white"
+            aria-label="Dismiss toast"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmTarget && (
+        <div id="admin-deactivate-confirm-modal" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-150">
+            <div className="flex items-start justify-between gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  confirmTarget.platform_status === 'active'
+                    ? 'bg-rose-100 text-rose-600'
+                    : 'bg-emerald-100 text-emerald-600'
+                }`}
+              >
+                <Power size={20} />
+              </div>
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-lg font-bold text-slate-900">
+                {confirmTarget.platform_status === 'active' ? 'Deactivate business?' : 'Reactivate business?'}
+              </h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                {confirmTarget.platform_status === 'active'
+                  ? 'This business will be removed from the Customer App and its Staff Dashboard will be temporarily disabled. No business data will be deleted.'
+                  : 'This business will be restored to the Customer App and its Staff Dashboard will become operational again.'}
+              </p>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setConfirmTarget(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                id="confirm-deactivate-btn"
+                onClick={() => void executeStatusChange(confirmTarget)}
+                className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition shadow-sm ${
+                  confirmTarget.platform_status === 'active'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {confirmTarget.platform_status === 'active' ? 'Deactivate' : 'Reactivate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Salons & Businesses Header */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Salons & Businesses</h1>
+          <p className="mt-1 text-slate-500">Create, update and control customer visibility across main categories.</p>
+        </div>
+        <button onClick={()=>onEdit('new')} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={18}/>Add new business</button>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 flex-1 min-w-[240px]">
+          <Search size={18} className="text-slate-400"/>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search business, city or area" className="h-11 w-full outline-none"/>
+        </div>
+        <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none">
+          <option value="all">All Categories</option>
+          {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </div>
+
+      {error&&<p className="mb-4 text-red-600">{error}</p>}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[850px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>{['Business','Main Category','City / area','Status','Services','Staff','Last updated','Actions'].map(x=><th key={x} className="px-4 py-3">{x}</th>)}</tr>
+            </thead>
+            <tbody>
+              {shown.map(s=>{
+                const catObj=categories.find(c=>c.id===(s.main_category_id||'salon'));
+                return (
+                  <tr key={s.id} className="border-t border-slate-100">
+                    <td className="px-4 py-4 font-semibold">{s.name}</td>
+                    <td className="px-4"><span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 capitalize">{catObj?.name || s.main_category_id || 'Salon'}</span></td>
+                    <td className="px-4 text-slate-500">{[s.area,s.city].filter(Boolean).join(', ')||'—'}</td>
+                    <td className="px-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wider ${s.platform_status==='active'?'bg-emerald-50 text-emerald-700 border border-emerald-200':s.platform_status==='deactivated'?'bg-rose-50 text-rose-700 border border-rose-200':'bg-slate-100 text-slate-600'}`}>{s.platform_status}</span></td>
+                    <td className="px-4">{s.service_count}</td>
+                    <td className="px-4">{s.staff_count}</td>
+                    <td className="px-4 text-slate-500">{s.updated_at?new Date(s.updated_at).toLocaleDateString():'—'}</td>
+                    <td className="px-4">
+                      <div className="flex gap-2">
+                        <button onClick={()=>onEdit(s.id)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" title="Edit"><Pencil size={16}/></button>
+                        <button
+                          type="button"
+                          disabled={pendingStatusId === s.id}
+                          onClick={() => setConfirmTarget(s)}
+                          className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+                            s.platform_status === 'active'
+                              ? 'border-slate-200 text-rose-600 hover:border-rose-200 hover:bg-rose-50'
+                              : 'border-slate-200 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
+                          }`}
+                          title={s.platform_status === 'active' ? 'Deactivate business' : 'Reactivate business'}
+                        >
+                          {pendingStatusId === s.id ? (
+                            <Loader2 size={16} className="animate-spin text-slate-400" />
+                          ) : (
+                            <Power size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!shown.length&&<p className="p-10 text-center text-slate-500">No businesses found matching criteria.</p>}
+      </div>
+    </div>
+  );
 }
 
 function SalonEditor({id,onBack}:{id:string|'new';onBack:()=>void}){const [form,setForm]=useState<AnyRow>(emptySalon());const [tab,setTab]=useState('details');const [busy,setBusy]=useState(id!=='new');const [message,setMessage]=useState('');const [error,setError]=useState('');useEffect(()=>{if(id==='new')return;void api(`/api/admin/salons/${id}`).then(b=>setForm(norm(b.salon))).catch(e=>setError(e.message)).finally(()=>setBusy(false))},[id]);const set=(k:string,v:any)=>setForm((f:AnyRow)=>({...f,[k]:v}));const save=async()=>{setBusy(true);setError('');setMessage('');try{const b=await api(id==='new'?'/api/admin/salons':`/api/admin/salons/${id}`,{method:id==='new'?'POST':'PUT',body:JSON.stringify(form)});setForm(norm(b.salon));setMessage('Business saved. Customer App will receive this data on its next refresh.')}catch(e){setError(e instanceof Error?e.message:'Save failed.')}finally{setBusy(false)}};if(busy&&id!=='new'&&!form.name)return <p>Loading business…</p>;

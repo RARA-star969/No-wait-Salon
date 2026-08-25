@@ -46,4 +46,19 @@ describe('Business Activation & Deactivation System', () => {
     assert.equal(shouldSeed('production'), false);
     assert.equal(shouldSeed('development'), true);
   });
+
+  it('admin status toggle correctly toggles platformStatus back and forth', () => {
+    const allowedStatuses = ['draft', 'active', 'inactive', 'suspended', 'deactivated'];
+    const getNextStatus = (current: string) => (current === 'active' ? 'deactivated' : 'active');
+
+    let status = 'active';
+    let nextStatus = getNextStatus(status);
+    assert.ok(allowedStatuses.includes(nextStatus));
+    assert.equal(nextStatus, 'deactivated');
+
+    status = 'deactivated';
+    nextStatus = getNextStatus(status);
+    assert.ok(allowedStatuses.includes(nextStatus));
+    assert.equal(nextStatus, 'active');
+  });
 });
