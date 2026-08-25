@@ -1,55 +1,492 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {Building2, Users, CalendarCheck, Activity, LogOut, LayoutDashboard, Search, Plus, Pencil, Power, Save, X, ChevronLeft, Trash2, ImagePlus, Scissors, Tag, Clock3, Menu, QrCode, Download, Printer, Copy, RefreshCw, Layers, Loader2, CheckCircle2, AlertTriangle} from 'lucide-react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import {
+  Building2,
+  Users,
+  CalendarCheck,
+  Activity,
+  LogOut,
+  LayoutDashboard,
+  Search,
+  Plus,
+  Pencil,
+  Power,
+  Save,
+  X,
+  ChevronLeft,
+  Trash2,
+  ImagePlus,
+  Scissors,
+  Tag,
+  Clock3,
+  Menu,
+  QrCode,
+  Download,
+  Printer,
+  Copy,
+  RefreshCw,
+  Layers,
+  Loader2,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 
-const API=(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'');
-const TOKEN_KEY='no_wait_admin_token';
-const SESSION_EXPIRED_EVENT='no-wait-admin-session-expired';
-type AnyRow=Record<string,any>;
-const days=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const api=async(path:string,init:RequestInit={})=>{const token=localStorage.getItem(TOKEN_KEY);const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{}) ,...init.headers}});const b=await r.json().catch(()=>({}));if(r.status===401&&token){localStorage.removeItem(TOKEN_KEY);window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));}if(!r.ok)throw new Error(b.error||'Request failed.');return b;};
-const emptySalon=()=>({name:'',short_description:'',description:'',category:'',phone_number:'',email:'',website_url:'',address:'',area:'',city:'',state:'',pin_code:'',latitude:12.9716,longitude:77.5946,isOpen:true,opening_hours:'9:00 AM–9:00 PM',logo_image_url:'',cover_image_url:'',promotional_banner_url:'',amenities:[],status:'draft',hours:days.map((_,i)=>({day_of_week:i,open_time:'09:00',close_time:'21:00',closed:0})),services:[],staff:[],offers:[],media:[]});
+const API = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const TOKEN_KEY = 'no_wait_admin_token';
+const SESSION_EXPIRED_EVENT = 'no-wait-admin-session-expired';
+type AnyRow = Record<string, any>;
+const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-function Field({label,value,onChange,type='text',required=false,placeholder=''}:{label:string;value:any;onChange:(v:any)=>void;type?:string;required?:boolean;placeholder?:string}){return <label className="grid gap-1.5 text-sm font-medium text-slate-700"><span>{label}{required&&<b className="text-red-500"> *</b>}</span><input type={type} value={value??''} placeholder={placeholder} onChange={e=>onChange(type==='number'?Number(e.target.value):e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"/></label>}
-function Toggle({checked,onChange,label}:{checked:boolean;onChange:(v:boolean)=>void;label:string}){return <label className="flex items-center gap-3 text-sm font-medium text-slate-700"><button type="button" onClick={()=>onChange(!checked)} className={`relative h-6 w-11 rounded-full transition ${checked?'bg-teal-600':'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked?'left-6':'left-1'}`}/></button>{label}</label>}
-function Section({title,subtitle,children}:{title:string;subtitle?:string;children:React.ReactNode}){return <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="mb-5"><h3 className="text-lg font-semibold text-slate-950">{title}</h3>{subtitle&&<p className="mt-1 text-sm text-slate-500">{subtitle}</p>}</div>{children}</section>}
-const norm=(raw:AnyRow)=>({...raw,isOpen:Boolean(raw.isOpen),status:raw.status||raw.platform_status||'draft',amenities:raw.amenities||[],hours:raw.hours||[],services:(raw.services||[]).map((x:AnyRow)=>({...x,active:Boolean(x.active)})),staff:(raw.staff||[]).map((x:AnyRow)=>({...x,active:Boolean(x.active)})),offers:(raw.offers||[]).map((x:AnyRow)=>({...x,active:Boolean(x.active)})),media:raw.media||[]});
+/**
+ * Resilient API helper with automatic retries for safe GET requests.
+ * Prevents transient network errors or cold-start timeouts from dropping Admin data.
+ */
+const api = async (path: string, init: RequestInit = {}, retries = 2) => {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const isGet = !init.method || init.method.toUpperCase() === 'GET';
+  let lastError: Error | null = null;
 
-export function AdminApp(){
- const [token,setToken]=useState(()=>localStorage.getItem(TOKEN_KEY));const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);
- useEffect(()=>{const expire=()=>{setToken(null);setPassword('');setError('Your admin session expired. Please sign in again.');};window.addEventListener(SESSION_EXPIRED_EVENT,expire);return()=>window.removeEventListener(SESSION_EXPIRED_EVENT,expire)},[]);
- const login=async(e:React.FormEvent)=>{e.preventDefault();setBusy(true);setError('');try{const b=await api('/api/admin/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem(TOKEN_KEY,b.token);setToken(b.token)}catch(x){setError(x instanceof Error?x.message:'Login failed.')}finally{setBusy(false)}};
- if(!token)return <main className="min-h-screen bg-slate-50 px-5 py-16"><form onSubmit={login} className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/50"><div className="mb-8 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white"><Scissors/></div><p className="text-xs font-bold tracking-[.18em] text-teal-700">NO-WAIT SALON</p><h1 className="mt-2 text-3xl font-bold text-slate-950">Admin sign in</h1><p className="mt-2 text-sm text-slate-500">Secure access for platform operations.</p><div className="mt-8 grid gap-4"><Field label="Admin email" type="email" required value={email} onChange={setEmail}/><Field label="Password" type="password" required value={password} onChange={setPassword}/>{error&&<p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<button disabled={busy} className="h-12 rounded-xl bg-slate-950 font-semibold text-white disabled:opacity-60">{busy?'Signing in…':'Sign in securely'}</button></div></form></main>;
- return <AdminShell onLogout={()=>{void api('/api/admin/logout',{method:'POST'}).catch(()=>{});localStorage.removeItem(TOKEN_KEY);setToken(null)}}/>;
+  for (let attempt = 0; attempt <= (isGet ? retries : 0); attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, Math.min(1000, 300 * Math.pow(2, attempt - 1))));
+      }
+      const r = await fetch(`${API}${path}`, {
+        ...init,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...init.headers,
+        },
+      });
+      const b = await r.json().catch(() => ({}));
+      if (r.status === 401 && token) {
+        localStorage.removeItem(TOKEN_KEY);
+        window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+      }
+      if (!r.ok) {
+        throw new Error(b.error || 'Request failed.');
+      }
+      return b;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw lastError || new Error('Request failed.');
+};
+
+const emptySalon = () => ({
+  name: '',
+  short_description: '',
+  description: '',
+  category: '',
+  phone_number: '',
+  email: '',
+  website_url: '',
+  address: '',
+  area: '',
+  city: '',
+  state: '',
+  pin_code: '',
+  latitude: 12.9716,
+  longitude: 77.5946,
+  isOpen: true,
+  opening_hours: '9:00 AM–9:00 PM',
+  logo_image_url: '',
+  cover_image_url: '',
+  promotional_banner_url: '',
+  amenities: [],
+  status: 'draft',
+  hours: days.map((_, i) => ({ day_of_week: i, open_time: '09:00', close_time: '21:00', closed: 0 })),
+  services: [],
+  staff: [],
+  offers: [],
+  media: [],
+});
+
+function Field({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  required = false,
+  placeholder = '',
+}: {
+  label: string;
+  value: any;
+  onChange: (v: any) => void;
+  type?: string;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+      <span>
+        {label}
+        {required && <b className="text-red-500"> *</b>}
+      </span>
+      <input
+        type={type}
+        value={value ?? ''}
+        placeholder={placeholder}
+        onChange={(e) => onChange(type === 'number' ? Number(e.target.value) : e.target.value)}
+        className="h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+      />
+    </label>
+  );
 }
 
-function AdminShell({onLogout}:{onLogout:()=>void}){const [page,setPage]=useState<'dashboard'|'categories'|'salons'|'customers'>('dashboard');const [editing,setEditing]=useState<string|'new'|null>(null);const [mobileNav,setMobileNav]=useState(false);const nav=[['dashboard','Overview',LayoutDashboard],['categories','Main Categories',Layers],['salons','Salons & Businesses',Building2],['customers','Customers',Users]] as const;
- return <div className="min-h-screen bg-slate-50 text-slate-900"><aside className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-slate-200 bg-white p-5 transition lg:translate-x-0 ${mobileNav?'translate-x-0':'-translate-x-full'}`}><div className="flex items-center gap-3 px-2 py-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-600 text-white"><Scissors size={20}/></div><div><b>No-Wait Platform</b><p className="text-xs text-slate-500">Platform Admin</p></div></div><nav className="mt-7 grid gap-1">{nav.map(([id,label,Icon])=><button key={id} onClick={()=>{setPage(id);setEditing(null);setMobileNav(false)}} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium ${page===id?'bg-teal-50 text-teal-800':'text-slate-600 hover:bg-slate-50'}`}><Icon size={19}/>{label}</button>)}</nav><button onClick={onLogout} className="absolute bottom-6 left-5 right-5 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-700"><LogOut size={18}/>Log out</button></aside><div className="lg:pl-64"><header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-5 backdrop-blur lg:px-8"><button className="lg:hidden" onClick={()=>setMobileNav(true)}><Menu/></button><div><p className="text-sm font-semibold">{editing?'Business editor':page==='dashboard'?'Dashboard':page==='categories'?'Main Categories':page==='salons'?'Business management':'Customers'}</p><p className="hidden text-xs text-slate-500 sm:block">Manage platform categories & business content without rebuilding customer apps.</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Secure session</span></header><main className="mx-auto max-w-7xl p-5 lg:p-8">{editing?<SalonEditor id={editing} onBack={()=>setEditing(null)}/>:page==='dashboard'?<Dashboard onSalons={()=>setPage('salons')}/>:page==='categories'?<CategoriesList/>:page==='salons'?<SalonList onEdit={setEditing}/>:<Customers/>}</main></div>{mobileNav&&<button aria-label="Close menu" className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden" onClick={()=>setMobileNav(false)}/>}</div>}
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative h-6 w-11 rounded-full transition ${checked ? 'bg-teal-600' : 'bg-slate-300'}`}
+      >
+        <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? 'left-6' : 'left-1'}`} />
+      </button>
+      {label}
+    </label>
+  );
+}
 
-function Dashboard({onSalons}:{onSalons:()=>void}){const [data,setData]=useState<AnyRow|null>(null);useEffect(()=>{api('/api/admin/summary').then(setData).catch(()=>{})},[]);const cards=[['Total businesses',data?.totalSalons,Building2],['Active businesses',data?.activeSalons,Activity],['Customers',data?.totalCustomers,Users],['Bookings',data?.totalBookings,CalendarCheck]] as const;return <div><div className="mb-7 flex items-end justify-between"><div><h1 className="text-3xl font-bold">Overview</h1><p className="mt-1 text-slate-500">A simple view of current platform activity across categories.</p></div><button onClick={onSalons} className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white">Manage businesses</button></div><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label,value,Icon])=><div key={label} className="rounded-2xl border border-slate-200 bg-white p-5"><div className="flex items-center justify-between"><span className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50 text-teal-700"><Icon size={20}/></span><span className="text-xs text-slate-400">Live</span></div><p className="mt-5 text-3xl font-bold">{value??'—'}</p><p className="mt-1 text-sm text-slate-500">{label}</p></div>)}</div><Section title="Platform controls" subtitle="Business content is separate from live queue operations."><div className="grid gap-4 md:grid-cols-3"><Info title="Category management" text="Main categories (Salon, Gym, Food, etc.) drive Customer Home tabs."/><Info title="Content updates" text="Names, services, offers and media update through the backend API."/><Info title="Live operations" text="Staff retains control of walk-ins, calls, services and chairs."/></div></Section></div>}
-function Info({title,text}:{title:string;text:string}){return <div className="rounded-xl bg-slate-50 p-4"><b className="text-sm">{title}</b><p className="mt-2 text-sm leading-6 text-slate-500">{text}</p></div>}
+function Section({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-5">
+        <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
+        {subtitle && <p className="mt-1 text-sm text-slate-500">{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+const norm = (raw: AnyRow) => ({
+  ...raw,
+  isOpen: Boolean(raw.isOpen),
+  status: raw.status || raw.platform_status || 'draft',
+  amenities: raw.amenities || [],
+  hours: raw.hours || [],
+  services: (raw.services || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
+  staff: (raw.staff || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
+  offers: (raw.offers || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
+  media: raw.media || [],
+});
+
+export function AdminApp() {
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY));
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const expire = () => {
+      setToken(null);
+      setPassword('');
+      setError('Your admin session expired. Please sign in again.');
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, expire);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, expire);
+  }, []);
+
+  const login = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const b = await api('/api/admin/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      localStorage.setItem(TOKEN_KEY, b.token);
+      setToken(b.token);
+    } catch (x) {
+      setError(x instanceof Error ? x.message : 'Login failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!token)
+    return (
+      <main className="min-h-screen bg-slate-50 px-5 py-16">
+        <form
+          onSubmit={login}
+          className="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/50"
+        >
+          <div className="mb-8 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white">
+            <Scissors />
+          </div>
+          <p className="text-xs font-bold tracking-[.18em] text-teal-700">NO-WAIT SALON</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Admin sign in</h1>
+          <p className="mt-2 text-sm text-slate-500">Secure access for platform operations.</p>
+          <div className="mt-8 grid gap-4">
+            <Field label="Admin email" type="email" required value={email} onChange={setEmail} />
+            <Field label="Password" type="password" required value={password} onChange={setPassword} />
+            {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+            <button
+              disabled={busy}
+              className="h-12 rounded-xl bg-slate-950 font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? 'Signing in…' : 'Sign in securely'}
+            </button>
+          </div>
+        </form>
+      </main>
+    );
+
+  return (
+    <AdminShell
+      onLogout={() => {
+        void api('/api/admin/logout', { method: 'POST' }).catch(() => {});
+        localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      }}
+    />
+  );
+}
+
+function AdminShell({ onLogout }: { onLogout: () => void }) {
+  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers'>('dashboard');
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const [mobileNav, setMobileNav] = useState(false);
+  const nav = [
+    ['dashboard', 'Overview', LayoutDashboard],
+    ['categories', 'Main Categories', Layers],
+    ['salons', 'Salons & Businesses', Building2],
+    ['customers', 'Customers', Users],
+  ] as const;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 w-64 border-r border-slate-200 bg-white p-5 transition lg:translate-x-0 ${
+          mobileNav ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center gap-3 px-2 py-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-teal-600 text-white">
+            <Scissors size={20} />
+          </div>
+          <div>
+            <b>No-Wait Platform</b>
+            <p className="text-xs text-slate-500">Platform Admin</p>
+          </div>
+        </div>
+        <nav className="mt-7 grid gap-1">
+          {nav.map(([id, label, Icon]) => (
+            <button
+              key={id}
+              onClick={() => {
+                setPage(id);
+                setEditing(null);
+                setMobileNav(false);
+              }}
+              className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium ${
+                page === id ? 'bg-teal-50 text-teal-800' : 'text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <Icon size={19} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <button
+          onClick={onLogout}
+          className="absolute bottom-6 left-5 right-5 flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-700"
+        >
+          <LogOut size={18} />
+          Log out
+        </button>
+      </aside>
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-5 backdrop-blur lg:px-8">
+          <button className="lg:hidden" onClick={() => setMobileNav(true)}>
+            <Menu />
+          </button>
+          <div>
+            <p className="text-sm font-semibold">
+              {editing
+                ? 'Business editor'
+                : page === 'dashboard'
+                  ? 'Dashboard'
+                  : page === 'categories'
+                    ? 'Main Categories'
+                    : page === 'salons'
+                      ? 'Business management'
+                      : 'Customers'}
+            </p>
+            <p className="hidden text-xs text-slate-500 sm:block">
+              Manage platform categories & business content without rebuilding customer apps.
+            </p>
+          </div>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+            Secure session
+          </span>
+        </header>
+        <main className="mx-auto max-w-7xl p-5 lg:p-8">
+          {editing ? (
+            <SalonEditor id={editing} onBack={() => setEditing(null)} />
+          ) : page === 'dashboard' ? (
+            <Dashboard onSalons={() => setPage('salons')} />
+          ) : page === 'categories' ? (
+            <CategoriesList />
+          ) : page === 'salons' ? (
+            <SalonList onEdit={setEditing} />
+          ) : (
+            <Customers />
+          )}
+        </main>
+      </div>
+      {mobileNav && (
+        <button
+          aria-label="Close menu"
+          className="fixed inset-0 z-30 bg-slate-950/30 lg:hidden"
+          onClick={() => setMobileNav(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function Dashboard({ onSalons }: { onSalons: () => void }) {
+  const [data, setData] = useState<AnyRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else if (!data) setLoading(true);
+    setError(null);
+    try {
+      const res = await api('/api/admin/summary');
+      setData(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch overview metrics.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const cards = [
+    ['Total businesses', data?.totalSalons, Building2],
+    ['Active businesses', data?.activeSalons, Activity],
+    ['Customers', data?.totalCustomers, Users],
+    ['Bookings', data?.totalBookings, CalendarCheck],
+  ] as const;
+
+  return (
+    <div>
+      <div className="mb-7 flex items-end justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Overview</h1>
+          <p className="mt-1 text-slate-500">A simple view of current platform activity across categories.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {refreshing && <Loader2 className="animate-spin text-teal-600" size={18} />}
+          <button onClick={onSalons} className="rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700">
+            Manage businesses
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-6 flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+            <span>Connection delay — showing cached overview data.</span>
+          </div>
+          <button
+            onClick={() => void load(true)}
+            className="flex items-center gap-1.5 font-semibold text-amber-700 hover:text-amber-900"
+          >
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {cards.map(([label, value, Icon]) => (
+          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-teal-50 text-teal-700">
+                <Icon size={20} />
+              </span>
+              <span className="text-xs text-slate-400">Live</span>
+            </div>
+            <p className="mt-5 text-3xl font-bold">
+              {loading && data === null ? <span className="inline-block h-8 w-16 animate-pulse rounded-lg bg-slate-200" /> : (value ?? '—')}
+            </p>
+            <p className="mt-1 text-sm text-slate-500">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8">
+        <Section title="Platform controls" subtitle="Business content is separate from live queue operations.">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Info title="Category management" text="Main categories (Salon, Gym, Food, etc.) drive Customer Home tabs." />
+            <Info title="Content updates" text="Names, services, offers and media update through the backend API." />
+            <Info title="Live operations" text="Staff retains control of walk-ins, calls, services and chairs." />
+          </div>
+        </Section>
+      </div>
+    </div>
+  );
+}
+
+function Info({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <b className="text-sm">{title}</b>
+      <p className="mt-2 text-sm leading-6 text-slate-500">{text}</p>
+    </div>
+  );
+}
 
 function CategoriesList() {
   const [categories, setCategories] = useState<AnyRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCat, setEditingCat] = useState<AnyRow | null>(null);
 
-  const load = () => {
-    api('/api/admin/main-categories')
-      .then((b) => setCategories(b.categories))
-      .catch((e) => setError(e.message));
-  };
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else if (categories.length === 0) setLoading(true);
+    setError('');
+    try {
+      const b = await api('/api/admin/main-categories');
+      setCategories(b.categories || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load categories.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [categories.length]);
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   const toggle = async (c: AnyRow) => {
-    await api(`/api/admin/main-categories/${c.id}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ active: !c.active }),
-    });
-    load();
+    try {
+      await api(`/api/admin/main-categories/${c.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active: !c.active }),
+      });
+      load(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Status update failed.');
+    }
   };
 
   const remove = async (c: AnyRow) => {
@@ -57,7 +494,7 @@ function CategoriesList() {
     if (!window.confirm(`Delete category "${c.name}"? Businesses in this category will be reset to Salon.`)) return;
     try {
       await api(`/api/admin/main-categories/${c.id}`, { method: 'DELETE' });
-      load();
+      load(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Unable to delete category.');
     }
@@ -82,9 +519,16 @@ function CategoriesList() {
         </button>
       </div>
 
-      {error && <p className="mb-4 text-red-600">{error}</p>}
+      {error && (
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 text-sm text-amber-800 border border-amber-200">
+          <span>{error}</span>
+          <button onClick={() => void load(true)} className="flex items-center gap-1 font-semibold hover:underline">
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[750px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -98,61 +542,57 @@ function CategoriesList() {
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {categories.map((c) => (
-                <tr key={c.id} className="border-t border-slate-100">
-                  <td className="px-4 py-4 font-semibold text-slate-900">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700 font-bold">
-                        {c.name.charAt(0)}
-                      </span>
-                      <div>
-                        <b>{c.name}</b>
-                        {c.isDefault && <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 font-bold">DEFAULT</span>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 text-slate-500 font-mono text-xs">{c.iconName}</td>
-                  <td className="px-4 text-slate-700">{c.label}</td>
-                  <td className="px-4 text-slate-700">{c.displayOrder}</td>
-                  <td className="px-4">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${c.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                      {c.active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 font-bold text-slate-800">{c.businessCount ?? 0}</td>
-                  <td className="px-4">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingCat(c);
-                          setModalOpen(true);
-                        }}
-                        className="rounded-lg border p-2 text-slate-600 hover:bg-slate-50"
-                        title="Edit"
-                      >
-                        <Pencil size={16} />
-                      </button>
-                      <button
-                        onClick={() => void toggle(c)}
-                        className="rounded-lg border p-2 text-slate-600 hover:bg-slate-50"
-                        title="Toggle active"
-                      >
-                        <Power size={16} />
-                      </button>
-                      {!c.isDefault && (
-                        <button
-                          onClick={() => void remove(c)}
-                          className="rounded-lg border border-red-100 p-2 text-red-600 hover:bg-red-50"
-                          title="Delete category"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </div>
+            <tbody className="divide-y divide-slate-100">
+              {loading && categories.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
+                    Loading categories…
                   </td>
                 </tr>
-              ))}
+              ) : (
+                categories.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/50">
+                    <td className="px-4 py-4 font-semibold text-slate-900">{c.name}</td>
+                    <td className="px-4 py-4 font-mono text-xs text-slate-500">{c.iconName}</td>
+                    <td className="px-4 py-4">{c.label}</td>
+                    <td className="px-4 py-4">{c.displayOrder}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${c.active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {c.active ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 font-semibold text-teal-700">{c.businessCount ?? 0}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setEditingCat(c); setModalOpen(true); }}
+                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => void toggle(c)}
+                          className={`rounded-lg p-1.5 transition ${c.active ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'}`}
+                          title={c.active ? 'Disable' : 'Enable'}
+                        >
+                          <Power size={16} />
+                        </button>
+                        {!c.isDefault && (
+                          <button
+                            onClick={() => void remove(c)}
+                            className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -161,15 +601,8 @@ function CategoriesList() {
       {modalOpen && editingCat && (
         <CategoryModal
           cat={editingCat}
-          onClose={() => {
-            setModalOpen(false);
-            setEditingCat(null);
-          }}
-          onSave={() => {
-            setModalOpen(false);
-            setEditingCat(null);
-            load();
-          }}
+          onClose={() => setModalOpen(false)}
+          onSave={() => { setModalOpen(false); load(true); }}
         />
       )}
     </div>
@@ -177,22 +610,21 @@ function CategoriesList() {
 }
 
 function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => void; onSave: () => void }) {
-  const isNew = !cat.created_at && (!cat.id || cat.id === '');
-  const [form, setForm] = useState<AnyRow>({
-    ...cat,
+  const isNew = !cat.id;
+  const [form, setForm] = useState({
     id: cat.id || '',
     name: cat.name || '',
     iconName: cat.iconName || 'Scissors',
+    themeKey: cat.themeKey || 'salon',
     label: cat.label || '',
     description: cat.description || '',
-    displayOrder: cat.displayOrder || 10,
-    active: cat.active ?? true,
-    themeKey: cat.themeKey || 'salon',
+    displayOrder: cat.displayOrder ?? 10,
     primaryColor: cat.primaryColor || '#0F766E',
     accentColor: cat.accentColor || '#2DD4BF',
     bannerHeadline: cat.bannerHeadline || '',
     bannerSubheadline: cat.bannerSubheadline || '',
     bannerCtaText: cat.bannerCtaText || '',
+    active: cat.active ?? true,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -222,11 +654,10 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
   };
 
   const iconOptions = ['Scissors', 'Dumbbell', 'ShoppingBag', 'Car', 'Dog', 'Building2', 'Utensils', 'Store', 'Sparkles'];
-  const themeOptions = ['salon', 'gym', 'shop', 'moto', 'pets', 'mall', 'food'];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-      <form onSubmit={save} className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+      <form onSubmit={save} className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
         <div className="flex items-center justify-between border-b pb-3">
           <h2 className="text-xl font-bold text-slate-900">{isNew ? 'Add Main Category' : `Edit Category: ${cat.name}`}</h2>
           <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
@@ -249,20 +680,6 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
               {iconOptions.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-            Visual Theme Key
-            <select
-              value={form.themeKey}
-              onChange={(e) => setForm((f) => ({ ...f, themeKey: e.target.value }))}
-              className="h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-teal-600 capitalize"
-            >
-              {themeOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt} theme
                 </option>
               ))}
             </select>
@@ -298,12 +715,14 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
   );
 }
 
-function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
-  const [salons,setSalons]=useState<AnyRow[]>([]);
-  const [categories,setCategories]=useState<AnyRow[]>([]);
-  const [q,setQ]=useState('');
-  const [catFilter,setCatFilter]=useState('all');
-  const [error,setError]=useState('');
+function SalonList({ onEdit }: { onEdit: (id: string | 'new') => void }) {
+  const [salons, setSalons] = useState<AnyRow[]>([]);
+  const [categories, setCategories] = useState<AnyRow[]>([]);
+  const [q, setQ] = useState('');
+  const [catFilter, setCatFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<AnyRow | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -314,13 +733,30 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const load=()=>{
-    api('/api/admin/salons').then(b=>setSalons(b.salons)).catch(e=>setError(e.message));
-    api('/api/admin/main-categories').then(b=>setCategories(b.categories)).catch(()=>{});
-  };
-  useEffect(()=>{void load()},[]);
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else if (salons.length === 0) setLoading(true);
+    setError('');
+    try {
+      const [salonsRes, catsRes] = await Promise.all([
+        api('/api/admin/salons'),
+        api('/api/admin/main-categories').catch(() => ({ categories: [] })),
+      ]);
+      setSalons(salonsRes.salons || []);
+      if (catsRes.categories) setCategories(catsRes.categories);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load business records.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [salons.length]);
 
-  const shown=salons.filter(s=>{
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const shown = salons.filter((s) => {
     const matchQuery = `${s.name} ${s.city} ${s.area}`.toLowerCase().includes(q.toLowerCase());
     const matchCat = catFilter === 'all' || (s.main_category_id || 'salon') === catFilter;
     return matchQuery && matchCat;
@@ -338,7 +774,7 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
       setSalons((prev) =>
         prev.map((item) => (item.id === s.id ? { ...item, platform_status: nextStatus } : item))
       );
-      load();
+      load(true);
       setToast({
         type: 'success',
         text: `"${s.name}" is now ${nextStatus === 'active' ? 'ACTIVE' : 'DEACTIVATED'}.`,
@@ -367,11 +803,7 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
         >
           {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
           <span>{toast.text}</span>
-          <button
-            onClick={() => setToast(null)}
-            className="ml-2 text-white/80 hover:text-white"
-            aria-label="Dismiss toast"
-          >
+          <button onClick={() => setToast(null)} className="ml-2 text-white/80 hover:text-white" aria-label="Dismiss toast">
             <X size={16} />
           </button>
         </div>
@@ -384,17 +816,12 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
             <div className="flex items-start justify-between gap-3">
               <div
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                  confirmTarget.platform_status === 'active'
-                    ? 'bg-rose-100 text-rose-600'
-                    : 'bg-emerald-100 text-emerald-600'
+                  confirmTarget.platform_status === 'active' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
                 }`}
               >
                 <Power size={20} />
               </div>
-              <button
-                onClick={() => setConfirmTarget(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
+              <button onClick={() => setConfirmTarget(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
                 <X size={18} />
               </button>
             </div>
@@ -410,20 +837,20 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
               </p>
             </div>
 
-            <div className="mt-6 flex items-center justify-end gap-3">
+            <div className="mt-6 flex justify-end gap-3">
               <button
+                type="button"
                 onClick={() => setConfirmTarget(null)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition"
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 id="confirm-deactivate-btn"
                 onClick={() => void executeStatusChange(confirmTarget)}
-                className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition shadow-sm ${
-                  confirmTarget.platform_status === 'active'
-                    ? 'bg-rose-600 hover:bg-rose-700'
-                    : 'bg-emerald-600 hover:bg-emerald-700'
+                className={`rounded-xl px-5 py-2 text-sm font-semibold text-white shadow-sm ${
+                  confirmTarget.platform_status === 'active' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
                 }`}
               >
                 {confirmTarget.platform_status === 'active' ? 'Deactivate' : 'Reactivate'}
@@ -433,99 +860,724 @@ function SalonList({onEdit}:{onEdit:(id:string|'new')=>void}){
         </div>
       )}
 
-      {/* Salons & Businesses Header */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Salons & Businesses</h1>
-          <p className="mt-1 text-slate-500">Create, update and control customer visibility across main categories.</p>
+          <p className="mt-1 text-slate-500">Manage business details across all main categories.</p>
         </div>
-        <button onClick={()=>onEdit('new')} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={18}/>Add new business</button>
+        <button
+          onClick={() => onEdit('new')}
+          className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 transition"
+        >
+          <Plus size={18} /> Add Business
+        </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 flex-1 min-w-[240px]">
-          <Search size={18} className="text-slate-400"/>
-          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search business, city or area" className="h-11 w-full outline-none"/>
+      {error && (
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 text-sm text-amber-800 border border-amber-200">
+          <span>{error}</span>
+          <button onClick={() => void load(true)} className="flex items-center gap-1 font-semibold hover:underline">
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /> Retry
+          </button>
         </div>
-        <select value={catFilter} onChange={e=>setCatFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none">
-          <option value="all">All Categories</option>
-          {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm">
+          <Search size={18} className="absolute left-3.5 top-3 text-slate-400" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search business by name or city…"
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:border-teal-600"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-slate-500">Category:</span>
+          <select
+            value={catFilter}
+            onChange={(e) => setCatFilter(e.target.value)}
+            className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+          >
+            <option value="all">All Categories</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {error&&<p className="mb-4 text-red-600">{error}</p>}
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[850px] text-left text-sm">
+          <table className="w-full min-w-[750px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-              <tr>{['Business','Main Category','City / area','Status','Services','Staff','Last updated','Actions'].map(x=><th key={x} className="px-4 py-3">{x}</th>)}</tr>
+              <tr>
+                <th className="px-4 py-3">Business</th>
+                <th className="px-4 py-3">Main Category</th>
+                <th className="px-4 py-3">City / Area</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
             </thead>
-            <tbody>
-              {shown.map(s=>{
-                const catObj=categories.find(c=>c.id===(s.main_category_id||'salon'));
-                return (
-                  <tr key={s.id} className="border-t border-slate-100">
-                    <td className="px-4 py-4 font-semibold">{s.name}</td>
-                    <td className="px-4"><span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 capitalize">{catObj?.name || s.main_category_id || 'Salon'}</span></td>
-                    <td className="px-4 text-slate-500">{[s.area,s.city].filter(Boolean).join(', ')||'—'}</td>
-                    <td className="px-4"><span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wider ${s.platform_status==='active'?'bg-emerald-50 text-emerald-700 border border-emerald-200':s.platform_status==='deactivated'?'bg-rose-50 text-rose-700 border border-rose-200':'bg-slate-100 text-slate-600'}`}>{s.platform_status}</span></td>
-                    <td className="px-4">{s.service_count}</td>
-                    <td className="px-4">{s.staff_count}</td>
-                    <td className="px-4 text-slate-500">{s.updated_at?new Date(s.updated_at).toLocaleDateString():'—'}</td>
-                    <td className="px-4">
-                      <div className="flex gap-2">
-                        <button onClick={()=>onEdit(s.id)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:border-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500" title="Edit"><Pencil size={16}/></button>
-                        <button
-                          type="button"
-                          disabled={pendingStatusId === s.id}
-                          onClick={() => setConfirmTarget(s)}
-                          className={`relative flex h-8 w-8 items-center justify-center rounded-lg border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed ${
-                            s.platform_status === 'active'
-                              ? 'border-slate-200 text-rose-600 hover:border-rose-200 hover:bg-rose-50'
-                              : 'border-slate-200 text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'
-                          }`}
-                          title={s.platform_status === 'active' ? 'Deactivate business' : 'Reactivate business'}
-                        >
-                          {pendingStatusId === s.id ? (
-                            <Loader2 size={16} className="animate-spin text-slate-400" />
+            <tbody className="divide-y divide-slate-100">
+              {loading && salons.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                    <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
+                    Loading businesses…
+                  </td>
+                </tr>
+              ) : shown.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-500">
+                    No businesses match your search.
+                  </td>
+                </tr>
+              ) : (
+                shown.map((s) => {
+                  const isDeactivated = s.platform_status === 'deactivated';
+                  const isPending = pendingStatusId === s.id;
+                  const catObj = categories.find((c) => c.id === (s.main_category_id || 'salon'));
+
+                  return (
+                    <tr key={s.id} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-4 font-semibold text-slate-900">
+                        <div className="flex items-center gap-3">
+                          {s.logo_image_url ? (
+                            <img src={s.logo_image_url} alt="" className="h-8 w-8 rounded-lg object-cover border" />
                           ) : (
-                            <Power size={16} />
+                            <div className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 text-teal-700">
+                              <Building2 size={16} />
+                            </div>
                           )}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                          <span>{s.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                          {catObj?.name || s.main_category_id || 'Salon'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-slate-600">
+                        {s.area ? `${s.area}, ${s.city}` : s.city || '—'}
+                      </td>
+                      <td className="px-4 py-4">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            isDeactivated
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {isDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => onEdit(s.id)}
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                            title="Edit"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            disabled={isPending}
+                            onClick={() => setConfirmTarget(s)}
+                            className={`rounded-lg border p-1.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 ${
+                              isDeactivated
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                : 'border-slate-200 text-rose-600 hover:bg-rose-50'
+                            }`}
+                            title={isDeactivated ? 'Reactivate Business' : 'Deactivate Business'}
+                          >
+                            {isPending ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-        {!shown.length&&<p className="p-10 text-center text-slate-500">No businesses found matching criteria.</p>}
       </div>
     </div>
   );
 }
 
-function SalonEditor({id,onBack}:{id:string|'new';onBack:()=>void}){const [form,setForm]=useState<AnyRow>(emptySalon());const [tab,setTab]=useState('details');const [busy,setBusy]=useState(id!=='new');const [message,setMessage]=useState('');const [error,setError]=useState('');useEffect(()=>{if(id==='new')return;void api(`/api/admin/salons/${id}`).then(b=>setForm(norm(b.salon))).catch(e=>setError(e.message)).finally(()=>setBusy(false))},[id]);const set=(k:string,v:any)=>setForm((f:AnyRow)=>({...f,[k]:v}));const save=async()=>{setBusy(true);setError('');setMessage('');try{const b=await api(id==='new'?'/api/admin/salons':`/api/admin/salons/${id}`,{method:id==='new'?'POST':'PUT',body:JSON.stringify(form)});setForm(norm(b.salon));setMessage('Business saved. Customer App will receive this data on its next refresh.')}catch(e){setError(e instanceof Error?e.message:'Save failed.')}finally{setBusy(false)}};if(busy&&id!=='new'&&!form.name)return <p>Loading business…</p>;
- const tabs=[['details','Details',Building2],['hours','Hours',Clock3],['services','Services',Scissors],['staff','Staff',Users],['offers','Offers',Tag],['media','Gallery',ImagePlus],['qr','Business QR',QrCode]] as const;
- return <div><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-slate-600"><ChevronLeft size={18}/>Back to businesses</button><div className="flex gap-2"><button onClick={onBack} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold">Cancel</button><button onClick={()=>void save()} disabled={busy} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"><Save size={17}/>{busy?'Saving…':'Save business'}</button></div></div><div className="mb-6"><h1 className="text-3xl font-bold">{id==='new'?'Add new business':form.name}</h1><p className="mt-1 text-slate-500">Configuration changes do not affect the live operational queue.</p></div>{message&&<p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p>}{error&&<p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mb-5 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1">{tabs.map(([key,label,Icon])=><button key={key} onClick={()=>setTab(key)} className={`flex min-w-max items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${tab===key?'bg-slate-950 text-white':'text-slate-600'}`}><Icon size={16}/>{label}</button>)}</div>{tab==='details'?<Details form={form} set={set}/>:tab==='hours'?<Hours rows={form.hours} set={v=>set('hours',v)}/>:tab==='services'?<Services rows={form.services} set={v=>set('services',v)}/>:tab==='staff'?<Staff rows={form.staff} set={v=>set('staff',v)}/>:tab==='offers'?<Offers rows={form.offers} set={v=>set('offers',v)}/>:tab==='media'?<Media rows={form.media} set={v=>set('media',v)}/>:<BusinessQr businessId={id} businessName={form.name}/>}</div>}
-
-type BusinessQrData={businessName:string;businessType:string;publicToken:string;status:string;createdAt:number;publicUrl:string;previewImageUrl:string;downloadImageUrl:string};
-function BusinessQr({businessId,businessName}:{businessId:string|'new';businessName:string}){const [qr,setQr]=useState<BusinessQrData|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const load=()=>businessId==='new'?Promise.resolve():api(`/api/admin/businesses/${businessId}/qr`).then(b=>setQr(b.qr)).catch(e=>setError(e.message));useEffect(()=>{void load()},[businessId]);if(businessId==='new')return <Section title="Business QR"><p className="text-sm text-slate-500">Save this business first. Its secure QR will be generated automatically.</p></Section>;const regenerate=async()=>{if(!window.confirm('Replace this QR? The current printed code will stop working immediately.'))return;setBusy(true);setError('');try{const b=await api(`/api/admin/businesses/${businessId}/qr/regenerate`,{method:'POST'});setQr(b.qr)}catch(e){setError(e instanceof Error?e.message:'Unable to replace QR.')}finally{setBusy(false)}};const copy=async()=>{if(qr)await navigator.clipboard.writeText(qr.publicUrl)};const print=()=>{if(!qr)return;const win=window.open('','_blank');if(!win)return;win.document.write(`<title>${businessName} QR</title><main style="font-family:system-ui;text-align:center;padding:40px"><h1>${businessName}</h1><p>Scan to view services and join the live queue</p><img src="${qr.downloadImageUrl}" style="width:420px;max-width:90%"><p>${qr.publicUrl}</p></main>`);win.document.close();win.focus();setTimeout(()=>win.print(),500)};return <Section title="Business QR" subtitle="Customers can scan this code to open this exact business and join its queue.">{error&&<p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}{!qr?<p className="text-sm text-slate-500">Loading secure QR…</p>:<div className="grid gap-6 md:grid-cols-[280px_1fr]"><div className="rounded-2xl border bg-white p-4"><img src={qr.previewImageUrl} alt={`${businessName} queue QR`} className="aspect-square w-full"/></div><div className="space-y-4"><div><p className="text-lg font-semibold">{qr.businessName}</p><p className="text-sm capitalize text-slate-500">{qr.businessType} · {qr.status}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Public scan link</p><p className="mt-1 break-all text-sm">{qr.publicUrl}</p></div><p className="text-xs text-slate-500">Created {new Date(qr.createdAt).toLocaleString()} · Token ending {qr.publicToken.slice(-6)}</p><div className="flex flex-wrap gap-2"><a href={qr.downloadImageUrl} download={`${businessName}-qr.png`} className="flex items-center gap-2 rounded-xl bg-teal-600 px-3 py-2 text-sm font-semibold text-white"><Download size={16}/>Download</a><button onClick={print} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold"><Printer size={16}/>Print</button><button onClick={()=>void copy()} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold"><Copy size={16}/>Copy link</button><button disabled={busy} onClick={()=>void regenerate()} className="flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"><RefreshCw size={16}/>{busy?'Replacing…':'Regenerate'}</button></div></div></div>}</Section>}
-
-function Details({form,set}:{form:AnyRow;set:(k:string,v:any)=>void}){
+function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void }) {
+  const [form, setForm] = useState<AnyRow>(emptySalon());
   const [mainCats, setMainCats] = useState<AnyRow[]>([]);
+  const [tab, setTab] = useState('details');
+  const [busy, setBusy] = useState(id !== 'new');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
   useEffect(() => {
-    api('/api/admin/main-categories').then(b => setMainCats(b.categories)).catch(() => {});
+    void api('/api/admin/main-categories')
+      .then((b) => setMainCats(b.categories || []))
+      .catch(() => {});
   }, []);
 
-  return <div className="grid gap-5"><Section title="Basic information"><div className="grid gap-4 md:grid-cols-2"><Field label="Business name" required value={form.name} onChange={v=>set('name',v)}/><label className="grid gap-1.5 text-sm font-medium text-slate-700"><span>Main Category<b className="text-red-500"> *</b></span><select value={form.main_category_id || form.mainCategoryId || 'salon'} onChange={e=>set('main_category_id',e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-teal-600">{mainCats.length?mainCats.map(c=><option key={c.id} value={c.id}>{c.name} ({c.label})</option>):<option value="salon">Salon (Live Salons)</option>}</select></label><Field label="Category / Tagline" value={form.category} onChange={v=>set('category',v)}/><Field label="Short description" value={form.short_description} onChange={v=>set('short_description',v)}/><Field label="Phone number" value={form.phone_number} onChange={v=>set('phone_number',v)}/><Field label="Email" type="email" value={form.email} onChange={v=>set('email',v)}/><Field label="Website / social link" value={form.website_url} onChange={v=>set('website_url',v)}/><label className="grid gap-1.5 text-sm font-medium text-slate-700 md:col-span-2">Full description<textarea value={form.description||''} onChange={e=>set('description',e.target.value)} className="min-h-28 rounded-xl border border-slate-200 p-3 outline-none focus:border-teal-600"/></label></div></Section><Section title="Address & location"><div className="grid gap-4 md:grid-cols-2"><div className="md:col-span-2"><Field label="Full address" required value={form.address} onChange={v=>set('address',v)}/></div><Field label="Area" value={form.area} onChange={v=>set('area',v)}/><Field label="City" value={form.city} onChange={v=>set('city',v)}/><Field label="State" value={form.state} onChange={v=>set('state',v)}/><Field label="PIN code" value={form.pin_code} onChange={v=>set('pin_code',v)}/><Field label="Latitude" type="number" value={form.latitude} onChange={v=>set('latitude',v)}/><Field label="Longitude" type="number" value={form.longitude} onChange={v=>set('longitude',v)}/></div></Section><Section title="Branding & visibility"><div className="grid gap-4 md:grid-cols-2"><Field label="Logo URL" value={form.logo_image_url} onChange={v=>set('logo_image_url',v)}/><Field label="Cover image URL" value={form.cover_image_url} onChange={v=>set('cover_image_url',v)}/><Field label="Promotional banner URL" value={form.promotional_banner_url} onChange={v=>set('promotional_banner_url',v)}/><label className="grid gap-1.5 text-sm font-medium text-slate-700">Platform status<select value={form.status} onChange={e=>set('status',e.target.value)} className="h-11 rounded-xl border border-slate-200 px-3"><option value="active">Active</option><option value="deactivated">Deactivated</option><option value="draft">Draft</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></select></label><Toggle checked={Boolean(form.isOpen)} onChange={v=>set('isOpen',v)} label="Business is currently open"/></div></Section></div>
+  useEffect(() => {
+    if (id === 'new') return;
+    void api(`/api/admin/salons/${id}`)
+      .then((b) => setForm(norm(b.salon)))
+      .catch((e) => setError(e.message))
+      .finally(() => setBusy(false));
+  }, [id]);
+
+  const set = (k: string, v: any) => setForm((f: AnyRow) => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const b = await api(id === 'new' ? '/api/admin/salons' : `/api/admin/salons/${id}`, {
+        method: id === 'new' ? 'POST' : 'PUT',
+        body: JSON.stringify(form),
+      });
+      setForm(norm(b.salon));
+      setMessage('Business content saved. Live surfaces (Customer App, QR Web, Staff Dashboard) updated!');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (busy && id !== 'new' && !form.name)
+    return (
+      <div className="py-12 text-center text-slate-500">
+        <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
+        Loading business details…
+      </div>
+    );
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="rounded-xl border p-2 text-slate-600 hover:bg-slate-100">
+            <ChevronLeft size={18} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold">{id === 'new' ? 'Add New Business' : form.name || 'Edit Business'}</h1>
+            <p className="text-xs text-slate-500">{id === 'new' ? 'Create a business profile' : `ID: ${id}`}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => void save()}
+          disabled={busy}
+          className="flex items-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50"
+        >
+          {busy ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Changes
+        </button>
+      </div>
+
+      {message && <p className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 border border-emerald-200">{message}</p>}
+      {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 border border-red-200">{error}</p>}
+
+      <div className="mb-6 flex gap-2 border-b">
+        {['details', 'services', 'staff', 'offers', 'media', 'qr'].map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`border-b-2 px-4 py-2.5 text-sm font-semibold capitalize transition ${
+              tab === t ? 'border-teal-600 text-teal-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {t === 'qr' ? 'Business QR' : t}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'details' && (
+        <Section title="Basic Information">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Business Name" value={form.name} onChange={(v) => set('name', v)} required />
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+              Main Category
+              <select
+                value={form.main_category_id || 'salon'}
+                onChange={(e) => set('main_category_id', e.target.value)}
+                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+              >
+                {mainCats.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Field label="Phone Number" value={form.phone_number} onChange={(v) => set('phone_number', v)} />
+            <Field label="Email" value={form.email} onChange={(v) => set('email', v)} />
+            <Field label="Address" value={form.address} onChange={(v) => set('address', v)} />
+            <Field label="Area" value={form.area} onChange={(v) => set('area', v)} />
+            <Field label="City" value={form.city} onChange={(v) => set('city', v)} />
+            <Field label="Opening Hours String" value={form.opening_hours} onChange={(v) => set('opening_hours', v)} />
+            <Field label="Logo Image URL" value={form.logo_image_url} onChange={(v) => set('logo_image_url', v)} placeholder="https://…" />
+            <Field label="Cover Image URL" value={form.cover_image_url} onChange={(v) => set('cover_image_url', v)} placeholder="https://…" />
+            <div className="sm:col-span-2 pt-2">
+              <Toggle checked={Boolean(form.isOpen)} onChange={(v) => set('isOpen', v)} label="Business is currently Open for queueing" />
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {tab === 'services' && (
+        <ServicesEditor rows={form.services || []} set={(v) => set('services', v)} />
+      )}
+
+      {tab === 'staff' && (
+        <StaffEditor rows={form.staff || []} set={(v) => set('staff', v)} />
+      )}
+
+      {tab === 'offers' && (
+        <OffersEditor rows={form.offers || []} set={(v) => set('offers', v)} />
+      )}
+
+      {tab === 'media' && (
+        <Media rows={form.media || []} set={(v) => set('media', v)} />
+      )}
+
+      {tab === 'qr' && (
+        <BusinessQr businessId={id} businessName={form.name || 'Business'} />
+      )}
+    </div>
+  );
 }
-function Hours({rows,set}:{rows:AnyRow[];set:(v:AnyRow[])=>void}){const edit=(i:number,k:string,v:any)=>set(rows.map((r,n)=>n===i?{...r,[k]:v}:r));return <Section title="Weekly opening hours" subtitle="Set different timings or close individual days."><div className="grid gap-3">{days.map((day,i)=>{const r=rows[i]||{day_of_week:i,open_time:'09:00',close_time:'21:00',closed:0};return <div key={day} className="grid items-center gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-[140px_1fr_1fr_auto]"><b className="text-sm">{day}</b><input type="time" disabled={Boolean(r.closed)} value={r.open_time} onChange={e=>edit(i,'open_time',e.target.value)} className="h-10 rounded-lg border px-2 disabled:opacity-40"/><input type="time" disabled={Boolean(r.closed)} value={r.close_time} onChange={e=>edit(i,'close_time',e.target.value)} className="h-10 rounded-lg border px-2 disabled:opacity-40"/><Toggle checked={Boolean(r.closed)} onChange={v=>edit(i,'closed',v?1:0)} label="Closed"/></div>})}</div></Section>}
-function RowActions({onDelete}:{onDelete:()=>void}){return <button onClick={onDelete} className="rounded-lg border border-red-100 p-2 text-red-600"><Trash2 size={16}/></button>}
-function Services({rows,set}:{rows:AnyRow[];set:(v:AnyRow[])=>void}){const edit=(i:number,k:string,v:any)=>set(rows.map((r,n)=>n===i?{...r,[k]:v}:r));return <Section title="Services" subtitle="Customer service cards are generated from these records."><div className="grid gap-3">{rows.map((r,i)=><div key={r.id||i} className="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-6"><Field label="Name" value={r.name} onChange={v=>edit(i,'name',v)}/><Field label="Category" value={r.category} onChange={v=>edit(i,'category',v)}/><Field label="Price ₹" type="number" value={r.price_inr} onChange={v=>edit(i,'price_inr',v)}/><Field label="Duration min" type="number" value={r.duration_min} onChange={v=>edit(i,'duration_min',v)}/><div className="flex items-end"><Toggle checked={r.active} onChange={v=>edit(i,'active',v)} label="Active"/></div><div className="flex items-end"><RowActions onDelete={()=>set(rows.filter((_,n)=>n!==i))}/></div><div className="md:col-span-6"><Field label="Description" value={r.description} onChange={v=>edit(i,'description',v)}/></div></div>)}<button onClick={()=>set([...rows,{id:crypto.randomUUID(),name:'',category:'',price_inr:0,duration_min:30,description:'',active:true}])} className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 py-3 text-sm font-semibold text-teal-700"><Plus size={17}/>Add service</button></div></Section>}
-function Staff({rows,set}:{rows:AnyRow[];set:(v:AnyRow[])=>void}){const edit=(i:number,k:string,v:any)=>set(rows.map((r,n)=>n===i?{...r,[k]:v}:r));return <Section title="Barbers & staff" subtitle="Active staff remain compatible with the live queue system."><div className="grid gap-3">{rows.map((r,i)=><div key={r.id||i} className="grid gap-3 rounded-xl border p-4 md:grid-cols-5"><Field label="Name" value={r.name} onChange={v=>edit(i,'name',v)}/><Field label="Role" value={r.role} onChange={v=>edit(i,'role',v)}/><Field label="Photo URL" value={r.photo_url} onChange={v=>edit(i,'photo_url',v)}/><label className="grid gap-1.5 text-sm font-medium">Working status<select value={r.working_status} onChange={e=>edit(i,'working_status',e.target.value)} className="h-11 rounded-xl border px-3"><option value="available">Available</option><option value="unavailable">Unavailable</option><option value="busy">Busy</option></select></label><div className="flex items-end justify-between"><Toggle checked={r.active} onChange={v=>edit(i,'active',v)} label="Active"/><RowActions onDelete={()=>set(rows.filter((_,n)=>n!==i))}/></div></div>)}<button onClick={()=>set([...rows,{id:crypto.randomUUID(),name:'',role:'Barber',photo_url:'',working_status:'available',active:true}])} className="rounded-xl border border-dashed border-teal-300 py-3 text-sm font-semibold text-teal-700">+ Add staff member</button></div></Section>}
-function Offers({rows,set}:{rows:AnyRow[];set:(v:AnyRow[])=>void}){const edit=(i:number,k:string,v:any)=>set(rows.map((r,n)=>n===i?{...r,[k]:v}:r));return <Section title="Offers"><div className="grid gap-3">{rows.map((r,i)=><div key={r.id||i} className="grid gap-3 rounded-xl border p-4 md:grid-cols-4"><Field label="Title" value={r.title} onChange={v=>edit(i,'title',v)}/><Field label="Discount text" value={r.discount_text} onChange={v=>edit(i,'discount_text',v)}/><Field label="Minimum bill ₹" type="number" value={r.minimum_bill} onChange={v=>edit(i,'minimum_bill',v)}/><div className="flex items-end justify-between"><Toggle checked={r.active} onChange={v=>edit(i,'active',v)} label="Active"/><RowActions onDelete={()=>set(rows.filter((_,n)=>n!==i))}/></div><Field label="Start date" type="date" value={r.start_date} onChange={v=>edit(i,'start_date',v)}/><Field label="End date" type="date" value={r.end_date} onChange={v=>edit(i,'end_date',v)}/><div className="md:col-span-2"><Field label="Terms" value={r.terms} onChange={v=>edit(i,'terms',v)}/></div></div>)}<button onClick={()=>set([...rows,{id:crypto.randomUUID(),title:'',discount_text:'',minimum_bill:0,start_date:'',end_date:'',terms:'',description:'',image_url:'',active:true}])} className="rounded-xl border border-dashed border-teal-300 py-3 text-sm font-semibold text-teal-700">+ Add offer</button></div></Section>}
-function Media({rows,set}:{rows:AnyRow[];set:(v:AnyRow[])=>void}){const [uploading,setUploading]=useState(false);const upload=async(file:File)=>{if(file.size>2*1024*1024)return alert('Image must be 2 MB or smaller.');setUploading(true);const reader=new FileReader();reader.onload=async()=>{try{const b=await api('/api/admin/media/upload',{method:'POST',body:JSON.stringify({dataUrl:reader.result})});set([...rows,{id:crypto.randomUUID(),media_type:'gallery',url:b.url,caption:'',featured:rows.length===0}])}finally{setUploading(false)}};reader.readAsDataURL(file)};return <Section title="Gallery & vibes" subtitle="PNG, JPEG or WebP up to 2 MB. Local files use temporary server storage."><label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 py-4 font-semibold text-teal-700"><ImagePlus size={18}/>{uploading?'Uploading…':'Upload gallery image'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={uploading} onChange={e=>e.target.files?.[0]&&void upload(e.target.files[0])}/></label><div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{rows.map((r,i)=><div key={r.id||i} className="overflow-hidden rounded-xl border"><div className="aspect-video bg-slate-100">{r.url&&<img src={r.url} className="h-full w-full object-cover"/>}</div><div className="grid gap-2 p-3"><input value={r.caption||''} placeholder="Caption" onChange={e=>set(rows.map((x,n)=>n===i?{...x,caption:e.target.value}:x))} className="h-9 rounded-lg border px-2 text-sm"/><div className="flex justify-between"><Toggle checked={Boolean(r.featured)} onChange={v=>set(rows.map((x,n)=>({...x,featured:n===i?v:false})))} label="Featured"/><RowActions onDelete={()=>set(rows.filter((_,n)=>n!==i))}/></div></div></div>)}</div></Section>}
-function Customers(){const [rows,setRows]=useState<AnyRow[]>([]);useEffect(()=>{void api('/api/admin/customers').then(b=>setRows(b.customers)).catch(()=>{})},[]);return <div><h1 className="text-3xl font-bold">Customers</h1><p className="mt-1 text-slate-500">Read-only account overview with limited personal data.</p><div className="mt-6 overflow-x-auto rounded-2xl border bg-white"><table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-slate-50"><tr>{['Customer ID','Name','Verified phone','Email','Created','Bookings'].map(x=><th key={x} className="px-4 py-3">{x}</th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.id} className="border-t"><td className="max-w-40 truncate px-4 py-4 font-mono text-xs">{r.id}</td><td className="px-4">{r.name||'—'}</td><td className="px-4">••••••{String(r.phone_number).slice(-4)}</td><td className="px-4">{r.email||'—'}</td><td className="px-4">{new Date(r.created_at).toLocaleDateString()}</td><td className="px-4">{r.booking_count}</td></tr>)}</tbody></table></div></div>}
+
+function ServicesEditor({ rows, set }: { rows: AnyRow[]; set: (v: AnyRow[]) => void }) {
+  const add = () =>
+    set([
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        name: 'New Service',
+        category: 'Hair Care',
+        price: 299,
+        duration: 30,
+        active: true,
+      },
+    ]);
+
+  return (
+    <Section title="Services & Pricing" subtitle="Add and configure service options offered to customers.">
+      <div className="mb-4 flex justify-end">
+        <button type="button" onClick={add} className="flex items-center gap-2 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <Plus size={16} /> Add Service
+        </button>
+      </div>
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={r.id || i} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-12 items-center">
+            <div className="sm:col-span-4">
+              <input
+                value={r.name || ''}
+                placeholder="Service Name"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm font-semibold"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <input
+                value={r.category || ''}
+                placeholder="Category (e.g. Beard)"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, category: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <input
+                type="number"
+                value={r.price ?? ''}
+                placeholder="Price (₹)"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, price: Number(e.target.value) } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <input
+                type="number"
+                value={r.duration ?? ''}
+                placeholder="Mins"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, duration: Number(e.target.value) } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-1 flex justify-end">
+              <button type="button" onClick={() => set(rows.filter((_, n) => n !== i))} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function StaffEditor({ rows, set }: { rows: AnyRow[]; set: (v: AnyRow[]) => void }) {
+  const add = () =>
+    set([
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        name: 'New Staff',
+        role: 'Stylist',
+        status: 'available',
+        active: true,
+      },
+    ]);
+
+  return (
+    <Section title="Staff Roster" subtitle="Configure stylists and staff members for live queue assignment.">
+      <div className="mb-4 flex justify-end">
+        <button type="button" onClick={add} className="flex items-center gap-2 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <Plus size={16} /> Add Staff Member
+        </button>
+      </div>
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={r.id || i} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-12 items-center">
+            <div className="sm:col-span-4">
+              <input
+                value={r.name || ''}
+                placeholder="Staff Name"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, name: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm font-semibold"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <input
+                value={r.role || ''}
+                placeholder="Role (e.g. Master Stylist)"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, role: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <select
+                value={r.status || 'available'}
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, status: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              >
+                <option value="available">Available</option>
+                <option value="busy">Busy</option>
+                <option value="unavailable">Unavailable</option>
+              </select>
+            </div>
+            <div className="sm:col-span-1 flex justify-end">
+              <button type="button" onClick={() => set(rows.filter((_, n) => n !== i))} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function OffersEditor({ rows, set }: { rows: AnyRow[]; set: (v: AnyRow[]) => void }) {
+  const add = () =>
+    set([
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        title: 'Special Offer',
+        discount: '20% OFF',
+        code: 'SAVE20',
+        active: true,
+      },
+    ]);
+
+  return (
+    <Section title="Promotional Offers" subtitle="Configure deals and coupon codes for customer checkout.">
+      <div className="mb-4 flex justify-end">
+        <button type="button" onClick={add} className="flex items-center gap-2 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white">
+          <Plus size={16} /> Add Offer
+        </button>
+      </div>
+      <div className="space-y-3">
+        {rows.map((r, i) => (
+          <div key={r.id || i} className="grid gap-3 rounded-xl border p-4 sm:grid-cols-12 items-center">
+            <div className="sm:col-span-4">
+              <input
+                value={r.title || ''}
+                placeholder="Offer Title"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, title: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm font-semibold"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <input
+                value={r.discount || ''}
+                placeholder="Discount Text (e.g. 20% OFF)"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, discount: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <input
+                value={r.code || ''}
+                placeholder="Code (e.g. SAVE20)"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, code: e.target.value } : x)))}
+                className="h-10 w-full rounded-lg border px-3 text-sm font-mono uppercase"
+              />
+            </div>
+            <div className="sm:col-span-1 flex justify-end">
+              <button type="button" onClick={() => set(rows.filter((_, n) => n !== i))} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function Media({ rows, set }: { rows: AnyRow[]; set: (v: AnyRow[]) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const upload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) return alert('Image must be 2 MB or smaller.');
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const b = await api('/api/admin/media/upload', { method: 'POST', body: JSON.stringify({ dataUrl: reader.result }) });
+        set([...rows, { id: crypto.randomUUID(), media_type: 'gallery', url: b.url, caption: '', featured: rows.length === 0 }]);
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  return (
+    <Section title="Gallery & vibes" subtitle="PNG, JPEG or WebP up to 2 MB. Local files use temporary server storage.">
+      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 py-4 font-semibold text-teal-700">
+        <ImagePlus size={18} />
+        {uploading ? 'Uploading…' : 'Upload gallery image'}
+        <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={uploading} onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
+      </label>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((r, i) => (
+          <div key={r.id || i} className="overflow-hidden rounded-xl border">
+            <div className="aspect-video bg-slate-100">{r.url && <img src={r.url} alt="" className="h-full w-full object-cover" />}</div>
+            <div className="grid gap-2 p-3">
+              <input
+                value={r.caption || ''}
+                placeholder="Caption"
+                onChange={(e) => set(rows.map((x, n) => (n === i ? { ...x, caption: e.target.value } : x)))}
+                className="h-9 rounded-lg border px-2 text-sm"
+              />
+              <div className="flex justify-between">
+                <Toggle checked={Boolean(r.featured)} onChange={(v) => set(rows.map((x, n) => ({ ...x, featured: n === i ? v : false })))} label="Featured" />
+                <button type="button" onClick={() => set(rows.filter((_, n) => n !== i))} className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50">
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function BusinessQr({ businessId, businessName }: { businessId: string | 'new'; businessName: string }) {
+  const [qr, setQr] = useState<AnyRow | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = () => (businessId === 'new' ? Promise.resolve() : api(`/api/admin/businesses/${businessId}/qr`).then((b) => setQr(b.qr)).catch((e) => setError(e.message)));
+  useEffect(() => {
+    void load();
+  }, [businessId]);
+  if (businessId === 'new')
+    return (
+      <Section title="Business QR">
+        <p className="text-sm text-slate-500">Save this business first. Its secure QR will be generated automatically.</p>
+      </Section>
+    );
+  const regenerate = async () => {
+    if (!window.confirm('Replace this QR? The current printed code will stop working immediately.')) return;
+    setBusy(true);
+    setError('');
+    try {
+      const b = await api(`/api/admin/businesses/${businessId}/qr/regenerate`, { method: 'POST' });
+      setQr(b.qr);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to replace QR.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    if (qr) await navigator.clipboard.writeText(qr.publicUrl);
+  };
+  const print = () => {
+    if (!qr) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(
+      `<title>${businessName} QR</title><main style="font-family:system-ui;text-align:center;padding:40px"><h1>${businessName}</h1><p>Scan to view services and join the live queue</p><img src="${qr.downloadImageUrl}" style="width:420px;max-width:90%"><p>${qr.publicUrl}</p></main>`
+    );
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 500);
+  };
+  return (
+    <Section title="Business QR" subtitle="Customers can scan this code to open this exact business and join its queue.">
+      {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {!qr ? (
+        <div className="py-6 text-slate-500">
+          <Loader2 className="animate-spin" size={20} /> Loading secure QR…
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-[280px_1fr]">
+          <div className="rounded-2xl border bg-white p-4">
+            <img src={qr.previewImageUrl} alt={`${businessName} queue QR`} className="aspect-square w-full" />
+          </div>
+          <div className="space-y-4">
+            <div>
+              <p className="text-lg font-semibold">{qr.businessName}</p>
+              <p className="text-sm capitalize text-slate-500">
+                {qr.businessType} · {qr.status}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Public scan link</p>
+              <p className="mt-1 break-all text-sm">{qr.publicUrl}</p>
+            </div>
+            <p className="text-xs text-slate-500">
+              Created {new Date(qr.createdAt).toLocaleString()} · Token ending {qr.publicToken.slice(-6)}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={qr.downloadImageUrl}
+                download={`${businessName}-qr.png`}
+                className="flex items-center gap-2 rounded-xl bg-teal-600 px-3 py-2 text-sm font-semibold text-white"
+              >
+                <Download size={16} />
+                Download
+              </a>
+              <button onClick={print} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold">
+                <Printer size={16} />
+                Print
+              </button>
+              <button onClick={() => void copy()} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold">
+                <Copy size={16} />
+                Copy link
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => void regenerate()}
+                className="flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+              >
+                <RefreshCw size={16} />
+                {busy ? 'Replacing…' : 'Regenerate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function Customers() {
+  const [rows, setRows] = useState<AnyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else if (rows.length === 0) setLoading(true);
+    setError('');
+    try {
+      const b = await api('/api/admin/customers');
+      setRows(b.customers || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load customers.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [rows.length]);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Customers</h1>
+          <p className="mt-1 text-slate-500">Read-only account overview with limited personal data.</p>
+        </div>
+        {refreshing && <Loader2 className="animate-spin text-teal-600" size={18} />}
+      </div>
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 text-sm text-amber-800 border border-amber-200">
+          <span>{error}</span>
+          <button onClick={() => void load(true)} className="flex items-center gap-1 font-semibold hover:underline">
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[700px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                {['Customer ID', 'Name', 'Verified phone', 'Email', 'Created', 'Bookings'].map((x) => (
+                  <th key={x} className="px-4 py-3">
+                    {x}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
+                    Loading customer accounts…
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                    No customer accounts found.
+                  </td>
+                </tr>
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50/50">
+                    <td className="max-w-40 truncate px-4 py-4 font-mono text-xs text-slate-500">{r.id}</td>
+                    <td className="px-4 py-4 font-semibold text-slate-900">{r.name || '—'}</td>
+                    <td className="px-4 py-4">••••••{String(r.phone_number).slice(-4)}</td>
+                    <td className="px-4 py-4 text-slate-600">{r.email || '—'}</td>
+                    <td className="px-4 py-4 text-slate-600">{new Date(r.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-4 font-semibold text-teal-700">{r.booking_count}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
