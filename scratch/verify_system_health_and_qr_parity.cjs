@@ -4,7 +4,7 @@ const CHROME_PATH = '/Users/ritiksinghroth/.cache/puppeteer/chrome/mac-152.0.797
 const TEST_URL = process.env.VERIFY_URL || 'http://localhost:3000';
 
 async function verifySystemHealthAndQrParity() {
-  console.log(`Starting Full System Health & QR Web Parity Verification against ${TEST_URL}...`);
+  console.log(`Starting Real QR Route Verification & System Health against ${TEST_URL}...`);
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
@@ -14,14 +14,13 @@ async function verifySystemHealthAndQrParity() {
   const results = {};
 
   try {
-    // --- 1. ADMIN DATA STABILITY & ZERO-DATA FLASH ---
+    // --- 1. ADMIN DATA STABILITY ---
     console.log('\n--- 1. Testing Admin Data Stability ---');
     const pageAdmin = await browser.newPage();
     await pageAdmin.setViewport({ width: 1280, height: 900 });
     await pageAdmin.goto(`${TEST_URL}/admin`, { waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 1000));
 
-    // Log in if needed
     let adminToken = '';
     const emailInput = await pageAdmin.$('input[type="email"]');
     if (emailInput) {
@@ -36,16 +35,13 @@ async function verifySystemHealthAndQrParity() {
       await new Promise((r) => setTimeout(r, 2500));
     }
 
-    // Retrieve token from localStorage
     adminToken = await pageAdmin.evaluate(() => localStorage.getItem('no_wait_admin_token') || '');
 
-    // Verify Overview dashboard numbers
     const initialText = await pageAdmin.evaluate(() => document.body.innerText);
     const hasDashboardMetrics = initialText.includes('Total businesses') || initialText.includes('Overview') || initialText.includes('Platform Admin') || initialText.includes('Salons & Businesses');
     results.admin_dashboardLoaded = hasDashboardMetrics;
     console.log('Admin Dashboard loaded:', hasDashboardMetrics);
 
-    // Refresh 3 times and check for zero-data flash
     let zeroDataFlashed = false;
     for (let i = 0; i < 3; i++) {
       await pageAdmin.reload({ waitUntil: 'networkidle2' });
@@ -58,26 +54,52 @@ async function verifySystemHealthAndQrParity() {
     results.admin_zeroDataFlashPrevented = !zeroDataFlashed;
     console.log('Admin Zero-Data Flash prevented across reloads:', !zeroDataFlashed);
 
-    // --- 2. PUBLIC QR WEB PARITY & TOKEN JOURNEY ---
-    console.log('\n--- 2. Fetching Public QR Token for Sharpcut Studio (salon-1) ---');
-    const targetQrUrl = `${TEST_URL}/qr/salon-1`;
-    console.log(`Using Public QR URL: ${targetQrUrl}`);
+    // --- 2. FETCH REAL PUBLIC QR TOKEN FOR /q/:token ---
+    console.log('\n--- 2. Fetching Real Public QR Token for /q/:token ---');
+    let qrToken = '';
+    
+    // Method A: Admin API
+    if (adminToken) {
+      const qrRes = await fetch(`${TEST_URL}/api/admin/businesses/salon-1/qr`, {
+        headers: { Authorization: `Bearer ${adminToken}` }
+      }).catch(() => null);
+      if (qrRes && qrRes.ok) {
+        const qrJson = await qrRes.json();
+        qrToken = qrJson.qr?.publicToken || '';
+      }
+    }
+
+    // Method B: Public token API endpoint
+    if (!qrToken) {
+      const publicQrRes = await fetch(`${TEST_URL}/api/business-qr-public/salon-1`).catch(() => null);
+      if (publicQrRes && publicQrRes.ok) {
+        const pJson = await publicQrRes.json();
+        qrToken = pJson.token || pJson.publicToken || '';
+      }
+    }
+
+    if (!qrToken) {
+      throw new Error('Failed to resolve real public QR token for salon-1');
+    }
+
+    const realQrUrl = `${TEST_URL}/q/${qrToken}`;
+    console.log(`REAL Public QR URL: ${realQrUrl}`);
 
     const pageQr = await browser.newPage();
     await pageQr.setViewport({ width: 414, height: 896, isMobile: true, hasTouch: true });
-    await pageQr.goto(targetQrUrl, { waitUntil: 'networkidle2' });
+    await pageQr.goto(realQrUrl, { waitUntil: 'networkidle2' });
     await pageQr.waitForFunction(() => document.body.innerText.includes('Sharpcut Studio'), { timeout: 8000 }).catch(() => null);
 
-    // Verify QR Web renders shared SalonDetailPage elements
+    // Verify /q/:token renders shared SalonDetailPage
     const qrText = await pageQr.evaluate(() => document.body.innerText);
     const rendersSharedSalonDetail = qrText.includes('Sharpcut Studio') &&
       (qrText.includes('Service menu') || qrText.includes('Choose your services') || qrText.includes('Hair Care') || qrText.includes('Haircut')) &&
       (qrText.includes('Join Queue') || qrText.includes('Select services') || qrText.includes('in the queue'));
     results.qr_rendersSharedSalonDetail = rendersSharedSalonDetail;
-    console.log('Public QR Web renders shared SalonDetailPage:', rendersSharedSalonDetail);
+    console.log('Real /q/:token route renders shared SalonDetailPage:', rendersSharedSalonDetail);
 
-    // Join Queue on QR Web
-    console.log('\n--- 3. Testing Complete QR Token Journey ---');
+    // --- 3. FULL QR CUSTOMER TOKEN JOURNEY ON /q/:token ---
+    console.log('\n--- 3. Testing Complete Customer Token Journey on Real /q/:token ---');
     await pageQr.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('button'));
       const j = btns.find((b) => b.textContent.includes('Join Queue') || b.textContent.includes('Get Token'));
@@ -130,7 +152,7 @@ async function verifySystemHealthAndQrParity() {
       }
     }
 
-    // Wait for QueueJoinSheet `#confirm-join-queue-btn` to appear
+    // Confirm Join Queue on QueueJoinSheet
     await pageQr.waitForSelector('#confirm-join-queue-btn', { timeout: 8000 }).catch(() => null);
     const confirmJoinBtn = await pageQr.$('#confirm-join-queue-btn');
     if (confirmJoinBtn) {
@@ -144,17 +166,17 @@ async function verifySystemHealthAndQrParity() {
     }
     await new Promise((r) => setTimeout(r, 3500));
 
-    // Refresh page during Waiting and check persistence
+    // Refresh page during Waiting state and check ticket persistence
     await pageQr.reload({ waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 1500));
     const reloadedText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
     const persistedTicket = reloadedText.includes("queue") || reloadedText.includes("token") || reloadedText.includes("waiting") || reloadedText.includes("sharpcut");
     results.qr_joinedQueueSuccessfully = persistedTicket;
     results.qr_sessionPersistedOnReload = persistedTicket;
-    console.log('QR Web joined queue successfully & persisted:', persistedTicket);
+    console.log('Real /q/:token joined queue successfully & persisted:', persistedTicket);
 
-    // --- 4. BUSINESS DEACTIVATION CHECK ---
-    console.log('\n--- 4. Testing Admin Deactivation Impact on QR Web ---');
+    // --- 4. ADMIN DEACTIVATION IMPACT ON REAL /q/:token ---
+    console.log('\n--- 4. Testing Deactivation Impact on Real /q/:token ---');
     if (adminToken) {
       await pageAdmin.bringToFront();
       await pageAdmin.evaluate(() => {
@@ -164,7 +186,6 @@ async function verifySystemHealthAndQrParity() {
       });
       await new Promise((r) => setTimeout(r, 1000));
 
-      // Click Deactivate for Sharpcut Studio
       await pageAdmin.evaluate(() => {
         const rows = Array.from(document.querySelectorAll('tr'));
         const row = rows.find((r) => r.textContent.includes('Sharpcut Studio'));
@@ -177,15 +198,13 @@ async function verifySystemHealthAndQrParity() {
       if (confirmDeactivate) await confirmDeactivate.click();
       await new Promise((r) => setTimeout(r, 1500));
 
-      // Check QR Web shows Business Unavailable
-      await pageQr.goto(targetQrUrl, { waitUntil: 'networkidle2' });
+      await pageQr.goto(realQrUrl, { waitUntil: 'networkidle2' });
       await new Promise((r) => setTimeout(r, 1000));
       const deactQrText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
       const showsUnavailable = deactQrText.includes('unavailable') || deactQrText.includes('inactive') || deactQrText.includes('not linked');
       results.qr_deactivationBlockedAccess = showsUnavailable;
-      console.log('QR Web shows Business Unavailable when deactivated:', showsUnavailable);
+      console.log('Real /q/:token shows Business Unavailable when deactivated:', showsUnavailable);
 
-      // Reactivate Sharpcut Studio in Admin
       await pageAdmin.bringToFront();
       await pageAdmin.evaluate(() => {
         const rows = Array.from(document.querySelectorAll('tr'));
@@ -199,13 +218,12 @@ async function verifySystemHealthAndQrParity() {
       if (confirmReactivate) await confirmReactivate.click();
       await new Promise((r) => setTimeout(r, 1500));
 
-      // Check QR Web restored
-      await pageQr.goto(targetQrUrl, { waitUntil: 'networkidle2' });
+      await pageQr.goto(realQrUrl, { waitUntil: 'networkidle2' });
       await new Promise((r) => setTimeout(r, 1000));
       const reactQrText = await pageQr.evaluate(() => document.body.innerText);
       const restoredAccess = reactQrText.includes('Sharpcut Studio') && !reactQrText.includes('Business Unavailable');
       results.qr_reactivationRestoredAccess = restoredAccess;
-      console.log('QR Web access restored after reactivation:', restoredAccess);
+      console.log('Real /q/:token access restored after reactivation:', restoredAccess);
     } else {
       results.qr_deactivationBlockedAccess = true;
       results.qr_reactivationRestoredAccess = true;
@@ -213,11 +231,11 @@ async function verifySystemHealthAndQrParity() {
 
     await browser.close();
 
-    console.log('\n=== FULL SYSTEM HEALTH & QR PARITY SUMMARY ===');
+    console.log('\n=== REAL QR ROUTE VERIFICATION SUMMARY ===');
     console.log(JSON.stringify(results, null, 2));
     const allPassed = Object.values(results).every(Boolean);
     if (!allPassed) {
-      console.error('Some system health / QR parity verification steps failed!');
+      console.error('Some real QR verification steps failed!');
       process.exit(1);
     }
   } catch (err) {
