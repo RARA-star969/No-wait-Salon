@@ -29,6 +29,7 @@ import { missingProfileFields, resolveAppReadiness } from '../shared/profileRead
 import { QueueJoinSheet } from './QueueJoinSheet';
 import { SalonDetailPage } from './SalonDetailPage';
 import { ThankYouScreen } from './ThankYouScreen';
+import { LiveTicket, type JourneyStage, type TicketPerson } from './LiveTicket';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -469,6 +470,43 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const countdown = formatCountdown(remainingMs(entry || {}, now));
   const acknowledged = Boolean(entry?.acknowledgedAt);
   const position = peopleAhead + 1;
+  const estimatedMinutes = barbersActive > 0
+    ? Math.max(5, Math.ceil((peopleAhead * 15) / Math.max(1, barbersActive)))
+    : 0;
+  const joinedAtTimeLabel = entry?.createdAt
+    ? new Date(entry.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+    : undefined;
+  const calledAtTimeLabel = entry?.calledAt
+    ? new Date(entry.calledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })
+    : undefined;
+  const journeyStage: JourneyStage = !entry
+    ? 'joined'
+    : entry.status === 'Serving' || entry.status === 'Called'
+      ? 'your-turn'
+      : (peopleAhead <= 1 || estimatedMinutes <= 10)
+        ? 'upcoming'
+        : 'in-queue';
+  const ticketPosition = !entry || entry.status === 'Called' || entry.status === 'Serving' ? 0 : position;
+  const ticketPeopleAround: TicketPerson[] = (() => {
+    if (!entry) return [];
+    const ordered = queue
+      .filter((item) => ['Waiting', 'Called', 'Serving'].includes(item.status))
+      .sort((a, b) => a.createdAt - b.createdAt);
+    const myIndex = ordered.findIndex((item) => item.id === entry.id);
+    if (myIndex < 0) return [];
+    return ordered.slice(Math.max(0, myIndex - 2), myIndex + 3).map((item) => {
+      const absoluteIndex = ordered.findIndex((candidate) => candidate.id === item.id);
+      const isMe = item.id === entry.id;
+      return {
+        id: item.id,
+        label: isMe ? 'YOU' : (item.name || 'Customer').trim().slice(0, 1).toUpperCase(),
+        positionNumber: absoluteIndex + 1,
+        relLabel: isMe ? 'Current token' : absoluteIndex < myIndex ? 'Ahead of you' : 'Behind you',
+        photoUrl: item.customerPhotoUrl,
+        isMe,
+      };
+    });
+  })();
 
   return (
     <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
@@ -625,128 +663,113 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
       {/* ---------------- LIVE TICKET / QUEUED VIEW ---------------- */}
       {isQueued && entry && !completed && (
-        <main className="mx-auto max-w-md px-4 pb-12 pt-4">
-          <div className="text-center">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#0F766E] text-white shadow-sm">
-              {completed ? <CheckCircle2 className="h-7 w-7" /> : <Check className="h-7 w-7" />}
-            </div>
-            <h1 className="mt-3 text-[19px] font-extrabold tracking-[-0.01em]">
-              {cancelledByStaff
-                ? 'The salon cancelled your booking'
-                : cancelledByCustomer
-                  ? 'Booking cancelled'
-                  : completed
-                    ? 'Service complete'
-                    : noShow
-                      ? 'You missed your turn'
-                      : arrivalExpired
-                        ? 'Your arrival window has ended'
-                        : phase === 'called'
-                          ? acknowledged
-                            ? 'On your way'
-                            : "It's your turn!"
-                          : inService
-                            ? 'In service'
-                            : "You're in the queue!"}
-            </h1>
-            <p className="mt-1 text-[13px] text-[#667371]">
-              {phase === 'called' || inService || completed || noShow || arrivalExpired || cancelled
-                ? `${business.name} · ${entry.service}`
-                : "We'll notify you when it's your turn"}
-            </p>
+        <main id="qr-live-ticket-screen" className="mx-auto max-w-md space-y-4 px-5 pb-12 pt-4">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">Live Ticket</div>
+            <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Your live queue</h1>
+            <p className="mt-0.5 text-xs text-[#6F7C7A]">{business.name} · {entry.service}</p>
           </div>
 
-          <div className="mt-4">
-            <LiveQueueCard
-              waitLabel={isQueued ? estimatedWait : salonProfile.liveWaitMinutes > 0 ? waitLabel(salonProfile.liveWaitMinutes) : 'Ready now'}
-              peopleAhead={peopleAhead}
-              peopleAheadTrend={aheadTrend}
-              readyChairs={barbersAvailable}
-              totalChairs={barbersActive}
-              live={business.queueAccepting}
-              activityLabel={`${business.name} · ${entry.service}`}
-            />
-          </div>
-
-          {/* TURN CALL / ACKNOWLEDGEMENT BANNER */}
-          {phase === 'called' && !acknowledged && (
-            <div className="mt-4 rounded-3xl border border-teal-300 bg-teal-50/90 p-5 shadow-lg animate-in zoom-in-95 duration-200">
-              <div className="flex items-center gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-teal-600 text-white">
-                  <BellRing className="h-5 w-5 animate-bounce" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-teal-950">It's your turn now!</h3>
-                  <p className="text-xs text-teal-800">Please arrive within {countdown}.</p>
-                </div>
+          {cancelled || noShow ? (
+            <div className="rounded-2xl border border-[#E1E7E6] bg-white p-6 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#0F766E]/10 text-[#0F766E]">
+                <CheckCircle2 className="h-7 w-7" />
               </div>
-              <button
-                type="button"
-                onClick={acknowledgeTurn}
-                className="mt-4 h-12 w-full rounded-2xl bg-teal-700 font-extrabold text-white shadow-md hover:bg-teal-800"
-              >
-                I'm on my way
-              </button>
-            </div>
-          )}
-
-          {phase === 'called' && acknowledged && (
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-800">
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                Staff notified that you are on your way!
-              </span>
-              <span className="font-mono text-emerald-900">{countdown}</span>
-            </div>
-          )}
-
-          {/* TICKET DETAILS CARD */}
-          <div className="mt-4 rounded-3xl border border-[#E2EAE9] bg-white p-5 shadow-sm space-y-3">
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Token Number</span>
-              <span className="font-mono font-bold text-slate-900">#{entry.id.slice(-4).toUpperCase()}</span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Service</span>
-              <span className="font-semibold text-slate-900">{entry.service}</span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>Stylist Preference</span>
-              <span className="font-semibold text-slate-900">
-                {entry.preferredBarberId
-                  ? barbers.find((b) => b.id === entry.preferredBarberId)?.name || 'Any Stylist'
-                  : 'Any Stylist'}
-              </span>
-            </div>
-            <div className="flex justify-between text-xs text-slate-500 border-t pt-3">
-              <span>Queue Status</span>
-              <span className="font-bold text-teal-700 capitalize">{entry.status}</span>
-            </div>
-          </div>
-
-          {canCancel(entry.status) && (
-            <div className="mt-4 text-center">
-              <button
-                type="button"
-                onClick={() => setCancelOpen(true)}
-                className="text-xs font-semibold text-rose-600 hover:underline"
-              >
-                Cancel Booking
-              </button>
-            </div>
-          )}
-
-          {(completed || cancelled || noShow) && (
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={rejoin}
-                className="rounded-2xl bg-[#0F766E] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0D5E5E]"
-              >
+              <h2 className="mt-3 text-lg font-extrabold text-[#17201F]">
+                {cancelledByStaff ? 'The salon cancelled your booking' : cancelledByCustomer ? 'Booking cancelled' : 'You missed your turn'}
+              </h2>
+              <button type="button" onClick={rejoin} className="mt-5 rounded-xl bg-[#0F766E] px-5 py-2.5 text-xs font-bold text-white">
                 Book another service
               </button>
             </div>
+          ) : (
+            <LiveTicket
+              salonName={business.name}
+              token={entry.token || entry.id.slice(-4).toUpperCase()}
+              position={ticketPosition}
+              waitLabel={entry.status === 'Called' ? 'Ready now' : entry.status === 'Serving' ? 'In progress' : estimatedWait}
+              stage={journeyStage}
+              acknowledgeEnabled={entry.status === 'Called'}
+              acknowledgeBusy={busy}
+              onAcknowledge={acknowledgeTurn}
+              onCancel={() => setCancelOpen(true)}
+              peopleAround={ticketPeopleAround}
+              joinedAtTimeLabel={joinedAtTimeLabel}
+              calledAtTimeLabel={calledAtTimeLabel}
+              callTimerRemainingLabel={entry.status === 'Called' ? countdown : undefined}
+              isCalledState={entry.status === 'Called'}
+              isUpcomingState={entry.status === 'Waiting' && (peopleAhead <= 1 || estimatedMinutes <= 10)}
+              isServingState={entry.status === 'Serving'}
+              isAcknowledged={acknowledged}
+              callExpired={arrivalExpired}
+              upcomingPeopleAhead={peopleAhead}
+              upcomingApproxTimeLabel={estimatedWait}
+              totalPriceInr={entry.totalPriceInr || 250}
+              discountInr={entry.discountInr || 0}
+              servicesList={entry.services || [entry.service]}
+              paymentStatus={entry.paymentStatus || 'unpaid'}
+              paymentMethod={entry.paymentMethod}
+              onPayOnline={() => {
+                void realtimeQueueService.command(business.id, {
+                  type: 'queue_action',
+                  itemId: entry.id,
+                  action: 'Pay-online',
+                });
+              }}
+              onPayCash={() => {
+                void realtimeQueueService.command(business.id, {
+                  type: 'queue_action',
+                  itemId: entry.id,
+                  action: 'Pay-cash',
+                });
+              }}
+            />
           )}
+
+          {!cancelled && !noShow && (
+            <div id="qr-live-alert-card" className="space-y-2.5 rounded-2xl border border-[#E1E7E6] bg-white p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BellRing className="h-4 w-4 text-[#0F766E]" />
+                  <span className="text-xs font-bold text-[#17201F]">Live Queue Alerts</span>
+                </div>
+                <span className="rounded-full bg-[#E7F5F2] px-2 py-0.5 text-[10px] font-bold uppercase text-[#0F766E]">
+                  {notifyState === 'granted' ? 'Alerts Enabled' : 'Live Updates Active'}
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-[#6F7C7A]">
+                Keep this page available for real-time queue changes. We will alert you when your turn is called.
+              </p>
+              {notifyState === 'default' && (
+                <button
+                  type="button"
+                  onClick={() => void requestTurnNotifications().then(setNotifyState)}
+                  className="w-full rounded-xl bg-[#0F766E] px-3 py-2 text-[11px] font-bold text-white"
+                >
+                  Enable Browser Alerts
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(business.name + ' ' + business.address)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-2xl border border-[#E1E7E6] bg-white p-3 text-center text-xs font-semibold text-[#17201F]"
+            >
+              Get Directions
+            </a>
+            <a
+              href={business.phoneNumber ? `tel:${business.phoneNumber}` : undefined}
+              className="rounded-2xl border border-[#E1E7E6] bg-white p-3 text-center text-xs font-semibold text-[#17201F]"
+            >
+              Call Salon
+            </a>
+          </div>
+
+          {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</p>}
         </main>
       )}
 
