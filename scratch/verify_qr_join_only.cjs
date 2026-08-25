@@ -49,6 +49,20 @@ async function waitForAny(page, selectors, timeout = 12000) {
   throw new Error(`Timed out waiting for ${selectors.join(' OR ')}. Screen: ${(await text(page)).slice(0, 900)}`);
 }
 
+async function viewportState(page, selector) {
+  return page.$eval(selector, (element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top,
+      bottom: rect.bottom,
+      height: rect.height,
+      viewportHeight: window.innerHeight,
+      scrollY: window.scrollY,
+      visible: rect.bottom > 0 && rect.top < window.innerHeight && rect.height > 0,
+    };
+  });
+}
+
 async function main() {
   const qr = await fetchJson(`/api/public/qr-token/${SALON_ID}`);
   if (!qr.token) throw new Error('No active QR token returned for salon-1.');
@@ -57,6 +71,8 @@ async function main() {
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const runtimeErrors = [];
   const badResponses = [];
+  let onboardingViewport = null;
+  let waitingViewport = null;
 
   try {
     const page = await browser.newPage();
@@ -90,11 +106,23 @@ async function main() {
 
     await page.click('button[id^="service-toggle-"]');
     await sleep(350);
-    await page.click('#join-live-queue-btn');
+
+    // Reproduce the real mobile failure: the salon detail page is tall and the
+    // sticky Join Queue control can be tapped while the document is deeply
+    // scrolled. The next short onboarding screen must reset to the viewport top
+    // rather than rendering above the preserved scroll position.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await sleep(150);
+    await page.evaluate(() => document.querySelector('#join-live-queue-btn')?.click());
     await sleep(350);
 
     const firstStep = await waitForAny(page, ['#queue-join-sheet', 'input[type="tel"]'], 10000);
     console.log(`QR_DIAG join_click=${firstStep === '#queue-join-sheet' ? 'SHEET' : 'PHONE'}`);
+    onboardingViewport = await viewportState(page, firstStep);
+    console.log(`QR_DIAG onboarding_visible=${onboardingViewport.visible} scrollY=${onboardingViewport.scrollY}`);
+    if (!onboardingViewport.visible || onboardingViewport.scrollY > 8) {
+      throw new Error(`QR onboarding exists but is outside the mobile viewport after Join Queue: ${JSON.stringify(onboardingViewport)}`);
+    }
 
     if (firstStep === 'input[type="tel"]') {
       const suffix = String(Date.now()).slice(-8);
@@ -134,6 +162,18 @@ async function main() {
       await sleep(250);
     }
 
+    if (waitingSeen) {
+      waitingViewport = await page.evaluate(() => ({
+        scrollY: window.scrollY,
+        viewportHeight: window.innerHeight,
+        bodyHeight: document.documentElement.scrollHeight,
+        visibleText: (document.body.innerText || '').includes("You're in the queue!"),
+      }));
+      if (waitingViewport.scrollY > 8 || !waitingViewport.visibleText) {
+        throw new Error(`Waiting ticket rendered outside expected mobile viewport: ${JSON.stringify(waitingViewport)}`);
+      }
+    }
+
     const auth = await page.evaluate(() => {
       try { return JSON.parse(localStorage.getItem('no_wait_salon_customer_auth_v1') || 'null'); } catch { return null; }
     });
@@ -145,7 +185,10 @@ async function main() {
 
     console.log(JSON.stringify({
       QR_JOIN_DIAGNOSTIC: {
+        onboarding_visible_after_deep_scroll: Boolean(onboardingViewport?.visible),
+        onboarding_scroll_y: onboardingViewport?.scrollY ?? null,
         waiting_ui: waitingSeen,
+        waiting_scroll_y: waitingViewport?.scrollY ?? null,
         auth_customer: Boolean(auth?.customerId),
         dashboard_backend_entry: Boolean(backendEntry),
         entry_status: backendEntry?.status || null,
