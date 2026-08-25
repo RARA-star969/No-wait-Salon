@@ -863,7 +863,7 @@ function resolveStaffSession(request: express.Request) {
       return {
         staffId: account.staff_id || `test-${account.business_id}`,
         email: account.email || `test@${account.business_id}.test`,
-        name: account.name || `${account.businessName} Staff`,
+        name: account.name || `${account.business_name} Staff`,
         role: account.role || testRoleHeader || 'owner',
         businessId: account.business_id,
         businessName: account.business_name,

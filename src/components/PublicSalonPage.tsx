@@ -274,17 +274,29 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       setBusy(true);
       setError('');
       try {
+        if (selectedServiceIds.length === 0) {
+          throw new Error('Please choose at least one service before getting a token.');
+        }
         const result = await businessQrService.join(
           token,
-          selectedServiceIds.length > 0 ? selectedServiceIds : [selectedService || 'Haircut'],
+          selectedServiceIds,
           sessionId.current,
           'qr_web',
           preferredBarberId || undefined,
         );
-        const joined = result.entry as QueueItem;
+        const joined = (
+          result.entry ||
+          result.state?.queue?.find(
+            (item: QueueItem) => item.sessionId === sessionId.current || (auth && item.customerId === auth.customerId),
+          )
+        ) as QueueItem | undefined;
+        if (!joined) {
+          throw new Error('Your token was created but the live ticket could not be loaded. Please refresh this page.');
+        }
         setEntry(joined);
-        lastStatus.current = joined?.status || null;
+        lastStatus.current = joined.status || null;
         if (result.state?.queue) setQueue(result.state.queue);
+        if (result.state?.completedList) setCompletedList(result.state.completedList);
         if (consent) void businessQrService.setMarketingConsent(true);
         void businessQrService.recordVisit(token, { appCtaShown: true });
         setJoinSheetOpen(false);
@@ -295,7 +307,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         setBusy(false);
       }
     },
-    [business, consent, selectedServiceIds, selectedService, token],
+    [auth, business, consent, selectedServiceIds, token],
   );
 
   const requestOtp = async () => {
@@ -702,19 +714,18 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       {/* QUEUE JOIN SHEET */}
       {joinSheetOpen && business && (
         <QueueJoinSheet
-          isOpen={joinSheetOpen}
-          salonName={business.name}
-          selectedServices={
-            selectedServiceIds.length > 0
-              ? selectedServiceIds.map((id) => {
-                  const item = (salonProfile.services || []).find((s) => s.id === id);
-                  return { id, name: item?.name || id, price: item?.price || 0, duration: item?.duration || 15 };
-                })
-              : [{ id: 'haircut', name: selectedService || 'Haircut', price: 299, duration: 30 }]
-          }
+          open={joinSheetOpen}
+          salon={business}
+          services={(business.services || []).filter((service) => selectedServiceIds.includes(service.id))}
           barbers={barbers}
+          queue={queue}
           busy={busy}
           error={error}
+          customerName={customerProfile?.name || undefined}
+          offers={business.offers || []}
+          appliedOfferId={appliedOfferId}
+          onApplyOffer={(id) => setAppliedOfferId(id)}
+          onRemoveOffer={() => setAppliedOfferId(null)}
           onClose={() => setJoinSheetOpen(false)}
           onConfirm={(preferredId) => void confirmJoin(preferredId)}
         />
