@@ -54,4 +54,85 @@ mark('src/components/PublicSalonPage.tsx', patchSection(
   'QR join confirmation and live-ticket transition',
 ));
 
+// QR onboarding must obey the same required-profile contract as the Customer
+// app. Previously the QR page only checked/saved the name while the shared
+// readiness rule requires both name + gender, leaving physical users stuck in
+// the OTP/profile -> Get Token handoff.
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "import { resolveAppReadiness } from '../shared/profileReadiness';",
+  "import { missingProfileFields, resolveAppReadiness } from '../shared/profileReadiness';",
+  'shared profile readiness import',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "  const [email, setEmail] = useState('');\n  const [consent, setConsent] = useState(false);",
+  "  const [email, setEmail] = useState('');\n  const [gender, setGender] = useState('');\n  const [consent, setConsent] = useState(false);",
+  'QR gender state',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchSection(
+  'src/components/PublicSalonPage.tsx',
+  "  const requestOtp = async () => {",
+  "  const verifyOtp = async () => {",
+  `  const requestOtp = async () => {\n    const cleanedPhone = phone.replace(/\\D/g, '').slice(-10);\n    if (cleanedPhone.length !== 10) {\n      setError('Please enter a valid 10-digit mobile number.');\n      return;\n    }\n    setPhone(cleanedPhone);\n    setBusy(true);\n    setError('');\n    try {\n      const result = await realtimeQueueService.requestOtp(cleanedPhone);\n      setChallengeId(result.challengeId);\n      setDemoCode(result.demoCode || '');\n      setStep('otp');\n    } catch (reason) {\n      setError(reason instanceof Error ? reason.message : 'Could not send the code. Please try again.');\n    } finally {\n      setBusy(false);\n    }\n  };\n\n`,
+  'QR phone normalization',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchSection(
+  'src/components/PublicSalonPage.tsx',
+  "  const verifyOtp = async () => {",
+  "  const saveProfileAndJoin = async () => {",
+  `  const verifyOtp = async () => {\n    setBusy(true);\n    setError('');\n    try {\n      const verified = await realtimeQueueService.verifyOtp(challengeId, code.trim());\n      const session: CustomerAuthSession = {\n        token: verified.token,\n        customerId: verified.customerId,\n        phoneNumber: verified.phone,\n      };\n      persistAuth(session);\n      const profile = await customerAccountService.getProfile().catch(() => null);\n      setCustomerProfile(profile);\n      if (profile && missingProfileFields(profile).length === 0) {\n        setStep('salon');\n        setJoinSheetOpen(true);\n        return;\n      }\n      if (profile?.name) setName(profile.name);\n      if (profile?.email) setEmail(profile.email);\n      if (profile?.gender) setGender(profile.gender);\n      setStep('profile');\n    } catch (reason) {\n      setError(reason instanceof Error ? reason.message : 'That code did not match. Please try again.');\n    } finally {\n      setBusy(false);\n    }\n  };\n\n`,
+  'QR OTP to profile/token handoff',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchSection(
+  'src/components/PublicSalonPage.tsx',
+  "  const saveProfileAndJoin = async () => {",
+  "  const handleJoinClick = useCallback(() => {",
+  `  const saveProfileAndJoin = async () => {\n    if (name.trim().length < 2) return setError('Please enter your name.');\n    if (!gender) return setError('Please select your gender.');\n    setBusy(true);\n    setError('');\n    try {\n      const updated = await customerAccountService.updateProfile({\n        name: name.trim(),\n        email: email.trim(),\n        dateOfBirth: '',\n        gender,\n        anniversary: '',\n        city: '',\n      });\n      setCustomerProfile(updated);\n      setStep('salon');\n      setJoinSheetOpen(true);\n    } catch (reason) {\n      setError(reason instanceof Error ? reason.message : 'Could not save your details.');\n    } finally {\n      setBusy(false);\n    }\n  };\n\n`,
+  'QR profile save and queue-sheet transition',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "    const readiness = resolveAppReadiness(auth, customerProfile, profileLoading);",
+  "    const readiness = resolveAppReadiness(auth, customerProfile, { profileLoading });",
+  'QR readiness loading options',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "            <h1 className=\"mt-1 text-[20px] font-extrabold\">What is your name?</h1>\n            <p className=\"mt-1 text-xs text-[#667371]\">Staff will use this name when calling your turn.</p>",
+  "            <h1 className=\"mt-1 text-[20px] font-extrabold\">A couple of quick details</h1>\n            <p className=\"mt-1 text-xs text-[#667371]\">Name and gender are required so staff can identify your booking. Email stays optional.</p>",
+  'QR profile copy',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "              <label className=\"grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]\">\n                Email (Optional)",
+  "              <label className=\"grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]\">\n                Gender\n                <select\n                  id=\"qr-profile-gender\"\n                  value={gender}\n                  onChange={(e) => { setGender(e.target.value); setError(''); }}\n                  className=\"h-12 rounded-2xl border border-[#DDE7E5] bg-white px-4 text-base font-semibold outline-none focus:border-[#0F766E]\"\n                >\n                  <option value=\"\" disabled>Select gender</option>\n                  <option value=\"Woman\">Woman</option>\n                  <option value=\"Man\">Man</option>\n                  <option value=\"Non-binary\">Non-binary</option>\n                  <option value=\"Prefer not to say\">Prefer not to say</option>\n                </select>\n              </label>\n              <label className=\"grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]\">\n                Email (Optional)",
+  'QR gender field',
+));
+
+mark('src/components/PublicSalonPage.tsx', patchOnce(
+  'src/components/PublicSalonPage.tsx',
+  "                disabled={busy || name.trim().length < 2}\n                onClick={() => void saveProfileAndJoin()}",
+  "                disabled={busy || name.trim().length < 2 || !gender}\n                onClick={() => void saveProfileAndJoin()}",
+  'QR profile continue gating',
+));
+
+// Some QR scans open in embedded camera/Lens browsers where crypto.randomUUID
+// is unavailable even on HTTPS. The join must still produce a request id rather
+// than throwing before the API call, otherwise the user appears stuck after
+// OTP/profile when pressing Get Token.
+mark('src/services/businessQrService.ts', patchOnce(
+  'src/services/businessQrService.ts',
+  "  join:(token:string,serviceIds:string|string[],sessionId:string,source:'qr_walk_in'|'qr_web'='qr_walk_in',preferredBarberId?:string)=>request<{joined:boolean;reason?:'already_in_queue';entry:any;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceIds:Array.isArray(serviceIds)?serviceIds:[serviceIds],sessionId,source,preferredBarberId:preferredBarberId||undefined,requestId:crypto.randomUUID()})}),",
+  "  join:(token:string,serviceIds:string|string[],sessionId:string,source:'qr_walk_in'|'qr_web'='qr_walk_in',preferredBarberId?:string)=>{const requestId=globalThis.crypto?.randomUUID?.()||`qr-${Date.now()}-${Math.random().toString(36).slice(2)}`;return request<{joined:boolean;reason?:'already_in_queue';entry:any;state:any}>(`/api/business-qr/${encodeURIComponent(token)}/join`,{method:'POST',body:JSON.stringify({serviceIds:Array.isArray(serviceIds)?serviceIds:[serviceIds],sessionId,source,preferredBarberId:preferredBarberId||undefined,requestId})});},",
+  'embedded-browser request id fallback',
+));
+
 console.log(JSON.stringify({ changed }, null, 2));
