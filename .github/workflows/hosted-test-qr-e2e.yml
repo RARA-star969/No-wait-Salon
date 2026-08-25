@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   group: hosted-test-qr-e2e
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   verify:
