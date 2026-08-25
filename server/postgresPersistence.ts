@@ -1,6 +1,7 @@
 import {copyFileSync,existsSync,mkdirSync} from 'node:fs';
 import path from 'node:path';
 import type {DatabaseSync} from 'node:sqlite';
+import {SALONS} from '../src/data/mockData.ts';
 import {createDatabase,type Database} from './database.ts';
 import {runMigrations} from './migrations.ts';
 
@@ -57,6 +58,49 @@ async function replaceSqlite(sqlite:DatabaseSync,postgres:Database){
   return counts;
 }
 
+type SeedBackfill={salon:Record<string,unknown>;services:Record<string,unknown>[];hours:Record<string,unknown>[]};
+
+function buildMissingSeedBackfills(sqlite:DatabaseSync):SeedBackfill[]{
+  const now=Date.now();
+  const result:SeedBackfill[]=[];
+  const insertSalon=sqlite.prepare(`INSERT OR IGNORE INTO salon (${tables.salon.join(',')}) VALUES (${placeholders(tables.salon.length)})`);
+  const insertService=sqlite.prepare(`INSERT OR IGNORE INTO salon_service (${tables.salon_service.join(',')}) VALUES (${placeholders(tables.salon_service.length)})`);
+  const insertHours=sqlite.prepare(`INSERT OR IGNORE INTO salon_hours (${tables.salon_hours.join(',')}) VALUES (${placeholders(tables.salon_hours.length)})`);
+  for(const source of SALONS as any[]){
+    if(sqlite.prepare('SELECT 1 ok FROM salon WHERE id = ?').get(source.id))continue;
+    const salon:Record<string,unknown>={
+      id:source.id,name:source.name,address:source.address,latitude:source.latitude,longitude:source.longitude,rating:source.rating,
+      review_count:source.reviewCount,is_open:source.isOpen?1:0,opening_hours:source.openingHours,services_json:JSON.stringify(source.services||[]),
+      barbers_json:'[]',onboarded:1,created_at:now,category:source.category||'',phone_number:source.phoneNumber||'',description:source.description||'',
+      cover_image_url:source.coverImageUrl||'',logo_image_url:source.logoImageUrl||'',amenities_json:JSON.stringify(source.amenities||[]),offers_json:JSON.stringify(source.offers||[]),
+      gallery_json:JSON.stringify(source.gallery||[]),brand_key:source.brandKey||'',short_description:source.shortDescription||'',email:source.email||'',website_url:source.websiteUrl||'',
+      area:source.area||'',city:source.city||'',state:source.state||'',pin_code:source.pinCode||'',promotional_banner_url:source.promotionalBannerUrl||'',platform_status:'active',
+      main_category_id:source.mainCategoryId||'salon',updated_at:now,
+    };
+    insertSalon.run(...tables.salon.map(column=>salon[column]??null) as any[]);
+    const services=(source.services||[]).map((service:any,index:number)=>({
+      id:`${source.id}-${service.id}`,salon_id:source.id,name:service.name,category:'',price_inr:service.priceInr,duration_min:service.durationMin,
+      description:service.description||'',image_url:service.icon||'',active:1,sort_order:index,created_at:now,updated_at:now,
+    }));
+    for(const row of services)insertService.run(...tables.salon_service.map(column=>row[column as keyof typeof row]??null) as any[]);
+    const hours=Array.from({length:7},(_,day)=>({salon_id:source.id,day_of_week:day,open_time:'09:00',close_time:'21:00',closed:0}));
+    for(const row of hours)insertHours.run(...tables.salon_hours.map(column=>row[column as keyof typeof row]??null) as any[]);
+    result.push({salon,services,hours});
+  }
+  return result;
+}
+
+async function persistMissingSeedBackfills(postgres:Database,backfills:SeedBackfill[]){
+  if(!backfills.length)return;
+  await postgres.transaction(async tx=>{
+    for(const backfill of backfills){
+      await tx.run(`INSERT INTO salon (${tables.salon.join(',')}) VALUES (${placeholders(tables.salon.length)}) ON CONFLICT(id) DO NOTHING`,tables.salon.map(column=>backfill.salon[column]??null));
+      for(const row of backfill.services)await tx.run(`INSERT INTO salon_service (${tables.salon_service.join(',')}) VALUES (${placeholders(tables.salon_service.length)}) ON CONFLICT(id) DO NOTHING`,tables.salon_service.map(column=>row[column]??null));
+      for(const row of backfill.hours)await tx.run(`INSERT INTO salon_hours (${tables.salon_hours.join(',')}) VALUES (${placeholders(tables.salon_hours.length)}) ON CONFLICT(salon_id,day_of_week) DO NOTHING`,tables.salon_hours.map(column=>row[column]??null));
+    }
+  });
+}
+
 export async function initPostgresPersistence(sqlite:DatabaseSync,dataDir:string){
   if(!process.env.DATABASE_URL)return null;
   const postgres=await createDatabase(dataDir);await runMigrations(postgres);
@@ -64,6 +108,7 @@ export async function initPostgresPersistence(sqlite:DatabaseSync,dataDir:string
   const backupPath=path.join(backupDir,`pre-postgres-${Date.now()}.sqlite`);if(existsSync(databasePath))copyFileSync(databasePath,backupPath);
   const persisted=Number((await postgres.get<{count:number}>('SELECT COUNT(*) count FROM salon'))?.count||0);
   const initialCounts=persisted?await replaceSqlite(sqlite,postgres):await replacePostgres(sqlite,postgres);
+  if(persisted){const missingSeedBackfills=buildMissingSeedBackfills(sqlite);await persistMissingSeedBackfills(postgres,missingSeedBackfills)}
   let pending=Promise.resolve(initialCounts);let timer:ReturnType<typeof setTimeout>|undefined;
   const flushNow=(selected?:string[])=>{pending=pending.then(()=>replacePostgres(sqlite,postgres,selected));return pending};
 
