@@ -42,7 +42,7 @@ mark('server/index.ts', replaceOnce(
 mark('server/index.ts', replaceOnce(
   'server/index.ts',
   `    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';\n    db.exec('BEGIN IMMEDIATE');\n    db.prepare(\`UPDATE salon SET`,
-  `    const mainCategoryId = resolveAdminMainCategoryId(body, String(existing.main_category_id || existing.mainCategoryId || 'salon'));\n    db.exec('BEGIN IMMEDIATE');\n    db.prepare(\`UPDATE salon SET`,
+  `    const mainCategoryId = resolveAdminMainCategoryId(body, String(existing.main_category_id || 'salon'));\n    db.exec('BEGIN IMMEDIATE');\n    db.prepare(\`UPDATE salon SET`,
   'Update listing preserves/validates category',
 ));
 
