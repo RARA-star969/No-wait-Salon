@@ -27,6 +27,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NO_WAIT_TEST_DEPLOYMENT
+        value: "true"
       - key: DATA_DIR
         value: /tmp/no-wait-salon-test-data
       # Same-origin: the container serves both the web page and the API, so the

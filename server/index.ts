@@ -814,7 +814,13 @@ if (isProduction) {
   }
 }
 
-if (process.env.NODE_ENV !== 'production') {
+const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();
+const renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();
+const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
+  || dataDir.includes('no-wait-salon-test-data')
+  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
+  || renderServiceName === 'no-wait-salon-web-test';
+if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
   const demoStaffAccounts = [
     { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
     { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
@@ -1232,6 +1238,23 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       } as QueueItem,
       ...state.completedList,
     ].slice(0, 100);
+    return state;
+  }
+
+  if (command.type === 'queue_action' && command.action === 'Submit-rating') {
+    const queueIdx = state.queue.findIndex((item) => item.id === command.itemId);
+    const completedIdx = state.completedList.findIndex((item) => item.id === command.itemId);
+    const target = queueIdx >= 0 ? state.queue[queueIdx] : completedIdx >= 0 ? state.completedList[completedIdx] : undefined;
+    if (!target) throw new Error('Booking no longer exists. Refreshing the latest history.');
+    const rating = Math.max(1, Math.min(5, Math.round(Number(command.rating) || 5)));
+    const updated = {
+      ...target,
+      rating,
+      feedbackTags: Array.isArray(command.feedbackTags) ? command.feedbackTags.slice(0, 12) : [],
+      feedbackComment: cleanText(command.feedbackComment, 300),
+    };
+    if (queueIdx >= 0) state.queue[queueIdx] = updated;
+    if (completedIdx >= 0) state.completedList[completedIdx] = updated;
     return state;
   }
 
