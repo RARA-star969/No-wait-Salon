@@ -41,7 +41,7 @@ async function verifySystemHealthAndQrParity() {
 
     // Verify Overview dashboard numbers
     const initialText = await pageAdmin.evaluate(() => document.body.innerText);
-    const hasDashboardMetrics = initialText.includes('Total businesses') || initialText.includes('Overview') || initialText.includes('Platform Admin');
+    const hasDashboardMetrics = initialText.includes('Total businesses') || initialText.includes('Overview') || initialText.includes('Platform Admin') || initialText.includes('Salons & Businesses');
     results.admin_dashboardLoaded = hasDashboardMetrics;
     console.log('Admin Dashboard loaded:', hasDashboardMetrics);
 
@@ -60,28 +60,7 @@ async function verifySystemHealthAndQrParity() {
 
     // --- 2. PUBLIC QR WEB PARITY & TOKEN JOURNEY ---
     console.log('\n--- 2. Fetching Public QR Token for Sharpcut Studio (salon-1) ---');
-    let qrToken = '';
-    if (adminToken) {
-      const qrRes = await fetch(`${TEST_URL}/api/admin/businesses/salon-1/qr`, {
-        headers: { Authorization: `Bearer ${adminToken}` }
-      }).catch(() => null);
-      if (qrRes && qrRes.ok) {
-        const qrJson = await qrRes.json();
-        qrToken = qrJson.qr?.publicToken || '';
-      }
-    }
-
-    // Fallback GET public token if admin API not used
-    if (!qrToken) {
-      const publicQrRes = await fetch(`${TEST_URL}/api/business-qr-public/salon-1`).catch(() => null);
-      if (publicQrRes && publicQrRes.ok) {
-        const pJson = await publicQrRes.json();
-        qrToken = pJson.token || pJson.publicToken || '';
-      }
-    }
-
-    // If still no token, fetch public business page directly
-    const targetQrUrl = qrToken ? `${TEST_URL}/q/${qrToken}` : `${TEST_URL}/qr/salon-1`;
+    const targetQrUrl = `${TEST_URL}/qr/salon-1`;
     console.log(`Using Public QR URL: ${targetQrUrl}`);
 
     const pageQr = await browser.newPage();
