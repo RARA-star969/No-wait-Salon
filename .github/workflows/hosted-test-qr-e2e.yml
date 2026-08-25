@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/hosted-test-qr-e2e.yml'
       - 'scratch/apply_qr_e2e_runtime_fixes.cjs'
+      - 'scratch/fix_qr_join_flow.cjs'
       - 'scratch/verify_hosted_qr_staff_e2e.cjs'
       - 'server/index.ts'
       - 'src/components/PublicSalonPage.tsx'
@@ -39,6 +40,9 @@ jobs:
 
       - name: Apply scoped runtime fixes
         run: node scratch/apply_qr_e2e_runtime_fixes.cjs
+
+      - name: Apply QR join flow repair
+        run: node scratch/fix_qr_join_flow.cjs
 
       - name: Commit scoped fixes to TEST
         shell: bash
