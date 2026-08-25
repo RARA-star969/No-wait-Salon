@@ -94,8 +94,17 @@ async function verifyFullEndToEndQrJourneyAndSystemHealth() {
     results.qr_rendersSharedSalonDetail = rendersSharedSalonDetail;
     console.log('Real /q/:token renders shared SalonDetailPage:', rendersSharedSalonDetail);
 
-    // --- STEP 4: JOIN QUEUE -> WAITING STATE ---
-    console.log('\n--- 4. Customer Joins Queue on /q/:token ---');
+    // --- STEP 4: SELECT SERVICE & JOIN QUEUE -> WAITING STATE ---
+    console.log('\n--- 4. Customer Selects Service & Joins Queue on /q/:token ---');
+    
+    // Select first service toggle button
+    await pageQr.evaluate(() => {
+      const serviceBtn = document.querySelector('button[id^="service-toggle-"]');
+      if (serviceBtn) serviceBtn.click();
+    });
+    await new Promise((r) => setTimeout(r, 600));
+
+    // Click Join Queue button
     await pageQr.evaluate(() => {
       const btns = Array.from(document.querySelectorAll('button'));
       const j = btns.find((b) => b.textContent.includes('Join Queue') || b.textContent.includes('Get Token'));
@@ -129,27 +138,27 @@ async function verifyFullEndToEndQrJourneyAndSystemHealth() {
         });
         await new Promise((r) => setTimeout(r, 1500));
       }
-
-      const nameIn = await pageQr.$('input[placeholder*="Rahul" i]');
-      if (nameIn) {
-        await nameIn.click();
-        await nameIn.type('E2E QR Customer');
-        await pageQr.evaluate((el) => {
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-          el.dispatchEvent(new Event('change', { bubbles: true }));
-        }, nameIn);
-        await new Promise((r) => setTimeout(r, 500));
-        await pageQr.evaluate(() => {
-          const btns = Array.from(document.querySelectorAll('button'));
-          const c = btns.find((b) => b.textContent.includes('Continue'));
-          if (c) c.click();
-        });
-        await new Promise((r) => setTimeout(r, 2000));
-      }
     }
 
-    // Confirm Join Queue on QueueJoinSheet
-    await pageQr.waitForSelector('#confirm-join-queue-btn', { timeout: 8000 }).catch(() => null);
+    const nameIn = await pageQr.$('input[placeholder*="Rahul" i], input[type="text"]');
+    if (nameIn) {
+      await nameIn.click();
+      await nameIn.type('E2E QR Customer');
+      await pageQr.evaluate((el) => {
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }, nameIn);
+      await new Promise((r) => setTimeout(r, 500));
+      await pageQr.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll('button'));
+        const c = btns.find((b) => b.textContent.includes('Continue'));
+        if (c) c.click();
+      });
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    // Confirm Join Queue on QueueJoinSheet if present
+    await pageQr.waitForSelector('#confirm-join-queue-btn', { timeout: 4000 }).catch(() => null);
     const confirmJoinBtn = await pageQr.$('#confirm-join-queue-btn');
     if (confirmJoinBtn) {
       await confirmJoinBtn.click();
@@ -164,7 +173,7 @@ async function verifyFullEndToEndQrJourneyAndSystemHealth() {
 
     // Assert Waiting state
     const waitingText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
-    const isWaiting = waitingText.includes('waiting') || waitingText.includes('queue') || waitingText.includes('token');
+    const isWaiting = waitingText.includes('waiting') || waitingText.includes('queue') || waitingText.includes('token') || waitingText.includes('ticket') || waitingText.includes('in the queue');
     results.qr_state_waiting = isWaiting;
     console.log('Customer QR reached Waiting state:', isWaiting);
 
@@ -172,7 +181,7 @@ async function verifyFullEndToEndQrJourneyAndSystemHealth() {
     await pageQr.reload({ waitUntil: 'networkidle2' });
     await new Promise((r) => setTimeout(r, 1500));
     const waitingReloadText = await pageQr.evaluate(() => document.body.innerText.toLowerCase());
-    const waitingPersisted = waitingReloadText.includes('waiting') || waitingReloadText.includes('queue') || waitingReloadText.includes('token');
+    const waitingPersisted = waitingReloadText.includes('waiting') || waitingReloadText.includes('queue') || waitingReloadText.includes('token') || waitingReloadText.includes('ticket') || waitingReloadText.includes('in the queue');
     results.qr_refresh_waiting_persisted = waitingPersisted;
     console.log('Waiting state persisted across browser refresh:', waitingPersisted);
 

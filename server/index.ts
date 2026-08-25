@@ -696,6 +696,37 @@ db.exec(`
 
 const postgresPersistence=await initPostgresPersistence(db,dataDir);
 if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from ${postgresPersistence.source}. SQLite safety backup: ${postgresPersistence.backupPath}`);
+
+function safeBackfillSeeds(db: DatabaseSync): boolean {
+  let changed = false;
+  const now = Date.now();
+  const insertSalonStmt = db.prepare(`
+    INSERT INTO salon
+    (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json,
+     category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, onboarded, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+  `);
+
+  for (const salon of SALONS) {
+    const existing = db.prepare('SELECT id, main_category_id FROM salon WHERE id = ?').get(salon.id) as { id: string; main_category_id: string } | undefined;
+    if (!existing) {
+      insertSalonStmt.run(
+        salon.id, salon.name, salon.address, salon.latitude, salon.longitude, salon.rating,
+        salon.reviewCount, salon.isOpen ? 1 : 0, salon.openingHours, JSON.stringify(salon.services),
+        JSON.stringify(demoBarbers[salon.id] || []), salon.category || '', salon.mainCategoryId || 'salon', salon.phoneNumber || '', salon.description || '',
+        salon.coverImageUrl || '', salon.logoImageUrl || '', JSON.stringify(salon.amenities || []), JSON.stringify(salon.offers || []),
+        JSON.stringify(salon.gallery || []), salon.brandKey || '', now, now,
+      );
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+const seedBackfilled = safeBackfillSeeds(db);
+if (seedBackfilled && postgresPersistence) {
+  await postgresPersistence.flushNow(['salon', 'salon_hours', 'salon_service', 'salon_staff', 'salon_offer', 'salon_media']);
+}
 const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
 (db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
 if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
@@ -783,13 +814,7 @@ if (isProduction) {
   }
 }
 
-const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();
-const renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();
-const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
-  || dataDir.includes('no-wait-salon-test-data')
-  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
-  || renderServiceName === 'no-wait-salon-web-test';
-if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
+if (process.env.NODE_ENV !== 'production') {
   const demoStaffAccounts = [
     { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
     { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
@@ -798,17 +823,11 @@ if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
   ];
 
   for (const acc of demoStaffAccounts) {
-    const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id) as { id: string } | undefined;
-    const now = Date.now();
+    const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id);
     if (!existing) {
+      const now = Date.now();
       db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
         .run(acc.id, acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, now);
-    } else if (isExplicitTestDeployment) {
-      // Hosted TEST is disposable and must have deterministic credentials for a
-      // real /api/staff/login E2E. Production is unaffected because this branch
-      // can run only when the explicit test deployment marker is present.
-      db.prepare('UPDATE staff_account SET business_id=?, email=?, password_hash=?, name=?, role=?, active=1, updated_at=? WHERE id=?')
-        .run(acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, existing.id);
     }
   }
 }
@@ -1213,23 +1232,6 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       } as QueueItem,
       ...state.completedList,
     ].slice(0, 100);
-    return state;
-  }
-
-  if (command.type === 'queue_action' && command.action === 'Submit-rating') {
-    const queueIdx = state.queue.findIndex((item) => item.id === command.itemId);
-    const completedIdx = state.completedList.findIndex((item) => item.id === command.itemId);
-    const target = queueIdx >= 0 ? state.queue[queueIdx] : completedIdx >= 0 ? state.completedList[completedIdx] : undefined;
-    if (!target) throw new Error('Booking no longer exists. Refreshing the latest history.');
-    const rating = Math.max(1, Math.min(5, Math.round(Number(command.rating) || 5)));
-    const updated = {
-      ...target,
-      rating,
-      feedbackTags: Array.isArray(command.feedbackTags) ? command.feedbackTags.slice(0, 12) : [],
-      feedbackComment: cleanText(command.feedbackComment, 300),
-    };
-    if (queueIdx >= 0) state.queue[queueIdx] = updated;
-    if (completedIdx >= 0) state.completedList[completedIdx] = updated;
     return state;
   }
 
@@ -2071,20 +2073,12 @@ app.post('/api/admin/businesses/:businessId/qr/regenerate',requireAdmin,async(re
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to replace this QR right now. Please try again.'})}
 });
 
-function resolveAdminMainCategoryId(body: Record<string, unknown>, fallback?: string) {
-  const candidate = cleanText(body.main_category_id || body.mainCategoryId, 50) || cleanText(fallback, 50);
-  if (!candidate) throw new Error('Main category is required.');
-  const category = db.prepare('SELECT id FROM main_category WHERE id = ?').get(candidate) as { id: string } | undefined;
-  if (!category) throw new Error('Select a valid main category.');
-  return category.id;
-}
-
 app.post('/api/admin/salons', requireAdmin, async (request, response) => {
   try {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
     const latitude = parseCoordinate(body.latitude, -90, 90, 'Latitude'); const longitude = parseCoordinate(body.longitude, -180, 180, 'Longitude');
-    const mainCategoryId = resolveAdminMainCategoryId(body);
+    const mainCategoryId = cleanText(body.main_category_id || body.mainCategoryId, 50) || 'salon';
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
       category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at)
@@ -2102,7 +2096,8 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
     const existing = adminSalonDetail(request.params.id); if (!existing) return response.status(404).json({ error: 'Salon not found.' });
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name,150); if (!name) throw new Error('Salon name is required.');
     const latitude = parseCoordinate(body.latitude,-90,90,'Latitude'); const longitude = parseCoordinate(body.longitude,-180,180,'Longitude'); const now=Date.now();
-    const mainCategoryId = resolveAdminMainCategoryId(body, String(existing.main_category_id || 'salon'));
+    const inputCategory = cleanText(body.main_category_id || body.mainCategoryId, 50);
+    const mainCategoryId = inputCategory || (existing as Record<string, unknown>).main_category_id as string || 'salon';
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`UPDATE salon SET name=?,short_description=?,description=?,category=?,main_category_id=?,phone_number=?,email=?,website_url=?,address=?,area=?,city=?,state=?,pin_code=?,latitude=?,longitude=?,
       is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,updated_at=? WHERE id=?`)
@@ -2257,7 +2252,7 @@ const toRadians = (degrees: number) => degrees * Math.PI / 180;
 const distanceBetweenKm = (latitude: number, longitude: number, salonLatitude: number, salonLongitude: number) => {
   const earthRadiusKm = 6371;
   const latitudeDelta = toRadians(salonLatitude - latitude);
-  const longitudeDelta = toRadians(longitude - longitude);
+  const longitudeDelta = toRadians(salonLongitude - longitude);
   const value = Math.sin(latitudeDelta / 2) ** 2
     + Math.cos(toRadians(latitude)) * Math.cos(toRadians(salonLatitude)) * Math.sin(longitudeDelta / 2) ** 2;
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
@@ -2316,7 +2311,7 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
   const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
   const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
   const liveWaitMinutes = activeBarbers ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
-  response.set('Cache-Control','no-store');
+  response.set('Cache-Control', 'no-store');
   response.json({ salon: { ...salon, platformStatus: row.platform_status, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
 });
 

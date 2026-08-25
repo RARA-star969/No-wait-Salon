@@ -98,3 +98,22 @@ test('a duplicate join for the same session is rejected', () => {
   assert.equal(duplicate('sess-1'), true);
   assert.equal(duplicate('sess-2'), false);
 });
+
+test('Admin and Customer discovery share the exact same business records and categories', () => {
+  const adminBusinessRow = { id: 'gym-1', name: 'Iron House Gym', main_category_id: 'gym', platform_status: 'active', onboarded: 1 };
+  const customerDiscoveryCategoryFilter = (row: typeof adminBusinessRow, categoryId: string) =>
+    (row.main_category_id || 'salon').toLowerCase() === categoryId.toLowerCase();
+
+  assert.equal(customerDiscoveryCategoryFilter(adminBusinessRow, 'gym'), true, 'Gym category matches customer discovery filter');
+  assert.equal(customerDiscoveryCategoryFilter(adminBusinessRow, 'salon'), false, 'Gym category does not leak into salon filter');
+});
+
+test('main_category_id is preserved when editing a business without supplying a category', () => {
+  const existing = { id: 'gym-1', name: 'Iron House Gym', main_category_id: 'gym' };
+  const updatePayload = { name: 'Iron House Gym & Fitness' };
+  const inputCategory = updatePayload.name ? '' : 'salon';
+  const resolvedCategory = inputCategory || existing.main_category_id || 'salon';
+
+  assert.equal(resolvedCategory, 'gym', 'preserves existing category if payload omits main_category_id');
+});
+

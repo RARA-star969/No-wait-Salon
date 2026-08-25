@@ -21,14 +21,12 @@ services:
     name: no-wait-salon-web-test
     runtime: docker
     plan: free
-    branch: test/category-aware-staff-dashboard
+    branch: test/auto-category-assignment
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
       - key: NODE_ENV
         value: production
-      - key: NO_WAIT_TEST_DEPLOYMENT
-        value: "true"
       - key: DATA_DIR
         value: /tmp/no-wait-salon-test-data
       # Same-origin: the container serves both the web page and the API, so the

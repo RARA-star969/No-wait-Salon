@@ -9,7 +9,7 @@ const migrations=[{
       id TEXT PRIMARY KEY,name TEXT NOT NULL,address TEXT NOT NULL,latitude DOUBLE PRECISION NOT NULL,longitude DOUBLE PRECISION NOT NULL,
       rating DOUBLE PRECISION NOT NULL,review_count INTEGER NOT NULL,is_open INTEGER NOT NULL DEFAULT 1,opening_hours TEXT NOT NULL,
       services_json TEXT NOT NULL,barbers_json TEXT NOT NULL,onboarded INTEGER NOT NULL DEFAULT 1,created_at BIGINT NOT NULL,
-      category TEXT NOT NULL DEFAULT '',phone_number TEXT NOT NULL DEFAULT '',description TEXT NOT NULL DEFAULT '',cover_image_url TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL DEFAULT '',main_category_id TEXT NOT NULL DEFAULT 'salon',phone_number TEXT NOT NULL DEFAULT '',description TEXT NOT NULL DEFAULT '',cover_image_url TEXT NOT NULL DEFAULT '',
       logo_image_url TEXT NOT NULL DEFAULT '',amenities_json TEXT NOT NULL DEFAULT '[]',offers_json TEXT NOT NULL DEFAULT '[]',gallery_json TEXT NOT NULL DEFAULT '[]',
       brand_key TEXT NOT NULL DEFAULT '',short_description TEXT NOT NULL DEFAULT '',email TEXT NOT NULL DEFAULT '',website_url TEXT NOT NULL DEFAULT '',
       area TEXT NOT NULL DEFAULT '',city TEXT NOT NULL DEFAULT '',state TEXT NOT NULL DEFAULT '',pin_code TEXT NOT NULL DEFAULT '',promotional_banner_url TEXT NOT NULL DEFAULT '',
@@ -109,25 +109,9 @@ const migrations=[{
   `
 },{
   version:7,
-  name:'business_main_category_assignment',
+  name:'add_main_category_id_to_salon',
   sql:`
     ALTER TABLE salon ADD COLUMN IF NOT EXISTS main_category_id TEXT NOT NULL DEFAULT 'salon';
-    CREATE TABLE IF NOT EXISTS main_category (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL, icon_name TEXT NOT NULL, label TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
-      display_order INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, is_default INTEGER NOT NULL DEFAULT 0,
-      theme_key TEXT NOT NULL DEFAULT 'salon', primary_color TEXT NOT NULL DEFAULT '#0F766E', accent_color TEXT NOT NULL DEFAULT '#2DD4BF',
-      banner_image_url TEXT NOT NULL DEFAULT '', banner_headline TEXT NOT NULL DEFAULT '', banner_subheadline TEXT NOT NULL DEFAULT '', banner_cta_text TEXT NOT NULL DEFAULT '',
-      created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL
-    );
-    INSERT INTO main_category (id,name,icon_name,label,description,display_order,active,is_default,theme_key,primary_color,accent_color,banner_image_url,banner_headline,banner_subheadline,banner_cta_text,created_at,updated_at) VALUES
-      ('salon','Salon','Scissors','Live Salons','Salons, barbershops & styling studios',1,1,1,'salon','#0F766E','#2DD4BF','','Better grooming, less waiting.','Discover trusted salons and reserve your chair before leaving home.','Explore Chairs',0,0),
-      ('gym','Gym','Dumbbell','Fitness & Gym','Gyms, fitness centers & personal trainers',2,1,0,'gym','#D97706','#F59E0B','','Power your fitness goals today.','Onboarded elite gyms, day passes & personal coaching sessions.','View Fitness Gyms',0,0),
-      ('shop','Shop','ShoppingBag','Stores & Shops','Retail stores, boutiques & shopping outlets',3,1,0,'shop','#7C3AED','#8B5CF6','','Bespoke tailoring & retail atelier.','Curated luxury fashion, express alterations & styling sessions.','Discover Shops',0,0),
-      ('moto','Moto','Car','Auto & Services','Automobile care, detailing & service stations',4,1,0,'moto','#DC2626','#EF4444','','Precision automobile detailing spa.','High-shine ceramic wax, foam wash & upholstery steam sanitize.','Book Auto Care',0,0),
-      ('pets','Pets','Dog','Pet Care & Spa','Pet grooming, vet clinics & pet centers',5,1,0,'pets','#059669','#10B981','','Gentle organic pet spa & bath.','Stress-free pet grooming with botanical shampoos & pampering.','Explore Pet Care',0,0),
-      ('mall','Mall','Building2','Shopping Malls','Shopping malls, plazas & commercial centers',6,1,0,'mall','#2563EB','#3B82F6','','Central lifestyle shopping hub.','International brand outlets, multiplex cinema & VIP valet lounge.','View Malls',0,0),
-      ('food','Food','Utensils','Food & Dining','Restaurants, cafes, bakeries & dining spots',7,1,0,'food','#EA580C','#F97316','','Artisanal cafe & gourmet bistro.','Farm-to-table European deli classics, specialty coffee & tasting menus.','Explore Dining',0,0)
-    ON CONFLICT (id) DO NOTHING;
   `
 }];
 
