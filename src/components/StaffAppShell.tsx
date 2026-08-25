@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StaffDashboard } from './StaffDashboard';
 import { GymDashboardView } from './GymDashboardView';
 import { Salon, QueueItem, Barber, SalonOffer } from '../types';
+import { validateBusinessCode } from '../shared/businessCodeValidation';
 
 interface StaffSession {
   token: string;
@@ -91,6 +92,26 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     }
   };
 
+  
+  const handleTestLogin = async () => {
+    try {
+      const res = await fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/test-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessCode: resolvedBusiness!.businessCode })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('no_wait_salon_staff_token', data.token);
+        await checkSession(); // refetch full session
+      } else {
+        setAuthError(data.error || 'Test login failed');
+      }
+    } catch (err) {
+      setAuthError('Network error');
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -98,7 +119,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       const res = await fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ businessCode: resolvedBusiness!.businessCode, email, password })
       });
       const data = await res.json();
       if (res.ok) {
@@ -186,6 +207,13 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
               {resolvingCode ? 'Checking...' : 'Continue'}
             </button>
           </form>
+          {import.meta.env.VITE_TEST_BUILD === 'true' && (
+            <div className="mt-6 border-t border-[#EAEFEF] pt-4">
+              <button onClick={handleTestLogin} className="w-full rounded-xl bg-orange-100 py-3 text-sm font-bold text-orange-800 shadow-sm transition active:scale-[0.98]">
+                Continue as TEST Owner
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );

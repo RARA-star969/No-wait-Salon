@@ -12,6 +12,19 @@ import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './busine
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
 
+export function validateBusinessCode(code: string | undefined | null): string {
+  if (!code) throw new Error('Business ID is required.');
+  const trimmed = code.trim().toUpperCase();
+  if (trimmed.length < 3 || trimmed.length > 50) {
+    throw new Error('Business ID must be between 3 and 50 characters.');
+  }
+  if (!/^[A-Z0-9-]+$/.test(trimmed)) {
+    throw new Error('Business ID can only contain letters, numbers, and hyphens (no spaces or special characters).');
+  }
+  return trimmed;
+}
+
+
 // Configurable arrival grace period; a future per-salon setting can override this.
 const GRACE_WINDOW_MS = graceWindowMs(graceMinutes(process.env.QUEUE_GRACE_MINUTES));
 
@@ -1579,13 +1592,51 @@ function getGymState(gymId: string) {
 
 
 app.get('/api/staff/resolve-business/:code', (request, response) => {
-  const code = String(request.params.code).toUpperCase().trim();
+  let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
   const row = db.prepare('SELECT id, name, COALESCE(main_category_id, \'salon\') as main_category_id FROM salon WHERE business_code = ?').get(code) as any;
   if (!row) return response.status(404).json({ error: 'Business not found.' });
   response.json({ id: row.id, name: row.name, mainCategoryId: row.main_category_id, businessCode: code });
 });
 
+
+app.post('/api/staff/test-login', (request, response) => {
+  if (process.env.NO_WAIT_TEST_DEPLOYMENT !== 'true') return response.status(403).json({ error: 'Not available.' });
+  
+  let businessCode;
+  try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
+  
+  const bRow = db.prepare('SELECT id, name FROM salon WHERE business_code = ?').get(businessCode);
+  if (!bRow) return response.status(404).json({ error: 'Business not found.' });
+
+  // Find or create test owner account
+  let account = db.prepare("SELECT * FROM staff_account WHERE business_id = ? AND role = 'owner' LIMIT 1").get(bRow.id);
+  if (!account) {
+    const id = `staff_${randomUUID()}`;
+    db.prepare('INSERT INTO staff_account (id, business_id, name, email, phone_number, role, password_hash, created_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, bRow.id, 'TEST Owner', 'test-owner@example.com', '', 'owner', '', Date.now(), 1);
+    account = db.prepare("SELECT * FROM staff_account WHERE id = ?").get(id);
+  }
+
+  const token = `staff_${randomUUID()}${randomUUID().replaceAll('-', '')}`;
+  const now = Date.now();
+  db.prepare('INSERT INTO staff_session (token_hash, staff_id, business_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(hashCode(token), account.id, bRow.id, now + 30 * 24 * 60 * 60_000, now);
+
+  response.json({
+    token,
+    staff: { id: account.id, email: account.email, name: account.name, role: account.role },
+    business: { id: bRow.id, name: bRow.name }
+  });
+});
+
 app.post('/api/staff/login', (request, response) => {
+  let businessCode;
+  try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
+  
+  const bRow = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(businessCode);
+  if (!bRow) return response.status(401).json({ error: 'Invalid staff email, password, or business code.' });
+  const resolvedBusinessId = bRow.id;
+
   const email = cleanText(request.body?.email, 200).toLowerCase();
   const password = String(request.body?.password || '');
   const account = db.prepare(`
@@ -1595,8 +1646,8 @@ app.post('/api/staff/login', (request, response) => {
     WHERE sa.email = ? AND sa.active = 1
   `).get(email) as any;
 
-  if (!account || !verifyPassword(password, account.password_hash)) {
-    return response.status(401).json({ error: 'Invalid staff email or password.' });
+  if (!account || !verifyPassword(password, account.password_hash) || account.business_id !== resolvedBusinessId) {
+    return response.status(401).json({ error: 'Invalid staff email, password, or business code.' });
   }
 
   const token = `staff_${randomUUID()}${randomUUID().replaceAll('-', '')}`;
@@ -2170,8 +2221,7 @@ app.post('/api/customer/address-requests', requireCustomer, (request: Authentica
 
 
 app.get('/api/admin/check-business-id/:code', requireAdmin, (request, response) => {
-  const code = String(request.params.code).toUpperCase().replace(/[^A-Z0-9-]/g, '');
-  if (!code) return response.status(400).json({ error: 'Invalid business ID format.' });
+  let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
   const row = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
   response.json({ available: !row, code });
 });
@@ -2231,8 +2281,7 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
     const latitude = parseCoordinate(body.latitude, -90, 90, 'Latitude'); const longitude = parseCoordinate(body.longitude, -180, 180, 'Longitude');
     const mainCategoryId = resolveAdminMainCategoryId(body);
-    const businessCode = cleanText(body.business_code, 50).toUpperCase();
-    if (!businessCode || !/^[A-Z0-9-]+$/.test(businessCode)) throw new Error('Valid Business Code (A-Z, 0-9, hyphens) is required.');
+    const businessCode = validateBusinessCode(body.business_code as string);
     const existingCode = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(businessCode);
     if (existingCode) { return response.status(409).json({ error: 'This Business ID is already in use.' }); }
     db.exec('BEGIN IMMEDIATE');
