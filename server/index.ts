@@ -1596,15 +1596,15 @@ app.post('/api/staff/test-login', (request, response) => {
   let businessCode;
   try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
   
-  const bRow = db.prepare('SELECT id, name FROM salon WHERE business_code = ?').get(businessCode);
+  const bRow = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id, onboarded, business_code, profile_completed_at FROM salon WHERE business_code = ?").get(businessCode) as any;
   if (!bRow) return response.status(404).json({ error: 'Business not found.' });
 
   // Find or create test owner account
   let account = db.prepare("SELECT * FROM staff_account WHERE business_id = ? AND role = 'owner' LIMIT 1").get(bRow.id);
   if (!account) {
     const id = `staff_${randomUUID()}`;
-    db.prepare('INSERT INTO staff_account (id, business_id, name, email, phone_number, role, password_hash, created_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, bRow.id, 'TEST Owner', 'test-owner@example.com', '', 'owner', '', Date.now(), 1);
+    db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, bRow.id, 'test-owner@example.com', '', 'TEST Owner', 'owner', 1, Date.now(), Date.now());
     account = db.prepare("SELECT * FROM staff_account WHERE id = ?").get(id);
   }
 
@@ -1616,7 +1616,14 @@ app.post('/api/staff/test-login', (request, response) => {
   response.json({
     token,
     staff: { id: account.id, email: account.email, name: account.name, role: account.role },
-    business: { id: bRow.id, name: bRow.name }
+    business: { 
+      id: bRow.id, 
+      name: bRow.name, 
+      mainCategoryId: bRow.main_category_id, 
+      onboarded: Boolean(bRow.onboarded), 
+      businessCode: bRow.business_code, 
+      profileCompletedAt: bRow.profile_completed_at 
+    }
   });
 });
 
@@ -2278,7 +2285,7 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
       category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at)
-      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
         cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,businessCode,null);
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
