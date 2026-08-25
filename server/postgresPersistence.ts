@@ -65,7 +65,25 @@ export async function initPostgresPersistence(sqlite:DatabaseSync,dataDir:string
   const initialCounts=persisted?await replaceSqlite(sqlite,postgres):await replacePostgres(sqlite,postgres);
   let pending=Promise.resolve(initialCounts);let timer:ReturnType<typeof setTimeout>|undefined;
   const flushNow=(selected?:string[])=>{pending=pending.then(()=>replacePostgres(sqlite,postgres,selected));return pending};
+
+  const insertMissingSalons = async (salons: any[]) => {
+    pending = pending.then(async () => {
+      await postgres.transaction(async tx => {
+        const columns = tables['salon'];
+        for (const salon of salons) {
+          const placeholdersStr = placeholders(columns.length);
+          await tx.run(
+            `INSERT INTO salon (${columns.join(',')}) VALUES (${placeholdersStr}) ON CONFLICT(id) DO NOTHING`,
+            columns.map(column => salon[column] ?? null)
+          );
+        }
+      });
+      return {};
+    });
+    return pending;
+  };
+
   const scheduleFlush=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void flushNow().catch(error=>console.error('PostgreSQL persistence failed',error)),50)};
   const close=async()=>{if(timer)clearTimeout(timer);await flushNow();await postgres.close()};
-  return{backupPath,initialCounts,source:persisted?'postgres':'sqlite',scheduleFlush,flushNow,close};
+  return{backupPath,initialCounts,source:persisted?'postgres':'sqlite',scheduleFlush,flushNow,insertMissingSalons,close};
 }

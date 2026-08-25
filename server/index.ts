@@ -700,8 +700,7 @@ const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() 
 (db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
 if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
 
-async function safeBackfillSeeds(db, persistence) {
-  // We only insert missing salons. ON CONFLICT DO NOTHING ensures we don't overwrite.
+export async function safeBackfillSeeds(db: any, persistence: any) {
   const insertSalon = db.prepare(`
     INSERT INTO salon (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json, onboarded, category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -709,19 +708,36 @@ async function safeBackfillSeeds(db, persistence) {
   `);
   
   let changes = 0;
+  const missingSalons = [];
+  
   for (const salon of SALONS) {
+    const row = {
+      id: salon.id, name: salon.name, address: salon.address, latitude: salon.latitude, longitude: salon.longitude,
+      rating: salon.rating, review_count: salon.reviewCount, is_open: salon.isOpen ? 1 : 0, opening_hours: salon.openingHours,
+      services_json: JSON.stringify(salon.services), barbers_json: JSON.stringify(demoBarbers[salon.id] || []),
+      onboarded: 1, category: salon.category || '', main_category_id: salon.mainCategoryId || 'salon',
+      phone_number: salon.phoneNumber || '', description: salon.description || '', cover_image_url: salon.coverImageUrl || '',
+      logo_image_url: salon.logoImageUrl || '', amenities_json: JSON.stringify(salon.amenities || []),
+      offers_json: JSON.stringify(salon.offers || []), gallery_json: JSON.stringify(salon.gallery || []),
+      brand_key: salon.brandKey || '', created_at: Date.now()
+    };
+    
     const res = insertSalon.run(
-      salon.id, salon.name, salon.address, salon.latitude, salon.longitude, salon.rating,
-      salon.reviewCount, salon.isOpen ? 1 : 0, salon.openingHours, JSON.stringify(salon.services),
-      JSON.stringify(demoBarbers[salon.id] || []), salon.category || '', salon.mainCategoryId || 'salon', salon.phoneNumber || '', salon.description || '',
-      salon.coverImageUrl || '', salon.logoImageUrl || '', JSON.stringify(salon.amenities || []), JSON.stringify(salon.offers || []),
-      JSON.stringify(salon.gallery || []), salon.brandKey || '', Date.now()
+      row.id, row.name, row.address, row.latitude, row.longitude, row.rating,
+      row.review_count, row.is_open, row.opening_hours, row.services_json,
+      row.barbers_json, row.category, row.main_category_id, row.phone_number, row.description,
+      row.cover_image_url, row.logo_image_url, row.amenities_json, row.offers_json,
+      row.gallery_json, row.brand_key, row.created_at
     );
-    if (res.changes > 0) changes += res.changes;
+    
+    if (res.changes > 0) {
+      changes += res.changes;
+      missingSalons.push(row);
+    }
   }
   
-  if (changes > 0 && persistence) {
-    await persistence.flushNow(['salon']);
+  if (changes > 0 && persistence && persistence.insertMissingSalons) {
+    await persistence.insertMissingSalons(missingSalons);
   }
 }
 await safeBackfillSeeds(db, postgresPersistence);
