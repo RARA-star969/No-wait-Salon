@@ -174,6 +174,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 <option value="salon-2:owner">Royal Man Salon — Salon (Owner)</option>
                 <option value="gym-1:owner">Iron House Gym — Gym (Owner)</option>
                 <option value="gym-1:trainer">Iron House Gym — Gym (Coach Vikram - Trainer)</option>
+                <option value="gym-2:owner">Velocity Fitness Studio — Gym (Owner)</option>
               </select>
             </div>
             <span className="text-[10px] font-semibold text-[#5C6E6B]">(Test tool only — disabled in production)</span>

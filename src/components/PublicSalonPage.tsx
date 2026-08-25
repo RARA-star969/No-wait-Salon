@@ -28,6 +28,7 @@ import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } 
 import { missingProfileFields, resolveAppReadiness } from '../shared/profileReadiness';
 import { QueueJoinSheet } from './QueueJoinSheet';
 import { SalonDetailPage } from './SalonDetailPage';
+import { GymDetailPage } from './GymDetailPage';
 import { ThankYouScreen } from './ThankYouScreen';
 import { LiveTicket, type JourneyStage, type TicketPerson } from './LiveTicket';
 import {
@@ -526,8 +527,16 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         </main>
       )}
 
-      {/* ---------------- STEP 1: SALON DETAIL VIEW (100% Shared Component) ---------------- */}
-      {step === 'salon' && (
+      {/* ---------------- STEP 1: SALON / GYM DETAIL VIEW ---------------- */}
+      {step === 'salon' && (business.mainCategoryId || 'salon').toLowerCase() === 'gym' && (
+        <GymDetailPage
+          salon={business}
+          onBack={openApp}
+          onApplyOffer={(id) => setAppliedOfferId(id)}
+          appliedOfferId={appliedOfferId}
+        />
+      )}
+      {step === 'salon' && (business.mainCategoryId || 'salon').toLowerCase() !== 'gym' && (
         <SalonDetailPage
           salon={salonProfile}
           nearbySalons={[]}

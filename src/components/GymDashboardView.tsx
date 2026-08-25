@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { StaffRole } from '../shared/categoryDashboardResolver';
 import { gymCustomerService } from '../services/gymCustomerService';
+import { gymStaffService } from '../services/gymStaffService';
+import { useEffect } from 'react';
 
 interface GymDashboardViewProps {
   gymId: string;
@@ -38,40 +40,46 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   activeModule,
   onModuleSelect,
 }) => {
-  // Gym live operational state (capacity 100, inside 42, waiting 3, checkins 96)
-  const [occupancy, setOccupancy] = useState(42);
-  const [maxCapacity, setMaxCapacity] = useState(100);
+  const [state, setState] = useState<any>(null);
   const [maxCapacityInput, setMaxCapacityInput] = useState('100');
-  const [waitingCount, setWaitingCount] = useState(3);
-  const [checkinsCount, setCheckinsCount] = useState(96);
   const [actionFeedback, setActionFeedback] = useState<string>('');
+  const [loading, setLoading] = useState(true);
 
-  const [queueList, setQueueList] = useState([
-    { id: 'q1', name: 'Rohan Sharma', memberId: 'IH-1082', arrivedAt: '5 mins ago', status: 'Waiting' },
-    { id: 'q2', name: 'Priya Patel', memberId: 'IH-1094', arrivedAt: '3 mins ago', status: 'Waiting' },
-    { id: 'q3', name: 'Amit Verma', memberId: 'IH-1102', arrivedAt: '1 min ago', status: 'Waiting' },
-  ]);
+  useEffect(() => {
+    let active = true;
+    const fetchState = async () => {
+      try {
+        const data = await gymStaffService.getOverview(gymId);
+        if (active) {
+          setState(data);
+          if (maxCapacityInput === '100' && data.maxCapacity !== 100) {
+             setMaxCapacityInput(data.maxCapacity.toString());
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchState();
+    const interval = setInterval(fetchState, 2000);
+    return () => { active = false; clearInterval(interval); };
+  }, [gymId]);
 
-  const [classesList] = useState([
-    { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
-    { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
-    { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
-    { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
-  ]);
+  if (loading || !state) {
+    return <div className="p-8 text-center text-[#5C6E6B]">Loading gym dashboard...</div>;
+  }
 
-  const [trainersList, setTrainersList] = useState([
-    { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
-    { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'Available', rating: 4.8, reviewCount: 89 },
-    { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'In Class', rating: 4.9, reviewCount: 94 },
-  ]);
+  const occupancy = state.currentOccupancy;
+  const maxCapacity = state.maxCapacity;
+  const waitingCount = state.waitingOutsideCount;
+  const checkinsCount = state.checkinsTodayCount;
+  const queueList = state.entryQueue || [];
+  const classesList = state.classesToday || [];
+  const trainersList = state.trainers || [];
+  const ptBookings = state.ptBookings || []; // Assuming added later if needed
 
-  const [ptBookings] = useState([
-    { id: 'pt1', clientName: 'Karan Malhotra', time: '08:00 AM', trainer: 'Coach Vikram', service: 'Personal Training 1-on-1', status: 'Confirmed' },
-    { id: 'pt2', clientName: 'Sneha Reddy', time: '10:30 AM', trainer: 'Coach Rahul', service: 'Functional Strength', status: 'Confirmed' },
-    { id: 'pt3', clientName: 'Tarun Gupta', time: '04:00 PM', trainer: 'Coach Vikram', service: 'Hypertrophy & Power', status: 'Upcoming' },
-  ]);
-
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
     if (occupancy >= maxCapacity) {
       setActionFeedback('Warning: Gym is currently at maximum capacity!');
       setTimeout(() => setActionFeedback(''), 3000);

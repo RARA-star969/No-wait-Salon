@@ -68,6 +68,7 @@ const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
 db.exec('PRAGMA journal_mode = WAL');
 db.exec('PRAGMA busy_timeout = 5000');
 db.exec(`
+  CREATE TABLE IF NOT EXISTS gym_state (gym_id TEXT PRIMARY KEY, state_json TEXT NOT NULL, updated_at INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS salon_state (
     salon_id TEXT PRIMARY KEY,
     version INTEGER NOT NULL,
@@ -1530,45 +1531,41 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
   });
 }
 
-const gymStates = new Map<string, {
-  gymId: string;
-  maxCapacity: number;
-  currentOccupancy: number;
-  waitingOutsideCount: number;
-  checkinsTodayCount: number;
-  classesToday: Array<{ id: string; title: string; time: string; trainer: string; enrolled: number; maxCapacity: number }>;
-  trainers: Array<{ id: string; name: string; role: string; status: string; rating: number; reviewCount: number }>;
-  entryQueue: Array<{ id: string; name: string; memberId: string; arrivedAt: number; status: 'Waiting' | 'Admitted' }>;
-}>();
+function saveGymState(gymId: string, state: any) {
+  db.prepare('INSERT INTO gym_state (gym_id, state_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(gym_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at').run(gymId, JSON.stringify(state), Date.now());
+}
 
 function getGymState(gymId: string) {
-  let state = gymStates.get(gymId);
-  if (!state) {
-    state = {
-      gymId,
-      maxCapacity: 80,
-      currentOccupancy: 42,
-      waitingOutsideCount: 3,
-      checkinsTodayCount: 96,
-      classesToday: [
-        { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
-        { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
-        { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
-        { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
-      ],
-      trainers: [
-        { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
-        { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89 },
-        { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94 },
-      ],
-      entryQueue: [
-        { id: 'q1', name: 'Rohan Sharma', memberId: 'IH-1082', arrivedAt: Date.now() - 5 * 60000, status: 'Waiting' },
-        { id: 'q2', name: 'Priya Patel', memberId: 'IH-1094', arrivedAt: Date.now() - 3 * 60000, status: 'Waiting' },
-        { id: 'q3', name: 'Amit Verma', memberId: 'IH-1102', arrivedAt: Date.now() - 1 * 60000, status: 'Waiting' },
-      ],
-    };
-    gymStates.set(gymId, state);
+  const row = db.prepare('SELECT state_json FROM gym_state WHERE gym_id = ?').get(gymId) as { state_json: string } | undefined;
+  if (row) {
+    return JSON.parse(row.state_json);
   }
+  
+  // Seed demo data if missing
+  const state = {
+    gymId,
+    maxCapacity: 80,
+    currentOccupancy: 42,
+    waitingOutsideCount: 3,
+    checkinsTodayCount: 96,
+    classesToday: [
+      { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
+      { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
+      { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
+      { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
+    ],
+    trainers: [
+      { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
+      { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89 },
+      { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94 },
+    ],
+    entryQueue: [
+      { id: 'q1', name: 'Rohan Sharma', memberId: 'IH-1082', arrivedAt: Date.now() - 5 * 60000, status: 'Waiting' },
+      { id: 'q2', name: 'Priya Patel', memberId: 'IH-1094', arrivedAt: Date.now() - 3 * 60000, status: 'Waiting' },
+      { id: 'q3', name: 'Amit Verma', memberId: 'IH-1102', arrivedAt: Date.now() - 1 * 60000, status: 'Waiting' },
+    ],
+  };
+  saveGymState(gymId, state);
   return state;
 }
 
@@ -1685,6 +1682,7 @@ app.post('/api/gym/:gymId/checkin', (request, response) => {
   state.currentOccupancy += 1;
   state.checkinsTodayCount += 1;
   if (state.waitingOutsideCount > 0) state.waitingOutsideCount -= 1;
+  saveGymState(gymId, state);
   response.json({ ok: true, state });
 });
 
@@ -1699,6 +1697,7 @@ app.post('/api/gym/:gymId/checkout', (request, response) => {
   }
   const state = getGymState(gymId);
   if (state.currentOccupancy > 0) state.currentOccupancy -= 1;
+  saveGymState(gymId, state);
   response.json({ ok: true, state });
 });
 
@@ -1729,6 +1728,7 @@ app.post('/api/gym/:gymId/trainer-status', (request, response) => {
   if (!trainer) return response.status(404).json({ error: 'Trainer not found.' });
   trainer.status = status;
   const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  saveGymState(gymId, state);
   response.json({ ok: true, trainer, availableTrainersCount, state });
 });
 
@@ -1750,6 +1750,7 @@ app.post('/api/gym/:gymId/settings', (request, response) => {
   }
   const state = getGymState(gymId);
   state.maxCapacity = newCapacity;
+  saveGymState(gymId, state);
   response.json({ ok: true, maxCapacity: state.maxCapacity, state });
 });
 
@@ -1764,6 +1765,7 @@ app.post('/api/gym/:gymId/class-booking', (request, response) => {
     return response.status(400).json({ error: 'Class is fully booked.' });
   }
   targetClass.enrolled += 1;
+  saveGymState(gymId, state);
   response.json({ ok: true, class: targetClass, state });
 });
 
@@ -1784,6 +1786,7 @@ app.post('/api/gym/:gymId/pt-booking', (request, response) => {
     service: serviceName,
     status: 'Confirmed',
   };
+  saveGymState(gymId, state);
   response.json({ ok: true, booking: newBooking, state });
 });
 
