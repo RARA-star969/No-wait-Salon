@@ -73,10 +73,17 @@ async function main() {
   const badResponses = [];
   let onboardingViewport = null;
   let waitingViewport = null;
+  let profileToJoinSheet = false;
 
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 414, height: 896, isMobile: true, hasTouch: true });
+    // Reproduce embedded QR browsers where crypto.randomUUID is missing.
+    await page.evaluateOnNewDocument(() => {
+      try {
+        if (globalThis.Crypto?.prototype) Object.defineProperty(globalThis.Crypto.prototype, 'randomUUID', { configurable: true, value: undefined });
+      } catch { /* compatibility simulation only */ }
+    });
     page.on('pageerror', (error) => {
       runtimeErrors.push(`pageerror: ${error.message}`);
       console.error(`BROWSER PAGE ERROR: ${error.message}`);
@@ -106,11 +113,6 @@ async function main() {
 
     await page.click('button[id^="service-toggle-"]');
     await sleep(350);
-
-    // Reproduce the real mobile failure: the salon detail page is tall and the
-    // sticky Join Queue control can be tapped while the document is deeply
-    // scrolled. The next short onboarding screen must reset to the viewport top
-    // rather than rendering above the preserved scroll position.
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     await sleep(150);
     await page.evaluate(() => document.querySelector('#join-live-queue-btn')?.click());
@@ -123,6 +125,8 @@ async function main() {
     if (!onboardingViewport.visible || onboardingViewport.scrollY > 8) {
       throw new Error(`QR onboarding exists but is outside the mobile viewport after Join Queue: ${JSON.stringify(onboardingViewport)}`);
     }
+
+    if (firstStep === '#queue-join-sheet') profileToJoinSheet = true;
 
     if (firstStep === 'input[type="tel"]') {
       const suffix = String(Date.now()).slice(-8);
@@ -137,12 +141,16 @@ async function main() {
       await page.type('input[placeholder*="code" i]', otp);
       await clickText(page, ['Verify & Continue', 'Verify']);
 
-      const afterVerify = await waitForAny(page, ['#queue-join-sheet', 'input[placeholder*="Rahul" i]'], 10000);
-      if (afterVerify === 'input[placeholder*="Rahul" i]') {
+      const afterVerify = await waitForAny(page, ['#queue-join-sheet', '#qr-profile-gender', 'input[placeholder*="Rahul" i]'], 10000);
+      if (afterVerify !== '#queue-join-sheet') {
+        await page.waitForSelector('input[placeholder*="Rahul" i]', { timeout: 10000 });
         await page.type('input[placeholder*="Rahul" i]', customerName);
+        await page.waitForSelector('#qr-profile-gender', { timeout: 10000 });
+        await page.select('#qr-profile-gender', 'Man');
         await clickText(page, ['Continue to Queue']);
         await page.waitForSelector('#queue-join-sheet', { timeout: 10000 });
       }
+      profileToJoinSheet = true;
     }
 
     const servicesInSheet = await page.$$eval('#queue-join-sheet #view-services-btn', (nodes) => nodes.length).catch(() => 0);
@@ -187,6 +195,8 @@ async function main() {
       QR_JOIN_DIAGNOSTIC: {
         onboarding_visible_after_deep_scroll: Boolean(onboardingViewport?.visible),
         onboarding_scroll_y: onboardingViewport?.scrollY ?? null,
+        profile_to_join_sheet: profileToJoinSheet,
+        embedded_browser_without_random_uuid: true,
         waiting_ui: waitingSeen,
         waiting_scroll_y: waitingViewport?.scrollY ?? null,
         auth_customer: Boolean(auth?.customerId),
@@ -198,8 +208,8 @@ async function main() {
       },
     }, null, 2));
 
-    if (!waitingSeen || !backendEntry || runtimeErrors.length) {
-      throw new Error('Hosted QR join did not reach a healthy Waiting ticket/backend entry. See QR_JOIN_DIAGNOSTIC above.');
+    if (!profileToJoinSheet || !waitingSeen || !backendEntry || runtimeErrors.length) {
+      throw new Error('Hosted QR profile/token handoff did not reach a healthy Waiting ticket/backend entry. See QR_JOIN_DIAGNOSTIC above.');
     }
   } finally {
     await browser.close();
