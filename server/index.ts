@@ -783,7 +783,12 @@ if (isProduction) {
   }
 }
 
-const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true' || dataDir.includes('no-wait-salon-test-data');
+const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();
+const renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();
+const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
+  || dataDir.includes('no-wait-salon-test-data')
+  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
+  || renderServiceName === 'no-wait-salon-web-test';
 if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
   const demoStaffAccounts = [
     { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
