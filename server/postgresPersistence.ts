@@ -5,6 +5,7 @@ import {createDatabase,type Database} from './database.ts';
 import {runMigrations} from './migrations.ts';
 
 const tables:Record<string,string[]>={
+  main_category:['id','name','icon_name','label','description','display_order','active','is_default','theme_key','primary_color','accent_color','banner_image_url','banner_headline','banner_subheadline','banner_cta_text','created_at','updated_at'],
   salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at'],
   salon_hours:['salon_id','day_of_week','open_time','close_time','closed'],
   salon_service:['id','salon_id','name','category','price_inr','duration_min','description','image_url','active','sort_order','created_at','updated_at'],
