@@ -25,7 +25,7 @@ import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
-import { resolveAppReadiness } from '../shared/profileReadiness';
+import { missingProfileFields, resolveAppReadiness } from '../shared/profileReadiness';
 import { QueueJoinSheet } from './QueueJoinSheet';
 import { SalonDetailPage } from './SalonDetailPage';
 import { ThankYouScreen } from './ThankYouScreen';
@@ -88,6 +88,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [gender, setGender] = useState('');
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -322,10 +323,16 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   );
 
   const requestOtp = async () => {
+    const cleanedPhone = phone.replace(/\D/g, '').slice(-10);
+    if (cleanedPhone.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setPhone(cleanedPhone);
     setBusy(true);
     setError('');
     try {
-      const result = await realtimeQueueService.requestOtp(phone.trim());
+      const result = await realtimeQueueService.requestOtp(cleanedPhone);
       setChallengeId(result.challengeId);
       setDemoCode(result.demoCode || '');
       setStep('otp');
@@ -349,10 +356,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       persistAuth(session);
       const profile = await customerAccountService.getProfile().catch(() => null);
       setCustomerProfile(profile);
-      if (profile?.name && profile.name.trim().length >= 2) {
+      if (profile && missingProfileFields(profile).length === 0) {
+        setStep('salon');
         setJoinSheetOpen(true);
         return;
       }
+      if (profile?.name) setName(profile.name);
+      if (profile?.email) setEmail(profile.email);
+      if (profile?.gender) setGender(profile.gender);
       setStep('profile');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'That code did not match. Please try again.');
@@ -363,6 +374,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   const saveProfileAndJoin = async () => {
     if (name.trim().length < 2) return setError('Please enter your name.');
+    if (!gender) return setError('Please select your gender.');
     setBusy(true);
     setError('');
     try {
@@ -370,11 +382,12 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         name: name.trim(),
         email: email.trim(),
         dateOfBirth: '',
-        gender: '',
+        gender,
         anniversary: '',
         city: '',
       });
       setCustomerProfile(updated);
+      setStep('salon');
       setJoinSheetOpen(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save your details.');
@@ -386,7 +399,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const handleJoinClick = useCallback(() => {
     if (!business) return;
     primeTurnAlert();
-    const readiness = resolveAppReadiness(auth, customerProfile, profileLoading);
+    const readiness = resolveAppReadiness(auth, customerProfile, { profileLoading });
     if (readiness.kind === 'ready') {
       setJoinSheetOpen(true);
     } else if (readiness.kind === 'onboarding_required') {
@@ -559,8 +572,8 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
         <main className="mx-auto max-w-md px-4 py-8">
           <div className="rounded-3xl border border-[#E2EAE9] bg-white p-6 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">Customer Details</p>
-            <h1 className="mt-1 text-[20px] font-extrabold">What is your name?</h1>
-            <p className="mt-1 text-xs text-[#667371]">Staff will use this name when calling your turn.</p>
+            <h1 className="mt-1 text-[20px] font-extrabold">A couple of quick details</h1>
+            <p className="mt-1 text-xs text-[#667371]">Name and gender are required so staff can identify your booking. Email stays optional.</p>
             <div className="mt-6 space-y-4">
               <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]">
                 Your Full Name
@@ -571,6 +584,21 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   placeholder="e.g. Rahul Sharma"
                   className="h-12 rounded-2xl border border-[#DDE7E5] px-4 text-base font-semibold outline-none focus:border-[#0F766E]"
                 />
+              </label>
+              <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]">
+                Gender
+                <select
+                  id="qr-profile-gender"
+                  value={gender}
+                  onChange={(e) => { setGender(e.target.value); setError(''); }}
+                  className="h-12 rounded-2xl border border-[#DDE7E5] bg-white px-4 text-base font-semibold outline-none focus:border-[#0F766E]"
+                >
+                  <option value="" disabled>Select gender</option>
+                  <option value="Woman">Woman</option>
+                  <option value="Man">Man</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
               </label>
               <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]">
                 Email (Optional)
@@ -584,7 +612,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
               </label>
               {error && <p className="text-xs text-rose-600">{error}</p>}
               <button
-                disabled={busy || name.trim().length < 2}
+                disabled={busy || name.trim().length < 2 || !gender}
                 onClick={() => void saveProfileAndJoin()}
                 className="h-12 w-full rounded-2xl bg-[#0F766E] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
               >
