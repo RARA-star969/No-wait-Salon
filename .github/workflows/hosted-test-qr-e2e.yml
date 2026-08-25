@@ -9,6 +9,10 @@ on:
       - '.github/workflows/hosted-test-qr-e2e.yml'
       - 'scratch/apply_qr_e2e_runtime_fixes.cjs'
       - 'scratch/verify_hosted_qr_staff_e2e.cjs'
+      - 'server/index.ts'
+      - 'src/components/PublicSalonPage.tsx'
+      - 'src/services/businessQrService.ts'
+      - 'render-test.yaml'
 
 permissions:
   contents: write
