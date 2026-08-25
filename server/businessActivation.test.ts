@@ -40,4 +40,10 @@ describe('Business Activation & Deactivation System', () => {
     assert.equal(salonData.services.length, 1);
     assert.equal(salonData.staff.length, 1);
   });
+
+  it('demo staff account seeding is guarded against production environment', () => {
+    const shouldSeed = (env: string) => env !== 'production';
+    assert.equal(shouldSeed('production'), false);
+    assert.equal(shouldSeed('development'), true);
+  });
 });

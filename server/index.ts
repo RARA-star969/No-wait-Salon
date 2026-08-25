@@ -769,19 +769,21 @@ if (existingAdminCount === 0) {
     .run(randomUUID(), defaultAdminEmail, configuredAdminPasswordHash || passwordHash(defaultAdminPassword), now, now);
 }
 
-const demoStaffAccounts = [
-  { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
-  { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
-  { id: 'staff-acc-gym-1-owner', businessId: 'gym-1', email: 'ironhouse-owner@nowaitsalon.test', password: 'staff123', name: 'Vikram (Owner)', role: 'owner' },
-  { id: 'staff-acc-gym-1-trainer', businessId: 'gym-1', email: 'ironhouse-trainer@nowaitsalon.test', password: 'staff123', name: 'Coach Vikram', role: 'trainer' },
-];
+if (process.env.NODE_ENV !== 'production') {
+  const demoStaffAccounts = [
+    { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
+    { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
+    { id: 'staff-acc-gym-1-owner', businessId: 'gym-1', email: 'ironhouse-owner@nowaitsalon.test', password: 'staff123', name: 'Vikram (Owner)', role: 'owner' },
+    { id: 'staff-acc-gym-1-trainer', businessId: 'gym-1', email: 'ironhouse-trainer@nowaitsalon.test', password: 'staff123', name: 'Coach Vikram', role: 'trainer' },
+  ];
 
-for (const acc of demoStaffAccounts) {
-  const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id);
-  if (!existing) {
-    const now = Date.now();
-    db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
-      .run(acc.id, acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, now);
+  for (const acc of demoStaffAccounts) {
+    const existing = db.prepare('SELECT id FROM staff_account WHERE email = ? OR id = ?').get(acc.email, acc.id);
+    if (!existing) {
+      const now = Date.now();
+      db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
+        .run(acc.id, acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, now);
+    }
   }
 }
 
