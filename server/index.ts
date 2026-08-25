@@ -1658,11 +1658,11 @@ app.post('/api/staff/logout', (request, response) => {
 app.get('/api/gym/:gymId/overview', (request, response) => {
   const session = resolveStaffSession(request);
   const gymId = request.params.gymId;
-  if (session && session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Cross-business access denied.' });
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
   }
   const state = getGymState(gymId);
-  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
   response.json({ ...state, availableTrainersCount });
 });
 
@@ -1672,8 +1672,8 @@ app.post('/api/gym/:gymId/checkin', (request, response) => {
   if (!isBusinessActive(gymId)) {
     return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
   }
-  if (session && session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Cross-business access denied.' });
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
   }
   const state = getGymState(gymId);
   if (state.currentOccupancy >= state.maxCapacity) {
@@ -1692,11 +1692,50 @@ app.post('/api/gym/:gymId/checkout', (request, response) => {
   if (!isBusinessActive(gymId)) {
     return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
   }
-  if (session && session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Cross-business access denied.' });
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
   }
   const state = getGymState(gymId);
   if (state.currentOccupancy > 0) state.currentOccupancy -= 1;
+  saveGymState(gymId, state);
+  response.json({ ok: true, state });
+});
+
+
+app.put('/api/gym/:gymId/core-state', (request, response) => {
+  const session = resolveStaffSession(request);
+  const gymId = request.params.gymId;
+  if (!isBusinessActive(gymId)) {
+    return response.status(403).json({ error: 'Business deactivated.', deactivated: true });
+  }
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
+  }
+
+  const state = getGymState(gymId);
+  
+  if (typeof request.body.currentOccupancy === 'number') {
+    if (request.body.currentOccupancy >= 0 && request.body.currentOccupancy <= state.maxCapacity) {
+      state.currentOccupancy = request.body.currentOccupancy;
+    } else if (request.body.currentOccupancy > state.maxCapacity) {
+      return response.status(400).json({ error: 'Occupancy cannot exceed max capacity.' });
+    }
+  }
+  
+  if (typeof request.body.maxCapacity === 'number') {
+    if (request.body.maxCapacity >= 1 && request.body.maxCapacity >= state.currentOccupancy) {
+      state.maxCapacity = request.body.maxCapacity;
+    } else {
+      return response.status(400).json({ error: 'Invalid max capacity.' });
+    }
+  }
+  
+  if (typeof request.body.availableTrainersCount === 'number') {
+    if (request.body.availableTrainersCount >= 0) {
+      state.availableTrainersCount = request.body.availableTrainersCount;
+    }
+  }
+  
   saveGymState(gymId, state);
   response.json({ ok: true, state });
 });
@@ -1708,7 +1747,7 @@ app.get('/api/gym/:gymId/public-overview', (request, response) => {
     return response.status(404).json({ error: 'Gym business not found.' });
   }
   const state = getGymState(gymId);
-  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
   response.json({ ...state, availableTrainersCount });
 });
 
@@ -1718,8 +1757,8 @@ app.post('/api/gym/:gymId/trainer-status', (request, response) => {
   if (!isBusinessActive(gymId)) {
     return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
   }
-  if (session && session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Cross-business access denied.' });
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
   }
   const trainerId = cleanText(request.body?.trainerId, 100);
   const status = cleanText(request.body?.status, 50);
@@ -1727,7 +1766,7 @@ app.post('/api/gym/:gymId/trainer-status', (request, response) => {
   const trainer = state.trainers.find((t) => t.id === trainerId);
   if (!trainer) return response.status(404).json({ error: 'Trainer not found.' });
   trainer.status = status;
-  const availableTrainersCount = state.trainers.filter((t) => t.status === 'Available').length;
+  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
   saveGymState(gymId, state);
   response.json({ ok: true, trainer, availableTrainersCount, state });
 });
@@ -1738,8 +1777,8 @@ app.post('/api/gym/:gymId/settings', (request, response) => {
   if (!isBusinessActive(gymId)) {
     return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
   }
-  if (session && session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Cross-business access denied.' });
+  if (!session || session.businessId !== gymId) {
+    return response.status(403).json({ error: 'Valid staff session required for this business.' });
   }
   if (session && session.role !== 'owner' && session.role !== 'manager') {
     return response.status(403).json({ error: 'Only Gym Owners can modify facility settings.' });

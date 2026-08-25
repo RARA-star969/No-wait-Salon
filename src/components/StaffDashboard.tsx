@@ -198,7 +198,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         </div>
 
         {/* Dynamic Category Navigation Bar */}
-        {isGymCategory && (
+        {false && isGymCategory && (
           <div className="flex snap-x gap-1.5 overflow-x-auto border-b border-[#E1E7E6] pb-2 pt-1">
             {categoryModules.map((mod) => (
               <button

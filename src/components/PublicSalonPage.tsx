@@ -129,7 +129,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   // Live queue for this salon only over existing SSE stream
   useEffect(() => {
-    if (!business) return;
+    if (!business || (business.mainCategoryId || 'salon').toLowerCase() === 'gym') return;
     const apply = (state: { queue: QueueItem[]; barbers?: Barber[]; completedList?: QueueItem[] }) => {
       setQueue(state.queue);
       setCompletedList(state.completedList || []);

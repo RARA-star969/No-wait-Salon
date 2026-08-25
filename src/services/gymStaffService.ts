@@ -29,4 +29,9 @@ export const gymStaffService = {
       method: 'POST', 
       body: JSON.stringify({ maxCapacity }) 
     }),
+  updateCoreState: (gymId: string, updates: { currentOccupancy?: number, maxCapacity?: number, availableTrainersCount?: number }) => 
+    request(`/api/gym/${encodeURIComponent(gymId)}/core-state`, { 
+      method: 'PUT', 
+      body: JSON.stringify(updates) 
+    }),
 };
