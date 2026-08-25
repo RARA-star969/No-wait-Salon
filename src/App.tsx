@@ -163,7 +163,7 @@ export default function App() {
     setCompletedList(snapshot.completedList);
     setQueueAlert('');
     if (snapshot.platformStatus) {
-      setSelectedSalon((prev) => (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }));
+      setSelectedSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
     }
   };
 

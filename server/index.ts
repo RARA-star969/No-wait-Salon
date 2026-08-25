@@ -2211,7 +2211,7 @@ app.get('/api/salons/nearby', (request, response) => {
 // Same salon record the public QR page reads, so the app can refresh a salon
 // it already has selected and never render a stale profile.
 app.get('/api/salons/:salonId/profile', (request, response) => {
-  const row = db.prepare("SELECT * FROM salon WHERE id = ? AND onboarded = 1 AND platform_status = 'active'").get(request.params.salonId) as SalonRow | undefined;
+  const row = db.prepare("SELECT * FROM salon WHERE id = ? AND onboarded = 1").get(request.params.salonId) as SalonRow | undefined;
   if (!row) return response.status(404).json({ error: 'Salon not found.' });
   const salon = rowToSalon(row);
   const state = readState(salon.id);
@@ -2219,7 +2219,7 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
   const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
   const liveWaitMinutes = activeBarbers ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
   response.set('Cache-Control', 'no-store');
-  response.json({ salon: { ...salon, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
+  response.json({ salon: { ...salon, platformStatus: row.platform_status, liveWaitMinutes, waitingCustomers, queueAccepting: salon.isOpen && activeBarbers > 0 } });
 });
 
 app.get('/api/salons/:salonId/state', (request, response) => {
