@@ -9,6 +9,7 @@ import { salonDiscoveryService, type SalonDirectoryEntry } from './services/salo
 
 const STAFF_SALON_KEY = 'no_wait_salon_staff_salon_id';
 import { StaffDashboard } from './components/StaffDashboard';
+import { StaffAppShell } from './components/StaffAppShell';
 import { OtpModal } from './components/OtpModal';
 import { PushNotificationToast } from './components/PushNotificationToast';
 import { NotificationCenterModal } from './components/NotificationCenterModal';

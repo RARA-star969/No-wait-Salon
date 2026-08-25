@@ -880,12 +880,12 @@ function resolveStaffSession(request: express.Request) {
 
   if (token) {
     const session = db.prepare(`
-      SELECT ss.staff_id, ss.business_id, sa.email, sa.name, sa.role, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id
+      SELECT ss.staff_id, ss.business_id, sa.email, sa.name, sa.role, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id, s.onboarded
       FROM staff_session ss
       JOIN staff_account sa ON ss.staff_id = sa.id
       JOIN salon s ON ss.business_id = s.id
       WHERE ss.token_hash = ? AND ss.expires_at > ? AND sa.active = 1
-    `).get(hashCode(token), Date.now()) as { staff_id: string; business_id: string; email: string; name: string; role: string; business_name: string; main_category_id: string } | undefined;
+    `).get(hashCode(token), Date.now()) as { staff_id: string; business_id: string; email: string; name: string; role: string; business_name: string; main_category_id: string; onboarded: number } | undefined;
 
     if (session) {
       return {
@@ -895,7 +895,7 @@ function resolveStaffSession(request: express.Request) {
         role: session.role,
         businessId: session.business_id,
         businessName: session.business_name,
-        mainCategoryId: session.main_category_id,
+        mainCategoryId: session.main_category_id, onboarded: session.onboarded === 1,
       };
     }
   }
@@ -1604,7 +1604,7 @@ app.get('/api/staff/session', (request, response) => {
         return response.json({
           token: 'dev-token',
           staff: { id: 'dev-owner', email: 'dev-owner@test.com', name: `${defaultSalon.name} Owner`, role: 'owner' },
-          business: { id: defaultSalon.id, name: defaultSalon.name, mainCategoryId: defaultSalon.main_category_id },
+          business: { id: defaultSalon.id, name: defaultSalon.name, mainCategoryId: defaultSalon.main_category_id, onboarded: true },
         });
       }
     }
@@ -1613,8 +1613,41 @@ app.get('/api/staff/session', (request, response) => {
   response.json({
     token: request.headers.authorization?.slice(7).trim() || 'active-session',
     staff: { id: session.staffId, email: session.email, name: session.name, role: session.role },
-    business: { id: session.businessId, name: session.businessName, mainCategoryId: session.mainCategoryId },
+    business: { id: session.businessId, name: session.businessName, mainCategoryId: session.mainCategoryId, onboarded: session.onboarded },
   });
+});
+
+
+app.put('/api/staff/business/profile', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  
+  const body = request.body || {};
+  const businessId = session.businessId;
+  const now = Date.now();
+  
+  // Update allowed public fields. Do NOT update admin/platform fields.
+  const fields = [];
+  const values = [];
+  
+  if (body.name !== undefined) { fields.push('name = ?'); values.push(cleanText(body.name, 150)); }
+  if (body.description !== undefined) { fields.push('description = ?'); values.push(cleanText(body.description, 3000)); }
+  if (body.address !== undefined) { fields.push('address = ?'); values.push(cleanText(body.address, 500)); }
+  if (body.phone_number !== undefined) { fields.push('phone_number = ?'); values.push(cleanText(body.phone_number, 30)); }
+  if (body.logo_image_url !== undefined) { fields.push('logo_image_url = ?'); values.push(cleanText(body.logo_image_url, 1000)); }
+  if (body.cover_image_url !== undefined) { fields.push('cover_image_url = ?'); values.push(cleanText(body.cover_image_url, 1000)); }
+  if (body.opening_hours !== undefined) { fields.push('opening_hours = ?'); values.push(cleanText(body.opening_hours, 100)); }
+  if (body.amenities !== undefined && Array.isArray(body.amenities)) { fields.push('amenities_json = ?'); values.push(JSON.stringify(body.amenities)); }
+  
+  // If no fields to update, just mark as onboarded if needed.
+  fields.push('onboarded = 1');
+  fields.push('updated_at = ?');
+  values.push(now);
+  values.push(businessId);
+  
+  db.prepare(`UPDATE salon SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  
+  response.json({ ok: true });
 });
 
 app.post('/api/staff/test-switch', (request, response) => {
