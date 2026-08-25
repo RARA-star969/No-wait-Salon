@@ -1,0 +1,56 @@
+name: Auto Category Assignment Test
+
+on:
+  push:
+    branches:
+      - test/auto-category-assignment
+    paths:
+      - 'scratch/fix_auto_category_assignment.cjs'
+      - '.github/workflows/auto-category-assignment-test.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/auto-category-assignment
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply category assignment fix
+        run: node scratch/fix_auto_category_assignment.cjs
+
+      - name: Validate source
+        run: |
+          ./node_modules/.bin/tsc --noEmit
+          node --import tsx --test server/*.test.ts src/services/*.test.ts src/shared/*.test.ts
+          ./node_modules/.bin/vite build
+
+      - name: Verify critical invariants
+        run: |
+          grep -q "main_category_id: 'salon'" src/components/AdminApp.tsx
+          grep -q "resolveAdminMainCategoryId" server/index.ts
+          grep -q "main_category:\['id'" server/postgresPersistence.ts
+          grep -q "business_main_category_assignment" server/migrations.ts
+
+      - name: Commit verified source changes
+        run: |
+          git config user.name "OpenAI Category Fix"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/components/AdminApp.tsx server/index.ts server/postgresPersistence.ts server/migrations.ts
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+          else
+            git commit -m "fix: auto-assign and persist business main categories"
+            git push origin HEAD:test/auto-category-assignment
+          fi
