@@ -11,18 +11,9 @@ import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
+import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 
-export function validateBusinessCode(code: string | undefined | null): string {
-  if (!code) throw new Error('Business ID is required.');
-  const trimmed = code.trim().toUpperCase();
-  if (trimmed.length < 3 || trimmed.length > 50) {
-    throw new Error('Business ID must be between 3 and 50 characters.');
-  }
-  if (!/^[A-Z0-9-]+$/.test(trimmed)) {
-    throw new Error('Business ID can only contain letters, numbers, and hyphens (no spaces or special characters).');
-  }
-  return trimmed;
-}
+
 
 
 // Configurable arrival grace period; a future per-salon setting can override this.
@@ -2289,7 +2280,7 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
       category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at)
       VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
-        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,cleanText(body.business_code, 50).toUpperCase(),null);
+        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,businessCode,null);
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
     response.status(201).json({ salon: adminSalonDetail(id) });

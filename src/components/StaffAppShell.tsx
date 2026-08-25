@@ -207,13 +207,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
               {resolvingCode ? 'Checking...' : 'Continue'}
             </button>
           </form>
-          {import.meta.env.VITE_TEST_BUILD === 'true' && (
-            <div className="mt-6 border-t border-[#EAEFEF] pt-4">
-              <button onClick={handleTestLogin} className="w-full rounded-xl bg-orange-100 py-3 text-sm font-bold text-orange-800 shadow-sm transition active:scale-[0.98]">
-                Continue as TEST Owner
-              </button>
-            </div>
-          )}
+          
         </div>
       </div>
     );

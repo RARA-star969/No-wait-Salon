@@ -164,7 +164,7 @@ const migrations=[{
   name: 'business_code_and_profile_completion',
   sql: `
     ALTER TABLE salon ADD COLUMN business_code TEXT;
-    CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code COLLATE NOCASE);
+    CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code);
     ALTER TABLE salon ADD COLUMN profile_completed_at BIGINT;
   `
 }];
