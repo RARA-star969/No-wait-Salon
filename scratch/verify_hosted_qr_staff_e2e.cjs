@@ -75,6 +75,7 @@ async function main() {
     staff_session_bound_to_salon: false,
     real_q_route: false,
     shared_salon_detail: false,
+    profile_to_token_sheet: false,
     qr_waiting: false,
     refresh_waiting: false,
     duplicate_prevented: false,
@@ -90,7 +91,6 @@ async function main() {
     rating_saved_after_complete: false,
   };
 
-  // Real staff credential login on the isolated hosted TEST database.
   const staffLogin = await fetchJson('/api/staff/login', {
     method: 'POST',
     body: JSON.stringify({ email: STAFF_EMAIL, password: STAFF_PASSWORD }),
@@ -105,21 +105,22 @@ async function main() {
   if (staffSession.business?.id !== SALON_ID) throw new Error(`Staff session bound to wrong business: ${staffSession.business?.id}`);
   results.staff_session_bound_to_salon = true;
 
-  // Reset only the isolated test salon so each run starts deterministically.
   await staffCommand(staffToken, { type: 'reset' });
 
   const qr = await fetchJson(`/api/business-qr-public/${SALON_ID}`);
   if (!qr.token) throw new Error('No active public QR token for salon-1.');
   const realQrUrl = `${TEST_URL}/q/${encodeURIComponent(qr.token)}`;
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
 
   try {
     const pageQr = await browser.newPage();
     await pageQr.setViewport({ width: 414, height: 896, isMobile: true, hasTouch: true });
+    await pageQr.evaluateOnNewDocument(() => {
+      try {
+        if (globalThis.Crypto?.prototype) Object.defineProperty(globalThis.Crypto.prototype, 'randomUUID', { configurable: true, value: undefined });
+      } catch { /* compatibility simulation only */ }
+    });
     await pageQr.goto(realQrUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     results.real_q_route = new URL(pageQr.url()).pathname.startsWith('/q/');
 
@@ -127,13 +128,11 @@ async function main() {
     results.shared_salon_detail = /Join Queue|Get Token/i.test(initial) && /Haircut/i.test(initial) && /Live/i.test(initial);
     if (!results.shared_salon_detail) throw new Error('Real /q/:token did not render current shared salon detail signals.');
 
-    // Select one real service before entering the Join flow.
     await pageQr.waitForSelector('button[id^="service-toggle-"]', { timeout: 10000 });
     await pageQr.click('button[id^="service-toggle-"]');
     await sleep(400);
     await clickButtonContaining(pageQr, ['Join Queue', 'Get Token']);
 
-    // Fresh phone every run guarantees we exercise OTP + profile onboarding.
     const suffix = String(Date.now()).slice(-8);
     const phone = `98${suffix}`;
     const customerName = `E2E QR ${suffix.slice(-5)}`;
@@ -151,7 +150,11 @@ async function main() {
 
     await pageQr.waitForSelector('input[placeholder*="Rahul" i]', { timeout: 10000 });
     await pageQr.type('input[placeholder*="Rahul" i]', customerName);
+    await pageQr.waitForSelector('#qr-profile-gender', { timeout: 10000 });
+    await pageQr.select('#qr-profile-gender', 'Man');
     await clickButtonContaining(pageQr, ['Continue to Queue']);
+    await pageQr.waitForSelector('#queue-join-sheet', { timeout: 10000 });
+    results.profile_to_token_sheet = true;
 
     await pageQr.waitForSelector('#confirm-join-queue-btn', { timeout: 10000 });
     await pageQr.click('#confirm-join-queue-btn');
@@ -175,19 +178,16 @@ async function main() {
     results.duplicate_prevented = sameCustomerActive.length === 1;
     if (!results.duplicate_prevented) throw new Error(`Duplicate active QR booking detected: ${sameCustomerActive.length}`);
 
-    // Waiting persistence.
     await pageQr.reload({ waitUntil: 'networkidle2', timeout: 30000 });
     const waitingReload = await waitForText(pageQr, /You're in the queue!|Queue Status\s*Waiting/i, 'Waiting after refresh');
     results.refresh_waiting = waitingReload.includes(tokenTail) || /waiting|queue/i.test(waitingReload);
 
-    // Staff dashboard visibility is checked separately from authenticated API control.
     const pageStaff = await browser.newPage();
     await pageStaff.setViewport({ width: 1280, height: 900 });
     await pageStaff.goto(`${TEST_URL}/?mode=staff`, { waitUntil: 'networkidle2', timeout: 30000 });
     const staffWaiting = await waitForText(pageStaff, new RegExp(customerName, 'i'), 'booking visible on Staff Dashboard');
     results.staff_dashboard_sees_booking = new RegExp(customerName, 'i').test(staffWaiting);
 
-    // Waiting -> Called, controlled by a real authenticated staff session.
     await staffCommand(staffToken, { type: 'queue_action', itemId: entryId, action: 'Call' });
     const calledState = await waitForState(
       (state) => state.queue.find((item) => item.id === entryId && item.status === 'Called'),
@@ -200,7 +200,6 @@ async function main() {
     const calledReload = await waitForText(pageQr, /It's your turn!|I'm on my way|On your way/i, 'Called after refresh');
     results.refresh_called = /turn|on my way/i.test(calledReload);
 
-    // Customer acknowledgement -> exact backend item -> Staff Dashboard SSE.
     await clickButtonContaining(pageQr, ["I'm on my way"]);
     const ackState = await waitForState(
       (state) => state.queue.find((item) => item.id === entryId && item.status === 'Called' && item.acknowledgedAt),
@@ -210,7 +209,6 @@ async function main() {
     const staffAck = await waitForText(pageStaff, /Customer acknowledged|On the way/i, 'Staff acknowledgement via SSE');
     results.staff_dashboard_sees_ack = /acknowledged|on the way/i.test(staffAck);
 
-    // Called -> Serving.
     await staffCommand(staffToken, { type: 'queue_action', itemId: entryId, action: 'Start' });
     const servingState = await waitForState(
       (state) => state.queue.find((item) => item.id === entryId && item.status === 'Serving'),
@@ -223,7 +221,6 @@ async function main() {
     const servingReload = await waitForText(pageQr, /In service/i, 'In Service after refresh');
     results.refresh_in_service = /in service/i.test(servingReload);
 
-    // Serving -> Completed -> shared ThankYouScreen.
     await staffCommand(staffToken, { type: 'queue_action', itemId: entryId, action: 'Complete' });
     const completedState = await waitForState(
       (state) => state.completedList.find((item) => item.id === entryId && item.status === 'Completed'),
@@ -238,8 +235,6 @@ async function main() {
     const completedReload = await waitForText(pageQr, /Thank You!/i, 'Thank You after refresh');
     results.refresh_completed = /thank you/i.test(completedReload);
 
-    // The shared ThankYouScreen defaults to 5 stars. Submit and verify the
-    // rating is written to completedList, which previously failed after Complete.
     await clickButtonContaining(pageQr, ['Submit Feedback & Review']);
     const ratedState = await waitForState(
       (state) => state.completedList.find((item) => item.id === entryId && item.rating === 5),
