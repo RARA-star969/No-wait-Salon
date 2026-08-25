@@ -23,5 +23,6 @@ export const businessQrService={
   recordVisit:(token:string,payload:{appCtaShown?:boolean;appCtaClicked?:boolean}={})=>request<{recorded:boolean}>(`/api/business-qr/${encodeURIComponent(token)}/visit`,{method:'POST',body:JSON.stringify(payload)}).catch(()=>({recorded:false})),
   acknowledgeCall:(salonId:string,itemId:string)=>request<any>(`/api/salons/${encodeURIComponent(salonId)}/commands`,{method:'POST',body:JSON.stringify({type:'queue_action',action:'Acknowledge',itemId})}).catch(()=>null),
   leaveQueue:(salonId:string,sessionId:string,reasonCode='other',reasonText='')=>request<any>(`/api/salons/${encodeURIComponent(salonId)}/commands`,{method:'POST',body:JSON.stringify({type:'cancel_customer',sessionId,reasonCode,reasonText})}),
+  submitRating:(salonId:string,itemId:string,rating:number,feedbackTags:string[],feedbackComment:string)=>request<any>(`/api/salons/${encodeURIComponent(salonId)}/commands`,{method:'POST',body:JSON.stringify({type:'queue_action',action:'Submit-rating',itemId,rating,feedbackTags,feedbackComment})}),
   setMarketingConsent:(consent:boolean)=>request<{marketingConsent:boolean}>('/api/me/marketing-consent',{method:'PUT',body:JSON.stringify({consent})}).catch(()=>({marketingConsent:false})),
 };

@@ -28,6 +28,7 @@ import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } 
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { QueueJoinSheet } from './QueueJoinSheet';
 import { SalonDetailPage } from './SalonDetailPage';
+import { ThankYouScreen } from './ThankYouScreen';
 import {
   fireTurnAlert,
   notificationPermission,
@@ -205,6 +206,21 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   const acknowledgeTurn = () => {
     setShowTurnPopup(false);
     if (business && entry) void businessQrService.acknowledgeCall(business.id, entry.id);
+  };
+
+  const submitRating = async (rating: number, tags: string[], comment: string) => {
+    if (!business || !entry) return;
+    setError('');
+    try {
+      const snapshot = await businessQrService.submitRating(business.id, entry.id, rating, tags, comment);
+      if (snapshot?.completedList) {
+        setCompletedList(snapshot.completedList);
+        const updated = snapshot.completedList.find((item: QueueItem) => item.id === entry.id);
+        if (updated) setEntry(updated);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save your feedback.');
+    }
   };
 
   const cancelBooking = async (reasonCode = 'other', reasonText = '') => {
@@ -422,6 +438,20 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
       <TopBar onOpenApp={openApp} />
 
+      {isQueued && entry && completed && (
+        <main id="qr-complete-screen" className="mx-auto max-w-md pb-12">
+          <ThankYouScreen
+            item={entry}
+            salonName={business.name}
+            onBackToHome={rejoin}
+            onSubmitRating={(rating, tags, comment) => void submitRating(rating, tags, comment)}
+          />
+          {error && (
+            <p role="alert" className="mx-4 mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">{error}</p>
+          )}
+        </main>
+      )}
+
       {/* ---------------- STEP 1: SALON DETAIL VIEW (100% Shared Component) ---------------- */}
       {step === 'salon' && (
         <SalonDetailPage
@@ -543,7 +573,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       )}
 
       {/* ---------------- LIVE TICKET / QUEUED VIEW ---------------- */}
-      {isQueued && entry && (
+      {isQueued && entry && !completed && (
         <main className="mx-auto max-w-md px-4 pb-12 pt-4">
           <div className="text-center">
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#0F766E] text-white shadow-sm">
