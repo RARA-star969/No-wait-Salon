@@ -3,6 +3,11 @@ const fs = require('node:fs');
 function replaceOnce(path, before, after, label) {
   let text = fs.readFileSync(path, 'utf8');
   if (text.includes(after)) return false;
+  // The TEST staff guard has evolved from its original one-line form into the
+  // stricter Render-host-aware form. If any explicit test-deployment guard is
+  // already present, the source is past this bootstrap patch and must not fail
+  // just because the old anchor disappeared.
+  if (label === 'test staff seed guard' && text.includes('const isExplicitTestDeployment')) return false;
   if (!text.includes(before)) throw new Error(`Patch anchor not found: ${label}`);
   text = text.replace(before, after);
   fs.writeFileSync(path, text);
