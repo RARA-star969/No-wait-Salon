@@ -62,7 +62,9 @@ export default function App() {
   // A plain phone camera lands here in a browser: serve the public salon page.
   // The packaged Android app keeps its existing in-app scanner flow.
   const publicQrToken = !PACKAGED_MODE && qrRouteMatch ? decodeURIComponent(qrRouteMatch[1]) : null;
-  const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || 'split');
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialViewMode = (urlParams.get('mode') || urlParams.get('view')) as ViewMode | null;
+  const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || initialViewMode || 'split');
   const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
   // The Staff app runs as its own APK with no discovery flow, so it was pinned
   // to the first mock salon and never saw bookings made at any other salon.
@@ -160,6 +162,9 @@ export default function App() {
     setBarbers(snapshot.barbers);
     setCompletedList(snapshot.completedList);
     setQueueAlert('');
+    if (snapshot.platformStatus) {
+      setSelectedSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
+    }
   };
 
   useEffect(() => {
@@ -815,6 +820,13 @@ export default function App() {
                   queueAlert={queueAlert}
                   onSaveStaff={handleSaveStaff}
                   onSaveOffers={handleSaveOffers}
+                  onTestSwitchBusiness={(businessId) => {
+                    const found = SALONS.find((s) => s.id === businessId);
+                    if (found) {
+                      setSelectedSalon(found);
+                      try { localStorage.setItem(STAFF_SALON_KEY, found.id); } catch { /* ignore */ }
+                    }
+                  }}
                 />
               </div>
             </section>

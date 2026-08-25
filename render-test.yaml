@@ -21,7 +21,7 @@ services:
     name: no-wait-salon-web-test
     runtime: docker
     plan: free
-    branch: main
+    branch: test/category-aware-staff-dashboard
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:

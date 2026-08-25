@@ -30,10 +30,20 @@ import {
   History,
   Trash2,
   Tag,
+  Dumbbell,
+  LayoutDashboard,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
+import {
+  resolveCategoryModules,
+  resolveCategoryCapabilities,
+  StaffRole,
+  MainCategoryType,
+  CategoryModuleConfig,
+} from '../shared/categoryDashboardResolver';
+import { GymDashboardView } from './GymDashboardView';
 
 interface StaffDashboardProps {
   salon: Salon;
@@ -57,6 +67,7 @@ interface StaffDashboardProps {
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
   onSaveOffers: (offers: SalonOffer[]) => void;
+  onTestSwitchBusiness?: (businessId: string, role?: string) => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -70,12 +81,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   queueAlert,
   onSaveStaff,
   onSaveOffers,
+  onTestSwitchBusiness,
 }) => {
   // Single ticking clock so every CALLED countdown re-renders each second.
   const [now, setNow] = useState(() => Date.now());
   const [cancelTarget, setCancelTarget] = useState<QueueItem | null>(null);
   const [bookingTab, setBookingTab] = useState<BookingTab>('live');
   const [filters, setFilters] = useState<BookingFilters>({ range: 'today', source: 'all', search: '' });
+  const [staffRole, setStaffRole] = useState<StaffRole>('owner');
+  const [gymModule, setGymModule] = useState<string>('overview');
+
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
@@ -84,26 +99,135 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers'>('live');
 
+  const mainCategoryId = (salon.mainCategoryId || 'salon').toLowerCase();
+  const isGymCategory = mainCategoryId === 'gym';
+  const isTestEnv =
+    import.meta.env.DEV ||
+    import.meta.env.MODE === 'test' ||
+    process.env.NODE_ENV !== 'production' ||
+    (typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' ||
+        window.location.hostname.includes('127.0.0.1') ||
+        window.location.hostname.includes('web-test.onrender.com') ||
+        window.location.search.includes('test=1')));
+  const categoryModules = resolveCategoryModules(mainCategoryId, staffRole);
+
   const waitingCount = queue.filter((x) => x.status === 'Waiting').length;
   const servingCount = queue.filter((x) => x.status === 'Serving').length;
   const calledCount = queue.filter((x) => x.status === 'Called').length;
   const activeBarbers = barbers.filter((b) => b.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((b) => b.status === 'available').length;
 
+  const isDeactivated = salon.platformStatus === 'deactivated';
+
+  if (isDeactivated) {
+    return (
+      <div id="staff-deactivated-blocking-overlay" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 p-5 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-[#121A19] p-7 text-center shadow-2xl space-y-5">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20">
+            <XCircle className="h-9 w-9" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Your account has been deactivated</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              Your business dashboard is currently unavailable. Please contact Support to resume your account.
+            </p>
+          </div>
+          <div className="pt-2">
+            <a
+              href="mailto:support@nowaitsalon.app?subject=Account%20Deactivation%20Support"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-rose-600/25 transition hover:bg-rose-500 active:scale-95"
+            >
+              <Phone className="h-4 w-4" />
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFA] text-[#17201F]">
       <div className="space-y-5 p-5">
+        {/* Test Business Switcher (Test / Dev Environment Only) */}
+        {isTestEnv && (
+          <div id="test-business-switcher-banner" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0F766E]/25 bg-[#E7F5F2] px-3.5 py-2 text-xs text-[#0F766E] shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold uppercase tracking-wider text-[10px] text-[#0F766E]">Testing as:</span>
+              <select
+                id="test-business-switcher"
+                aria-label="Test Business Switcher"
+                value={`${salon.id}:${staffRole}`}
+                onChange={(e) => {
+                  const [busId, role] = e.target.value.split(':');
+                  setStaffRole((role as StaffRole) || 'owner');
+                  if (onTestSwitchBusiness) {
+                    onTestSwitchBusiness(busId, role);
+                  }
+                }}
+                className="rounded-lg border border-[#0F766E]/30 bg-white px-2.5 py-1 text-xs font-bold text-[#17201F] shadow-sm focus:outline-none"
+              >
+                <option value="salon-1:owner">Sharpcut Studio — Salon (Owner)</option>
+                <option value="salon-2:owner">Royal Man Salon — Salon (Owner)</option>
+                <option value="gym-1:owner">Iron House Gym — Gym (Owner)</option>
+                <option value="gym-1:trainer">Iron House Gym — Gym (Coach Vikram - Trainer)</option>
+              </select>
+            </div>
+            <span className="text-[10px] font-semibold text-[#5C6E6B]">(Test tool only — disabled in production)</span>
+          </div>
+        )}
+
         <div className="flex items-start justify-between gap-4">
           <div>
-            <span className={ui.eyebrow}>Today at the salon</span>
+            <span className={ui.eyebrow}>{isGymCategory ? 'Fitness & Strength Facility' : 'Today at the salon'}</span>
             <h2 className="mt-1 text-xl font-bold tracking-[-0.025em] text-[#17201F]">{salon.name}</h2>
-            <p className="mt-0.5 text-[11px] text-[#6F7C7A]">Manage chairs, arrivals and the live queue in one place.</p>
+            <p className="mt-0.5 text-[11px] text-[#6F7C7A]">
+              {isGymCategory
+                ? 'Manage live capacity, member check-ins, classes, and trainers in one place.'
+                : 'Manage chairs, arrivals and the live queue in one place.'}
+            </p>
           </div>
           <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E7F5F2] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
-            Open
+            {isGymCategory ? 'Gym Active' : 'Open'}
           </span>
         </div>
+
+        {/* Dynamic Category Navigation Bar */}
+        {isGymCategory && (
+          <div className="flex snap-x gap-1.5 overflow-x-auto border-b border-[#E1E7E6] pb-2 pt-1">
+            {categoryModules.map((mod) => (
+              <button
+                key={mod.id}
+                id={`gym-module-tab-${mod.id}`}
+                onClick={() => setGymModule(mod.id)}
+                className={`snap-start shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
+                  gymModule === mod.id
+                    ? 'bg-[#0F766E] text-white shadow-sm'
+                    : 'border border-[#DDE5E3] bg-white text-[#5C6E6B] hover:bg-[#F4F7F6]'
+                }`}
+              >
+                {mod.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Category Specific View Render */}
+        {isGymCategory ? (
+          <GymDashboardView
+            gymId={salon.id}
+            gymName={salon.name}
+            role={staffRole}
+            staffName={staffRole === 'trainer' ? 'Coach Vikram' : `${salon.name} Owner`}
+            activeModule={gymModule}
+            onModuleSelect={setGymModule}
+          />
+        ) : (
+          <>
 
         {/* Metrics Row */}
         <div className="grid grid-cols-3 gap-3">
@@ -466,6 +590,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         )}
         {activeTab === 'offers' && (
           <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+        )}
+        </>
         )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}

@@ -22,6 +22,7 @@ import {
   LoaderCircle,
   QrCode,
   Search,
+  AlertTriangle,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -39,6 +40,7 @@ import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
+import { GymDetailPage } from './GymDetailPage';
 import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
 import { ThankYouScreen } from './ThankYouScreen';
 import { realtimeQueueService } from '../services/realtimeQueueService';
@@ -458,6 +460,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
   const visibleSalons = nearbySalons?.filter((salon) => {
+    if (salon.platformStatus === 'deactivated' || salon.platformStatus === 'inactive') return false;
     if (!normalizedSearch) return true;
     return [
       salon.name,
@@ -871,24 +874,49 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       {currentScreen === 'salon' && (
         <div className="relative min-h-full">
         {queueError && <div role="alert" className="absolute left-4 right-4 top-4 z-20 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{queueError}</div>}
-        <SalonDetailPage
-          salon={selectedSalon}
-          nearbySalons={nearbySalons}
-          queue={queue}
-          barbers={barbers}
-          selectedService={selectedService}
-          setSelectedService={setSelectedService}
-          selectedServiceIds={selectedServiceIds}
-          setSelectedServiceIds={setSelectedServiceIds}
-          appliedOfferId={appliedOfferId}
-          onApplyOffer={onApplyOffer}
-          onRemoveOffer={onRemoveOffer}
-          onBack={() => setScreen('home')}
-          onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
-          onReserve={() => setScreen('slots')}
-          userEntry={userEntry}
-          isJoinSheetOpen={isJoinSheetOpen}
-        />
+        {selectedSalon.platformStatus === 'deactivated' ? (
+          <div id="business-deactivated-customer-view" className="flex min-h-[70vh] flex-col items-center justify-center p-6 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            <h2 className="mt-4 text-xl font-bold text-[#17201F]">Business Currently Unavailable</h2>
+            <p className="mt-2 max-w-sm text-sm text-[#6F7C7A]">
+              {selectedSalon.name} is temporarily unavailable or deactivated on No-Wait Salon.
+            </p>
+            <button
+              onClick={() => setScreen('home')}
+              className="mt-6 rounded-xl bg-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0D645E]"
+            >
+              Back to Home
+            </button>
+          </div>
+        ) : (selectedSalon.mainCategoryId || 'salon').toLowerCase() === 'gym' ? (
+          <GymDetailPage
+            salon={selectedSalon}
+            onBack={() => setScreen('home')}
+            onApplyOffer={onApplyOffer}
+            appliedOfferId={appliedOfferId}
+          />
+        ) : (
+          <SalonDetailPage
+            salon={selectedSalon}
+            nearbySalons={nearbySalons}
+            queue={queue}
+            barbers={barbers}
+            selectedService={selectedService}
+            setSelectedService={setSelectedService}
+            selectedServiceIds={selectedServiceIds}
+            setSelectedServiceIds={setSelectedServiceIds}
+            appliedOfferId={appliedOfferId}
+            onApplyOffer={onApplyOffer}
+            onRemoveOffer={onRemoveOffer}
+            onBack={() => setScreen('home')}
+            onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
+            onReserve={() => setScreen('slots')}
+            userEntry={userEntry}
+            isJoinSheetOpen={isJoinSheetOpen}
+          />
+        )}
         </div>
       )}
 

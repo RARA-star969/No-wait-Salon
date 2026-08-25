@@ -11,6 +11,7 @@ export interface SalonSnapshot {
   barbers: Barber[];
   completedList: QueueItem[];
   updatedAt: number;
+  platformStatus?: string;
 }
 
 export type QueueCommand =
