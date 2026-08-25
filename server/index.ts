@@ -25,6 +25,7 @@ type SalonState = {
   /** Daily per-salon token sequence; resets whenever tokenDate rolls over. */
   tokenSeq: number;
   tokenDate: string;
+  platformStatus?: string;
 };
 
 /**
@@ -992,14 +993,24 @@ function ensureTokens(state: SalonState): SalonState {
   return state;
 }
 
+function isBusinessActive(businessId: string): boolean {
+  const row = db.prepare('SELECT platform_status FROM salon WHERE id = ?').get(businessId) as { platform_status: string } | undefined;
+  if (!row) return true;
+  return row.platform_status === 'active';
+}
+
 function readState(salonId: string): SalonState {
+  const salonRow = db.prepare('SELECT platform_status FROM salon WHERE id = ?').get(salonId) as { platform_status: string } | undefined;
+  const platformStatus = salonRow?.platform_status || 'active';
   const row = db.prepare('SELECT state_json FROM salon_state WHERE salon_id = ?').get(salonId) as { state_json: string } | undefined;
   if (row) {
     const state = ensureTokens(JSON.parse(row.state_json) as SalonState);
+    state.platformStatus = platformStatus;
     if (reconcileBarbers(state)) db.prepare('UPDATE salon_state SET state_json = ? WHERE salon_id = ?').run(JSON.stringify(state), state.salonId);
     return state;
   }
   const state = seedState(salonId);
+  state.platformStatus = platformStatus;
   db.prepare('INSERT INTO salon_state (salon_id, version, state_json, updated_at) VALUES (?, ?, ?, ?)')
     .run(salonId, state.version, JSON.stringify(state), state.updatedAt);
   return state;
@@ -1569,6 +1580,9 @@ app.get('/api/gym/:gymId/overview', (request, response) => {
 app.post('/api/gym/:gymId/checkin', (request, response) => {
   const session = resolveStaffSession(request);
   const gymId = request.params.gymId;
+  if (!isBusinessActive(gymId)) {
+    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+  }
   if (session && session.businessId !== gymId) {
     return response.status(403).json({ error: 'Cross-business access denied.' });
   }
@@ -1585,6 +1599,9 @@ app.post('/api/gym/:gymId/checkin', (request, response) => {
 app.post('/api/gym/:gymId/checkout', (request, response) => {
   const session = resolveStaffSession(request);
   const gymId = request.params.gymId;
+  if (!isBusinessActive(gymId)) {
+    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+  }
   if (session && session.businessId !== gymId) {
     return response.status(403).json({ error: 'Cross-business access denied.' });
   }
@@ -1607,6 +1624,9 @@ app.get('/api/gym/:gymId/public-overview', (request, response) => {
 app.post('/api/gym/:gymId/trainer-status', (request, response) => {
   const session = resolveStaffSession(request);
   const gymId = request.params.gymId;
+  if (!isBusinessActive(gymId)) {
+    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+  }
   if (session && session.businessId !== gymId) {
     return response.status(403).json({ error: 'Cross-business access denied.' });
   }
@@ -1623,6 +1643,9 @@ app.post('/api/gym/:gymId/trainer-status', (request, response) => {
 app.post('/api/gym/:gymId/settings', (request, response) => {
   const session = resolveStaffSession(request);
   const gymId = request.params.gymId;
+  if (!isBusinessActive(gymId)) {
+    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+  }
   if (session && session.businessId !== gymId) {
     return response.status(403).json({ error: 'Cross-business access denied.' });
   }
@@ -2000,9 +2023,12 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
 });
 
 app.patch('/api/admin/salons/:id/status', requireAdmin, async (request,response) => {
-  const status=cleanText(request.body?.status,20); if(!['draft','active','inactive','suspended'].includes(status)) return response.status(400).json({error:'Invalid salon status.'});
+  const status=cleanText(request.body?.status,20); if(!['draft','active','inactive','suspended','deactivated'].includes(status)) return response.status(400).json({error:'Invalid salon status.'});
   const result=db.prepare('UPDATE salon SET platform_status=?, updated_at=? WHERE id=?').run(status,Date.now(),request.params.id);
-  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); if(status==='active')ensureBusinessQr(db,request.params.id,'salon'); await postgresPersistence?.flushNow(['salon','business_qr']); response.json({ok:true,status});
+  if(!result.changes) return response.status(404).json({error:'Salon not found.'}); if(status==='active')ensureBusinessQr(db,request.params.id,'salon');
+  publish(readState(request.params.id));
+  await postgresPersistence?.flushNow(['salon','business_qr']);
+  response.json({ok:true,status});
 });
 
 app.post('/api/admin/media/upload', requireAdmin, (request,response) => {
@@ -2222,6 +2248,9 @@ app.get('/api/salons/:salonId/events', (request, response) => {
 });
 
 app.post('/api/salons/:salonId/commands', async (request, response) => {
+  if (!isBusinessActive(request.params.salonId)) {
+    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+  }
   try {
     db.exec('BEGIN IMMEDIATE');
     const current = readState(request.params.salonId);

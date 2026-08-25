@@ -162,6 +162,9 @@ export default function App() {
     setBarbers(snapshot.barbers);
     setCompletedList(snapshot.completedList);
     setQueueAlert('');
+    if (snapshot.platformStatus) {
+      setSelectedSalon((prev) => (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }));
+    }
   };
 
   useEffect(() => {

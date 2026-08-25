@@ -118,6 +118,37 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   const activeBarbers = barbers.filter((b) => b.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((b) => b.status === 'available').length;
 
+  const isDeactivated = salon.platformStatus === 'deactivated';
+
+  if (isDeactivated) {
+    return (
+      <div id="staff-deactivated-blocking-overlay" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 p-5 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-[#121A19] p-7 text-center shadow-2xl space-y-5">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20">
+            <XCircle className="h-9 w-9" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-extrabold text-white tracking-tight">Your account has been deactivated</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-400">
+              Your business dashboard is currently unavailable. Please contact Support to resume your account.
+            </p>
+          </div>
+          <div className="pt-2">
+            <a
+              href="mailto:support@nowaitsalon.app?subject=Account%20Deactivation%20Support"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-rose-600/25 transition hover:bg-rose-500 active:scale-95"
+            >
+              <Phone className="h-4 w-4" />
+              Contact Support
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFA] text-[#17201F]">
       <div className="space-y-5 p-5">
