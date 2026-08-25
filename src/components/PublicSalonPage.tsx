@@ -169,6 +169,17 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
     return () => clearInterval(id);
   }, []);
 
+  // The Salon Detail page is much taller than the QR onboarding/ticket steps.
+  // A customer can tap the fixed Join Queue dock while scrolled deep in the
+  // salon page; browsers preserve that scroll offset after the long view is
+  // replaced, which can leave the new phone/OTP/profile/ticket UI above the
+  // viewport and make the page look completely blank. Always reveal the top
+  // of each route step when the public QR flow advances.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [step]);
+
   // Alert when staff calls customer
   useEffect(() => {
     if (!entry || !business) return;
