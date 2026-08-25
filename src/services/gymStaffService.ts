@@ -1,4 +1,4 @@
-const getBaseUrl = () => typeof window !== 'undefined' ? '' : 'http://127.0.0.1:3000';
+const getBaseUrl = () => (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 function authHeaders() {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('no_wait_salon_staff_token') : null;

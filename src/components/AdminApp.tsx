@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
-import {
+import { 
   Building2,
   Users,
   CalendarCheck,
@@ -1034,6 +1034,9 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
 
   const set = (k: string, v: any) => setForm((f: AnyRow) => ({ ...f, [k]: v }));
 
+
+  
+
   const save = async () => {
     setBusy(true);
     setError('');
@@ -1051,6 +1054,81 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
       setBusy(false);
     }
   };
+
+const [checkingId, setCheckingId] = useState(false);
+  const [idAvailable, setIdAvailable] = useState<boolean | null>(null);
+
+  const checkBusinessId = async () => {
+    if (!form.business_code) return;
+    setCheckingId(true);
+    try {
+      const res = await api('/api/admin/check-business-id/' + form.business_code);
+      setIdAvailable(res.available);
+      if (!res.available) setError('This Business ID is already in use.');
+      else setError('');
+    } catch(e) {
+      setError('Check failed');
+    } finally {
+      setCheckingId(false);
+    }
+  };
+
+  if (id === 'new') {
+    return (
+      <div className="max-w-2xl mx-auto mt-6">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={onBack} className="rounded-xl border p-2 text-slate-600 hover:bg-slate-100"><ChevronLeft size={18} /></button>
+          <div>
+            <h1 className="text-2xl font-bold">Add New Business (Shell)</h1>
+            <p className="text-xs text-slate-500">Create the platform workspace. Staff owner completes public profile later.</p>
+          </div>
+        </div>
+        {error && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <Field label="Business Name" value={form.name} onChange={(v) => set('name', v)} required />
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Main Category
+            <select value={form.main_category_id || 'salon'} onChange={(e) => set('main_category_id', e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600">
+              {mainCats.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </label>
+          
+          <div className="pt-4 border-t">
+            <h3 className="text-sm font-bold text-slate-900 mb-4">Permanent Platform Identity</h3>
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700">Business ID (Code)</label>
+              <div className="flex gap-2">
+                <input 
+                  value={form.business_code || ''} 
+                  onChange={e => { set('business_code', e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '')); setIdAvailable(null); }}
+                  placeholder="e.g. IRONHOUSE01"
+                  className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-teal-600 uppercase"
+                />
+                <button onClick={checkBusinessId} disabled={checkingId || !form.business_code} type="button" className="rounded-xl bg-slate-100 px-4 py-2 font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50">
+                  {checkingId ? 'Checking...' : 'Check Availability'}
+                </button>
+              </div>
+              {idAvailable === true && <span className="text-sm font-bold text-teal-600">✅ Available</span>}
+              {idAvailable === false && <span className="text-sm font-bold text-red-600">❌ This Business ID is already in use</span>}
+              <p className="text-xs text-slate-500">Only A-Z, 0-9, and hyphens. This is the permanent code staff uses to select this workspace.</p>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t grid gap-4 sm:grid-cols-2">
+            <Field label="Owner Phone" value={form.phone_number} onChange={(v) => set('phone_number', v)} placeholder="+1 555-0199" />
+            <Field label="Owner Email" value={form.email} onChange={(v) => set('email', v)} placeholder="owner@example.com" />
+          </div>
+
+          <div className="pt-4 border-t flex justify-end">
+            <button onClick={save} disabled={busy || idAvailable === false || !form.business_code || !form.name} className="rounded-xl bg-teal-600 px-6 py-3 font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50">
+              {busy ? 'Creating...' : 'Create Business Shell'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
 
   if (busy && id !== 'new' && !form.name)
     return (

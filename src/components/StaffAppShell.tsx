@@ -6,7 +6,7 @@ import { Salon, QueueItem, Barber, SalonOffer } from '../types';
 interface StaffSession {
   token: string;
   staff: { id: string; email: string; name: string; role: string };
-  business: { id: string; name: string; mainCategoryId: string; onboarded: boolean };
+  business: { id: string; name: string; mainCategoryId: string; onboarded: boolean; businessCode: string; profileCompletedAt: number | null };
 }
 
 interface StaffAppShellProps {
@@ -25,13 +25,19 @@ interface StaffAppShellProps {
 export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   const [session, setSession] = useState<StaffSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState('');
   
-  // Login form state
+  // Step 1: Business ID
+  const [businessCode, setBusinessCode] = useState('');
+  const [resolvedBusiness, setResolvedBusiness] = useState<{id: string, name: string, mainCategoryId: string, businessCode: string} | null>(null);
+  const [codeError, setCodeError] = useState('');
+  const [resolvingCode, setResolvingCode] = useState(false);
+
+  // Step 2: Login
+  const [authError, setAuthError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Onboarding form state
+  // Step 3: Setup
   const [setupForm, setSetupForm] = useState({
     name: '',
     description: '',
@@ -39,6 +45,8 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     opening_hours: 'Mon-Sun 6:00 AM-10:00 PM',
   });
   const [setupSubmitting, setSetupSubmitting] = useState(false);
+  const [skipSetup, setSkipSetup] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
     checkSession();
@@ -64,6 +72,25 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     }
   };
 
+  const handleResolveBusiness = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCodeError('');
+    setResolvingCode(true);
+    try {
+      const res = await fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/resolve-business/${encodeURIComponent(businessCode)}`);
+      const data = await res.json();
+      if (res.ok) {
+        setResolvedBusiness(data);
+      } else {
+        setCodeError(data.error || 'Business not found.');
+      }
+    } catch (err) {
+      setCodeError('Network error');
+    } finally {
+      setResolvingCode(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -78,6 +105,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
         localStorage.setItem('no_wait_salon_staff_token', data.token);
         setSession(data);
         setSetupForm(prev => ({ ...prev, name: data.business.name }));
+        setSkipSetup(false);
       } else {
         setAuthError(data.error || 'Login failed');
       }
@@ -93,10 +121,18 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     }
     localStorage.removeItem('no_wait_salon_staff_token');
     setSession(null);
+    setResolvedBusiness(null);
+    setSkipSetup(false);
   };
 
-  const handleSetupComplete = async (e: React.FormEvent) => {
+  const handleSetupComplete = async (e: React.FormEvent, isSkip: boolean) => {
     e.preventDefault();
+    if (isSkip) {
+      setSkipSetup(true);
+      setShowSetup(false);
+      return;
+    }
+
     setSetupSubmitting(true);
     try {
       const res = await fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/business/profile`, {
@@ -105,10 +141,11 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.token}`
         },
-        body: JSON.stringify(setupForm)
+        body: JSON.stringify({ ...setupForm, markComplete: true })
       });
       if (res.ok) {
         await checkSession();
+        setShowSetup(false);
       } else {
         alert('Failed to save profile details.');
       }
@@ -123,14 +160,46 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     return <div className="flex h-screen items-center justify-center bg-[#F4F7F6] text-[#5C6E6B]">Loading Staff App...</div>;
   }
 
-  // 1. Staff Login Flow
-  if (!session) {
+  // 1. Business ID Flow
+  if (!session && !resolvedBusiness) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#F4F7F6] p-4">
+      <div className="flex h-full min-h-screen w-full items-center justify-center bg-[#F4F7F6] p-4">
         <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm">
           <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Staff Login</h1>
-            <p className="mt-2 text-sm text-[#5C6E6B]">Sign in to manage your business</p>
+            <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Enter Business ID</h1>
+            <p className="mt-2 text-sm text-[#5C6E6B]">Enter your unique workspace code to continue.</p>
+          </div>
+          {codeError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{codeError}</div>}
+          <form onSubmit={handleResolveBusiness} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-[#5C6E6B]">Business ID</label>
+              <input 
+                type="text" 
+                value={businessCode} 
+                onChange={e => setBusinessCode(e.target.value.toUpperCase())}
+                placeholder="e.g. IRONHOUSE01"
+                className="mt-1 w-full rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-4 py-2.5 text-sm text-[#17201F] uppercase"
+                required 
+              />
+            </div>
+            <button type="submit" disabled={resolvingCode} className="w-full rounded-xl bg-[#0F766E] py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-50">
+              {resolvingCode ? 'Checking...' : 'Continue'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Staff Login Flow
+  if (!session && resolvedBusiness) {
+    return (
+      <div className="flex h-full min-h-screen w-full items-center justify-center bg-[#F4F7F6] p-4">
+        <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-sm">
+          <button onClick={() => setResolvedBusiness(null)} className="mb-6 text-[11px] font-bold text-[#0F766E]">← Back</button>
+          <div className="mb-8 text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">{resolvedBusiness.name}</h1>
+            <p className="mt-2 text-sm uppercase tracking-widest text-[#5C6E6B]">{resolvedBusiness.mainCategoryId}</p>
           </div>
           {authError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{authError}</div>}
           <form onSubmit={handleLogin} className="space-y-4">
@@ -158,24 +227,24 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
               Sign In
             </button>
           </form>
-          <div className="mt-6 text-center text-[11px] text-[#778481]">
-            Don't have an account? Your Admin must invite you.
-          </div>
         </div>
       </div>
     );
   }
 
-  // 2. Business Onboarding Flow (First-login setup)
-  if (!session.business.onboarded) {
+  // 3. Business Onboarding Flow (First-login setup)
+  const isProfileIncomplete = !session!.business.profileCompletedAt;
+  const shouldShowSetup = isProfileIncomplete && (!skipSetup || showSetup);
+
+  if (shouldShowSetup) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#F4F7F6] p-4">
+      <div className="flex h-full min-h-screen w-full items-center justify-center bg-[#F4F7F6] p-4">
         <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-sm">
           <div className="mb-6">
             <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Complete your setup</h1>
-            <p className="mt-2 text-sm text-[#5C6E6B]">Please provide the public details for {session.business.name} before accessing the dashboard.</p>
+            <p className="mt-2 text-sm text-[#5C6E6B]">Please provide the public details for {session!.business.name} before accessing the dashboard.</p>
           </div>
-          <form onSubmit={handleSetupComplete} className="space-y-4">
+          <form onSubmit={(e) => handleSetupComplete(e, false)} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-[#5C6E6B]">Business Name (Public)</label>
               <input 
@@ -206,13 +275,22 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
                 required 
               />
             </div>
-            <button 
-              type="submit" 
-              disabled={setupSubmitting}
-              className="w-full rounded-xl bg-[#0F766E] py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-50"
-            >
-              {setupSubmitting ? 'Saving...' : 'Complete Setup & Go to Dashboard'}
-            </button>
+            <div className="flex flex-col gap-2 pt-4">
+              <button 
+                type="submit" 
+                disabled={setupSubmitting}
+                className="w-full rounded-xl bg-[#0F766E] py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-50"
+              >
+                {setupSubmitting ? 'Saving...' : 'Save & Continue'}
+              </button>
+              <button 
+                type="button" 
+                onClick={(e) => handleSetupComplete(e, true)}
+                className="w-full rounded-xl bg-[#F4F7F6] py-3 text-sm font-bold text-[#5C6E6B] shadow-sm transition active:scale-[0.98]"
+              >
+                Skip for now
+              </button>
+            </div>
           </form>
           <div className="mt-6 border-t border-[#EAEFEF] pt-4 text-center">
             <button onClick={handleLogout} className="text-xs font-bold text-red-600">Sign Out</button>
@@ -222,20 +300,26 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     );
   }
 
-  // 3. Normal Authorized Staff Dashboard
-  const isGym = session.business.mainCategoryId === 'gym';
+  // 4. Normal Authorized Staff Dashboard
+  const isGym = session!.business.mainCategoryId === 'gym';
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#F4F7F6]">
+    <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">
+      {isProfileIncomplete && (
+        <div className="bg-[#FFF8E6] px-4 py-2 text-center text-sm font-medium text-[#B45309] flex justify-between items-center">
+          <span>Business profile incomplete</span>
+          <button onClick={() => setShowSetup(true)} className="underline font-bold">Complete setup</button>
+        </div>
+      )}
       {/* Top Header Shell */}
       <header className="flex shrink-0 items-center justify-between border-b border-[#DDE5E3] bg-white px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-white font-bold">
-            {session.business.name.charAt(0)}
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-white font-bold uppercase">
+            {session!.business.name.charAt(0)}
           </div>
           <div>
-            <h1 className="text-sm font-bold text-[#17201F]">{session.business.name}</h1>
-            <p className="text-[10px] text-[#5C6E6B]">{session.staff.name} ({session.staff.role})</p>
+            <h1 className="text-sm font-bold text-[#17201F]">{session!.business.name}</h1>
+            <p className="text-[10px] text-[#5C6E6B]">{session!.staff.name} ({session!.staff.role})</p>
           </div>
         </div>
         <button onClick={handleLogout} className="rounded-lg bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-700">
@@ -247,10 +331,10 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       <main className="flex-1 overflow-y-auto">
         {isGym ? (
           <GymDashboardView 
-            gymId={session.business.id}
-            gymName={session.business.name}
-            role={session.staff.role as any}
-            staffName={session.staff.name}
+            gymId={session!.business.id}
+            gymName={session!.business.name}
+            role={session!.staff.role as any}
+            staffName={session!.staff.name}
             activeModule="overview"
             onModuleSelect={() => {}}
           />

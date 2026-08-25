@@ -1,0 +1,73 @@
+name: Android Staff Test Build
+
+on:
+  push:
+    branches:
+      - 'test/**'
+      - 'fix/**'
+      - 'feat/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-staff-test-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  staff-debug-apk:
+    runs-on: ubuntu-latest
+    env:
+      VITE_APP_MODE: staff
+      CAPACITOR_APP_TARGET: staff
+      VITE_TEST_BUILD: "true"
+      VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build staff debug APK
+        env:
+          APP_VERSION_NAME: 1.0.0-test.${{ github.run_number }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+        run: pnpm android:apk:staff
+
+      - name: Stage APK
+        shell: bash
+        run: |
+          mkdir -p test-artifacts
+          cp android-staff/app/build/outputs/apk/debug/app-debug.apk \
+            "test-artifacts/No-Wait-Staff-TEST-${{ github.run_number }}.apk"
+          sha256sum test-artifacts/*.apk > test-artifacts/SHA256SUMS.txt
+          ls -la test-artifacts
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-test-apk-${{ github.run_number }}
+          path: test-artifacts/
+          retention-days: 14
+          if-no-files-found: error

@@ -159,6 +159,13 @@ const migrations=[{
       ('food','Food','Utensils','Food & Dining','Restaurants, cafes, bakeries & dining spots',7,1,0,'food','#EA580C','#F97316','','Artisanal cafe & gourmet bistro.','Farm-to-table European deli classics, specialty coffee & tasting menus.','Explore Dining',0,0)
     ON CONFLICT(id) DO NOTHING;
   `
+}, {
+  version: 2,
+  sql: `
+    ALTER TABLE salon ADD COLUMN business_code TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code);
+    ALTER TABLE salon ADD COLUMN profile_completed_at BIGINT;
+  `
 }];
 
 export async function runMigrations(db:Database){

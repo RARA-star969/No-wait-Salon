@@ -703,8 +703,8 @@ if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}
 
 export async function safeBackfillSeeds(db: any, persistence: any) {
   const insertSalon = db.prepare(`
-    INSERT INTO salon (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json, onboarded, category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO salon (id, name, address, latitude, longitude, rating, review_count, is_open, opening_hours, services_json, barbers_json, onboarded, category, main_category_id, phone_number, description, cover_image_url, logo_image_url, amenities_json, offers_json, gallery_json, brand_key, created_at, business_code, profile_completed_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO NOTHING
   `);
   
@@ -880,12 +880,12 @@ function resolveStaffSession(request: express.Request) {
 
   if (token) {
     const session = db.prepare(`
-      SELECT ss.staff_id, ss.business_id, sa.email, sa.name, sa.role, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id, s.onboarded
+      SELECT ss.staff_id, ss.business_id, sa.email, sa.name, sa.role, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id, s.onboarded, s.business_code, s.profile_completed_at
       FROM staff_session ss
       JOIN staff_account sa ON ss.staff_id = sa.id
       JOIN salon s ON ss.business_id = s.id
       WHERE ss.token_hash = ? AND ss.expires_at > ? AND sa.active = 1
-    `).get(hashCode(token), Date.now()) as { staff_id: string; business_id: string; email: string; name: string; role: string; business_name: string; main_category_id: string; onboarded: number } | undefined;
+    `).get(hashCode(token), Date.now()) as { staff_id: string; business_id: string; email: string; name: string; role: string; business_name: string; main_category_id: string; onboarded: number; business_code: string; profile_completed_at: number | null } | undefined;
 
     if (session) {
       return {
@@ -895,7 +895,10 @@ function resolveStaffSession(request: express.Request) {
         role: session.role,
         businessId: session.business_id,
         businessName: session.business_name,
-        mainCategoryId: session.main_category_id, onboarded: session.onboarded === 1,
+        mainCategoryId: session.main_category_id,
+        onboarded: session.onboarded === 1,
+        businessCode: session.business_code,
+        profileCompletedAt: session.profile_completed_at,
       };
     }
   }
@@ -1569,6 +1572,14 @@ function getGymState(gymId: string) {
   return state;
 }
 
+
+app.get('/api/staff/resolve-business/:code', (request, response) => {
+  const code = String(request.params.code).toUpperCase().trim();
+  const row = db.prepare('SELECT id, name, COALESCE(main_category_id, \'salon\') as main_category_id FROM salon WHERE business_code = ?').get(code) as any;
+  if (!row) return response.status(404).json({ error: 'Business not found.' });
+  response.json({ id: row.id, name: row.name, mainCategoryId: row.main_category_id, businessCode: code });
+});
+
 app.post('/api/staff/login', (request, response) => {
   const email = cleanText(request.body?.email, 200).toLowerCase();
   const password = String(request.body?.password || '');
@@ -1599,12 +1610,12 @@ app.get('/api/staff/session', (request, response) => {
   const session = resolveStaffSession(request);
   if (!session) {
     if (process.env.NODE_ENV !== 'production') {
-      const defaultSalon = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE platform_status = 'active' ORDER BY id ASC LIMIT 1").get() as any;
+      const defaultSalon = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id, business_code, profile_completed_at FROM salon WHERE platform_status = 'active' ORDER BY id ASC LIMIT 1").get() as any;
       if (defaultSalon) {
         return response.json({
           token: 'dev-token',
           staff: { id: 'dev-owner', email: 'dev-owner@test.com', name: `${defaultSalon.name} Owner`, role: 'owner' },
-          business: { id: defaultSalon.id, name: defaultSalon.name, mainCategoryId: defaultSalon.main_category_id, onboarded: true },
+          business: { id: defaultSalon.id, name: defaultSalon.name, mainCategoryId: defaultSalon.main_category_id, onboarded: true, businessCode: defaultSalon.business_code || 'DEV01', profileCompletedAt: defaultSalon.profile_completed_at || Date.now() },
         });
       }
     }
@@ -1613,7 +1624,7 @@ app.get('/api/staff/session', (request, response) => {
   response.json({
     token: request.headers.authorization?.slice(7).trim() || 'active-session',
     staff: { id: session.staffId, email: session.email, name: session.name, role: session.role },
-    business: { id: session.businessId, name: session.businessName, mainCategoryId: session.mainCategoryId, onboarded: session.onboarded },
+    business: { id: session.businessId, name: session.businessName, mainCategoryId: session.mainCategoryId, onboarded: session.onboarded, businessCode: session.businessCode, profileCompletedAt: session.profileCompletedAt },
   });
 });
 
@@ -1640,7 +1651,7 @@ app.put('/api/staff/business/profile', (request, response) => {
   if (body.amenities !== undefined && Array.isArray(body.amenities)) { fields.push('amenities_json = ?'); values.push(JSON.stringify(body.amenities)); }
   
   // If no fields to update, just mark as onboarded if needed.
-  fields.push('onboarded = 1');
+  if (body.markComplete) { fields.push('profile_completed_at = ?'); values.push(now); }
   fields.push('updated_at = ?');
   values.push(now);
   values.push(businessId);
@@ -1743,6 +1754,9 @@ app.put('/api/gym/:gymId/core-state', (request, response) => {
   }
   if (!session || session.businessId !== gymId) {
     return response.status(403).json({ error: 'Valid staff session required for this business.' });
+  }
+  if (session.role !== 'owner' && session.role !== 'manager') {
+    return response.status(403).json({ error: 'Only owners and managers can update core state.' });
   }
 
   const state = getGymState(gymId);
@@ -2148,6 +2162,14 @@ app.post('/api/customer/address-requests', requireCustomer, (request: Authentica
   response.status(201).json({ ok: true, request: { id, areaName, city, pinCode, comments, status: 'pending', createdAt: now } });
 });
 
+
+app.get('/api/admin/check-business-id/:code', requireAdmin, (request, response) => {
+  const code = String(request.params.code).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  if (!code) return response.status(400).json({ error: 'Invalid business ID format.' });
+  const row = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
+  response.json({ available: !row, code });
+});
+
 app.get('/api/admin/salons', requireAdmin, (_request, response) => {
   const rows = db.prepare(`SELECT s.*, (SELECT COUNT(*) FROM salon_service ss WHERE ss.salon_id=s.id) service_count,
     (SELECT COUNT(*) FROM salon_staff st WHERE st.salon_id=s.id) staff_count FROM salon s ORDER BY s.updated_at DESC, s.created_at DESC`).all();
@@ -2203,12 +2225,16 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     const id = cleanText(body.id, 100) || randomUUID(); const now = Date.now();
     const latitude = parseCoordinate(body.latitude, -90, 90, 'Latitude'); const longitude = parseCoordinate(body.longitude, -180, 180, 'Longitude');
     const mainCategoryId = resolveAdminMainCategoryId(body);
+    const businessCode = cleanText(body.business_code, 50).toUpperCase();
+    if (!businessCode || !/^[A-Z0-9-]+$/.test(businessCode)) throw new Error('Valid Business Code (A-Z, 0-9, hyphens) is required.');
+    const existingCode = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(businessCode);
+    if (existingCode) { return response.status(409).json({ error: 'This Business ID is already in use.' }); }
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
-      category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at)
+      category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at)
       VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
-        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now);
+        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,cleanText(body.business_code, 50).toUpperCase(),null);
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
     response.status(201).json({ salon: adminSalonDetail(id) });
