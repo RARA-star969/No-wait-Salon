@@ -1019,6 +1019,9 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
   const [error, setError] = useState('');
   const [assignedBusinessCode, setAssignedBusinessCode] = useState('');
   const [assigningId, setAssigningId] = useState(false);
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPassword, setOwnerPassword] = useState('');
+  const [provisioningOwner, setProvisioningOwner] = useState(false);
 
   useEffect(() => {
     void api('/api/admin/main-categories')
@@ -1101,6 +1104,30 @@ const [checkingId, setCheckingId] = useState(false);
       setError(e instanceof Error ? e.message : 'Unable to assign Business ID.');
     } finally {
       setAssigningId(false);
+    }
+  };
+
+  const provisionOwner = async () => {
+    if (id === 'new' || !assignedBusinessCode || !ownerEmail || ownerPassword.length < 8) return;
+    setProvisioningOwner(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await api(`/api/admin/salons/${id}/owner-account`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          email: ownerEmail.trim().toLowerCase(),
+          password: ownerPassword,
+          name: `${form.name || 'Business'} Owner`,
+        }),
+      });
+      setOwnerEmail(String(result.account?.email || ownerEmail).toLowerCase());
+      setOwnerPassword('');
+      setMessage(`Owner login ready for ${result.account?.businessCode || assignedBusinessCode}. Existing sessions were securely refreshed.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unable to create owner login.');
+    } finally {
+      setProvisioningOwner(false);
     }
   };
 
@@ -1282,6 +1309,26 @@ const [checkingId, setCheckingId] = useState(false);
               </div>
               <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900">
                 Changing this staff login ID does not regenerate or disable the customer-facing Business QR.
+              </div>
+              <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">Owner Login Credentials</div>
+                  <div className="mt-1 text-xs text-slate-500">Creates or replaces the owner account for NOQ Business. Staff accounts can use the same Business ID with separate roles.</div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                    Owner Email
+                    <input type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} placeholder="owner@example.com" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600" />
+                  </label>
+                  <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                    Temporary Password
+                    <input type="password" value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} placeholder="Minimum 8 characters" className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600" />
+                  </label>
+                </div>
+                <button type="button" onClick={() => void provisionOwner()} disabled={provisioningOwner || !assignedBusinessCode || !ownerEmail || ownerPassword.length < 8} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">
+                  {provisioningOwner ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                  Create / Replace Owner Login
+                </button>
               </div>
             </div>
           </Section>
