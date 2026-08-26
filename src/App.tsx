@@ -732,7 +732,18 @@ export default function App() {
           {(viewMode === 'split' || viewMode === 'customer') && (
             <section
               id="customer-app-window"
-              className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
+              // Outside the packaged Customer app, this panel is a bounded
+              // preview inside a larger desktop page, not the real device
+              // viewport. `contain: layout` makes this section the CSS
+              // containing block for its `position: fixed` descendants (the
+              // gym floating capsule, the selected-pass bottom dock, etc.),
+              // so they anchor to this panel's own box — clipped by its
+              // existing rounded corners and overflow-hidden — instead of
+              // the whole browser viewport. The real packaged Customer app
+              // (PACKAGED_MODE === 'customer', Android included) never gets
+              // this class, so those elements keep their normal
+              // viewport-fixed behavior there, matching a real device.
+              className={`flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all ${PACKAGED_MODE !== 'customer' ? '[contain:layout] relative' : ''}`}
             >
               {/* Development workspace chrome is hidden in the customer app. */}
               {PACKAGED_MODE !== 'customer' && !isQrRoute && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
