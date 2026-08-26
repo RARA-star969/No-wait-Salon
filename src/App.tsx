@@ -664,6 +664,35 @@ export default function App() {
     }
   };
 
+  // The packaged NOQ Business APK always starts at the universal Business ID
+  // login gate. The authenticated session then selects the correct business,
+  // category dashboard, and role permissions from the server.
+  if (PACKAGED_MODE === 'staff') {
+    return (
+      <StaffAppShell
+        salon={selectedSalon}
+        queue={queue}
+        barbers={barbers}
+        completedList={completedList}
+        onBarberToggle={handleBarberToggle}
+        onAddWalkin={handleAddWalkin}
+        onQueueAction={handleQueueAction}
+        queueAlert={queueAlert}
+        onSaveStaff={handleSaveStaff}
+        onSaveOffers={handleSaveOffers}
+        onBusinessResolved={(business) => {
+          try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
+          setSelectedSalon((current) => ({
+            ...current,
+            id: business.id,
+            name: business.name,
+            mainCategoryId: business.mainCategoryId,
+          }));
+        }}
+      />
+    );
+  }
+
   // Scanned with a plain phone camera: render the standalone public salon page
   // instead of the full app shell, so no install or onboarding is required.
   if (publicQrToken) {
