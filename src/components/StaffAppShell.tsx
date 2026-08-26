@@ -10,6 +10,18 @@ interface StaffSession {
   business: { id: string; name: string; mainCategoryId: string; onboarded: boolean; businessCode: string; profileCompletedAt: number | null };
 }
 
+const TEST_BUSINESSES = [
+  { code: 'SALON001', label: 'Sharpcut Studio — Salon' },
+  { code: 'SALON002', label: 'Royal Man Salon — Salon' },
+  { code: 'IRON001', label: 'Iron House Gym — Gym' },
+  { code: 'GYM002', label: 'Velocity Fitness Studio — Gym' },
+  { code: 'SHOP001', label: 'Velvet Clothing Store — Shop' },
+  { code: 'MOTO001', label: 'Torque Motors — Automobile' },
+  { code: 'PETS001', label: 'Paws & Care — Pet Care' },
+  { code: 'MALL001', label: 'Forum Mall — Mall' },
+  { code: 'FOOD001', label: 'Artisan Kitchen — Food' },
+] as const;
+
 interface StaffAppShellProps {
   salon: Salon;
   queue: QueueItem[];
@@ -25,7 +37,11 @@ interface StaffAppShellProps {
 }
 
 export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
+  const isTestBuild = import.meta.env.VITE_TEST_BUILD === 'true' ||
+    (typeof window !== 'undefined' && window.location.hostname === 'no-wait-salon-web-test.onrender.com');
   const [session, setSession] = useState<StaffSession | null>(null);
+  const [testBusinessCode, setTestBusinessCode] = useState('IRON001');
+  const [testSwitching, setTestSwitching] = useState(false);
   const [loading, setLoading] = useState(true);
   
   // Step 1: Business ID
@@ -118,6 +134,32 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     }
   };
 
+  const handleQuickTestSwitch = async (code = testBusinessCode) => {
+    if (!isTestBuild) return;
+    setAuthError('');
+    setCodeError('');
+    setTestSwitching(true);
+    try {
+      const res = await fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/test-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessCode: code })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Test business switch failed');
+      localStorage.setItem('no_wait_salon_staff_token', data.token);
+      setSession(data);
+      setResolvedBusiness(null);
+      setTestBusinessCode(data.business.businessCode || code);
+      setSkipSetup(true);
+      props.onBusinessResolved?.(data.business);
+    } catch (err) {
+      setAuthError(err instanceof Error ? err.message : 'Test business switch failed');
+    } finally {
+      setTestSwitching(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
@@ -197,7 +239,34 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
             <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Enter Business ID</h1>
             <p className="mt-2 text-sm text-[#5C6E6B]">Enter your unique workspace code to continue.</p>
           </div>
+          {isTestBuild && (
+            <div className="mb-6 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-700">Test Mode Quick Switch</span>
+                <span className="rounded-full bg-orange-200 px-2 py-0.5 text-[9px] font-bold text-orange-800">NO LOGIN</span>
+              </div>
+              <select
+                aria-label="Select test business"
+                value={testBusinessCode}
+                onChange={(e) => setTestBusinessCode(e.target.value)}
+                className="w-full rounded-xl border border-orange-200 bg-white px-3 py-2.5 text-sm font-bold text-[#17201F]"
+              >
+                {TEST_BUSINESSES.map((business) => (
+                  <option key={business.code} value={business.code}>{business.label}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={testSwitching}
+                onClick={() => void handleQuickTestSwitch()}
+                className="mt-3 w-full rounded-xl bg-orange-600 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {testSwitching ? 'Switching...' : 'Open Test Dashboard'}
+              </button>
+            </div>
+          )}
           {codeError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{codeError}</div>}
+          {authError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{authError}</div>}
           <form onSubmit={handleResolveBusiness} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-[#5C6E6B]">Business ID</label>
@@ -365,9 +434,30 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
             <p className="text-[10px] text-[#5C6E6B]">{session!.staff.name} ({session!.staff.role})</p>
           </div>
         </div>
-        <button onClick={handleLogout} className="rounded-lg bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-700">
-          Sign Out
-        </button>
+        <div className="flex items-center gap-2">
+          {isTestBuild && (
+            <>
+              <span className="hidden rounded-full bg-orange-100 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-orange-700 sm:inline">Test Mode</span>
+              <select
+                aria-label="Quick switch test business"
+                value={testBusinessCode}
+                disabled={testSwitching}
+                onChange={(e) => {
+                  setTestBusinessCode(e.target.value);
+                  void handleQuickTestSwitch(e.target.value);
+                }}
+                className="max-w-[180px] rounded-lg border border-orange-200 bg-orange-50 px-2 py-1.5 text-[10px] font-bold text-orange-800"
+              >
+                {TEST_BUSINESSES.map((business) => (
+                  <option key={business.code} value={business.code}>{business.label}</option>
+                ))}
+              </select>
+            </>
+          )}
+          <button onClick={handleLogout} className="rounded-lg bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-700">
+            Sign Out
+          </button>
+        </div>
       </header>
       
       {/* Dynamic Category Render */}
