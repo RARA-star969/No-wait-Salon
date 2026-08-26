@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "dev:server": "tsx server/index.ts",
-    "start": "tsx server/index.ts",
+    "start": "tsx server/testStart.ts",
     "build": "vite build",
     "preview": "vite preview",
     "build:customer": "VITE_APP_MODE=customer vite build",
@@ -17,8 +17,8 @@
     "android:sync:staff": "pnpm build:staff && CAPACITOR_APP_TARGET=staff cap sync android",
     "android:apk:customer": "pnpm android:sync:customer && cd android-customer && ./gradlew assembleDebug",
     "android:apk:staff": "pnpm android:sync:staff && cd android-staff && ./gradlew assembleDebug",
-    "android:release:customer": "pnpm android:sync:customer && cd android-customer && ./gradlew assembleRelease",
-    "android:release:staff": "pnpm android:sync:staff && cd android-staff && ./gradlew assembleRelease",
+    "android:release:customer": "pnpm android:sync:customer && CAPACITOR_APP_TARGET=customer cap sync android && cd android-customer && ./gradlew assembleRelease",
+    "android:release:staff": "pnpm android:sync:staff && CAPACITOR_APP_TARGET=staff cap sync android && cd android-staff && ./gradlew assembleRelease",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test": "node --import tsx --test server/*.test.ts src/services/*.test.ts src/shared/*.test.ts"
