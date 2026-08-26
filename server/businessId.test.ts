@@ -71,7 +71,7 @@ before(async () => {
   
   // Link the pre-seeded staff accounts to our new dynamic Gym 1 ID
   const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
-  db.prepare("UPDATE staff_account SET business_id = ? WHERE email = 'ironhouse-owner@nowaitsalon.test'").run(gym1Id);
+  db.prepare("UPDATE staff_account SET business_id = ? WHERE email = 'singhrothritik90@gmail.com'").run(gym1Id);
   db.prepare("UPDATE staff_account SET business_id = ? WHERE email = 'ironhouse-trainer@nowaitsalon.test'").run(gym1Id);
   db.close();
 
@@ -200,9 +200,9 @@ test('Business ID Integration Tests', async (t) => {
 
   await t.test('16. admin can assign a Business ID to an existing business without changing its QR', async () => {
     const beforeQr = await api('GET', `/api/admin/businesses/${gym1Id}/qr`, undefined, adminToken);
-    const assigned = await api('PATCH', `/api/admin/salons/${gym1Id}/business-id`, { business_code: 'IRON001' }, adminToken);
+    const assigned = await api('PATCH', `/api/admin/salons/${gym1Id}/business-id`, { business_code: 'IRON-TEST001' }, adminToken);
     assert.equal(assigned.status, 200);
-    assert.equal(assigned.data.businessCode, 'IRON001');
+    assert.equal(assigned.data.businessCode, 'IRON-TEST001');
     assert.equal(assigned.data.qrUnchanged, true);
 
     const afterQr = await api('GET', `/api/admin/businesses/${gym1Id}/qr`, undefined, adminToken);
