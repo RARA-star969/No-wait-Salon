@@ -2288,7 +2288,7 @@ app.put('/api/admin/salons/:id/owner-account', requireAdmin, async (request, res
 
   const now = Date.now();
   const existingOwner = db.prepare("SELECT id FROM staff_account WHERE business_id = ? AND role = 'owner' ORDER BY created_at ASC LIMIT 1").get(business.id) as { id: string } | undefined;
-  const passwordHash = hashPassword(password);
+  const hashedPassword = passwordHash(password);
   let staffId: string;
   if (existingOwner) {
     staffId = existingOwner.id;
