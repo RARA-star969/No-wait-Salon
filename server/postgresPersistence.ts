@@ -6,6 +6,7 @@ import {createDatabase,type Database} from './database.ts';
 import {runMigrations} from './migrations.ts';
 
 const tables:Record<string,string[]>={
+  gym_state:['gym_id','state_json','updated_at'],
   main_category:['id','name','icon_name','label','description','display_order','active','is_default','theme_key','primary_color','accent_color','banner_image_url','banner_headline','banner_subheadline','banner_cta_text','created_at','updated_at'],
   salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at','business_code','profile_completed_at'],
   salon_hours:['salon_id','day_of_week','open_time','close_time','closed'],
@@ -104,6 +105,11 @@ async function persistMissingSeedBackfills(postgres:Database,backfills:SeedBackf
 export async function initPostgresPersistence(sqlite:DatabaseSync,dataDir:string){
   if(!process.env.DATABASE_URL)return null;
   const postgres=await createDatabase(dataDir);await runMigrations(postgres);
+  // Backfill only Gym rows absent from PostgreSQL before hydration. Never erase
+  // existing local Gym operations when upgrading an already populated test DB.
+  for (const row of sqliteRows(sqlite, 'gym_state')) {
+    await postgres.run('INSERT INTO gym_state (gym_id,state_json,updated_at) VALUES (?,?,?) ON CONFLICT(gym_id) DO NOTHING', [row.gym_id, row.state_json, row.updated_at]);
+  }
   const databasePath=path.join(dataDir,'no-wait-salon.db');const backupDir=path.join(dataDir,'backups');mkdirSync(backupDir,{recursive:true});
   const backupPath=path.join(backupDir,`pre-postgres-${Date.now()}.sqlite`);if(existsSync(databasePath))copyFileSync(databasePath,backupPath);
   const persisted=Number((await postgres.get<{count:number}>('SELECT COUNT(*) count FROM salon'))?.count||0);

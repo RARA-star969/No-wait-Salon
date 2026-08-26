@@ -1,0 +1,1304 @@
+.gym-app {
+  --gym-ink: #182b35;
+  --gym-muted: #6d7e87;
+  --gym-teal: #087f83;
+  --gym-border: #e3eaed;
+  color: var(--gym-ink);
+  background: #f6f8fa;
+  display: flex;
+  min-height: 100dvh;
+  width: 100%;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+}
+.gym-app * {
+  box-sizing: border-box;
+}
+.gym-app button,
+.gym-app input,
+.gym-app select,
+.gym-app textarea {
+  font: inherit;
+}
+.gym-app button,
+.gym-app a {
+  -webkit-tap-highlight-color: transparent;
+}
+.gym-app button {
+  cursor: pointer;
+}
+.gym-app button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.gym-app :focus-visible {
+  outline: 3px solid #42bfc5;
+  outline-offset: 3px;
+}
+.gym-app h1,
+.gym-app h2,
+.gym-app h3,
+.gym-app p {
+  margin: 0;
+}
+.gym-app h1 {
+  font-size: 28px;
+  font-weight: 750;
+  line-height: 1.22;
+  letter-spacing: -1px;
+}
+.gym-app h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.15px;
+}
+.gym-app h3 {
+  font-size: 17px;
+  font-weight: 700;
+}
+.gym-sidebar {
+  width: 224px;
+  flex: 0 0 224px;
+  background: linear-gradient(155deg, #223641, #142730);
+  color: #dce8ed;
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  z-index: 30;
+}
+.gym-brand {
+  background: white;
+  color: #007c80;
+  height: 82px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 26px;
+  font-size: 29px;
+  letter-spacing: 6px;
+  font-weight: 650;
+  gap: 11px;
+}
+.gym-brand > span {
+  font-size: 8px;
+  letter-spacing: 1.4px;
+  border-left: 1px solid #dfe6e7;
+  padding-left: 12px;
+  line-height: 1.4;
+}
+.gym-nav-label {
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: #98aeb8;
+  padding: 24px 23px 14px;
+}
+.gym-sidebar nav {
+  padding: 0 12px;
+  overflow-y: auto;
+}
+.gym-sidebar nav button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 47px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: #dce8ed;
+  border-radius: 9px;
+  margin: 3px 0;
+  padding: 11px 13px;
+  font-size: 12px;
+  font-weight: 550;
+}
+.gym-sidebar nav button.active {
+  background: linear-gradient(90deg, #0a858a, #08636b);
+  color: white;
+  box-shadow: 0 4px 16px #05272c44;
+}
+.gym-sidebar nav button:hover {
+  background: #ffffff12;
+}
+.gym-sidebar nav button.active:hover {
+  background: #08767d;
+}
+.gym-sidebar nav b {
+  margin-left: auto;
+  border-radius: 5px;
+  padding: 0 6px;
+  background: #ffffff20;
+  font-size: 10px;
+}
+.gym-sidebar-footer {
+  margin-top: auto;
+  padding: 24px 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: #bfd6db;
+  font-size: 10px;
+}
+.gym-sidebar-footer small {
+  display: block;
+  color: #849fa9;
+  font-size: 9px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.gym-workspace {
+  flex: 1;
+  min-width: 0;
+}
+.gym-topbar {
+  min-height: 82px;
+  background: #fff;
+  border-bottom: 1px solid var(--gym-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 30px;
+}
+.gym-business {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.gym-business strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.gym-business small {
+  display: block;
+  color: var(--gym-muted);
+  font-size: 10px;
+  margin-top: 1px;
+}
+.gym-business-icon {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--gym-border);
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  color: var(--gym-teal);
+  flex-shrink: 0;
+}
+.gym-sync {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: #087376;
+  background: #eef8f5;
+  border: 1px solid #d6ede5;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.gym-sync > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #49a870;
+}
+.gym-sync.offline {
+  background: #fff1e5;
+  color: #9e4b18;
+  border-color: #f8d5b9;
+}
+.gym-sync.offline > span {
+  background: #e09333;
+}
+.gym-user {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  border-left: 1px solid var(--gym-border);
+  padding-left: 16px;
+}
+.gym-user strong {
+  font-size: 11px;
+  display: block;
+}
+.gym-user small {
+  display: block;
+  font-size: 10px;
+  color: var(--gym-muted);
+  text-transform: capitalize;
+}
+.gym-icon-button {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: inherit;
+}
+.gym-icon-button:hover {
+  background: #e9f3f2;
+}
+.gym-main {
+  padding: 28px 30px 18px;
+  max-width: 1580px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.gym-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.gym-page-heading p:not(.gym-eyebrow) {
+  font-size: 12px;
+  color: var(--gym-muted);
+  margin-top: 8px;
+}
+.gym-eyebrow {
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 1.3px;
+  color: #6d838c;
+  display: block;
+}
+.gym-page-heading .gym-eyebrow {
+  margin-bottom: 7px;
+  color: var(--gym-teal);
+}
+.gym-today {
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  color: #6d7e87;
+}
+.gym-setup {
+  padding: 16px 20px;
+  background: #fff8ef;
+  border: 1px solid #f2d8b6;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.gym-setup strong {
+  font-size: 12px;
+  color: #a05a18;
+}
+.gym-setup p {
+  font-size: 11px;
+  color: #866e57;
+  margin-top: 4px;
+}
+.gym-button {
+  background: var(--gym-teal);
+  border: 1px solid var(--gym-teal);
+  border-radius: 8px;
+  color: white;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 15px;
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.gym-button:hover {
+  background: #076b70;
+}
+.gym-button.secondary {
+  background: #f5f9f9;
+  border-color: #e2ebed;
+  color: #12676d;
+}
+.gym-button.secondary:hover {
+  background: #e6f2f1;
+}
+.gym-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: #078185;
+  font-size: 10px !important;
+  font-weight: 650 !important;
+  text-decoration: none;
+  min-height: 36px;
+  padding: 5px 0;
+}
+.gym-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.gym-metric {
+  border: 1px solid var(--gym-border);
+  background: #fff;
+  border-radius: 13px;
+  padding: 20px 20px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 3px 12px #203e4603;
+}
+.gym-metric.featured {
+  border-color: #9dced0;
+  background: linear-gradient(150deg, #f3fbfa, #fff);
+}
+.gym-metric-label {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  justify-content: space-between;
+  color: #536872;
+}
+.gym-metric-label svg {
+  color: #73979b;
+}
+.gym-metric > strong {
+  font-size: 43px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -1.7px;
+  margin-top: 16px;
+  color: #0c7980;
+}
+.gym-metric:nth-child(2) > strong {
+  color: #20313e;
+}
+.gym-metric > small {
+  font-size: 10px;
+  color: #788992;
+  margin-top: 5px;
+  text-align: center;
+}
+.gym-counter {
+  display: flex;
+  gap: 8px;
+  margin: 15px 0 3px;
+}
+.gym-counter button {
+  height: 40px;
+  min-width: 56px;
+  background: #fff;
+  border: 1px solid #d8e5e7;
+  border-radius: 7px;
+  color: #31525c;
+  display: grid;
+  place-items: center;
+}
+.gym-counter button:last-child {
+  background: #087f83;
+  border-color: #087f83;
+  color: white;
+}
+.gym-metric-spacer {
+  height: 58px;
+}
+.gym-metric > .gym-link {
+  margin-top: auto;
+}
+.gym-quick-actions {
+  background: white;
+  border: 1px solid var(--gym-border);
+  border-radius: 12px;
+  display: flex;
+  gap: 10px;
+  padding: 13px 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.gym-quick-actions > .gym-eyebrow {
+  margin-right: 8px;
+}
+.gym-quick-actions .gym-button {
+  flex: 1;
+  white-space: nowrap;
+  padding: 10px;
+}
+.gym-panel {
+  background: #fff;
+  border: 1px solid var(--gym-border);
+  border-radius: 13px;
+  padding: 20px;
+  min-width: 0;
+  box-shadow: 0 3px 12px #203e4602;
+}
+.gym-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.gym-panel-heading h2 {
+  min-width: 0;
+}
+.gym-panel-heading > .gym-link {
+  white-space: nowrap;
+  margin: -8px 0;
+}
+.gym-muted {
+  font-size: 12px;
+  color: var(--gym-muted);
+  line-height: 1.65;
+}
+.gym-overview-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: 18px;
+}
+.gym-mini-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 14px;
+  margin: 23px 0;
+}
+.gym-mini-metrics > div {
+  border-right: 1px solid #e8eef0;
+  padding-right: 10px;
+  min-width: 0;
+}
+.gym-mini-metrics > div:last-child {
+  border: 0;
+}
+.gym-mini-metrics span {
+  display: block;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #687b85;
+  line-height: 1.6;
+}
+.gym-mini-metrics strong {
+  display: block;
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+  margin-top: 4px;
+}
+.gym-promo {
+  border-radius: 13px;
+  background: linear-gradient(140deg, #deefec, #eef8f4);
+  border: 1px solid #d1e7e2;
+  padding: 23px;
+  color: #185e61;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+}
+.gym-promo h2 {
+  font-size: 21px;
+  letter-spacing: -0.6px;
+}
+.gym-promo p {
+  font-size: 11px;
+  color: #497875;
+  line-height: 1.6;
+}
+.gym-promo .gym-button {
+  margin-top: 5px;
+}
+.gym-promo .gym-eyebrow {
+  color: #528b88;
+  font-size: 8px;
+}
+.gym-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.gym-overview-grid .gym-panel {
+  padding: 18px;
+}
+.gym-overview-grid .gym-panel h2 {
+  font-size: 13px;
+}
+.gym-trend {
+  display: block;
+  width: 100%;
+  margin: 20px 0 8px;
+}
+.gym-trend-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  border-top: 1px solid var(--gym-border);
+  padding-top: 14px;
+}
+.gym-trend-summary small {
+  display: block;
+  color: var(--gym-muted);
+  font-size: 9px;
+}
+.gym-trend-summary strong {
+  display: block;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.gym-trend-summary strong span {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--gym-muted);
+}
+.gym-footnote {
+  font-size: 10px;
+  color: #839099;
+  line-height: 1.7;
+  margin-top: 13px !important;
+}
+.gym-list {
+  display: flex;
+  flex-direction: column;
+}
+.gym-list-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 13px 0;
+  border-bottom: 1px solid #eef2f4;
+  min-width: 0;
+}
+.gym-list-row:last-child {
+  border-bottom: 0;
+}
+.gym-list-row > div:not(.gym-inline-actions) {
+  min-width: 0;
+  flex: 1;
+}
+.gym-list-row strong {
+  font-size: 12px;
+  font-weight: 650;
+  display: block;
+  overflow-wrap: anywhere;
+}
+.gym-list-row small {
+  display: block;
+  font-size: 10px;
+  color: var(--gym-muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.gym-list-row .gym-badge {
+  flex-shrink: 0;
+}
+.gym-avatar {
+  display: inline-grid;
+  place-items: center;
+  background: #e9f3f2;
+  border: 1px solid #dfeceb;
+  color: #26767a;
+  font-size: 12px;
+  font-weight: 700;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.gym-avatar.large {
+  width: 48px;
+  height: 48px;
+  font-size: 18px;
+}
+.gym-badge {
+  display: inline-block;
+  font-size: 9px;
+  line-height: 1.5;
+  font-weight: 650;
+  border-radius: 5px;
+  background: #eef2f6;
+  color: #68768a;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+.gym-badge.good {
+  background: #edf7ee;
+  color: #378951;
+}
+.gym-row-end {
+  text-align: right;
+  flex: 0 0 auto !important;
+}
+.gym-overview-grid .gym-list-row {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gym-overview-grid .gym-list-row strong {
+  font-size: 10px;
+}
+.gym-overview-grid .gym-list-row small {
+  font-size: 9px;
+}
+.gym-empty {
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 20px;
+  color: #81919a;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.gym-empty-dot {
+  width: 30px;
+  height: 5px;
+  border-radius: 10px;
+  background: #dcebea;
+}
+.gym-event-marker {
+  width: 7px;
+  height: 7px;
+  background: #64b6ae;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.gym-alert {
+  background: #fff8eb;
+  border: 1px solid #f4e2bd;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 10px;
+  color: #9d701d;
+  margin-bottom: 8px;
+}
+.gym-summary-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  border-bottom: 1px solid #edf1f3;
+  padding: 17px 0;
+  font-size: 12px;
+}
+.gym-summary-line > span {
+  color: #6e7e88;
+}
+.gym-summary-line strong {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.gym-page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #91a0a7;
+  font-size: 8px;
+  letter-spacing: 0.9px;
+  padding-top: 5px;
+  gap: 10px;
+}
+.gym-two-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.gym-utilization {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  gap: 8px;
+}
+.gym-utilization strong {
+  font-size: 52px;
+  letter-spacing: -2px;
+  font-weight: 700;
+  color: #087f83;
+}
+.gym-utilization span {
+  color: var(--gym-muted);
+}
+.gym-app progress {
+  width: 100%;
+  height: 12px;
+  accent-color: #087f83;
+  display: block;
+  margin: 15px 0;
+}
+.gym-inline-actions {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.gym-list-row > .gym-inline-actions {
+  margin: 0;
+}
+.gym-campaign-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.gym-campaign-card {
+  border: 1px solid var(--gym-border);
+  border-radius: 11px;
+  padding: 20px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.gym-campaign-card p {
+  color: var(--gym-muted);
+  font-size: 12px;
+  margin-top: 10px;
+  white-space: pre-wrap;
+}
+.gym-campaign-card > small {
+  font-size: 10px;
+  color: var(--gym-muted);
+  display: block;
+  margin-top: 16px;
+}
+.gym-campaign-card .gym-panel-heading {
+  flex-wrap: wrap;
+}
+.gym-campaign-card .gym-link {
+  margin-top: 13px;
+}
+.gym-app input,
+.gym-app select,
+.gym-app textarea,
+.gym-dialog input,
+.gym-dialog select,
+.gym-dialog textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d8e3e6;
+  border-radius: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #203943;
+  display: block;
+  font-size: 13px;
+  margin-top: 6px;
+}
+.gym-app textarea,
+.gym-dialog textarea {
+  resize: vertical;
+}
+.gym-filters {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 15px 0;
+}
+.gym-filters label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 135px;
+  flex: 1;
+}
+.gym-filters input,
+.gym-filters select {
+  margin-top: 7px;
+}
+.gym-event-list {
+  margin-top: 18px;
+}
+.gym-event-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #edf1f3;
+  padding: 14px 0;
+  min-width: 0;
+}
+.gym-event-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.gym-event-row strong {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  overflow-wrap: anywhere;
+}
+.gym-event-row small {
+  display: block;
+  font-size: 10px;
+  color: var(--gym-muted);
+  margin-top: 4px;
+}
+.gym-event-row time {
+  font-size: 10px;
+  color: var(--gym-muted);
+}
+.gym-identity {
+  display: flex;
+  gap: 24px;
+  background: #f5faf9;
+  border: 1px solid #d8e9e6;
+  border-radius: 12px;
+  padding: 22px;
+  margin-top: 22px;
+  align-items: center;
+  min-width: 0;
+}
+.gym-identity img {
+  width: 160px;
+  flex-shrink: 0;
+}
+.gym-identity > div {
+  min-width: 0;
+}
+.gym-code {
+  font-family: monospace;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  margin-top: 8px !important;
+}
+.gym-error {
+  background: #fff1f0;
+  border: 1px solid #f5c9c3;
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: #b24538;
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.gym-notice {
+  position: fixed;
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  background: #173c40;
+  box-shadow: 0 8px 30px #10252e30;
+  border: 1px solid #42676b;
+  color: white;
+  border-radius: 12px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  max-width: calc(100% - 30px);
+  width: max-content;
+}
+.gym-dialog {
+  border: 1px solid #dce8e8;
+  border-radius: 17px;
+  padding: 26px;
+  width: min(500px, calc(100% - 24px));
+  max-height: 90dvh;
+  overflow: auto;
+  color: #182b35;
+  box-shadow: 0 30px 100px #142c3940;
+  margin: auto;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+.gym-dialog::backdrop {
+  background: #10232b80;
+  backdrop-filter: blur(3px);
+}
+.gym-dialog h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+.gym-dialog .gym-muted {
+  margin: 0 0 20px;
+}
+.gym-dialog .gym-button {
+  --gym-teal: #087f83;
+}
+.gym-form-fields {
+  display: grid;
+  gap: 17px;
+}
+.gym-form-fields label,
+.gym-field-label {
+  font-size: 12px;
+  font-weight: 600;
+  display: block;
+  margin-top: 14px;
+}
+.gym-form-fields label {
+  margin: 0;
+}
+.gym-form-fields small {
+  display: block;
+  font-size: 10px;
+  color: #74858e;
+  line-height: 1.5;
+  margin-top: 7px;
+}
+.gym-form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+.gym-dialog .gym-error {
+  margin-top: 15px;
+}
+.mobile-only {
+  display: none;
+}
+.gym-nav-scrim {
+  display: none;
+}
+@media (min-width: 1500px) {
+  .gym-main {
+    padding: 34px 40px;
+  }
+  .gym-metric {
+    padding: 24px;
+  }
+  .gym-overview-grid .gym-panel {
+    padding: 22px;
+  }
+  .gym-overview-grid .gym-list-row strong {
+    font-size: 12px;
+  }
+}
+@media (max-width: 1200px) {
+  .gym-sidebar {
+    width: 198px;
+    flex-basis: 198px;
+  }
+  .gym-brand {
+    padding: 0 19px;
+  }
+  .gym-main {
+    padding: 24px 22px;
+  }
+  .gym-topbar {
+    padding: 14px 22px;
+    gap: 10px;
+  }
+  .gym-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .gym-metric {
+    padding: 17px 12px 10px;
+  }
+  .gym-metric-label {
+    font-size: 9px;
+    gap: 6px;
+  }
+  .gym-metric-label svg {
+    width: 15px;
+  }
+  .gym-today {
+    display: none;
+  }
+  .gym-quick-actions .gym-button {
+    flex: 1 1 120px;
+  }
+  .gym-user {
+    padding-left: 10px;
+  }
+  .gym-user > div {
+    display: none;
+  }
+}
+@media (max-width: 960px) {
+  .gym-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+    width: 250px;
+    transition: transform 0.2s;
+  }
+  .gym-sidebar.open {
+    transform: translateX(0);
+  }
+  .gym-brand {
+    padding: 0 22px;
+  }
+  .gym-brand .gym-icon-button {
+    margin-left: auto;
+  }
+  .mobile-only {
+    display: inline-grid;
+  }
+  .gym-nav-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: #142a3466;
+    border: 0;
+    z-index: 29;
+  }
+  .gym-main {
+    padding: 22px;
+  }
+  .gym-topbar {
+    min-height: 72px;
+    padding: 10px 18px;
+  }
+  .gym-overview-feature {
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 1fr);
+  }
+  .gym-metrics {
+    gap: 12px;
+  }
+  .gym-overview-grid .gym-list-row strong {
+    font-size: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .gym-app {
+    font-size: 13px;
+  }
+  .gym-main {
+    padding: 22px 14px 16px;
+    gap: 17px;
+  }
+  .gym-topbar {
+    padding: 10px 8px;
+    gap: 4px;
+  }
+  .gym-business-icon,
+  .gym-user,
+  .gym-topbar > .gym-icon-button:nth-last-of-type(2) {
+    display: none;
+  }
+  .gym-business strong {
+    font-size: 12px;
+  }
+  .gym-business small {
+    font-size: 9px;
+  }
+  .gym-sync {
+    font-size: 0;
+    padding: 7px;
+    border: 0;
+    background: transparent;
+  }
+  .gym-sync > span {
+    width: 8px;
+    height: 8px;
+  }
+  .gym-business {
+    flex: 1;
+  }
+  .gym-page-heading h1 {
+    font-size: 24px;
+    letter-spacing: -0.7px;
+  }
+  .gym-page-heading p:not(.gym-eyebrow) {
+    font-size: 11px;
+  }
+  .gym-setup {
+    padding: 14px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .gym-setup .gym-button {
+    width: 100%;
+  }
+  .gym-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .gym-metric {
+    padding: 16px 12px 10px;
+  }
+  .gym-metric > strong {
+    font-size: 37px;
+    margin-top: 12px;
+  }
+  .gym-metric > small {
+    font-size: 9px;
+  }
+  .gym-metric-label {
+    font-size: 8px;
+  }
+  .gym-metric-label svg {
+    width: 14px;
+  }
+  .gym-counter {
+    gap: 7px;
+    margin-top: 12px;
+  }
+  .gym-counter button {
+    min-height: 44px;
+    min-width: 50px;
+  }
+  .gym-metric-spacer {
+    height: 59px;
+  }
+  .gym-metric > .gym-link {
+    font-size: 9px !important;
+    min-height: 40px;
+  }
+  .gym-quick-actions {
+    padding: 13px;
+    gap: 8px;
+  }
+  .gym-quick-actions > .gym-eyebrow {
+    width: 100%;
+    margin-bottom: 3px;
+  }
+  .gym-quick-actions .gym-button {
+    flex: 1 1 40%;
+    font-size: 10px !important;
+    padding: 10px 7px;
+  }
+  .gym-overview-feature,
+  .gym-overview-grid,
+  .gym-two-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .gym-panel,
+  .gym-overview-grid .gym-panel {
+    padding: 17px;
+  }
+  .gym-panel-heading {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .gym-panel-heading h2 {
+    font-size: 14px;
+  }
+  .gym-mini-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 17px 10px;
+  }
+  .gym-mini-metrics strong {
+    font-size: 24px;
+  }
+  .gym-mini-metrics span {
+    font-size: 8px;
+  }
+  .gym-promo {
+    padding: 20px;
+  }
+  .gym-campaign-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .gym-list-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .gym-list-row > .gym-inline-actions {
+    width: 100%;
+    padding-left: 43px;
+    justify-content: flex-end;
+  }
+  .gym-list-row .gym-button {
+    font-size: 10px !important;
+    padding: 9px 11px;
+  }
+  .gym-row-end {
+    max-width: 45%;
+  }
+  .gym-row-end small {
+    font-size: 9px;
+  }
+  .gym-filters {
+    gap: 12px;
+  }
+  .gym-filters label {
+    min-width: calc(50% - 12px);
+  }
+  .gym-filters > button {
+    width: 100%;
+  }
+  .gym-event-row {
+    flex-wrap: wrap;
+  }
+  .gym-event-row > div {
+    min-width: 55%;
+  }
+  .gym-event-row time {
+    margin-left: 19px;
+  }
+  .gym-identity {
+    flex-direction: column;
+    padding: 18px;
+    align-items: flex-start;
+  }
+  .gym-identity img {
+    align-self: center;
+    width: 180px;
+  }
+  .gym-page-footer {
+    font-size: 7px;
+    letter-spacing: 0.4px;
+    flex-wrap: wrap;
+  }
+  .gym-dialog {
+    padding: 20px;
+  }
+  .gym-dialog input,
+  .gym-dialog select,
+  .gym-dialog textarea,
+  .gym-app input,
+  .gym-app select {
+    font-size: 16px;
+  }
+  .gym-form-actions .gym-button {
+    flex: 1;
+  }
+  .gym-field-label {
+    font-size: 11px;
+  }
+  .gym-app .gym-link {
+    min-height: 44px;
+  }
+  .gym-dialog .gym-panel-heading {
+    flex-wrap: nowrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gym-app * {
+    transition: none !important;
+  }
+}
+
+@media (max-width: 960px) {
+  .gym-sidebar {
+    visibility: hidden;
+  }
+  .gym-sidebar.open {
+    visibility: visible;
+  }
+}

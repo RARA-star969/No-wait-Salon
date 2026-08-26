@@ -65,6 +65,7 @@ export default function App() {
   const publicQrToken = !PACKAGED_MODE && qrRouteMatch ? decodeURIComponent(qrRouteMatch[1]) : null;
   const urlParams = new URLSearchParams(window.location.search);
   const initialViewMode = (urlParams.get('mode') || urlParams.get('view')) as ViewMode | null;
+  const [gymTestRole, setGymTestRole] = useState('owner');
   const [viewMode, setViewMode] = useState<ViewMode>(isQrRoute ? 'customer' : PACKAGED_MODE || initialViewMode || 'split');
   const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
   // The Staff app runs as its own APK with no discovery flow, so it was pinned
@@ -674,6 +675,18 @@ export default function App() {
     );
   }
 
+  const gymStaffSelected = selectedSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
+  const gymTestSwitcher = import.meta.env.DEV || ['localhost', '127.0.0.1', 'no-wait-salon-web-test.onrender.com'].includes(window.location.hostname);
+  if (PACKAGED_MODE === 'staff' || window.location.pathname === '/business' || gymStaffSelected) {
+    return <div className="min-h-screen bg-[#f6f8fa]">
+      {gymTestSwitcher && gymStaffSelected && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 bg-teal-50 px-4 py-2 text-xs text-teal-800"><label className="flex min-w-0 max-w-full flex-1 items-center gap-2">Testing as:
+        <select aria-label="Test Business Switcher" id="test-business-switcher" className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-teal-200 bg-white px-3" value={selectedSalon.id + ':' + gymTestRole} onChange={e => { const [id, role] = e.target.value.split(':'); const found = SALONS.find(s => s.id === id); if (found) { setSelectedSalon(found); setGymTestRole(role); } }}>
+          {SALONS.filter(s => ['gym', 'salon'].includes(s.mainCategoryId || 'salon')).map(s => <React.Fragment key={s.id}><option value={s.id + ':owner'}>{s.name} — {s.mainCategoryId === 'gym' ? 'Gym' : 'Salon'} (Owner)</option>{s.mainCategoryId === 'gym' && <option value={s.id + ':trainer'}>{s.name} — Trainer</option>}</React.Fragment>)}
+        </select></label><span>TEST environment only</span></div>}
+      <StaffAppShell key={gymStaffSelected ? selectedSalon.id + ':' + gymTestRole : 'business'} testBusinessId={gymTestSwitcher && gymStaffSelected ? selectedSalon.id : undefined} testRole={gymTestRole} salon={selectedSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
+    </div>;
+  }
+
   return (
     <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
@@ -821,7 +834,8 @@ export default function App() {
                   queueAlert={queueAlert}
                   onSaveStaff={handleSaveStaff}
                   onSaveOffers={handleSaveOffers}
-                  onTestSwitchBusiness={(businessId) => {
+                  onTestSwitchBusiness={(businessId, role) => {
+                    setGymTestRole(role || 'owner');
                     const found = SALONS.find((s) => s.id === businessId);
                     if (found) {
                       setSelectedSalon(found);

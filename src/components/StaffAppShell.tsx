@@ -11,6 +11,8 @@ interface StaffSession {
 }
 
 interface StaffAppShellProps {
+  testBusinessId?: string;
+  testRole?: string;
   salon: Salon;
   queue: QueueItem[];
   barbers: Barber[];
@@ -24,6 +26,7 @@ interface StaffAppShellProps {
 }
 
 export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
+  const [gymModule, setGymModule] = useState('overview');
   const [session, setSession] = useState<StaffSession | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -50,8 +53,16 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   const [showSetup, setShowSetup] = useState(false);
 
   useEffect(() => {
-    checkSession();
-  }, []);
+    let active = true;
+    setLoading(true);
+    setGymModule('overview');
+    setSkipSetup(false);
+    if (!props.testBusinessId) { void checkSession(); return; }
+    void fetch(      `${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/test-login`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ businessId: props.testBusinessId, role: props.testRole || 'owner' }) }
+    ).then(async res => { const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Test login unavailable'); if (!active) return; localStorage.setItem('no_wait_salon_staff_token', data.token); setSession(data); setSetupForm(prev => ({ ...prev, name: data.business.name })); setSkipSetup(true); }).catch(error => { if (active) { setSession(null); setAuthError(error.message); } }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [props.testBusinessId, props.testRole]);
 
   const checkSession = async () => {
     try {
@@ -128,8 +139,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       const data = await res.json();
       if (res.ok) {
         localStorage.setItem('no_wait_salon_staff_token', data.token);
-        setSession(data);
-        setSetupForm(prev => ({ ...prev, name: data.business.name }));
+        await checkSession();
         setSkipSetup(false);
       } else {
         setAuthError(data.error || 'Login failed');
@@ -147,6 +157,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     localStorage.removeItem('no_wait_salon_staff_token');
     setSession(null);
     setResolvedBusiness(null);
+    setGymModule('overview');
     setSkipSetup(false);
   };
 
@@ -194,6 +205,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
             <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Enter Business ID</h1>
             <p className="mt-2 text-sm text-[#5C6E6B]">Enter your unique workspace code to continue.</p>
           </div>
+          {authError && <div role="alert" className="mb-4 text-sm text-red-600">{authError}</div>}
           {codeError && <div className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600">{codeError}</div>}
           <form onSubmit={handleResolveBusiness} className="space-y-4">
             <div>
@@ -266,7 +278,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   }
 
   // 3. Business Onboarding Flow (First-login setup)
-  const isProfileIncomplete = !session!.business.profileCompletedAt;
+  const isProfileIncomplete = !session!.business.profileCompletedAt && ['owner', 'manager'].includes(session!.staff.role);
   const shouldShowSetup = isProfileIncomplete && (!skipSetup || showSetup);
 
   if (shouldShowSetup) {
@@ -335,6 +347,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
 
   // 4. Normal Authorized Staff Dashboard
   const isGym = session!.business.mainCategoryId === 'gym';
+  if (isGym) return <GymDashboardView key={session!.business.id} gymId={session!.business.id} gymName={session!.business.name} role={session!.staff.role as any} staffName={session!.staff.name} activeModule={gymModule} onModuleSelect={setGymModule} onSignOut={handleLogout} onSetup={() => setShowSetup(true)} profileIncomplete={isProfileIncomplete} />;
 
   return (
     <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">
@@ -362,16 +375,6 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       
       {/* Dynamic Category Render */}
       <main className="flex-1 overflow-y-auto">
-        {isGym ? (
-          <GymDashboardView 
-            gymId={session!.business.id}
-            gymName={session!.business.name}
-            role={session!.staff.role as any}
-            staffName={session!.staff.name}
-            activeModule="overview"
-            onModuleSelect={() => {}}
-          />
-        ) : (
           <StaffDashboard 
             salon={props.salon}
             queue={props.queue}
@@ -384,7 +387,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
             onSaveStaff={props.onSaveStaff}
             onSaveOffers={props.onSaveOffers}
           />
-        )}
+
       </main>
     </div>
   );

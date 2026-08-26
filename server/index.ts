@@ -11,6 +11,7 @@ import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
+import { mountGymOperations, normalizeGymState, publicGymState, gymEvent } from './gymOperations.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 
 
@@ -1549,38 +1550,8 @@ function saveGymState(gymId: string, state: any) {
 
 function getGymState(gymId: string) {
   const row = db.prepare('SELECT state_json FROM gym_state WHERE gym_id = ?').get(gymId) as { state_json: string } | undefined;
-  if (row) {
-    return JSON.parse(row.state_json);
-  }
-  
-  // Seed demo data if missing
-  const state = {
-    gymId,
-    maxCapacity: 80,
-    currentOccupancy: 42,
-    waitingOutsideCount: 3,
-    checkinsTodayCount: 96,
-    classesToday: [
-      { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
-      { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
-      { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
-      { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
-    ],
-    trainers: [
-      { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112 },
-      { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89 },
-      { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94 },
-    ],
-    entryQueue: [
-      { id: 'q1', name: 'Rohan Sharma', memberId: 'IH-1082', arrivedAt: Date.now() - 5 * 60000, status: 'Waiting' },
-      { id: 'q2', name: 'Priya Patel', memberId: 'IH-1094', arrivedAt: Date.now() - 3 * 60000, status: 'Waiting' },
-      { id: 'q3', name: 'Amit Verma', memberId: 'IH-1102', arrivedAt: Date.now() - 1 * 60000, status: 'Waiting' },
-    ],
-  };
-  saveGymState(gymId, state);
-  return state;
+  return normalizeGymState(row ? JSON.parse(row.state_json) : {}, gymId);
 }
-
 
 app.get('/api/staff/resolve-business/:code', (request, response) => {
   let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
@@ -1592,15 +1563,21 @@ app.get('/api/staff/resolve-business/:code', (request, response) => {
 
 app.post('/api/staff/test-login', (request, response) => {
   if (process.env.NO_WAIT_TEST_DEPLOYMENT !== 'true') return response.status(403).json({ error: 'Not available.' });
-  
-  let businessCode;
-  try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
-  
-  const bRow = db.prepare("SELECT id, name, COALESCE(main_category_id, 'salon') as main_category_id, onboarded, business_code, profile_completed_at FROM salon WHERE business_code = ?").get(businessCode) as any;
+  // The existing test switcher may select a Gym by its internal ID. This path
+  // remains test-only; regular staff login still requires Business ID + password.
+  let bRow: any;
+  if (request.body?.businessId) {
+    bRow = db.prepare("SELECT * FROM salon WHERE id = ? AND main_category_id = 'gym'").get(String(request.body.businessId));
+  } else {
+    let businessCode;
+    try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
+    bRow = db.prepare("SELECT * FROM salon WHERE business_code = ?").get(businessCode);
+  }
   if (!bRow) return response.status(404).json({ error: 'Business not found.' });
-
+  const testRole = request.body?.role === 'trainer' ? 'trainer' : 'owner';
   // Find or create test owner account
-  let account = db.prepare("SELECT * FROM staff_account WHERE business_id = ? AND role = 'owner' LIMIT 1").get(bRow.id);
+  let account = db.prepare("SELECT * FROM staff_account WHERE business_id = ? AND role = ? LIMIT 1").get(bRow.id, testRole);
+  if (!account && testRole === 'trainer') return response.status(404).json({ error: 'No trainer test account exists for this business.' });
   if (!account) {
     const id = `staff_${randomUUID()}`;
     db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
@@ -1754,92 +1731,14 @@ app.post('/api/staff/logout', (request, response) => {
   response.json({ ok: true });
 });
 
-app.get('/api/gym/:gymId/overview', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  const state = getGymState(gymId);
-  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
-  response.json({ ...state, availableTrainersCount });
-});
+mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); } });
 
-app.post('/api/gym/:gymId/checkin', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!isBusinessActive(gymId)) {
-    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
-  }
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  const state = getGymState(gymId);
-  if (state.currentOccupancy >= state.maxCapacity) {
-    return response.status(400).json({ error: 'Gym is currently at maximum capacity.' });
-  }
-  state.currentOccupancy += 1;
-  state.checkinsTodayCount += 1;
-  if (state.waitingOutsideCount > 0) state.waitingOutsideCount -= 1;
-  saveGymState(gymId, state);
-  response.json({ ok: true, state });
-});
-
-app.post('/api/gym/:gymId/checkout', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!isBusinessActive(gymId)) {
-    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
-  }
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  const state = getGymState(gymId);
-  if (state.currentOccupancy > 0) state.currentOccupancy -= 1;
-  saveGymState(gymId, state);
-  response.json({ ok: true, state });
-});
-
-
-app.put('/api/gym/:gymId/core-state', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!isBusinessActive(gymId)) {
-    return response.status(403).json({ error: 'Business deactivated.', deactivated: true });
-  }
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  if (session.role !== 'owner' && session.role !== 'manager') {
-    return response.status(403).json({ error: 'Only owners and managers can update core state.' });
-  }
-
-  const state = getGymState(gymId);
-  
-  if (typeof request.body.currentOccupancy === 'number') {
-    if (request.body.currentOccupancy >= 0 && request.body.currentOccupancy <= state.maxCapacity) {
-      state.currentOccupancy = request.body.currentOccupancy;
-    } else if (request.body.currentOccupancy > state.maxCapacity) {
-      return response.status(400).json({ error: 'Occupancy cannot exceed max capacity.' });
-    }
-  }
-  
-  if (typeof request.body.maxCapacity === 'number') {
-    if (request.body.maxCapacity >= 1 && request.body.maxCapacity >= state.currentOccupancy) {
-      state.maxCapacity = request.body.maxCapacity;
-    } else {
-      return response.status(400).json({ error: 'Invalid max capacity.' });
-    }
-  }
-  
-  if (typeof request.body.availableTrainersCount === 'number') {
-    if (request.body.availableTrainersCount >= 0) {
-      state.availableTrainersCount = request.body.availableTrainersCount;
-    }
-  }
-  
-  saveGymState(gymId, state);
-  response.json({ ok: true, state });
+// Preserve Gym customer endpoints while rejecting cross-category writes.
+app.use('/api/gym/:gymId', (request, response, next) => {
+  const business = db.prepare("SELECT main_category_id FROM salon WHERE id=?").get(request.params.gymId) as {main_category_id: string} | undefined;
+  if (business?.main_category_id !== 'gym') return response.status(404).json({error: 'Gym business not found.'});
+  if (request.method !== 'GET' && !isBusinessActive(request.params.gymId)) return response.status(403).json({error: 'Business deactivated.'});
+  next();
 });
 
 app.get('/api/gym/:gymId/public-overview', (request, response) => {
@@ -1849,50 +1748,7 @@ app.get('/api/gym/:gymId/public-overview', (request, response) => {
     return response.status(404).json({ error: 'Gym business not found.' });
   }
   const state = getGymState(gymId);
-  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
-  response.json({ ...state, availableTrainersCount });
-});
-
-app.post('/api/gym/:gymId/trainer-status', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!isBusinessActive(gymId)) {
-    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
-  }
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  const trainerId = cleanText(request.body?.trainerId, 100);
-  const status = cleanText(request.body?.status, 50);
-  const state = getGymState(gymId);
-  const trainer = state.trainers.find((t) => t.id === trainerId);
-  if (!trainer) return response.status(404).json({ error: 'Trainer not found.' });
-  trainer.status = status;
-  const availableTrainersCount = state.availableTrainersCount !== undefined ? state.availableTrainersCount : (state.trainers || []).filter((t) => t.status === 'Available').length;
-  saveGymState(gymId, state);
-  response.json({ ok: true, trainer, availableTrainersCount, state });
-});
-
-app.post('/api/gym/:gymId/settings', (request, response) => {
-  const session = resolveStaffSession(request);
-  const gymId = request.params.gymId;
-  if (!isBusinessActive(gymId)) {
-    return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
-  }
-  if (!session || session.businessId !== gymId) {
-    return response.status(403).json({ error: 'Valid staff session required for this business.' });
-  }
-  if (session && session.role !== 'owner' && session.role !== 'manager') {
-    return response.status(403).json({ error: 'Only Gym Owners can modify facility settings.' });
-  }
-  const newCapacity = parseInt(request.body?.maxCapacity, 10);
-  if (isNaN(newCapacity) || newCapacity < 1) {
-    return response.status(400).json({ error: 'Invalid maximum capacity value.' });
-  }
-  const state = getGymState(gymId);
-  state.maxCapacity = newCapacity;
-  saveGymState(gymId, state);
-  response.json({ ok: true, maxCapacity: state.maxCapacity, state });
+  response.json(publicGymState(state));
 });
 
 app.post('/api/gym/:gymId/class-booking', (request, response) => {
@@ -1906,29 +1762,33 @@ app.post('/api/gym/:gymId/class-booking', (request, response) => {
     return response.status(400).json({ error: 'Class is fully booked.' });
   }
   targetClass.enrolled += 1;
+  gymEvent(state, 'classes', 'enrolled', targetClass.title, memberName);
   saveGymState(gymId, state);
-  response.json({ ok: true, class: targetClass, state });
+  response.json({ ok: true, class: targetClass, state: publicGymState(state) });
 });
 
 app.post('/api/gym/:gymId/pt-booking', (request, response) => {
   const gymId = request.params.gymId;
   const trainerId = cleanText(request.body?.trainerId, 100);
-  const trainerName = cleanText(request.body?.trainerName, 100) || 'Coach Vikram';
+  const trainerName = cleanText(request.body?.trainerName, 100) || 'Unassigned trainer';
   const clientName = cleanText(request.body?.clientName, 100) || 'Gym Client';
   const timeSlot = cleanText(request.body?.timeSlot, 50) || '04:00 PM';
   const serviceName = cleanText(request.body?.serviceName, 100) || 'Personal Training 1-on-1';
 
   const state = getGymState(gymId);
   const newBooking = {
-    id: `pt-${Date.now()}`,
+    id: `pt-${randomUUID()}`,
     clientName,
     time: timeSlot,
     trainer: trainerName,
     service: serviceName,
     status: 'Confirmed',
+    trainerId, startsAt: '', durationMinutes: 60, createdAt: Date.now(),
   };
+  state.ptBookings.push(newBooking);
+  gymEvent(state, 'pt', 'booked', clientName, 'Customer booking');
   saveGymState(gymId, state);
-  response.json({ ok: true, booking: newBooking, state });
+  response.json({ ok: true, booking: newBooking, state: publicGymState(state) });
 });
 
 app.post('/api/admin/login', (request, response) => {

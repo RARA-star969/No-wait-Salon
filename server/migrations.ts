@@ -167,6 +167,10 @@ const migrations=[{
     CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code);
     ALTER TABLE salon ADD COLUMN profile_completed_at BIGINT;
   `
+}, {
+  version: 11,
+  name: 'gym_business_operations_state',
+  sql: 'CREATE TABLE IF NOT EXISTS gym_state (gym_id TEXT PRIMARY KEY, state_json TEXT NOT NULL, updated_at BIGINT NOT NULL);'
 }];
 
 export async function runMigrations(db:Database){
