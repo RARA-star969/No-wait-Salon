@@ -1,4 +1,4 @@
-name: NOQ Business Android test build
+name: NOQ Business Android build
 
 # Produces a debug-signed universal NOQ Business APK for physical testing.
 # Credentials remain server-side; this APK contains no business-specific login data.
@@ -6,6 +6,7 @@ name: NOQ Business Android test build
 on:
   push:
     branches:
+      - main
       - 'fix/**'
       - 'feat/**'
   workflow_dispatch:
@@ -26,7 +27,7 @@ jobs:
   noq-business-debug-apk:
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://no-wait-salon-web-test.onrender.com' }}
+      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
 
     steps:
       - name: Check out source
@@ -68,16 +69,17 @@ jobs:
       - name: Stage APK
         shell: bash
         run: |
-          mkdir -p test-artifacts
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then CHANNEL=main; else CHANNEL=test; fi
+          mkdir -p android-artifacts
           cp android-staff/app/build/outputs/apk/debug/app-debug.apk \
-            "test-artifacts/NOQ-Business-test-0.2.0.${{ github.run_number }}.apk"
-          sha256sum test-artifacts/*.apk > test-artifacts/SHA256SUMS.txt
-          ls -la test-artifacts
+            "android-artifacts/NOQ-Business-${CHANNEL}-0.2.0.${{ github.run_number }}.apk"
+          sha256sum android-artifacts/*.apk > android-artifacts/SHA256SUMS.txt
+          ls -la android-artifacts
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: noq-business-test-apk-${{ github.run_number }}
-          path: test-artifacts/
+          name: ${{ github.ref_name == 'main' && 'noq-business-main-apk' || 'noq-business-test-apk' }}-${{ github.run_number }}
+          path: android-artifacts/
           retention-days: 14
           if-no-files-found: error
