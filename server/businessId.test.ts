@@ -198,4 +198,26 @@ test('Business ID Integration Tests', async (t) => {
     assert.equal(resB.data.maxCapacity, 222);
   });
 
+  await t.test('16. admin can assign a Business ID to an existing business without changing its QR', async () => {
+    const beforeQr = await api('GET', `/api/admin/businesses/${gym1Id}/qr`, undefined, adminToken);
+    const assigned = await api('PATCH', `/api/admin/salons/${gym1Id}/business-id`, { business_code: 'IRON001' }, adminToken);
+    assert.equal(assigned.status, 200);
+    assert.equal(assigned.data.businessCode, 'IRON001');
+    assert.equal(assigned.data.qrUnchanged, true);
+
+    const afterQr = await api('GET', `/api/admin/businesses/${gym1Id}/qr`, undefined, adminToken);
+    assert.equal(afterQr.data.qr.publicToken, beforeQr.data.qr.publicToken);
+  });
+
+  await t.test('17. existing-business assignment canonicalizes lowercase input', async () => {
+    const assigned = await api('PATCH', `/api/admin/salons/${gym1Id}/business-id`, { business_code: 'iron-002' }, adminToken);
+    assert.equal(assigned.status, 200);
+    assert.equal(assigned.data.businessCode, 'IRON-002');
+  });
+
+  await t.test('18. existing-business assignment rejects an ID owned by another business', async () => {
+    const duplicate = await api('PATCH', `/api/admin/salons/${gym1Id}/business-id`, { business_code: 'GYM02' }, adminToken);
+    assert.equal(duplicate.status, 409);
+  });
+
 });
