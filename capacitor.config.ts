@@ -4,7 +4,7 @@ const target = process.env.CAPACITOR_APP_TARGET === 'staff' ? 'staff' : 'custome
 
 const config: CapacitorConfig = {
   appId: target === 'staff' ? 'com.nowaitsalon.staff' : 'com.nowaitsalon.customer',
-  appName: target === 'staff' ? 'No-Wait Salon Staff' : 'No-Wait Salon',
+  appName: target === 'staff' ? 'NOQ Business' : 'NOQ',
   webDir: 'dist',
   android: {
     path: target === 'staff' ? 'android-staff' : 'android-customer',
