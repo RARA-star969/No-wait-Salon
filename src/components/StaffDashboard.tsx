@@ -43,7 +43,6 @@ import {
   MainCategoryType,
   CategoryModuleConfig,
 } from '../shared/categoryDashboardResolver';
-import { GymDashboardView } from './GymDashboardView';
 
 interface StaffDashboardProps {
   salon: Salon;
@@ -67,7 +66,6 @@ interface StaffDashboardProps {
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
   onSaveOffers: (offers: SalonOffer[]) => void;
-  onTestSwitchBusiness?: (businessId: string, role?: string) => void;
 }
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -81,7 +79,6 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   queueAlert,
   onSaveStaff,
   onSaveOffers,
-  onTestSwitchBusiness,
 }) => {
   // Single ticking clock so every CALLED countdown re-renders each second.
   const [now, setNow] = useState(() => Date.now());
@@ -101,15 +98,6 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
   const mainCategoryId = (salon.mainCategoryId || 'salon').toLowerCase();
   const isGymCategory = mainCategoryId === 'gym';
-  const isTestEnv =
-    import.meta.env.DEV ||
-    import.meta.env.MODE === 'test' ||
-    process.env.NODE_ENV !== 'production' ||
-    (typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' ||
-        window.location.hostname.includes('127.0.0.1') ||
-        window.location.hostname.includes('web-test.onrender.com') ||
-        window.location.search.includes('test=1')));
   const categoryModules = resolveCategoryModules(mainCategoryId, staffRole);
 
   const waitingCount = queue.filter((x) => x.status === 'Waiting').length;
@@ -152,35 +140,6 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFA] text-[#17201F]">
       <div className="space-y-5 p-5">
-        {/* Test Business Switcher (Test / Dev Environment Only) */}
-        {isTestEnv && (
-          <div id="test-business-switcher-banner" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#0F766E]/25 bg-[#E7F5F2] px-3.5 py-2 text-xs text-[#0F766E] shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="font-extrabold uppercase tracking-wider text-[10px] text-[#0F766E]">Testing as:</span>
-              <select
-                id="test-business-switcher"
-                aria-label="Test Business Switcher"
-                value={`${salon.id}:${staffRole}`}
-                onChange={(e) => {
-                  const [busId, role] = e.target.value.split(':');
-                  setStaffRole((role as StaffRole) || 'owner');
-                  if (onTestSwitchBusiness) {
-                    onTestSwitchBusiness(busId, role);
-                  }
-                }}
-                className="rounded-lg border border-[#0F766E]/30 bg-white px-2.5 py-1 text-xs font-bold text-[#17201F] shadow-sm focus:outline-none"
-              >
-                <option value="salon-1:owner">Sharpcut Studio — Salon (Owner)</option>
-                <option value="salon-2:owner">Royal Man Salon — Salon (Owner)</option>
-                <option value="gym-1:owner">Iron House Gym — Gym (Owner)</option>
-                <option value="gym-1:trainer">Iron House Gym — Gym (Coach Vikram - Trainer)</option>
-                <option value="gym-2:owner">Velocity Fitness Studio — Gym (Owner)</option>
-              </select>
-            </div>
-            <span className="text-[10px] font-semibold text-[#5C6E6B]">(Test tool only — disabled in production)</span>
-          </div>
-        )}
-
         <div className="flex items-start justify-between gap-4">
           <div>
             <span className={ui.eyebrow}>{isGymCategory ? 'Fitness & Strength Facility' : 'Today at the salon'}</span>
@@ -216,19 +175,6 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             ))}
           </div>
         )}
-
-        {/* Category Specific View Render */}
-        {isGymCategory ? (
-          <GymDashboardView
-            gymId={salon.id}
-            gymName={salon.name}
-            role={staffRole}
-            staffName={staffRole === 'trainer' ? 'Coach Vikram' : `${salon.name} Owner`}
-            activeModule={gymModule}
-            onModuleSelect={setGymModule}
-          />
-        ) : (
-          <>
 
         {/* Metrics Row */}
         <div className="grid grid-cols-3 gap-3">
@@ -591,8 +537,6 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         )}
         {activeTab === 'offers' && (
           <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
-        )}
-        </>
         )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}
