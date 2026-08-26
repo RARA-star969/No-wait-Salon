@@ -1017,6 +1017,8 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
   const [busy, setBusy] = useState(id !== 'new');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [assignedBusinessCode, setAssignedBusinessCode] = useState('');
+  const [assigningId, setAssigningId] = useState(false);
 
   useEffect(() => {
     void api('/api/admin/main-categories')
@@ -1027,7 +1029,11 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
   useEffect(() => {
     if (id === 'new') return;
     void api(`/api/admin/salons/${id}`)
-      .then((b) => setForm(norm(b.salon)))
+      .then((b) => {
+        const loaded = norm(b.salon);
+        setForm(loaded);
+        setAssignedBusinessCode(String(loaded.business_code || ''));
+      })
       .catch((e) => setError(e.message))
       .finally(() => setBusy(false));
   }, [id]);
@@ -1062,14 +1068,39 @@ const [checkingId, setCheckingId] = useState(false);
     if (!form.business_code) return;
     setCheckingId(true);
     try {
-      const res = await api('/api/admin/check-business-id/' + form.business_code);
+      const exclude = id === 'new' ? '' : `?excludeBusinessId=${encodeURIComponent(id)}`;
+      const res = await api('/api/admin/check-business-id/' + encodeURIComponent(form.business_code) + exclude);
       setIdAvailable(res.available);
       if (!res.available) setError('This Business ID is already in use.');
       else setError('');
-    } catch(e) {
-      setError('Check failed');
+    } catch (e) {
+      setIdAvailable(false);
+      setError(e instanceof Error ? e.message : 'Unable to validate this Business ID.');
     } finally {
       setCheckingId(false);
+    }
+  };
+
+  const assignBusinessId = async () => {
+    if (id === 'new' || !form.business_code) return;
+    setAssigningId(true);
+    setError('');
+    setMessage('');
+    try {
+      const result = await api(`/api/admin/salons/${id}/business-id`, {
+        method: 'PATCH',
+        body: JSON.stringify({ business_code: form.business_code }),
+      });
+      const savedCode = String(result.businessCode || '');
+      setForm(norm(result.salon));
+      setAssignedBusinessCode(savedCode);
+      setIdAvailable(true);
+      setMessage(`Business ID ${savedCode} assigned successfully. Existing Business QR remains active.`);
+    } catch (e) {
+      setIdAvailable(false);
+      setError(e instanceof Error ? e.message : 'Unable to assign Business ID.');
+    } finally {
+      setAssigningId(false);
     }
   };
 
@@ -1177,36 +1208,84 @@ const [checkingId, setCheckingId] = useState(false);
       </div>
 
       {tab === 'details' && (
-        <Section title="Basic Information">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Business Name" value={form.name} onChange={(v) => set('name', v)} required />
-            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
-              Main Category
-              <select
-                value={form.main_category_id || 'salon'}
-                onChange={(e) => set('main_category_id', e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
-              >
-                {mainCats.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Field label="Phone Number" value={form.phone_number} onChange={(v) => set('phone_number', v)} />
-            <Field label="Email" value={form.email} onChange={(v) => set('email', v)} />
-            <Field label="Address" value={form.address} onChange={(v) => set('address', v)} />
-            <Field label="Area" value={form.area} onChange={(v) => set('area', v)} />
-            <Field label="City" value={form.city} onChange={(v) => set('city', v)} />
-            <Field label="Opening Hours String" value={form.opening_hours} onChange={(v) => set('opening_hours', v)} />
-            <Field label="Logo Image URL" value={form.logo_image_url} onChange={(v) => set('logo_image_url', v)} placeholder="https://…" />
-            <Field label="Cover Image URL" value={form.cover_image_url} onChange={(v) => set('cover_image_url', v)} placeholder="https://…" />
-            <div className="sm:col-span-2 pt-2">
-              <Toggle checked={Boolean(form.isOpen)} onChange={(v) => set('isOpen', v)} label="Business is currently Open for queueing" />
+        <div className="grid gap-6">
+          <Section title="Basic Information">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Business Name" value={form.name} onChange={(v) => set('name', v)} required />
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                Main Category
+                <select
+                  value={form.main_category_id || 'salon'}
+                  onChange={(e) => set('main_category_id', e.target.value)}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+                >
+                  {mainCats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Field label="Phone Number" value={form.phone_number} onChange={(v) => set('phone_number', v)} />
+              <Field label="Email" type="email" value={form.email} onChange={(v) => set('email', String(v).trim().toLowerCase())} />
+              <Field label="Address" value={form.address} onChange={(v) => set('address', v)} />
+              <Field label="Area" value={form.area} onChange={(v) => set('area', v)} />
+              <Field label="City" value={form.city} onChange={(v) => set('city', v)} />
+              <Field label="Opening Hours String" value={form.opening_hours} onChange={(v) => set('opening_hours', v)} />
+              <Field label="Logo Image URL" value={form.logo_image_url} onChange={(v) => set('logo_image_url', v)} placeholder="https://…" />
+              <Field label="Cover Image URL" value={form.cover_image_url} onChange={(v) => set('cover_image_url', v)} placeholder="https://…" />
+              <div className="sm:col-span-2 pt-2">
+                <Toggle checked={Boolean(form.isOpen)} onChange={(v) => set('isOpen', v)} label="Business is currently Open for queueing" />
+              </div>
             </div>
-          </div>
-        </Section>
+          </Section>
+
+          <Section
+            title="Staff Dashboard Access"
+            subtitle="Assign the permanent Business ID staff will enter to reach this business workspace."
+          >
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700">Business ID</label>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={form.business_code || ''}
+                    onChange={(event) => {
+                      set('business_code', event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''));
+                      setIdAvailable(null);
+                    }}
+                    placeholder="e.g. IRON001"
+                    className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold uppercase tracking-wide outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void assignBusinessId()}
+                    disabled={assigningId || !form.business_code || form.business_code === assignedBusinessCode}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {assigningId ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                    {form.business_code === assignedBusinessCode && assignedBusinessCode
+                      ? 'Business ID Assigned'
+                      : assignedBusinessCode
+                        ? 'Validate & Change ID'
+                        : 'Validate & Assign ID'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+                  {assignedBusinessCode ? (
+                    <span className="font-semibold text-emerald-700">Active ID: {assignedBusinessCode}</span>
+                  ) : (
+                    <span className="font-semibold text-amber-700">No Business ID assigned yet</span>
+                  )}
+                  <span className="text-slate-500">Use 3–50 uppercase letters, numbers, or hyphens. IDs must be unique.</span>
+                </div>
+              </div>
+              <div className="rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900">
+                Changing this staff login ID does not regenerate or disable the customer-facing Business QR.
+              </div>
+            </div>
+          </Section>
+        </div>
       )}
 
       {tab === 'services' && (
