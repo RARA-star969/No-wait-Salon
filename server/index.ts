@@ -2293,11 +2293,11 @@ app.put('/api/admin/salons/:id/owner-account', requireAdmin, async (request, res
   if (existingOwner) {
     staffId = existingOwner.id;
     db.prepare("UPDATE staff_account SET email = ?, password_hash = ?, name = ?, active = 1, updated_at = ? WHERE id = ?")
-      .run(email, passwordHash, name, now, staffId);
+      .run(email, hashedPassword, name, now, staffId);
   } else {
     staffId = `staff_${randomUUID()}`;
     db.prepare("INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'owner', 1, ?, ?)")
-      .run(staffId, business.id, email, passwordHash, name, now, now);
+      .run(staffId, business.id, email, hashedPassword, name, now, now);
   }
   db.prepare('DELETE FROM staff_session WHERE business_id = ? AND staff_id = ?').run(business.id, staffId);
   await postgresPersistence?.flushNow(['staff_account', 'staff_session']);
