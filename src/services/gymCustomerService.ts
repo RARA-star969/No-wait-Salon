@@ -35,37 +35,18 @@ const getBaseUrl = () => {
 };
 
 export const gymCustomerService = {
+  // The one real Gym state source: the same getGymState(gymId) record the
+  // Staff Dashboard reads and writes, via /api/gym/:gymId/public-overview.
+  // No mock/hardcoded fallback data — a failed or non-JSON response throws,
+  // so the caller can show its own honest loading/error state instead of
+  // silently substituting fabricated occupancy, trainers, or classes.
   async getPublicOverview(gymId: string): Promise<GymPublicOverview> {
     const isJson = (res: Response) => res.ok && (res.headers.get('content-type') || '').includes('application/json');
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/public-overview`);
-      if (isJson(res)) {
-        const data = await res.json();
-        const availableTrainersCount = data.availableTrainersCount ?? (data.trainers || []).filter((t: GymTrainer) => t.status === 'Available').length;
-        return { ...data, availableTrainersCount };
-      }
-    } catch {
-      /* fallback below */
-    }
-    return {
-      gymId,
-      maxCapacity: 80,
-      currentOccupancy: 42,
-      waitingOutsideCount: 3,
-      checkinsTodayCount: 96,
-      availableTrainersCount: 2,
-      classesToday: [
-        { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
-        { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
-        { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
-        { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
-      ],
-      trainers: [
-        { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112, nextSlot: 'Today 04:00 PM' },
-        { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89, nextSlot: 'Today 05:30 PM' },
-        { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94, nextSlot: 'Tomorrow 09:00 AM' },
-      ],
-    };
+    const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/public-overview`);
+    if (!isJson(res)) throw new Error('Unable to load live gym data.');
+    const data = await res.json();
+    const availableTrainersCount = data.availableTrainersCount ?? (data.trainers || []).filter((t: GymTrainer) => t.status === 'Available').length;
+    return { ...data, availableTrainersCount };
   },
 
   async bookClass(gymId: string, classId: string, memberName = 'Gym Member') {

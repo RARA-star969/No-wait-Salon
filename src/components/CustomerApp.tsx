@@ -893,6 +893,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         ) : (selectedSalon.mainCategoryId || 'salon').toLowerCase() === 'gym' ? (
           <GymDetailPage
             salon={selectedSalon}
+            nearbySalons={nearbySalons}
             onBack={() => setScreen('home')}
             onApplyOffer={onApplyOffer}
             appliedOfferId={appliedOfferId}

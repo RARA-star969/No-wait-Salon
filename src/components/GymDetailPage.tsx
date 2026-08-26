@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowLeft,
+  Bookmark,
   Share2,
   Star,
   MapPin,
   Clock,
-  PhoneCall,
   Navigation,
   Users,
   CalendarDays,
@@ -20,17 +20,19 @@ import {
   Tag,
   Check,
   ChevronRight,
+  Store,
   X,
-  Clock3,
 } from 'lucide-react';
-import { Salon, SalonOffer, ServiceItem } from '../types';
+import { NearbySalon, Salon, SalonOffer, ServiceItem } from '../types';
 import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer } from '../services/gymCustomerService';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { GymLiveCard } from './GymLiveCard';
 import { GymFloatingCapsule } from './GymFloatingCapsule';
+import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
 
 interface GymDetailPageProps {
   salon: Salon;
+  nearbySalons?: NearbySalon[];
   onBack: () => void;
   onApplyOffer?: (offerId: string) => void;
   appliedOfferId?: string | null;
@@ -38,6 +40,7 @@ interface GymDetailPageProps {
 
 export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   salon,
+  nearbySalons = [],
   onBack,
   onApplyOffer,
   appliedOfferId,
@@ -50,8 +53,28 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [ptBookingModalOpen, setPtBookingModalOpen] = useState(false);
   const [classBookingModalOpen, setClassBookingModalOpen] = useState<GymClass | null>(null);
   const [isCardVisible, setIsCardVisible] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [visited, setVisited] = useState(false);
+  const [addressSheetOpen, setAddressSheetOpen] = useState(false);
+  const [openHoursSheetOpen, setOpenHoursSheetOpen] = useState(false);
+  const [directionsSheetOpen, setDirectionsSheetOpen] = useState(false);
+  const [branchesSheetOpen, setBranchesSheetOpen] = useState(false);
+  const [beenHereSheetOpen, setBeenHereSheetOpen] = useState(false);
 
-  // Poll live operational state every 2 seconds to share Staff Dashboard updates in real time
+  const directionsUrl = `https://maps.google.com/?q=${salon.latitude},${salon.longitude}`;
+  const shareGym = async () => {
+    const shareData = { title: salon.name, text: `${salon.name}\n${salon.address}`, url: directionsUrl };
+    if (navigator.share) await navigator.share(shareData).catch(() => undefined);
+    else await navigator.clipboard?.writeText(`${shareData.text}\n${shareData.url}`).catch(() => undefined);
+  };
+  const branches = nearbySalons.filter((item) => item.id !== salon.id && salon.brandKey && item.brandKey === salon.brandKey);
+
+  // Poll the one real Gym state source every 2 seconds — the same
+  // getGymState(gymId) the Staff Dashboard reads and writes — so a
+  // capacity/check-in/trainer change made on the dashboard reaches this
+  // page (and the floating capsule) without a refresh. No local mock
+  // fallback: a failed fetch leaves `overview` null and `loading` true
+  // rather than quietly substituting fabricated numbers.
   useEffect(() => {
     let active = true;
     const fetchState = async () => {
@@ -62,6 +85,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           setLoading(false);
         }
       } catch {
+        /* keep the last known overview (or null) rather than showing fabricated data */
         if (active) setLoading(false);
       }
     };
@@ -87,11 +111,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     return () => observer.disconnect();
   }, [loading]);
 
-  const maxCap = overview?.maxCapacity || 80;
-  const currentOcc = overview?.currentOccupancy || 42;
-  const waitingCount = overview?.waitingOutsideCount || 0;
-  const occPercent = Math.round((currentOcc / maxCap) * 100);
-  const crowdStatus = occPercent > 90 ? 'Full' : occPercent > 70 ? 'Busy' : 'Moderate';
+  // Nullish coalescing, not `||` — a real currentOccupancy/availableTrainersCount
+  // of 0 must render as 0, not silently fall back to a placeholder. There's
+  // no default "42/80"-style number here; before the first successful poll
+  // resolves, these simply reflect an empty/zero state matching `loading`.
+  const maxCap = overview?.maxCapacity ?? 0;
+  const currentOcc = overview?.currentOccupancy ?? 0;
 
   const handleBookClass = async (gymClass: GymClass) => {
     try {
@@ -141,7 +166,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         </div>
       )}
 
-      {/* 1. GYM HERO / BUSINESS INFO */}
+      {/* 1. GYM HERO / BUSINESS INFO — same header pattern as SalonDetailPage:
+          back/bookmark/share over the cover image, an open/closed status
+          dot, name + category/distance/hours, and a tappable address row
+          that opens the shared AddressSheet. One NOQ header language for
+          every category. */}
       <div className="relative bg-[#0D2422] text-white">
         <div className="relative h-48 w-full overflow-hidden bg-[#133330]">
           <img
@@ -156,12 +185,24 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             <button
               onClick={onBack}
               id="gym-back-btn"
+              aria-label="Back to nearby gyms"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition active:scale-95"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="flex items-center gap-2">
-              <button className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md">
+              <button
+                onClick={() => setSaved((value) => !value)}
+                aria-label={saved ? 'Remove saved gym' : 'Save gym'}
+                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[#0F766E]' : 'bg-black/40 text-white'}`}
+              >
+                <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
+              </button>
+              <button
+                onClick={shareGym}
+                aria-label="Share gym"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition active:scale-95"
+              >
                 <Share2 className="h-4 w-4" />
               </button>
             </div>
@@ -202,16 +243,26 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             {salon.description || 'High-performance strength and fitness center featuring heavy lifting gear, cardio deck, sauna, and certified personal trainers.'}
           </p>
 
-          <div className="mt-4 flex gap-2">
-            <button className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20">
-              <PhoneCall className="h-3.5 w-3.5 text-[#14B8A6]" />
-              Call Gym
-            </button>
-            <button className="flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/20">
-              <Navigation className="h-3.5 w-3.5 text-[#14B8A6]" />
-              Directions
-            </button>
-          </div>
+          <button
+            type="button"
+            id="gym-address-row"
+            onClick={() => setAddressSheetOpen(true)}
+            aria-label="View gym address and contact"
+            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-[#A3C7C2] underline decoration-white/25 underline-offset-2 transition active:text-white"
+          >
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Premium action tiles — same interaction pattern as the salon detail page. */}
+      <div className="px-5 pt-4">
+        <div className="grid grid-cols-4 gap-2.5">
+          <QuickAction icon={<CalendarDays />} label="Schedule" onClick={() => setOpenHoursSheetOpen(true)} />
+          <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
+          <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
+          <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} active={visited} onClick={() => setBeenHereSheetOpen(true)} />
         </div>
       </div>
 
@@ -221,7 +272,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           <GymFloatingCapsule
             currentOccupancy={currentOcc}
             maxCapacity={maxCap}
-            availableTrainersCount={overview?.availableTrainersCount ?? 2}
+            availableTrainersCount={overview?.availableTrainersCount ?? 0}
             onTap={() => {
               document.getElementById('gym-live-card')?.scrollIntoView({ behavior: 'smooth' });
             }}
@@ -235,7 +286,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           <GymLiveCard
             currentOccupancy={currentOcc}
             maxCapacity={maxCap}
-            availableTrainersCount={overview?.availableTrainersCount ?? 2}
+            availableTrainersCount={overview?.availableTrainersCount ?? 0}
           />
         </div>
 
@@ -252,12 +303,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {(overview?.classesToday || [
-              { id: 'c1', title: 'HIIT Strength & Conditioning', time: '07:00 AM', trainer: 'Coach Vikram', enrolled: 14, maxCapacity: 20 },
-              { id: 'c2', title: 'Power Yoga & Mobility', time: '09:00 AM', trainer: 'Coach Ananya', enrolled: 12, maxCapacity: 15 },
-              { id: 'c3', title: 'CrossFit Blast', time: '05:30 PM', trainer: 'Coach Rahul', enrolled: 18, maxCapacity: 20 },
-              { id: 'c4', title: 'Heavy Lifting Workshop', time: '07:00 PM', trainer: 'Coach Vikram', enrolled: 10, maxCapacity: 12 },
-            ]).map((c) => {
+            {(overview?.classesToday ?? []).map((c) => {
               const seatsLeft = c.maxCapacity - c.enrolled;
               return (
                 <div key={c.id} className="flex items-center justify-between rounded-2xl border border-[#DDE5E3] bg-white p-4 shadow-sm">
@@ -286,6 +332,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 </div>
               );
             })}
+            {!loading && (overview?.classesToday ?? []).length === 0 && (
+              <p className="rounded-2xl border border-[#DDE5E3] bg-white p-4 text-center text-xs text-[#788582]">No classes scheduled today.</p>
+            )}
           </div>
         </div>
 
@@ -299,11 +348,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {(overview?.trainers || [
-              { id: 't1', name: 'Coach Vikram', role: 'Head Strength Coach', status: 'Available', rating: 4.9, reviewCount: 112, nextSlot: 'Today 04:00 PM' },
-              { id: 't2', name: 'Coach Rahul', role: 'HIIT & Functional Specialist', status: 'In Session', rating: 4.8, reviewCount: 89, nextSlot: 'Today 05:30 PM' },
-              { id: 't3', name: 'Coach Ananya', role: 'Yoga & Mobility Instructor', status: 'Available', rating: 4.9, reviewCount: 94, nextSlot: 'Tomorrow 09:00 AM' },
-            ]).map((t) => (
+            {(overview?.trainers ?? []).map((t) => (
               <div key={t.id} className="rounded-2xl border border-[#DDE5E3] bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
@@ -336,6 +381,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </div>
             ))}
           </div>
+          {!loading && (overview?.trainers ?? []).length === 0 && (
+            <p className="rounded-2xl border border-[#DDE5E3] bg-white p-4 text-center text-xs text-[#788582]">No trainers listed yet.</p>
+          )}
         </div>
 
         {/* 6. SERVICES & PASSES */}
@@ -494,6 +542,35 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {addressSheetOpen && (
+        <AddressSheet
+          name={salon.name}
+          eyebrow="Gym location"
+          address={salon.address}
+          locationLabel={`${salon.distanceKm} km away · Fitness & Strength Center`}
+          phoneNumber={salon.phoneNumber}
+          directionsUrl={directionsUrl}
+          onClose={() => setAddressSheetOpen(false)}
+        />
+      )}
+      {openHoursSheetOpen && (
+        <OpenHoursSheet name={salon.name} eyebrow="Gym timing" isOpen={salon.isOpen} openingHours={salon.openingHours || '6:00 AM–10:00 PM'} onClose={() => setOpenHoursSheetOpen(false)} />
+      )}
+      {directionsSheetOpen && (
+        <DirectionsSheet name={salon.name} address={salon.address} directionsUrl={directionsUrl} onClose={() => setDirectionsSheetOpen(false)} />
+      )}
+      {branchesSheetOpen && (
+        <BranchesSheet branches={branches} onClose={() => setBranchesSheetOpen(false)} />
+      )}
+      {beenHereSheetOpen && (
+        <BeenHereSheet
+          visited={visited}
+          subjectLabel="gym"
+          onToggle={() => { setVisited((value) => !value); setBeenHereSheetOpen(false); }}
+          onClose={() => setBeenHereSheetOpen(false)}
+        />
       )}
 
       {/* Floating Bottom Bar (Gym Actions) */}
