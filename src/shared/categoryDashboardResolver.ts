@@ -47,6 +47,7 @@ export function resolveCategoryCapabilities(mainCategoryId: MainCategoryType, ro
         'pt_bookings',
         'gym_settings',
         'members_manage',
+        'plans_manage',
         'reports_view',
         ...(role === 'owner' ? ['campaigns_manage'] : []),
       ];
@@ -73,6 +74,7 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
       { id: 'classes', label: 'Classes', icon: 'CalendarDays', allowedRoles: ['owner', 'manager', 'trainer'] },
       { id: 'trainers', label: 'Trainers', icon: 'UserCheck', allowedRoles: ['owner', 'manager'] },
       { id: 'pt_bookings', label: 'PT Bookings', icon: 'Dumbbell', allowedRoles: ['owner', 'manager', 'trainer', 'reception'] },
+      { id: 'plans', label: 'Plans & Services', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
       { id: 'members', label: 'Members', icon: 'UsersRound', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
       { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },
       { id: 'campaigns', label: 'Campaigns', icon: 'Megaphone', allowedRoles: ['owner'] },

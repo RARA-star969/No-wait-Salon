@@ -4,9 +4,12 @@ import {
   campaignIsLive,
   filterGymEvents,
   gymEventsCsv,
+  reconcileExpiredMemberships,
   type GymState,
   type GymEvent,
   type GymCampaign,
+  type GymOffering,
+  type GymMembership,
 } from "../src/shared/gymBusiness.ts";
 import { qrSvgDataUrl } from "./qrRendering.ts";
 
@@ -51,6 +54,10 @@ export function normalizeGymState(
     events: raw.events || [],
     historyStartedAt: raw.historyStartedAt || Date.now(),
     revision: raw.revision || 0,
+    offerings: raw.offerings || [],
+    memberships: raw.memberships || [],
+    membershipClaims: raw.membershipClaims || [],
+    payments: raw.payments || [],
   };
 }
 export function gymEvent(
@@ -76,6 +83,7 @@ export function gymEvent(
 }
 export function publicGymState(state: GymState) {
   // Keep the legacy public contract, never expose the new member/visit/campaign audit records.
+  const activeVisits = state.visits.filter((v) => !v.checkedOutAt);
   return {
     gymId: state.gymId,
     currentOccupancy: state.currentOccupancy,
@@ -89,7 +97,22 @@ export function publicGymState(state: GymState) {
       ({ staffId: _staffId, ...trainer }) => trainer,
     ),
     entryQueue: [],
+    // Inside Now = real active Visits, broken down by purpose. Offerings are
+    // public so the Customer Gym page can render "Choose Access" without a
+    // second, duplicated plan list.
+    insideMembersCount: activeVisits.filter((v) => v.purpose === "member")
+      .length,
+    insideVisitorsCount: activeVisits.filter((v) => v.purpose !== "member")
+      .length,
+    offerings: state.offerings.filter((o) => o.active && o.customerVisible),
   };
+}
+/** Inside Now is always the count of real active Visits — never a hand-edited
+ * counter. Manual corrections (the +/- quick actions) work by creating or
+ * closing a staff-attributed Visit, so they flow through this same recompute
+ * instead of a parallel source of truth. */
+export function recomputeOccupancy(state: GymState) {
+  state.currentOccupancy = state.visits.filter((v) => !v.checkedOutAt).length;
 }
 function requireText(value: unknown, label: string, max = 120) {
   if (typeof value !== "string" || !value.trim() || value.trim().length > max)
@@ -115,6 +138,21 @@ function date(value: unknown, label: string) {
 function choice(value: unknown, choices: string[], label: string) {
   if (!choices.includes(String(value))) throw new Error(`Invalid ${label}.`);
   return String(value);
+}
+/** yyyy-mm-dd + a duration -> the resulting yyyy-mm-dd expiry date. */
+function addDuration(
+  startDate: string,
+  value: number,
+  unit: "day" | "week" | "month" | "quarter" | "year" | "session",
+): string {
+  const d = new Date(`${startDate}T00:00:00`);
+  if (unit === "day") d.setDate(d.getDate() + value);
+  else if (unit === "week") d.setDate(d.getDate() + value * 7);
+  else if (unit === "month") d.setMonth(d.getMonth() + value);
+  else if (unit === "quarter") d.setMonth(d.getMonth() + value * 3);
+  else if (unit === "year") d.setFullYear(d.getFullYear() + value);
+  else d.setDate(d.getDate() + 1); // "session"-based offerings still need a nominal access window
+  return d.toISOString().slice(0, 10);
 }
 function find<T extends { id: string }>(
   items: T[],
@@ -244,6 +282,8 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         e.action === "checkin" &&
         new Date(e.at).toISOString().startsWith(today),
     ).length;
+    recomputeOccupancy(s);
+    reconcileExpiredMemberships(s.memberships);
     deps.save(s.gymId, s);
     try {
       await deps.flush();
@@ -354,22 +394,32 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
     s: GymState,
     session: Session,
   ) => {
+    // Inside Now is derived from real active Visits (see recomputeOccupancy)
+    // and is never settable here directly — the +/- quick actions and "Add
+    // Visitor" create/close an actual Visit instead, so every correction to
+    // the live count carries a timestamp and staff attribution.
     const b = req.body;
-    const occupancy =
-      b.currentOccupancy === undefined
-        ? s.currentOccupancy
-        : integer(b.currentOccupancy, "Inside now");
     const capacity =
       b.maxCapacity === undefined
         ? s.maxCapacity
         : integer(b.maxCapacity, "Capacity", 1);
-    if (occupancy > capacity)
-      throw new Error("Occupancy cannot exceed capacity.");
-    if (occupancy < s.visits.filter((v) => !v.checkedOutAt).length)
+    const trackedInside = s.visits.filter((v) => !v.checkedOutAt).length;
+    if (trackedInside > capacity)
       throw new Error(
-        "Check out tracked visits before reducing the inside count.",
+        "Check out visitors before reducing capacity below the current inside count.",
       );
-    s.currentOccupancy = occupancy;
+    // currentOccupancy is accepted only for validation compatibility — the
+    // real value always comes from recomputeOccupancy() in commit(), never
+    // from this field, so a manual number here can never drift from the
+    // actual set of active Visits.
+    if (b.currentOccupancy !== undefined) {
+      const occupancy = integer(b.currentOccupancy, "Inside now");
+      if (occupancy > capacity) throw new Error("Occupancy cannot exceed capacity.");
+      if (occupancy < trackedInside)
+        throw new Error(
+          "Check out visitors before reducing the inside count below the current tracked total.",
+        );
+    }
     s.maxCapacity = capacity;
     if (b.availableTrainersCount !== undefined)
       s.availableTrainersCount = integer(
@@ -673,6 +723,189 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             );
           }
         }
+      } else if (kind === "offerings") {
+        if (!managers.includes(session.role)) {
+          res
+            .status(403)
+            .json({ error: "Your role cannot manage Plans & Services." });
+          return;
+        }
+        const existing = b.id ? find(s.offerings, b.id, "Offering") : undefined;
+        const paymentOptions = (
+          Array.isArray(b.paymentOptions) ? b.paymentOptions : ["online", "cash"]
+        ).filter((o: unknown) => o === "online" || o === "cash");
+        const offering: GymOffering = {
+          id: existing?.id || randomUUID(),
+          name: requireText(b.name, "Offering name", 80),
+          type: choice(
+            b.type,
+            ["visitor_pass", "membership", "pt", "class_package", "custom"],
+            "offering type",
+          ) as GymOffering["type"],
+          priceInr: integer(b.priceInr, "Price", 0, 1000000),
+          durationValue: integer(b.durationValue, "Duration", 1, 3650),
+          durationUnit: choice(
+            b.durationUnit,
+            ["day", "week", "month", "quarter", "year", "session"],
+            "duration unit",
+          ) as GymOffering["durationUnit"],
+          description:
+            typeof b.description === "string"
+              ? b.description.trim().slice(0, 2000)
+              : "",
+          active: b.active === undefined ? true : Boolean(b.active),
+          customerVisible:
+            b.customerVisible === undefined ? true : Boolean(b.customerVisible),
+          paymentOptions: paymentOptions.length ? paymentOptions : ["cash"],
+          createdAt: existing?.createdAt || Date.now(),
+          updatedAt: Date.now(),
+        };
+        if (existing) Object.assign(existing, offering);
+        else s.offerings.unshift(offering);
+        gymEvent(
+          s,
+          "members",
+          existing ? "offering_updated" : "offering_created",
+          offering.name,
+          session.name,
+        );
+      } else if (kind === "membership_claims") {
+        if (!managers.includes(session.role)) {
+          res
+            .status(403)
+            .json({ error: "Your role cannot review membership claims." });
+          return;
+        }
+        const claim = find(s.membershipClaims, b.id, "Membership claim");
+        if (claim.status !== "pending")
+          throw new Error("This claim has already been reviewed.");
+        const decision = choice(b.action, ["approve", "reject"], "decision");
+        claim.reviewedBy = session.name;
+        claim.reviewedAt = Date.now();
+        if (decision === "reject") {
+          claim.status = "rejected";
+          gymEvent(s, "members", "claim_rejected", claim.name, session.name);
+        } else {
+          const name =
+            typeof b.name === "string" && b.name.trim()
+              ? requireText(b.name, "Name")
+              : claim.name;
+          const joinedDate = b.joiningDate
+            ? date(b.joiningDate, "Joining date").slice(0, 10)
+            : claim.joiningDate;
+          const expiryDate = b.expiryDate
+            ? date(b.expiryDate, "Expiry date").slice(0, 10)
+            : claim.expiryDate;
+          const membership: GymMembership = {
+            id: randomUUID(),
+            customerId: claim.customerId,
+            customerName: name,
+            customerMobile: claim.mobile,
+            planName: claim.planText || "Existing membership",
+            source: "claim",
+            status: "active",
+            joinedDate,
+            expiryDate,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          s.memberships.unshift(membership);
+          claim.status = "approved";
+          claim.resultingMembershipId = membership.id;
+          gymEvent(s, "members", "claim_approved", claim.name, session.name);
+        }
+      } else if (kind === "add_visitor" || kind === "accept_payment") {
+        if (s.currentOccupancy >= s.maxCapacity)
+          throw new Error(
+            "Gym is at maximum capacity. Add this visitor to the entry queue instead.",
+          );
+        let payment: (typeof s.payments)[number];
+        let offering: GymOffering;
+        if (kind === "accept_payment") {
+          payment = find(s.payments, b.paymentId, "Payment");
+          if (payment.status !== "pending")
+            throw new Error("This payment has already been processed.");
+          offering = find(s.offerings, payment.offeringId, "Offering");
+        } else {
+          offering = find(s.offerings, b.offeringId, "Offering");
+          if (!offering.active) throw new Error("This offering is inactive.");
+          const name = requireText(b.name, "Visitor name");
+          const mobile =
+            typeof b.mobile === "string" ? b.mobile.trim().slice(0, 20) : "";
+          const method = choice(b.method || "cash", ["online", "cash"], "payment method") as
+            | "online"
+            | "cash";
+          payment = {
+            id: randomUUID(),
+            customerId:
+              typeof b.customerId === "string" && b.customerId
+                ? b.customerId
+                : undefined,
+            customerName: name,
+            customerMobile: mobile,
+            offeringId: offering.id,
+            offeringName: offering.name,
+            amountInr: offering.priceInr,
+            method,
+            status: "pending",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          s.payments.unshift(payment);
+        }
+        payment.status = "paid";
+        payment.acceptedBy = session.name;
+        payment.acceptedAt = Date.now();
+        payment.updatedAt = Date.now();
+        let membershipId: string | undefined;
+        if (offering.type === "membership") {
+          const expiryDate = addDuration(
+            new Date().toISOString().slice(0, 10),
+            offering.durationValue,
+            offering.durationUnit,
+          );
+          const membership: GymMembership = {
+            id: randomUUID(),
+            customerId: payment.customerId || `walkin-${payment.id}`,
+            customerName: payment.customerName,
+            customerMobile: payment.customerMobile,
+            offeringId: offering.id,
+            planName: offering.name,
+            source: "purchase",
+            status: "active",
+            joinedDate: new Date().toISOString().slice(0, 10),
+            expiryDate,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
+          s.memberships.unshift(membership);
+          membershipId = membership.id;
+          payment.membershipId = membershipId;
+        }
+        const visit = {
+          id: randomUUID(),
+          name: payment.customerName,
+          checkedInAt: Date.now(),
+          customerId: payment.customerId,
+          offeringId: offering.id,
+          membershipId,
+          paymentId: payment.id,
+          purpose: (offering.type === "membership" ? "member" : "visitor") as
+            | "member"
+            | "visitor",
+          entryMethod: "staff_manual" as const,
+          checkedInBy: session.name,
+        };
+        s.visits.unshift(visit);
+        payment.visitId = visit.id;
+        gymEvent(
+          s,
+          "checkins",
+          "checkin",
+          payment.customerName,
+          session.name,
+          {},
+        );
       } else throw new Error("Unknown operation.");
       await commit(res, s);
     },

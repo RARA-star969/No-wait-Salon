@@ -1,7 +1,8 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
+import { gymCustomerService, GymMembershipView } from '../services/gymCustomerService';
 
 type Props = {
   mode: 'profile' | 'edit';
@@ -45,6 +46,24 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [gymMemberships, setGymMemberships] = useState<{ gymId: string; gymName: string; membership: GymMembershipView }[] | null>(null);
+  const [gymMembershipsOpen, setGymMembershipsOpen] = useState(false);
+  const [gymMembershipsLoading, setGymMembershipsLoading] = useState(false);
+
+  const toggleGymMemberships = async () => {
+    if (gymMembershipsOpen) { setGymMembershipsOpen(false); return; }
+    setGymMembershipsOpen(true);
+    if (gymMemberships) return;
+    setGymMembershipsLoading(true);
+    try {
+      const data = await gymCustomerService.getMyGymMemberships();
+      setGymMemberships(data.memberships);
+    } catch {
+      setGymMemberships([]);
+    } finally {
+      setGymMembershipsLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -153,7 +172,43 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
           <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Linked to your verified account" />
+          <ProfileRow icon={<Dumbbell />} label="My Memberships" secondary="Gym plans linked to your account" onClick={toggleGymMemberships} />
         </div>
+        {gymMembershipsOpen && (
+          <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
+            {gymMembershipsLoading ? (
+              <div className="flex items-center justify-center py-4"><LoaderCircle className="h-5 w-5 animate-spin text-[#0F766E]" /></div>
+            ) : !gymMemberships || gymMemberships.length === 0 ? (
+              <p className="text-xs text-[#71807E]">No gym memberships linked to this account yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {gymMemberships.map((entry) => (
+                  <div key={entry.gymId} className="rounded-xl border border-[#E0E7E6] p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <BadgeCheck className="h-3.5 w-3.5 text-[#0F766E]" />
+                        <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
+                      </div>
+                      <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                        entry.membership.displayStatus === 'expired' ? 'bg-rose-50 text-rose-700'
+                        : entry.membership.displayStatus === 'expires_today' || entry.membership.displayStatus === 'expiring_soon' ? 'bg-amber-50 text-amber-800'
+                        : 'bg-[#E7F5F2] text-[#0F766E]'
+                      }`}>
+                        {entry.membership.displayStatus === 'expired' ? 'Expired' : entry.membership.displayStatus === 'expires_today' ? 'Expires today' : entry.membership.displayStatus === 'expiring_soon' ? 'Expiring soon' : 'Active'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-[#71807E]">{entry.membership.planName} · Joined {new Date(entry.membership.joinedDate).toLocaleDateString()}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-[#17201F]">
+                      {entry.membership.displayStatus === 'expired'
+                        ? `Expired on ${new Date(entry.membership.expiryDate).toLocaleDateString()}`
+                        : `${entry.membership.daysRemaining} day${entry.membership.daysRemaining === 1 ? '' : 's'} left · valid till ${new Date(entry.membership.expiryDate).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {error && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{error}</div>}
         <button onClick={onLogout} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#E7D6D3] bg-white text-sm font-bold text-[#934A40]"><LogOut className="h-4 w-4" />Log out</button>
       </div>

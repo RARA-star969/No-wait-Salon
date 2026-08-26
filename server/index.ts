@@ -11,7 +11,8 @@ import {qrPngDataUrl,qrSvgDataUrl} from './qrRendering.ts';
 import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './businessQr.ts';
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
-import { mountGymOperations, normalizeGymState, publicGymState, gymEvent } from './gymOperations.ts';
+import { mountGymOperations, normalizeGymState, publicGymState, gymEvent, recomputeOccupancy } from './gymOperations.ts';
+import { currentMembershipFor, reconcileExpiredMemberships, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek } from '../src/shared/gymBusiness.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 
 
@@ -708,7 +709,12 @@ db.exec(`
 const postgresPersistence=await initPostgresPersistence(db,dataDir);
 if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from ${postgresPersistence.source}. SQLite safety backup: ${postgresPersistence.backupPath}`);
 const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
-(db.prepare('SELECT id FROM salon').all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
+(db.prepare("SELECT id FROM salon WHERE main_category_id!='gym' OR main_category_id IS NULL").all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
+// Every Gym gets its own Entry QR too — the same business_qr infrastructure
+// salons use, scoped by business_type so a salon QR can never validate a gym
+// check-in or vice versa. This is the "per-gym Entry QR/Barcode" the
+// customer's "Scan to Check In" flow validates against server-side.
+(db.prepare("SELECT id FROM salon WHERE main_category_id='gym'").all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'gym'));
 if((db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count!==qrCountBefore)await postgresPersistence?.flushNow(['business_qr']);
 
 export async function safeBackfillSeeds(db: any, persistence: any) {
@@ -756,7 +762,7 @@ await safeBackfillSeeds(db, postgresPersistence);
 // Diagnostic only: surfaces the active public QR token for each salon in the
 // boot log, since a fresh ephemeral SQLite file (no persistent disk) means
 // ensureBusinessQr mints a new random token on every deploy/restart.
-for(const row of db.prepare("SELECT s.id,s.name,q.public_token FROM salon s JOIN business_qr q ON q.business_id=s.id AND q.status='active' AND q.business_type='salon'").all() as Array<{id:string;name:string;public_token:string}>){
+for(const row of db.prepare("SELECT s.id,s.name,q.public_token FROM salon s JOIN business_qr q ON q.business_id=s.id AND q.status='active' AND q.business_type=(CASE WHEN s.main_category_id='gym' THEN 'gym' ELSE 'salon' END)").all() as Array<{id:string;name:string;public_token:string}>){
   console.log(`[qr-token] ${row.name} (${row.id}): ${row.public_token}`);
 }
 
@@ -864,6 +870,60 @@ if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
       db.prepare('UPDATE staff_account SET business_id=?, email=?, password_hash=?, name=?, role=?, active=1, updated_at=? WHERE id=?')
         .run(acc.businessId, acc.email, passwordHash(acc.password), acc.name, acc.role, now, existing.id);
     }
+  }
+
+  // Deterministic seed offerings for the Iron House Gym test business only —
+  // the real membership/payment engine needs at least one real plan of each
+  // kind to exercise the Customer "Choose Access" and staff "Add Visitor"
+  // flows end to end. Never touches any other business's state.
+  const gym1State = getGymState('gym-1');
+  if (!gym1State.offerings.length) {
+    const now = Date.now();
+    gym1State.offerings.push(
+      {
+        id: 'offering-gym-1-day-pass',
+        name: 'Day Pass',
+        type: 'visitor_pass',
+        priceInr: 299,
+        durationValue: 1,
+        durationUnit: 'day',
+        description: 'Full gym access for a single day.',
+        active: true,
+        customerVisible: true,
+        paymentOptions: ['online', 'cash'],
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'offering-gym-1-monthly',
+        name: 'Monthly Membership',
+        type: 'membership',
+        priceInr: 2499,
+        durationValue: 1,
+        durationUnit: 'month',
+        description: 'Unlimited access, sauna and locker included.',
+        active: true,
+        customerVisible: true,
+        paymentOptions: ['online', 'cash'],
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: 'offering-gym-1-quarterly',
+        name: 'Quarterly Membership',
+        type: 'membership',
+        priceInr: 6499,
+        durationValue: 3,
+        durationUnit: 'month',
+        description: 'Three months of unlimited access at a discount.',
+        active: true,
+        customerVisible: true,
+        paymentOptions: ['online', 'cash'],
+        createdAt: now,
+        updatedAt: now,
+      },
+    );
+    saveGymState('gym-1', gym1State);
   }
 }
 
@@ -1789,6 +1849,201 @@ app.post('/api/gym/:gymId/pt-booking', (request, response) => {
   gymEvent(state, 'pt', 'booked', clientName, 'Customer booking');
   saveGymState(gymId, state);
   response.json({ ok: true, booking: newBooking, state: publicGymState(state) });
+});
+
+// --- Membership, payment & QR check-in (customer-authenticated) -----------
+// Payment != Access != Check-in: purchasing an offering only ever creates a
+// GymPayment. A membership offering additionally creates/renews a
+// GymMembership once that payment is accepted. Only a valid Entry QR scan
+// (or a staff manual check-in) ever creates a GymVisit, which is the one
+// thing Inside Now counts.
+
+function customerAttendanceSummary(state: ReturnType<typeof getGymState>, customerId: string) {
+  const streaks = attendanceStreaks(state.visits, customerId);
+  return {
+    visitsThisMonth: visitsInMonth(state.visits, customerId, new Date().toISOString().slice(0, 7)),
+    avgVisitsPerWeek: averageVisitsPerWeek(state.visits, customerId),
+    currentStreak: streaks.current,
+    bestStreak: streaks.best,
+    lastVisit: streaks.lastVisit || null,
+    monthly: monthlyAttendance(state.visits, customerId),
+  };
+}
+
+app.get('/api/gym/:gymId/my-membership', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const state = getGymState(gymId);
+  if (reconcileExpiredMemberships(state.memberships)) saveGymState(gymId, state);
+  const membership = currentMembershipFor(state.memberships, request.customerId!);
+  const pendingClaim = state.membershipClaims.find((c) => c.customerId === request.customerId && c.status === 'pending');
+  const paidPass = state.payments.find((p) => p.customerId === request.customerId && p.status === 'paid' && !p.visitId);
+  response.set('Cache-Control', 'no-store').json({
+    membership: membership ? { ...membership, displayStatus: membershipDisplayStatus(membership), daysRemaining: daysRemaining(membership.expiryDate) } : null,
+    pendingClaim: pendingClaim || null,
+    paidPass: paidPass || null,
+    attendance: customerAttendanceSummary(state, request.customerId!),
+    activeVisit: state.visits.find((v) => v.customerId === request.customerId && !v.checkedOutAt) || null,
+    queued: state.entryQueue.find((q) => q.customerId === request.customerId && q.status === 'Waiting') || null,
+  });
+});
+
+app.get('/api/me/gym-memberships', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const gyms = db.prepare("SELECT id, name FROM salon WHERE main_category_id='gym' AND onboarded=1").all() as { id: string; name: string }[];
+  const results: any[] = [];
+  for (const gym of gyms) {
+    const state = getGymState(gym.id);
+    if (reconcileExpiredMemberships(state.memberships)) saveGymState(gym.id, state);
+    const membership = currentMembershipFor(state.memberships, request.customerId!);
+    if (!membership) continue;
+    results.push({
+      gymId: gym.id,
+      gymName: gym.name,
+      membership: { ...membership, displayStatus: membershipDisplayStatus(membership), daysRemaining: daysRemaining(membership.expiryDate) },
+    });
+  }
+  response.set('Cache-Control', 'no-store').json({ memberships: results });
+});
+
+app.post('/api/gym/:gymId/membership-claims', requireCustomer, async (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const state = getGymState(gymId);
+  if (reconcileExpiredMemberships(state.memberships)) saveGymState(gymId, state);
+  if (currentMembershipFor(state.memberships, request.customerId!)?.status === 'active') {
+    return response.status(409).json({ error: 'You already have an active membership at this gym.' });
+  }
+  if (state.membershipClaims.some((c) => c.customerId === request.customerId && c.status === 'pending')) {
+    return response.status(409).json({ error: 'You already have a membership claim pending review.' });
+  }
+  const name = cleanText(request.body?.name, 120);
+  const mobile = cleanText(request.body?.mobile, 20);
+  const joiningDate = cleanText(request.body?.joiningDate, 10);
+  const expiryDate = cleanText(request.body?.expiryDate, 10);
+  const planText = cleanText(request.body?.planText, 120);
+  if (!name || !mobile || !joiningDate || !expiryDate) {
+    return response.status(400).json({ error: 'Name, mobile, joining date and expiry date are required.' });
+  }
+  if (!Number.isFinite(Date.parse(joiningDate)) || !Number.isFinite(Date.parse(expiryDate))) {
+    return response.status(400).json({ error: 'Enter valid joining and expiry dates.' });
+  }
+  const claim = {
+    id: randomUUID(),
+    customerId: request.customerId!,
+    name, mobile, joiningDate, expiryDate, planText,
+    status: 'pending' as const,
+    createdAt: Date.now(),
+  };
+  state.membershipClaims.unshift(claim);
+  gymEvent(state, 'members', 'claim_submitted', name, 'Customer');
+  saveGymState(gymId, state);
+  await postgresPersistence?.flushNow(['gym_state']);
+  response.status(201).json({ ok: true, claim });
+});
+
+app.post('/api/gym/:gymId/purchase-intent', requireCustomer, async (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const state = getGymState(gymId);
+  const offering = state.offerings.find((o) => o.id === request.body?.offeringId && o.active);
+  if (!offering) return response.status(404).json({ error: 'This plan is no longer available.' });
+  const method = request.body?.method === 'online' ? 'online' : 'cash';
+  if (!offering.paymentOptions.includes(method)) {
+    return response.status(400).json({ error: 'This payment method is not offered for this plan.' });
+  }
+  const profile = readCustomerProfile(request.customerId!);
+  const payment = {
+    id: randomUUID(),
+    customerId: request.customerId!,
+    customerName: cleanText(profile?.name, 120) || 'Gym Member',
+    customerMobile: cleanText(profile?.phone_number, 20),
+    offeringId: offering.id,
+    offeringName: offering.name,
+    amountInr: offering.priceInr,
+    method: method as 'online' | 'cash',
+    status: 'pending' as const,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  state.payments.unshift(payment);
+  gymEvent(state, 'members', 'payment_pending', offering.name, 'Customer');
+  saveGymState(gymId, state);
+  await postgresPersistence?.flushNow(['gym_state']);
+  response.status(201).json({ ok: true, payment });
+});
+
+app.post('/api/gym/:gymId/checkin/scan', requireCustomer, async (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const qrToken = cleanText(request.body?.qrToken, 200);
+  if (!qrToken) return response.status(400).json({ error: 'Scan a valid Gym entry QR to check in.' });
+  const qr = findActiveBusinessQr(db, qrToken);
+  if (!qr || qr.business_type !== 'gym' || qr.business_id !== gymId) {
+    return response.status(403).json({ error: "This QR isn't a valid entry code for this gym.", code: 'INVALID_ENTRY_QR' });
+  }
+  const state = getGymState(gymId);
+  const customerId = request.customerId!;
+  if (state.visits.some((v) => v.customerId === customerId && !v.checkedOutAt)) {
+    return response.status(409).json({ error: "You're already checked in here.", code: 'ALREADY_CHECKED_IN' });
+  }
+  if (state.entryQueue.some((q) => q.customerId === customerId && q.status === 'Waiting')) {
+    return response.status(409).json({ error: "You're already in the entry queue.", code: 'ALREADY_QUEUED' });
+  }
+  reconcileExpiredMemberships(state.memberships);
+  const membership = currentMembershipFor(state.memberships, customerId);
+  const hasActiveMembership = membership?.status === 'active';
+  const paidPass = state.payments.find((p) => p.customerId === customerId && p.status === 'paid' && !p.visitId);
+  if (!hasActiveMembership && !paidPass) {
+    return response.status(403).json({ error: 'No active membership or paid pass found. Choose an access plan first.', code: 'NO_ENTITLEMENT' });
+  }
+  const profile = readCustomerProfile(customerId);
+  const name = cleanText(profile?.name, 120) || 'Member';
+  const purpose: 'member' | 'visitor' = hasActiveMembership ? 'member' : 'visitor';
+  const offeringId = hasActiveMembership ? membership?.offeringId : paidPass?.offeringId;
+  const membershipId = hasActiveMembership ? membership?.id : undefined;
+
+  if (state.currentOccupancy < state.maxCapacity) {
+    const visit = {
+      id: randomUUID(),
+      name,
+      checkedInAt: Date.now(),
+      customerId,
+      offeringId,
+      membershipId,
+      paymentId: paidPass?.id,
+      purpose,
+      entryMethod: 'qr' as const,
+    };
+    state.visits.unshift(visit);
+    if (paidPass) paidPass.visitId = visit.id;
+    recomputeOccupancy(state);
+    gymEvent(state, 'checkins', 'checkin', name, 'Customer (QR scan)');
+    saveGymState(gymId, state);
+    await postgresPersistence?.flushNow(['gym_state']);
+    return response.json({ ok: true, result: 'checked_in', visit });
+  }
+
+  // Full: only a valid on-site scan can seat someone in the entry queue —
+  // never a remote request with no scan behind it.
+  const queueEntry = { id: randomUUID(), name, customerId, arrivedAt: Date.now(), status: 'Waiting' };
+  state.entryQueue.push(queueEntry);
+  state.waitingOutsideCount = state.entryQueue.filter((q) => q.status === 'Waiting').length;
+  gymEvent(state, 'queue', 'joined', name, 'Customer (QR scan)');
+  saveGymState(gymId, state);
+  await postgresPersistence?.flushNow(['gym_state']);
+  response.json({ ok: true, result: 'queued', queueEntry });
+});
+
+// Staff-only lookup used by "Add Visitor" to link an existing NOQ customer by
+// mobile number instead of creating a duplicate identity for someone who
+// already has an account.
+app.get('/api/gym/:gymId/customer-lookup', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session || session.businessId !== request.params.gymId || session.mainCategoryId !== 'gym') {
+    return response.status(403).json({ error: 'Valid Gym staff session required for this business.' });
+  }
+  const phone = cleanText(request.query.phone, 20);
+  if (!phone) return response.status(400).json({ error: 'Phone number is required.' });
+  const account = db.prepare(
+    'SELECT a.id as customer_id, p.name FROM customer_account a JOIN customer_profile p ON p.customer_id = a.id WHERE a.phone_number = ?'
+  ).get(phone) as { customer_id: string; name: string } | undefined;
+  response.json({ found: Boolean(account), customerId: account?.customer_id || null, name: account?.name || null });
 });
 
 app.post('/api/admin/login', (request, response) => {

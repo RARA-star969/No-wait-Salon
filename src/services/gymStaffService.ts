@@ -59,6 +59,10 @@ export const gymStaffService = {
   ) => write(id, "core-state", updates, "PUT"),
   operate: (id: string, kind: string, body: Record<string, unknown>) =>
     write(id, `operations/${kind}`, body),
+  customerLookup: (id: string, phone: string) =>
+    request<{ found: boolean; customerId: string | null; name: string | null }>(
+      `${root(id)}/customer-lookup?phone=${encodeURIComponent(phone)}`,
+    ),
   saveCampaign: (id: string, body: Record<string, unknown>) =>
     write(id, "campaigns", body),
   campaignIdentity: (id: string, campaignId: string) =>

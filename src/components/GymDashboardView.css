@@ -336,6 +336,11 @@
 .gym-button.secondary:hover {
   background: #e6f2f1;
 }
+.gym-button.secondary.active {
+  background: var(--gym-teal);
+  border-color: var(--gym-teal);
+  color: white;
+}
 .gym-link {
   display: inline-flex;
   align-items: center;

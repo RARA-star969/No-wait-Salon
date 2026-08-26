@@ -17,8 +17,10 @@ import {
   Minus,
   Plus,
   RefreshCw,
+  Search,
   Settings,
   ShieldCheck,
+  Tag,
   UserCheck,
   Users,
   UsersRound,
@@ -32,9 +34,19 @@ import { gymStaffService } from "../services/gymStaffService";
 import type {
   GymClass,
   GymMember,
+  GymMembership,
+  GymMembershipClaim,
+  GymOffering,
+  GymPayment,
   GymPtBooking,
   GymState,
   GymTrainer,
+} from "../shared/gymBusiness";
+import {
+  currentMembershipFor,
+  daysRemaining,
+  membershipDisplayStatus,
+  resolveConsistency,
 } from "../shared/gymBusiness";
 import {
   Badge,
@@ -77,6 +89,7 @@ const icons: Record<string, React.ElementType> = {
   classes: CalendarDays,
   trainers: UserCheck,
   pt_bookings: Dumbbell,
+  plans: Tag,
   members: UsersRound,
   reports: ChartNoAxesCombined,
   campaigns: Megaphone,
@@ -105,7 +118,14 @@ const moduleCopy: Record<string, [string, string]> = {
     "PT bookings",
     "Schedule personal training without overlapping commitments.",
   ],
-  members: ["Members", "Your gym’s member directory and membership status."],
+  plans: [
+    "Plans & Services",
+    "The offerings members and visitors can choose — day passes, memberships, PT and class packages.",
+  ],
+  members: [
+    "Members",
+    "Membership claims, real member history and consistency at a glance.",
+  ],
   reports: [
     "Reports",
     "Understand what happened. Export the records behind it.",
@@ -237,6 +257,11 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const [form, setForm] = useState<FormSpec | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
+  const [membershipQuery, setMembershipQuery] = useState("");
+  const [membershipFilter, setMembershipFilter] = useState<
+    "all" | "highly_consistent" | "regular" | "low_activity" | "at_risk" | "expiring"
+  >("all");
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const navigationRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLButtonElement>(null);
   const mutating = useRef(false);
@@ -395,8 +420,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const editCapacity = () =>
     state &&
     setForm({
-      title: "Update live capacity",
-      description: "Manual corrections are audited separately from check-ins.",
+      title: "Update maximum capacity",
+      description:
+        "Inside Now always reflects real active visits — use Check in/out or Add Visitor to change who's on the floor.",
       fields: [
         {
           name: "maxCapacity",
@@ -404,14 +430,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           type: "number",
           value: state.maxCapacity,
           min: 1,
-          max: 100000,
-        },
-        {
-          name: "currentOccupancy",
-          label: "Inside now",
-          type: "number",
-          value: state.currentOccupancy,
-          min: 0,
           max: 100000,
         },
       ],
@@ -488,6 +506,140 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         e instanceof Error ? e.message : "Unable to load trainer accounts.",
       );
     }
+  };
+  const editOffering = (o?: GymOffering) =>
+    setForm({
+      title: o ? "Edit offering" : "Add plan / service",
+      description:
+        "Offerings drive both the Customer Gym page and the Add Visitor flow — nothing here is hardcoded.",
+      fields: [
+        { name: "name", label: "Name", value: o?.name },
+        {
+          name: "type",
+          label: "Type",
+          value: o?.type || "visitor_pass",
+          options: [
+            { value: "visitor_pass", label: "Visitor pass" },
+            { value: "membership", label: "Membership" },
+            { value: "pt", label: "PT package" },
+            { value: "class_package", label: "Class package" },
+            { value: "custom", label: "Custom" },
+          ],
+        },
+        {
+          name: "priceInr",
+          label: "Price (₹)",
+          type: "number",
+          value: o?.priceInr ?? 0,
+          min: 0,
+        },
+        {
+          name: "durationValue",
+          label: "Duration",
+          type: "number",
+          value: o?.durationValue ?? 1,
+          min: 1,
+        },
+        {
+          name: "durationUnit",
+          label: "Duration unit",
+          value: o?.durationUnit || "day",
+          options: ["day", "week", "month", "quarter", "year", "session"].map(
+            (value) => ({ value, label: value }),
+          ),
+        },
+        {
+          name: "description",
+          label: "Description",
+          type: "textarea",
+          value: o?.description,
+          optional: true,
+        },
+        {
+          name: "active",
+          label: "Status",
+          value: o?.active === false ? "false" : "true",
+          options: [
+            { value: "true", label: "Active" },
+            { value: "false", label: "Disabled" },
+          ],
+        },
+        {
+          name: "customerVisible",
+          label: "Visible to customers",
+          value: o?.customerVisible === false ? "false" : "true",
+          options: [
+            { value: "true", label: "Yes — shown on the Gym page" },
+            { value: "false", label: "No — staff use only" },
+          ],
+        },
+      ],
+      submit: (v) =>
+        operate("offerings", {
+          ...v,
+          id: o?.id,
+          active: v.active === "true",
+          customerVisible: v.customerVisible === "true",
+          paymentOptions: o?.paymentOptions || ["cash"],
+        }),
+    });
+  const openAddVisitor = () => {
+    if (!state) return;
+    const offerings = state.offerings.filter((o) => o.active);
+    if (!offerings.length) {
+      setNotice("Add a plan or service first.");
+      if (manager) navigate("plans");
+      return;
+    }
+    setForm({
+      title: "Add visitor",
+      description:
+        "Records the payment, activates any membership, and checks the visitor in — staff presence is the physical verification, no QR scan needed.",
+      fields: [
+        { name: "name", label: "Full name" },
+        { name: "mobile", label: "Mobile number", type: "tel", optional: true },
+        {
+          name: "offeringId",
+          label: "Plan / service",
+          options: offerings.map((o) => ({
+            value: o.id,
+            label: `${o.name} — ₹${o.priceInr}`,
+          })),
+        },
+        {
+          name: "method",
+          label: "Payment collected as",
+          value: "cash",
+          options: [{ value: "cash", label: "Cash" }],
+        },
+      ],
+      submit: (v) => operate("add_visitor", v),
+    });
+  };
+  const openAcceptPayment = (p: GymPayment) =>
+    setForm({
+      title: "Accept payment & check in",
+      description: `${p.customerName} — ${p.offeringName} · ₹${p.amountInr} (${p.method === "online" ? "online" : "cash"})`,
+      fields: [],
+      submit: () => operate("accept_payment", { paymentId: p.id }),
+    });
+  const reviewClaim = (c: GymMembershipClaim, decision: "approve" | "reject") => {
+    if (decision === "reject") {
+      void action(() => gymStaffService.operate(gymId, "membership_claims", { id: c.id, action: "reject" }), "Claim rejected");
+      return;
+    }
+    setForm({
+      title: "Approve membership claim",
+      description:
+        "Edit any detail before approving — this creates the real membership record.",
+      fields: [
+        { name: "name", label: "Member name", value: c.name },
+        { name: "joiningDate", label: "Joining date", type: "date", value: c.joiningDate },
+        { name: "expiryDate", label: "Expiry date", type: "date", value: c.expiryDate },
+      ],
+      submit: (v) =>
+        operate("membership_claims", { ...v, id: c.id, action: "approve" }),
+    });
   };
   const editSession = (
     kind: "classes" | "pt",
@@ -618,13 +770,32 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
       .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!)) || [];
   const trackedInside =
     state?.visits.filter((v) => !v.checkedOutAt).length || 0;
+  const insideMembersCount =
+    state?.visits.filter((v) => !v.checkedOutAt && v.purpose === "member")
+      .length || 0;
+  const insideVisitorsCount = trackedInside - insideMembersCount;
+  // One row per customer with a real membership: the row's own membership is
+  // whichever is "current" for that customer (active with the furthest
+  // expiry, or the most recently expired one otherwise) — never a random row
+  // from the full renewal history, which is preserved untouched underneath.
+  const currentMembers = state
+    ? Array.from(
+        new Set<string>(state.memberships.map((m) => m.customerId)),
+      )
+        .map((customerId: string) =>
+          currentMembershipFor(state.memberships, customerId),
+        )
+        .filter((m): m is GymMembership => Boolean(m))
+    : [];
   const metrics = state && (
     <div className="gym-metrics">
       {[
         {
           title: "Inside now",
           value: state.currentOccupancy,
-          sub: `of ${state.maxCapacity} capacity`,
+          sub: trackedInside
+            ? `${insideMembersCount} members · ${insideVisitorsCount} visitors`
+            : `of ${state.maxCapacity} capacity`,
           icon: Users,
           target: "capacity",
           action: "Manage capacity",
@@ -1011,13 +1182,22 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                       </>
                     )}
                     {(manager || role === "reception") && (
-                      <button
-                        className="gym-button secondary"
-                        onClick={() => editSession("pt")}
-                      >
-                        <Dumbbell size={17} />
-                        Add PT booking
-                      </button>
+                      <>
+                        <button
+                          className="gym-button secondary"
+                          onClick={() => editSession("pt")}
+                        >
+                          <Dumbbell size={17} />
+                          Add PT booking
+                        </button>
+                        <button
+                          className="gym-button secondary"
+                          onClick={openAddVisitor}
+                        >
+                          <UsersRound size={17} />
+                          Add visitor
+                        </button>
+                      </>
                     )}
                     {manager && (
                       <>
@@ -1428,16 +1608,305 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   )}
                 </Panel>
               )}
-              {active === "members" && (
+              {active === "plans" && (
                 <Panel
-                  title="Member directory"
+                  title="Plans & services"
                   action={
-                    <button className="gym-button" onClick={() => editMember()}>
+                    <button className="gym-button" onClick={() => editOffering()}>
                       <Plus size={17} />
-                      Add member
+                      Add plan
                     </button>
                   }
                 >
+                  {!state.offerings.length ? (
+                    <Empty>
+                      No plans yet. Add a Day Pass, a Monthly Membership, or
+                      any custom offering — these drive Choose Access on the
+                      Customer Gym page and Add Visitor here.
+                    </Empty>
+                  ) : (
+                    <div className="gym-list">
+                      {state.offerings.map((o) => (
+                        <div className="gym-list-row" key={o.id}>
+                          <span className="gym-avatar">
+                            <Tag size={18} />
+                          </span>
+                          <div>
+                            <strong>{o.name}</strong>
+                            <small>
+                              ₹{o.priceInr} · {o.durationValue} {o.durationUnit}
+                              {o.durationValue !== 1 ? "s" : ""} ·{" "}
+                              {o.type.replace("_", " ")}
+                            </small>
+                          </div>
+                          <Badge>{o.active ? "Active" : "Disabled"}</Badge>
+                          <div className="gym-inline-actions">
+                            <button
+                              className="gym-button secondary"
+                              onClick={() => editOffering(o)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="gym-button secondary"
+                              disabled={busy}
+                              onClick={() =>
+                                action(() =>
+                                  gymStaffService.operate(gymId, "offerings", {
+                                    ...o,
+                                    id: o.id,
+                                    active: !o.active,
+                                  }),
+                                )
+                              }
+                            >
+                              {o.active ? "Disable" : "Enable"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Panel>
+              )}
+              {active === "members" && (
+                <>
+                  {!!state.membershipClaims.filter((c) => c.status === "pending").length && (
+                    <Panel title="Pending membership claims">
+                      <div className="gym-list">
+                        {state.membershipClaims
+                          .filter((c) => c.status === "pending")
+                          .map((c) => (
+                            <div className="gym-list-row" key={c.id}>
+                              <span className="gym-avatar">
+                                {c.name.charAt(0)}
+                              </span>
+                              <div>
+                                <strong>{c.name}</strong>
+                                <small>
+                                  {c.mobile} · Joined {c.joiningDate} · Expires{" "}
+                                  {c.expiryDate}
+                                  {c.planText ? ` · ${c.planText}` : ""}
+                                </small>
+                              </div>
+                              <Badge>Pending verification</Badge>
+                              <div className="gym-inline-actions">
+                                <button
+                                  className="gym-button secondary"
+                                  disabled={busy}
+                                  onClick={() => reviewClaim(c, "reject")}
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  className="gym-button"
+                                  disabled={busy}
+                                  onClick={() => reviewClaim(c, "approve")}
+                                >
+                                  Edit & approve
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </Panel>
+                  )}
+                  {!!state.payments.filter((p) => p.status === "pending").length && (
+                    <Panel title="Pending payments">
+                      <div className="gym-list">
+                        {state.payments
+                          .filter((p) => p.status === "pending")
+                          .map((p) => (
+                            <div className="gym-list-row" key={p.id}>
+                              <span className="gym-avatar">
+                                {p.customerName.charAt(0)}
+                              </span>
+                              <div>
+                                <strong>{p.customerName}</strong>
+                                <small>
+                                  {p.offeringName} · ₹{p.amountInr} ·{" "}
+                                  {p.method === "online" ? "Online" : "Pay at gym"}
+                                </small>
+                              </div>
+                              <Badge>Payment pending</Badge>
+                              <div className="gym-inline-actions">
+                                <button
+                                  className="gym-button"
+                                  disabled={busy}
+                                  onClick={() => openAcceptPayment(p)}
+                                >
+                                  Accept payment & check in
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </Panel>
+                  )}
+                  <Panel
+                    title="Members (retention)"
+                    action={
+                      <input
+                        aria-label="Search members"
+                        placeholder="Search by name"
+                        value={membershipQuery}
+                        onChange={(e) => setMembershipQuery(e.target.value)}
+                      />
+                    }
+                  >
+                    <div className="gym-quick-actions" style={{ marginBottom: 12 }}>
+                      {(
+                        [
+                          ["all", "All"],
+                          ["highly_consistent", "Consistent"],
+                          ["low_activity", "Low activity"],
+                          ["at_risk", "At risk"],
+                          ["expiring", "Expiring soon"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <button
+                          key={value}
+                          className={`gym-button secondary${membershipFilter === value ? " active" : ""}`}
+                          onClick={() => setMembershipFilter(value)}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    {!currentMembers.length ? (
+                      <Empty>
+                        No real members yet — approve a membership claim or
+                        sell a membership offering to get started.
+                      </Empty>
+                    ) : (
+                      <div className="gym-list">
+                        {currentMembers
+                          .filter((m) =>
+                            m.customerName
+                              .toLowerCase()
+                              .includes(membershipQuery.toLowerCase()),
+                          )
+                          .filter((m) => {
+                            if (membershipFilter === "all") return true;
+                            if (membershipFilter === "expiring")
+                              return (
+                                membershipDisplayStatus(m) === "expiring_soon" ||
+                                membershipDisplayStatus(m) === "expires_today"
+                              );
+                            return (
+                              resolveConsistency(state.visits, m.customerId)
+                                .status === membershipFilter
+                            );
+                          })
+                          .map((m) => {
+                            const displayStatus = membershipDisplayStatus(m);
+                            const remaining = daysRemaining(m.expiryDate);
+                            const consistency = resolveConsistency(
+                              state.visits,
+                              m.customerId,
+                            );
+                            const expanded = expandedMemberId === m.customerId;
+                            const monthly = new Map<string, number>();
+                            for (const v of state.visits) {
+                              if (v.customerId !== m.customerId) continue;
+                              const key = new Date(v.checkedInAt)
+                                .toISOString()
+                                .slice(0, 7);
+                              monthly.set(key, (monthly.get(key) || 0) + 1);
+                            }
+                            return (
+                              <div key={m.customerId}>
+                                <button
+                                  type="button"
+                                  className="gym-list-row"
+                                  style={{ width: "100%", textAlign: "left", cursor: "pointer" }}
+                                  onClick={() =>
+                                    setExpandedMemberId(expanded ? null : m.customerId)
+                                  }
+                                >
+                                  <span className="gym-avatar">
+                                    {m.customerName.charAt(0)}
+                                  </span>
+                                  <div>
+                                    <strong>{m.customerName}</strong>
+                                    <small>
+                                      {m.planName} · {m.customerMobile} · Last visit:{" "}
+                                      {consistency.avgPerWeek > 0
+                                        ? `${consistency.avgPerWeek}/wk avg`
+                                        : "No recent visits"}
+                                    </small>
+                                  </div>
+                                  <Badge>
+                                    {displayStatus === "expired"
+                                      ? "Expired"
+                                      : displayStatus === "expires_today"
+                                        ? "Expires today"
+                                        : displayStatus === "expiring_soon"
+                                          ? `${remaining}d left`
+                                          : `${remaining}d left`}
+                                  </Badge>
+                                  <Badge>
+                                    {consistency.status === "highly_consistent"
+                                      ? "Highly consistent"
+                                      : consistency.status === "regular"
+                                        ? "Regular"
+                                        : consistency.status === "low_activity"
+                                          ? "Low activity"
+                                          : "At risk"}
+                                  </Badge>
+                                  <ChevronRight size={16} />
+                                </button>
+                                {expanded && (
+                                  <div className="gym-panel" style={{ marginTop: -8, marginBottom: 12 }}>
+                                    <div className="gym-summary-line">
+                                      <span>Joined</span>
+                                      <strong>{m.joinedDate}</strong>
+                                    </div>
+                                    <div className="gym-summary-line">
+                                      <span>Expiry</span>
+                                      <strong>{m.expiryDate}</strong>
+                                    </div>
+                                    <div className="gym-summary-line">
+                                      <span>Last 30-day visits</span>
+                                      <strong>{consistency.last30DayVisits}</strong>
+                                    </div>
+                                    <div className="gym-summary-line">
+                                      <span>Avg visits / week</span>
+                                      <strong>{consistency.avgPerWeek}</strong>
+                                    </div>
+                                    <p className="gym-eyebrow" style={{ marginTop: 12 }}>
+                                      Month by month
+                                    </p>
+                                    {Array.from(monthly.entries())
+                                      .sort((a, b) => b[0].localeCompare(a[0]))
+                                      .map(([month, count]) => (
+                                        <div className="gym-summary-line" key={month}>
+                                          <span>{month}</span>
+                                          <strong>{count} visits</strong>
+                                        </div>
+                                      ))}
+                                    {!monthly.size && (
+                                      <p className="gym-muted">
+                                        No recorded visits yet.
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </Panel>
+                  <Panel
+                    title="Legacy walk-in directory"
+                    action={
+                      <button className="gym-button" onClick={() => editMember()}>
+                        <Plus size={17} />
+                        Add member
+                      </button>
+                    }
+                  >
                   {filters(["Active", "Paused"])}
                   {!state.members.filter((m) => matches(m.name, m.status))
                     .length ? (
@@ -1497,7 +1966,8 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                         ))}
                     </div>
                   )}
-                </Panel>
+                  </Panel>
+                </>
               )}
               {active === "trainers" && (
                 <Panel

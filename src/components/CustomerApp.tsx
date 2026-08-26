@@ -897,6 +897,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             onBack={() => setScreen('home')}
             onApplyOffer={onApplyOffer}
             appliedOfferId={appliedOfferId}
+            customerAuth={customerAuth}
+            customerProfile={customerProfile}
+            profileLoading={profileLoading}
+            onIdentityVerified={onIdentityVerified}
+            onProfileSaved={onProfileSaved}
           />
         ) : (
           <SalonDetailPage

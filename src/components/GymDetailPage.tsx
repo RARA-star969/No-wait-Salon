@@ -22,12 +22,19 @@ import {
   ChevronRight,
   Store,
   X,
+  QrCode,
+  BadgeCheck,
+  TrendingUp,
 } from 'lucide-react';
-import { NearbySalon, Salon, SalonOffer, ServiceItem } from '../types';
-import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer } from '../services/gymCustomerService';
+import { NearbySalon, Salon, SalonOffer, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
+import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer, GymOffering, GymMyMembershipResponse } from '../services/gymCustomerService';
+import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { evaluateCoupon } from '../shared/couponPricing';
+import { resolveAppReadiness } from '../shared/profileReadiness';
 import { GymLiveCard } from './GymLiveCard';
 import { GymFloatingCapsule } from './GymFloatingCapsule';
+import { AccountOnboarding } from './AccountOnboarding';
+import { QrScannerModal } from './QrScannerModal';
 import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
 
 interface GymDetailPageProps {
@@ -36,6 +43,11 @@ interface GymDetailPageProps {
   onBack: () => void;
   onApplyOffer?: (offerId: string) => void;
   appliedOfferId?: string | null;
+  customerAuth?: CustomerAuthSession | null;
+  customerProfile?: CustomerProfile | null;
+  profileLoading?: boolean;
+  onIdentityVerified?: (auth: CustomerAuthSession) => void;
+  onProfileSaved?: (profile: CustomerProfile) => void;
 }
 
 export const GymDetailPage: React.FC<GymDetailPageProps> = ({
@@ -44,6 +56,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   onBack,
   onApplyOffer,
   appliedOfferId,
+  customerAuth = null,
+  customerProfile = null,
+  profileLoading = false,
+  onIdentityVerified,
+  onProfileSaved,
 }) => {
   const [overview, setOverview] = useState<GymPublicOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +77,63 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [directionsSheetOpen, setDirectionsSheetOpen] = useState(false);
   const [branchesSheetOpen, setBranchesSheetOpen] = useState(false);
   const [beenHereSheetOpen, setBeenHereSheetOpen] = useState(false);
+
+  // --- Membership, payment & check-in state ---
+  const [myMembership, setMyMembership] = useState<GymMyMembershipResponse | null>(null);
+  const [gateOpen, setGateOpen] = useState(false);
+  const [gatePendingAction, setGatePendingAction] = useState<null | 'claim' | 'offering' | 'scan'>(null);
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimName, setClaimName] = useState('');
+  const [claimMobile, setClaimMobile] = useState('');
+  const [claimJoinDate, setClaimJoinDate] = useState('');
+  const [claimExpiryDate, setClaimExpiryDate] = useState('');
+  const [claimPlanText, setClaimPlanText] = useState('');
+  const [claimBusy, setClaimBusy] = useState(false);
+  const [claimError, setClaimError] = useState('');
+  const [offeringPickerOpen, setOfferingPickerOpen] = useState(false);
+  const [selectedOffering, setSelectedOffering] = useState<GymOffering | null>(null);
+  const [purchaseBusy, setPurchaseBusy] = useState(false);
+  const [purchaseError, setPurchaseError] = useState('');
+  const [purchaseResultMsg, setPurchaseResultMsg] = useState<string | null>(null);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
+
+  const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+
+  const requireReady = (action: 'claim' | 'offering' | 'scan', run: () => void) => {
+    if (readiness.kind === 'loading') return;
+    if (readiness.kind !== 'ready') {
+      setGatePendingAction(action);
+      setGateOpen(true);
+      return;
+    }
+    run();
+  };
+
+  // Poll this customer's membership/attendance state for this gym once
+  // signed in — same source of truth the dashboard writes (memberships,
+  // payments, visits), never a locally-computed guess.
+  useEffect(() => {
+    if (readiness.kind !== 'ready') {
+      setMyMembership(null);
+      return;
+    }
+    let active = true;
+    const fetchMine = async () => {
+      try {
+        const data = await gymCustomerService.getMyMembership(salon.id);
+        if (active) setMyMembership(data);
+      } catch {
+        /* keep last known state */
+      }
+    };
+    fetchMine();
+    const interval = setInterval(fetchMine, 4000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [salon.id, readiness.kind]);
 
   const directionsUrl = `https://maps.google.com/?q=${salon.latitude},${salon.longitude}`;
   const shareGym = async () => {
@@ -149,6 +223,124 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       setBookingSuccessMessage(err.message || 'PT booking failed.');
       setTimeout(() => setBookingSuccessMessage(null), 4000);
     }
+  };
+
+  const refreshMine = async () => {
+    try {
+      const data = await gymCustomerService.getMyMembership(salon.id);
+      setMyMembership(data);
+    } catch {
+      /* keep last known state */
+    }
+  };
+
+  const submitClaim = async () => {
+    if (!claimName.trim() || !claimMobile.trim() || !claimJoinDate || !claimExpiryDate) {
+      setClaimError('Please fill in your name, mobile number, joining date and expiry date.');
+      return;
+    }
+    setClaimBusy(true);
+    setClaimError('');
+    try {
+      await gymCustomerService.submitMembershipClaim(salon.id, {
+        name: claimName.trim(),
+        mobile: claimMobile.trim(),
+        joiningDate: claimJoinDate,
+        expiryDate: claimExpiryDate,
+        planText: claimPlanText.trim() || undefined,
+      });
+      setClaimModalOpen(false);
+      setBookingSuccessMessage('Membership claim submitted — the gym will verify and approve it shortly.');
+      setTimeout(() => setBookingSuccessMessage(null), 5000);
+      await refreshMine();
+    } catch (err: any) {
+      setClaimError(err.message || 'Unable to submit your membership claim.');
+    } finally {
+      setClaimBusy(false);
+    }
+  };
+
+  const submitPurchase = async (method: 'online' | 'cash') => {
+    if (!selectedOffering) return;
+    setPurchaseBusy(true);
+    setPurchaseError('');
+    try {
+      if (method === 'online') {
+        setPurchaseError('Online payment is coming soon. Please choose Pay at Gym for now.');
+        return;
+      }
+      await gymCustomerService.createPurchaseIntent(salon.id, selectedOffering.id, method);
+      setOfferingPickerOpen(false);
+      setPurchaseResultMsg(
+        `"${selectedOffering.name}" reserved. Show this at the front desk and pay ₹${selectedOffering.priceInr} in cash to activate.`,
+      );
+      await refreshMine();
+    } catch (err: any) {
+      setPurchaseError(err.message || 'Unable to start this purchase.');
+    } finally {
+      setPurchaseBusy(false);
+    }
+  };
+
+  const handleScanResolved = async (token: string, business: QrBusiness) => {
+    setQrScannerOpen(false);
+    if (business.id !== salon.id) {
+      setBookingSuccessMessage("That QR belongs to a different gym — scan this gym's entry QR to check in.");
+      setTimeout(() => setBookingSuccessMessage(null), 5000);
+      return;
+    }
+    setScanBusy(true);
+    try {
+      const result = await gymCustomerService.checkinScan(salon.id, token);
+      setBookingSuccessMessage(result.result === 'queued' ? "Gym is at full capacity — you've joined the entry queue." : "✓ Checked in! Enjoy your workout.");
+      setTimeout(() => setBookingSuccessMessage(null), 5000);
+      await refreshMine();
+      const updated = await gymCustomerService.getPublicOverview(salon.id);
+      setOverview(updated);
+    } catch (err: any) {
+      setBookingSuccessMessage(err.message || 'Unable to check you in with this QR.');
+      setTimeout(() => setBookingSuccessMessage(null), 5000);
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const membership = myMembership?.membership || null;
+  const isCheckedIn = Boolean(myMembership?.activeVisit);
+  const isQueued = Boolean(myMembership?.queued);
+  const hasValidAccess = Boolean(
+    (membership && (membership.displayStatus === 'active' || membership.displayStatus === 'expiring_soon' || membership.displayStatus === 'expires_today')) ||
+    myMembership?.paidPass,
+  );
+  const isExpiredMember = Boolean(membership && membership.displayStatus === 'expired');
+
+  type BottomCtaState = 'checked_in' | 'queued' | 'scan' | 'renew' | 'choose_access';
+  const bottomCtaState: BottomCtaState = isCheckedIn
+    ? 'checked_in'
+    : isQueued
+    ? 'queued'
+    : hasValidAccess
+    ? 'scan'
+    : isExpiredMember
+    ? 'renew'
+    : 'choose_access';
+
+  const bottomCtaLabel: Record<BottomCtaState, string> = {
+    checked_in: "✓ You're Checked In",
+    queued: 'In Entry Queue…',
+    scan: 'Scan to Check In',
+    renew: 'Renew Membership',
+    choose_access: 'Choose Access',
+  };
+
+  const handleBottomCta = () => {
+    if (bottomCtaState === 'checked_in' || bottomCtaState === 'queued') return;
+    if (bottomCtaState === 'scan') {
+      requireReady('scan', () => setQrScannerOpen(true));
+      return;
+    }
+    // renew or choose_access both open the offering picker.
+    requireReady('offering', () => setOfferingPickerOpen(true));
   };
 
   return (
@@ -262,7 +454,17 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           <QuickAction icon={<CalendarDays />} label="Schedule" onClick={() => setOpenHoursSheetOpen(true)} />
           <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
           <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
-          <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} active={visited} onClick={() => setBeenHereSheetOpen(true)} />
+          {membership && membership.displayStatus !== 'expired' ? (
+            <QuickAction
+              icon={<BadgeCheck />}
+              label="✓ MEMBER"
+              active
+              secondary={`${membership.daysRemaining} DAYS LEFT`}
+              onClick={() => setBeenHereSheetOpen(true)}
+            />
+          ) : (
+            <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} active={visited} onClick={() => setBeenHereSheetOpen(true)} />
+          )}
         </div>
       </div>
 
@@ -288,6 +490,86 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             maxCapacity={maxCap}
             availableTrainersCount={overview?.availableTrainersCount ?? 0}
           />
+        </div>
+
+        {/* MEMBERSHIP & ATTENDANCE — real, server-backed identity for this gym. */}
+        <div id="gym-membership-section" className="space-y-3">
+          {membership ? (
+            <div className="rounded-2xl border border-[#0F766E]/20 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BadgeCheck className="h-4 w-4 text-[#0F766E]" />
+                  <h2 className="text-xs font-extrabold text-[#17201F]">{membership.planName}</h2>
+                </div>
+                <span
+                  className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                    membership.displayStatus === 'expired'
+                      ? 'bg-rose-50 text-rose-700'
+                      : membership.displayStatus === 'expires_today' || membership.displayStatus === 'expiring_soon'
+                      ? 'bg-amber-50 text-amber-800'
+                      : 'bg-[#E7F5F2] text-[#0F766E]'
+                  }`}
+                >
+                  {membership.displayStatus === 'expired'
+                    ? 'Expired'
+                    : membership.displayStatus === 'expires_today'
+                    ? 'Expires today'
+                    : membership.displayStatus === 'expiring_soon'
+                    ? 'Expiring soon'
+                    : 'Active'}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-[#6F7C7A]">
+                {membership.displayStatus === 'expired'
+                  ? `Expired on ${new Date(membership.expiryDate).toLocaleDateString()}`
+                  : `${membership.daysRemaining} day${membership.daysRemaining === 1 ? '' : 's'} left · valid till ${new Date(membership.expiryDate).toLocaleDateString()}`}
+              </p>
+
+              {myMembership?.attendance && (
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                  <div className="rounded-xl bg-[#F8FAFA] p-2">
+                    <div className="text-sm font-extrabold text-[#17201F]">{myMembership.attendance.visitsThisMonth}</div>
+                    <div className="text-[9px] font-semibold text-[#6F7C7A]">This month</div>
+                  </div>
+                  <div className="rounded-xl bg-[#F8FAFA] p-2">
+                    <div className="text-sm font-extrabold text-[#17201F]">{myMembership.attendance.avgVisitsPerWeek.toFixed(1)}</div>
+                    <div className="text-[9px] font-semibold text-[#6F7C7A]">Avg/week</div>
+                  </div>
+                  <div className="rounded-xl bg-[#F8FAFA] p-2">
+                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[#0F766E]">
+                      <Flame className="h-3.5 w-3.5" />
+                      {myMembership.attendance.currentStreak}
+                    </div>
+                    <div className="text-[9px] font-semibold text-[#6F7C7A]">Streak</div>
+                  </div>
+                  <div className="rounded-xl bg-[#F8FAFA] p-2">
+                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[#17201F]">
+                      <TrendingUp className="h-3.5 w-3.5 text-[#0F766E]" />
+                      {myMembership.attendance.bestStreak}
+                    </div>
+                    <div className="text-[9px] font-semibold text-[#6F7C7A]">Best</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : myMembership?.pendingClaim ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800">
+              Your membership claim is pending gym approval. You'll see your member status here once the front desk verifies it.
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-2xl border border-[#DDE5E3] bg-white p-4 shadow-sm">
+              <div>
+                <h2 className="text-xs font-extrabold text-[#17201F]">Already a member here?</h2>
+                <p className="mt-0.5 text-[11px] text-[#6F7C7A]">Link your existing membership for a "Scan to Check In" pass.</p>
+              </div>
+              <button
+                onClick={() => requireReady('claim', () => setClaimModalOpen(true))}
+                className="shrink-0 rounded-xl border border-[#0F766E]/30 bg-[#F4F7F6] px-3.5 py-2 text-[11px] font-bold text-[#0F766E] transition active:scale-95"
+              >
+                I'm Already a Member
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3. TODAY'S CLASSES */}
@@ -386,43 +668,51 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           )}
         </div>
 
-        {/* 6. SERVICES & PASSES */}
+        {/* 6. SERVICES & PASSES — real owner-defined offerings, not mock services. */}
         <div id="gym-passes-section" className="space-y-3">
           <div>
             <h2 className="text-sm font-bold text-[#17201F]">Gym Passes & Memberships</h2>
-            <p className="text-[11px] text-[#6F7C7A]">Select pass for your workout session</p>
+            <p className="text-[11px] text-[#6F7C7A]">Buy a visitor pass or membership</p>
           </div>
 
           <div className="space-y-2.5">
-            {salon.services.map((service) => {
-              const isSelected = selectedPass?.id === service.id;
-              return (
-                <div
-                  key={service.id}
-                  onClick={() => setSelectedPass(service)}
-                  className={`cursor-pointer rounded-2xl border p-4 transition ${
-                    isSelected ? 'border-[#0F766E] bg-[#E7F5F2]/40 ring-1 ring-[#0F766E]' : 'border-[#DDE5E3] bg-white'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="rounded bg-[#E7F5F2] px-2 py-0.5 text-[9px] font-extrabold uppercase text-[#0F766E]">
-                          Pass
-                        </span>
-                        <h3 className="text-xs font-extrabold text-[#17201F]">{service.name}</h3>
-                      </div>
-                      <p className="mt-1 text-[11px] text-[#6F7C7A]">{service.description || 'Full equipment and facility access included.'}</p>
+            {(overview?.offerings ?? []).map((offering) => (
+              <div key={offering.id} className="rounded-2xl border border-[#DDE5E3] bg-white p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-[#E7F5F2] px-2 py-0.5 text-[9px] font-extrabold uppercase text-[#0F766E]">
+                        {offering.type.replace('_', ' ')}
+                      </span>
+                      <h3 className="text-xs font-extrabold text-[#17201F]">{offering.name}</h3>
                     </div>
-
-                    <div className="text-right">
-                      <div className="text-sm font-extrabold text-[#17201F]">₹{service.priceInr}</div>
-                      <div className="text-[10px] font-semibold text-[#6F7C7A]">{service.durationMin} mins</div>
+                    <p className="mt-1 text-[11px] text-[#6F7C7A]">{offering.description || 'Full equipment and facility access included.'}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-extrabold text-[#17201F]">₹{offering.priceInr}</div>
+                    <div className="text-[10px] font-semibold text-[#6F7C7A]">
+                      {offering.durationValue} {offering.durationUnit}
+                      {offering.durationValue === 1 ? '' : 's'}
                     </div>
                   </div>
                 </div>
-              );
-            })}
+                <button
+                  onClick={() =>
+                    requireReady('offering', () => {
+                      setSelectedOffering(offering);
+                      setPurchaseError('');
+                      setOfferingPickerOpen(true);
+                    })
+                  }
+                  className="mt-3 w-full rounded-xl bg-[#0F766E] py-2 text-xs font-bold text-white shadow-sm transition active:scale-95"
+                >
+                  Choose this pass
+                </button>
+              </div>
+            ))}
+            {!loading && (overview?.offerings ?? []).length === 0 && (
+              <p className="rounded-2xl border border-[#DDE5E3] bg-white p-4 text-center text-xs text-[#788582]">No passes published yet. Check back soon.</p>
+            )}
           </div>
         </div>
 
@@ -573,31 +863,206 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         />
       )}
 
-      {/* Floating Bottom Bar (Gym Actions) */}
+      {/* Floating Bottom Bar — the one required CTA state machine:
+          Non-member → Choose Access; verified member/valid pass → Scan to
+          Check In; already inside → ✓ You're Checked In; expired → Renew
+          Membership; full capacity after a valid scan → Join Entry Queue. */}
       <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#EAEFEF] bg-white/95 p-3.5 backdrop-blur-md">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">Selected Gym Pass</div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">
+              {bottomCtaState === 'checked_in' ? 'Currently inside' : bottomCtaState === 'queued' ? 'Entry queue' : 'Gym access'}
+            </div>
             <div className="text-xs font-extrabold text-[#17201F]">
-              {selectedPass ? `${selectedPass.name} (₹${selectedPass.priceInr})` : 'Select a Pass'}
+              {bottomCtaState === 'scan'
+                ? membership?.planName || myMembership?.paidPass?.offeringName || 'Ready to check in'
+                : bottomCtaState === 'renew'
+                ? membership?.planName || 'Membership expired'
+                : bottomCtaState === 'choose_access'
+                ? 'Select a pass to get started'
+                : 'NOQ Gym Entry'}
             </div>
           </div>
           <button
-            onClick={() => {
-              if (selectedPass) {
-                setBookingSuccessMessage(`Pass "${selectedPass.name}" reserved!`);
-                setTimeout(() => setBookingSuccessMessage(null), 4000);
-              } else {
-                const element = document.getElementById('gym-passes-section');
-                element?.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-            className="rounded-xl bg-[#0F766E] px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition active:scale-95"
+            onClick={handleBottomCta}
+            disabled={bottomCtaState === 'checked_in' || bottomCtaState === 'queued' || scanBusy}
+            className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition active:scale-95 disabled:opacity-70 ${
+              bottomCtaState === 'checked_in' ? 'bg-[#0F766E]' : bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[#0F766E]'
+            }`}
           >
-            {selectedPass ? 'Confirm Gym Pass' : 'View Passes'}
+            {bottomCtaState === 'scan' && <QrCode className="h-3.5 w-3.5" />}
+            {scanBusy ? 'Checking in…' : bottomCtaLabel[bottomCtaState]}
           </button>
         </div>
       </div>
+
+      {/* Verification gate: opens instead of a gated action (claim / buy / scan)
+          when the customer isn't a verified, complete profile yet. */}
+      {gateOpen && (() => {
+        const gate = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+        if (gate.kind !== 'onboarding_required') return null;
+        return (
+          <div className="fixed inset-0 z-[95] bg-[#F8FAFA]">
+            <AccountOnboarding
+              gate={gate}
+              onVerified={(auth) => onIdentityVerified?.(auth)}
+              onProfileSaved={(profile) => {
+                onProfileSaved?.(profile);
+                setGateOpen(false);
+                if (gatePendingAction === 'claim') setClaimModalOpen(true);
+                else if (gatePendingAction === 'offering') setOfferingPickerOpen(true);
+                else if (gatePendingAction === 'scan') setQrScannerOpen(true);
+                setGatePendingAction(null);
+              }}
+              onCancel={() => { setGateOpen(false); setGatePendingAction(null); }}
+              intro={{
+                eyebrow: 'Verify to continue',
+                title: 'One quick check before gym access.',
+                description: "Verify your mobile number, then add your name and gender so the gym can recognize you.",
+              }}
+            />
+          </div>
+        );
+      })()}
+
+      {/* "I'm Already a Member" claim form — creates a pending claim, never a
+          self-declared verified membership. The gym staff approves it. */}
+      {claimModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#17201F]">I'm Already a Member</h3>
+              <button onClick={() => setClaimModalOpen(false)} aria-label="Close">
+                <X className="h-4 w-4 text-[#6F7C7A]" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-[#6F7C7A]">Tell us your existing membership details. The gym will verify and approve it.</p>
+            <div className="mt-4 space-y-2.5">
+              <input
+                value={claimName}
+                onChange={(e) => setClaimName(e.target.value)}
+                placeholder="Full name"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+              />
+              <input
+                value={claimMobile}
+                onChange={(e) => setClaimMobile(e.target.value)}
+                placeholder="Mobile number"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+              />
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-[#6F7C7A]">Joining date</label>
+                  <input
+                    type="date"
+                    value={claimJoinDate}
+                    onChange={(e) => setClaimJoinDate(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-[#6F7C7A]">Expiry date</label>
+                  <input
+                    type="date"
+                    value={claimExpiryDate}
+                    onChange={(e) => setClaimExpiryDate(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                  />
+                </div>
+              </div>
+              <input
+                value={claimPlanText}
+                onChange={(e) => setClaimPlanText(e.target.value)}
+                placeholder="Plan name (optional)"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+              />
+              {claimError && <p className="text-[11px] font-semibold text-rose-600">{claimError}</p>}
+            </div>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setClaimModalOpen(false)} className="flex-1 rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F]">
+                Cancel
+              </button>
+              <button
+                onClick={submitClaim}
+                disabled={claimBusy}
+                className="flex-1 rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
+              >
+                {claimBusy ? 'Submitting…' : 'Submit for Approval'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Offering purchase: Payment ≠ Access ≠ Check-in — paying here never
+          checks the customer in on its own. */}
+      {offeringPickerOpen && selectedOffering && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#17201F]">{selectedOffering.name}</h3>
+              <button onClick={() => setOfferingPickerOpen(false)} aria-label="Close">
+                <X className="h-4 w-4 text-[#6F7C7A]" />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-[#6F7C7A]">{selectedOffering.description}</p>
+            <div className="mt-4 rounded-xl bg-[#F8FAFA] p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-[#6F7C7A]">Duration</span>
+                <span className="font-bold text-[#17201F]">
+                  {selectedOffering.durationValue} {selectedOffering.durationUnit}
+                  {selectedOffering.durationValue === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[#6F7C7A]">Price</span>
+                <span className="font-bold text-[#0F766E]">₹{selectedOffering.priceInr}</span>
+              </div>
+            </div>
+            {purchaseError && <p className="mt-3 text-[11px] font-semibold text-rose-600">{purchaseError}</p>}
+            <div className="mt-5 flex flex-col gap-2">
+              {selectedOffering.paymentOptions.includes('online') && (
+                <button
+                  onClick={() => submitPurchase('online')}
+                  disabled={purchaseBusy}
+                  className="w-full rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F] disabled:opacity-60"
+                >
+                  Pay Online (coming soon)
+                </button>
+              )}
+              {selectedOffering.paymentOptions.includes('cash') && (
+                <button
+                  onClick={() => submitPurchase('cash')}
+                  disabled={purchaseBusy}
+                  className="w-full rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
+                >
+                  {purchaseBusy ? 'Reserving…' : 'Pay at Gym (Cash)'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {purchaseResultMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-[#0F766E]" />
+            <p className="mt-3 text-sm font-semibold text-[#17201F]">{purchaseResultMsg}</p>
+            <button
+              onClick={() => setPurchaseResultMsg(null)}
+              className="mt-5 w-full rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Scan to Check In — the mandatory QR gate. Server validates gym
+          binding, entitlement, duplicate check-in and capacity; this page
+          only surfaces the outcome, it never decides check-in itself. */}
+      <QrScannerModal open={qrScannerOpen} onClose={() => setQrScannerOpen(false)} onResolved={handleScanResolved} />
     </div>
   );
 };

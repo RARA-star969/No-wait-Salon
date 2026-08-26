@@ -18,6 +18,19 @@ export interface GymTrainer {
   nextSlot?: string;
 }
 
+export interface GymOffering {
+  id: string;
+  name: string;
+  type: 'visitor_pass' | 'membership' | 'pt' | 'class_package' | 'custom';
+  priceInr: number;
+  durationValue: number;
+  durationUnit: 'day' | 'week' | 'month' | 'quarter' | 'year' | 'session';
+  description: string;
+  active: boolean;
+  customerVisible: boolean;
+  paymentOptions: ('online' | 'cash')[];
+}
+
 export interface GymPublicOverview {
   gymId: string;
   maxCapacity: number;
@@ -27,12 +40,62 @@ export interface GymPublicOverview {
   availableTrainersCount?: number;
   classesToday: GymClass[];
   trainers: GymTrainer[];
+  insideMembersCount?: number;
+  insideVisitorsCount?: number;
+  offerings?: GymOffering[];
+}
+
+export interface GymMembershipView {
+  id: string;
+  customerId: string;
+  planName: string;
+  status: 'active' | 'expired' | 'cancelled';
+  joinedDate: string;
+  expiryDate: string;
+  displayStatus: 'active' | 'expiring_soon' | 'expires_today' | 'expired';
+  daysRemaining: number;
+}
+
+export interface GymMyMembershipResponse {
+  membership: GymMembershipView | null;
+  pendingClaim: { id: string; status: string } | null;
+  paidPass: { id: string; offeringId: string; offeringName: string } | null;
+  attendance: {
+    visitsThisMonth: number;
+    avgVisitsPerWeek: number;
+    currentStreak: number;
+    bestStreak: number;
+    lastVisit: number | null;
+    monthly: { month: string; visits: number }[];
+  };
+  activeVisit: { id: string; checkedInAt: number } | null;
+  queued: { id: string; arrivedAt: number } | null;
 }
 
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') return '';
   return 'http://127.0.0.1:3000';
 };
+
+function authHeaders(): Record<string, string> {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('no_wait_salon_customer_auth_v1') : null;
+    const token = raw ? JSON.parse(raw)?.token : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
+async function authedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${getBaseUrl()}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init.headers },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Request failed. Please retry.');
+  return body as T;
+}
 
 export const gymCustomerService = {
   // The one real Gym state source: the same getGymState(gymId) record the
@@ -118,4 +181,34 @@ export const gymCustomerService = {
       return { ok: false, error: 'Network error updating settings' };
     }
   },
+
+  // --- Membership, payment & QR check-in (requires a verified customer) ---
+  getMyMembership: (gymId: string) =>
+    authedRequest<GymMyMembershipResponse>(`/api/gym/${encodeURIComponent(gymId)}/my-membership`),
+
+  getMyGymMemberships: () =>
+    authedRequest<{ memberships: { gymId: string; gymName: string; membership: GymMembershipView }[] }>(
+      '/api/me/gym-memberships',
+    ),
+
+  submitMembershipClaim: (
+    gymId: string,
+    payload: { name: string; mobile: string; joiningDate: string; expiryDate: string; planText?: string },
+  ) =>
+    authedRequest<{ ok: boolean; claim: { id: string; status: string } }>(
+      `/api/gym/${encodeURIComponent(gymId)}/membership-claims`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
+
+  createPurchaseIntent: (gymId: string, offeringId: string, method: 'online' | 'cash') =>
+    authedRequest<{ ok: boolean; payment: { id: string; status: string; method: string } }>(
+      `/api/gym/${encodeURIComponent(gymId)}/purchase-intent`,
+      { method: 'POST', body: JSON.stringify({ offeringId, method }) },
+    ),
+
+  checkinScan: (gymId: string, qrToken: string) =>
+    authedRequest<{ ok: boolean; result: 'checked_in' | 'queued'; visit?: unknown; queueEntry?: unknown }>(
+      `/api/gym/${encodeURIComponent(gymId)}/checkin/scan`,
+      { method: 'POST', body: JSON.stringify({ qrToken }) },
+    ),
 };
