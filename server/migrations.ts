@@ -167,6 +167,31 @@ const migrations=[{
     CREATE UNIQUE INDEX IF NOT EXISTS salon_business_code_idx ON salon(business_code);
     ALTER TABLE salon ADD COLUMN profile_completed_at BIGINT;
   `
+}, {
+  version: 11,
+  name: 'staff_business_auth',
+  sql: `
+    CREATE TABLE IF NOT EXISTS staff_account (
+      id TEXT PRIMARY KEY,
+      business_id TEXT NOT NULL REFERENCES salon(id),
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'owner',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS staff_session (
+      token_hash TEXT PRIMARY KEY,
+      staff_id TEXT NOT NULL REFERENCES staff_account(id),
+      business_id TEXT NOT NULL REFERENCES salon(id),
+      expires_at BIGINT NOT NULL,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS staff_account_business_idx ON staff_account(business_id,role);
+    CREATE INDEX IF NOT EXISTS staff_session_business_idx ON staff_session(business_id,expires_at);
+  `
 }];
 
 export async function runMigrations(db:Database){
