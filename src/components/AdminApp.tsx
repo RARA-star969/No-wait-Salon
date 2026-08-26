@@ -1030,7 +1030,7 @@ function SalonEditor({ id, onBack }: { id: string | 'new'; onBack: () => void })
     if (id === 'new') return;
     void api(`/api/admin/salons/${id}`)
       .then((b) => {
-        const loaded = norm(b.salon);
+        const loaded: AnyRow = norm(b.salon);
         setForm(loaded);
         setAssignedBusinessCode(String(loaded.business_code || ''));
       })
