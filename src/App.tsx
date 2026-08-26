@@ -810,7 +810,7 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
                   <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
-                    Salon Staff Dashboard
+                    Business Staff Dashboard
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -839,7 +839,7 @@ export default function App() {
 
               {/* Staff Body */}
               <div className="flex-1 overflow-hidden flex flex-col">
-                <StaffDashboard
+                <StaffAppShell
                   salon={selectedSalon}
                   queue={queue}
                   barbers={barbers}
@@ -850,12 +850,14 @@ export default function App() {
                   queueAlert={queueAlert}
                   onSaveStaff={handleSaveStaff}
                   onSaveOffers={handleSaveOffers}
-                  onTestSwitchBusiness={(businessId) => {
-                    const found = SALONS.find((s) => s.id === businessId);
-                    if (found) {
-                      setSelectedSalon(found);
-                      try { localStorage.setItem(STAFF_SALON_KEY, found.id); } catch { /* ignore */ }
-                    }
+                  onBusinessResolved={(business) => {
+                    try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
+                    setSelectedSalon((current) => ({
+                      ...current,
+                      id: business.id,
+                      name: business.name,
+                      mainCategoryId: business.mainCategoryId,
+                    }));
                   }}
                 />
               </div>
