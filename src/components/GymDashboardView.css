@@ -1313,6 +1313,13 @@
  * full-screen production/Android surface (which never gets this class)
  * keeps its normal viewport-responsive layout untouched. */
 .gym-app.gym-app--embedded {
+  /* flex:1 (not just height:100%) — this is itself a flex item of the
+   * Staff Body column, and with flex-grow:0 (the default) plus both of
+   * its own children absolutely positioned, its auto flex-basis can
+   * resolve to 0 instead of the intended percentage, collapsing the whole
+   * dashboard to zero height with nothing to scroll. flex-grow:1 forces
+   * it to fill the panel's available height regardless of that basis. */
+  flex: 1;
   height: 100%;
   min-height: 0;
   position: relative;
@@ -1331,8 +1338,34 @@
 .gym-app.gym-app--embedded .gym-sidebar.open {
   transform: translateX(0);
 }
+/* .gym-workspace becomes the fixed-header/scrollable-body frame: a flex
+ * column whose own box never grows past the panel, with .gym-topbar
+ * pinned (flex-shrink:0) and .gym-main as the one true scrolling region
+ * (flex:1, min-height:0, overflow-y:auto).
+ *
+ * Sized via `position:absolute; inset:0` instead of `height:100%`/flex
+ * stretch: .gym-workspace is the sole in-flow-turned-absolute child of
+ * .gym-app (.gym-sidebar is already absolute for its off-canvas overlay),
+ * and in this nested row-flex, a percentage/stretched height on it does
+ * not reliably resolve to .gym-app's definite height in practice — it
+ * keeps sizing to its own (much taller) content instead, which is what
+ * silently expanded and clipped this whole dashboard with no scrollbar.
+ * Absolute positioning with opposing offsets (inset:0) against .gym-app's
+ * `position:relative` containing block sidesteps that resolution
+ * entirely and reliably fills the exact available height. */
 .gym-app.gym-app--embedded .gym-workspace {
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.gym-app.gym-app--embedded .gym-topbar {
+  flex-shrink: 0;
+}
+.gym-app.gym-app--embedded .gym-main {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }

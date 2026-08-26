@@ -852,7 +852,7 @@ export default function App() {
                   dashboard inside this same preview panel (real authenticated
                   StaffAppShell -> GymDashboardView, rendered in its compact
                   embedded layout) instead of taking over the browser viewport. */}
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {gymStaffSelected ? (
                   <StaffAppShell
                     key={selectedSalon.id + ':' + gymTestRole}
