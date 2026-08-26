@@ -13,6 +13,10 @@ interface StaffSession {
 interface StaffAppShellProps {
   testBusinessId?: string;
   testRole?: string;
+  // Rendered inside the hosted TEST Staff preview panel rather than as the
+  // real full-screen business surface. Only ever passed from the TEST
+  // wrapper in App.tsx — never set for the real production/Android surface.
+  embedded?: boolean;
   salon: Salon;
   queue: QueueItem[];
   barbers: Barber[];
@@ -193,7 +197,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   };
 
   if (loading) {
-    return <div className="flex h-screen items-center justify-center bg-[#F4F7F6] text-[#5C6E6B]">Loading Staff App...</div>;
+    return <div className={`flex items-center justify-center bg-[#F4F7F6] text-[#5C6E6B] ${props.embedded ? 'h-full' : 'h-screen'}`}>Loading Staff App...</div>;
   }
 
   // 1. Business ID Flow
@@ -347,7 +351,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
 
   // 4. Normal Authorized Staff Dashboard
   const isGym = session!.business.mainCategoryId === 'gym';
-  if (isGym) return <GymDashboardView key={session!.business.id} gymId={session!.business.id} gymName={session!.business.name} role={session!.staff.role as any} staffName={session!.staff.name} activeModule={gymModule} onModuleSelect={setGymModule} onSignOut={handleLogout} onSetup={() => setShowSetup(true)} profileIncomplete={isProfileIncomplete} />;
+  if (isGym) return <GymDashboardView key={session!.business.id} gymId={session!.business.id} gymName={session!.business.name} role={session!.staff.role as any} staffName={session!.staff.name} activeModule={gymModule} onModuleSelect={setGymModule} onSignOut={handleLogout} onSetup={() => setShowSetup(true)} profileIncomplete={isProfileIncomplete} embedded={props.embedded} />;
 
   return (
     <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">

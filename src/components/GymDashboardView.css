@@ -1302,3 +1302,102 @@
     visibility: visible;
   }
 }
+
+/* Embedded (hosted TEST preview panel) presentation.
+ * The preview panel is always narrow (max-w-xl / half of max-w-6xl, both
+ * well under 640px) regardless of the tester's actual browser width, so
+ * this always applies the compact/collapsed layout instead of reacting to
+ * a viewport media query — a viewport query would never fire here since
+ * the browser window itself is desktop-wide even though the rendered
+ * panel is not. Scoped entirely under .gym-app--embedded so the real
+ * full-screen production/Android surface (which never gets this class)
+ * keeps its normal viewport-responsive layout untouched. */
+.gym-app.gym-app--embedded {
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.gym-app.gym-app--embedded .gym-sidebar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 250px;
+  transform: translateX(-100%);
+  transition: transform 0.2s;
+  visibility: visible;
+}
+.gym-app.gym-app--embedded .gym-sidebar.open {
+  transform: translateX(0);
+}
+.gym-app.gym-app--embedded .gym-workspace {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.gym-app.gym-app--embedded .mobile-only {
+  display: inline-grid;
+}
+.gym-app.gym-app--embedded .gym-nav-scrim {
+  display: block;
+  position: absolute;
+  inset: 0;
+  background: #142a3466;
+  border: 0;
+  z-index: 29;
+}
+.gym-app.gym-app--embedded .gym-brand {
+  padding: 0 22px;
+}
+.gym-app.gym-app--embedded .gym-brand .gym-icon-button {
+  margin-left: auto;
+}
+.gym-app.gym-app--embedded .gym-topbar {
+  min-height: 64px;
+  padding: 10px 16px;
+  gap: 8px;
+}
+.gym-app.gym-app--embedded .gym-business-icon,
+.gym-app.gym-app--embedded .gym-user,
+.gym-app.gym-app--embedded .gym-topbar > .gym-icon-button:nth-last-of-type(2) {
+  display: none;
+}
+.gym-app.gym-app--embedded .gym-business strong {
+  font-size: 12px;
+}
+.gym-app.gym-app--embedded .gym-main {
+  padding: 18px 16px;
+  gap: 16px;
+}
+.gym-app.gym-app--embedded .gym-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.gym-app.gym-app--embedded .gym-metric {
+  padding: 14px 12px 10px;
+}
+.gym-app.gym-app--embedded .gym-metric > strong {
+  font-size: 28px;
+  margin-top: 10px;
+}
+.gym-app.gym-app--embedded .gym-metric-label {
+  font-size: 9px;
+  gap: 6px;
+}
+.gym-app.gym-app--embedded .gym-today {
+  display: none;
+}
+.gym-app.gym-app--embedded .gym-overview-feature {
+  grid-template-columns: minmax(0, 1fr);
+}
+.gym-app.gym-app--embedded .gym-overview-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.gym-app.gym-app--embedded .gym-quick-actions .gym-button {
+  flex: 1 1 120px;
+}
+.gym-app.gym-app--embedded .gym-dialog,
+.gym-app.gym-app--embedded .gym-form-actions .gym-button {
+  flex: 1;
+}

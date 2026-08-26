@@ -677,28 +677,28 @@ export default function App() {
 
   const gymStaffSelected = selectedSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
   const gymTestSwitcher = import.meta.env.DEV || ['localhost', '127.0.0.1', 'no-wait-salon-web-test.onrender.com'].includes(window.location.hostname);
-  const isBusinessSurface = PACKAGED_MODE === 'staff' || window.location.pathname === '/business' || gymStaffSelected;
-  // The hosted TEST wrapper always keeps this switcher above whichever business
-  // dashboard is currently selected — Salon or Gym — so it never disappears or
-  // gets swapped for a different control when the category changes. It is
-  // never rendered for the real NOQ Business production surface (gymTestSwitcher
-  // is false there), which still renders its dashboard full-screen with no
-  // test chrome at all.
-  const showTestSwitcher = gymTestSwitcher && (isBusinessSurface || viewMode !== 'customer');
+  const isRealBusinessSurface = PACKAGED_MODE === 'staff' || window.location.pathname === '/business';
+  // Outside the hosted TEST wrapper, selecting a Gym business still gets its
+  // own real full-screen NOQ Business surface, matching production/Android.
+  // Only the TEST wrapper (gymTestSwitcher) keeps it inside the compact
+  // Staff preview panel below instead of taking over the whole viewport.
+  const gymFullscreenTakeover = gymStaffSelected && !gymTestSwitcher;
+  const isBusinessSurface = isRealBusinessSurface || gymFullscreenTakeover;
+  // Compact, developer-tooling-styled switcher — never shown on the real
+  // production/Android business surface, which stays test-chrome-free.
+  const showTestSwitcher = gymTestSwitcher && !isRealBusinessSurface && viewMode !== 'customer';
   const testSwitcherBanner = showTestSwitcher && (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-teal-100 bg-teal-50 px-4 py-2 text-xs text-teal-800">
-      <label className="flex min-w-0 max-w-full flex-1 items-center gap-2">Testing as:
-        <select aria-label="Test Business Switcher" id="test-business-switcher" className="min-h-11 min-w-0 max-w-full flex-1 rounded-lg border border-teal-200 bg-white px-3" value={selectedSalon.id + ':' + gymTestRole} onChange={e => { const [id, role] = e.target.value.split(':'); const found = SALONS.find(s => s.id === id); if (found) { setSelectedSalon(found); setGymTestRole(role); } }}>
-          {SALONS.filter(s => ['gym', 'salon'].includes(s.mainCategoryId || 'salon')).map(s => <React.Fragment key={s.id}><option value={s.id + ':owner'}>{s.name} — {s.mainCategoryId === 'gym' ? 'Gym' : 'Salon'} (Owner)</option>{s.mainCategoryId === 'gym' && <option value={s.id + ':trainer'}>{s.name} — Trainer</option>}</React.Fragment>)}
-        </select>
-      </label>
-      <span>TEST environment only</span>
+    <div className="flex flex-wrap items-center gap-2 border-b border-teal-100 bg-teal-50/80 px-3 py-1.5 text-[11px] text-teal-800">
+      <span className="font-semibold uppercase tracking-wide text-teal-700">Testing as</span>
+      <select aria-label="Test Business Switcher" id="test-business-switcher" className="min-h-7 rounded-md border border-teal-200 bg-white px-2 py-0.5 text-[11px] font-medium text-teal-900" value={selectedSalon.id + ':' + gymTestRole} onChange={e => { const [id, role] = e.target.value.split(':'); const found = SALONS.find(s => s.id === id); if (found) { setSelectedSalon(found); setGymTestRole(role); } }}>
+        {SALONS.filter(s => ['gym', 'salon'].includes(s.mainCategoryId || 'salon')).map(s => <React.Fragment key={s.id}><option value={s.id + ':owner'}>{s.name} — {s.mainCategoryId === 'gym' ? 'Gym' : 'Salon'} (Owner)</option>{s.mainCategoryId === 'gym' && <option value={s.id + ':trainer'}>{s.name} — Trainer</option>}</React.Fragment>)}
+      </select>
+      <span className="ml-auto text-teal-600/80">TEST environment only</span>
     </div>
   );
   if (isBusinessSurface) {
     return <div className="min-h-screen bg-[#f6f8fa]">
-      {testSwitcherBanner}
-      <StaffAppShell key={gymStaffSelected ? selectedSalon.id + ':' + gymTestRole : 'business'} testBusinessId={gymTestSwitcher && gymStaffSelected ? selectedSalon.id : undefined} testRole={gymTestRole} salon={selectedSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
+      <StaffAppShell key={gymStaffSelected ? selectedSalon.id + ':' + gymTestRole : 'business'} testRole={gymTestRole} salon={selectedSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
     </div>;
   }
 
@@ -810,7 +810,7 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
                   <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
-                    Salon Staff Dashboard
+                    {gymStaffSelected ? 'Gym Staff Dashboard' : 'Salon Staff Dashboard'}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -837,20 +837,42 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Staff Body */}
+              {/* Staff Body — the hosted TEST wrapper keeps the Gym business
+                  dashboard inside this same preview panel (real authenticated
+                  StaffAppShell -> GymDashboardView, rendered in its compact
+                  embedded layout) instead of taking over the browser viewport. */}
               <div className="flex-1 overflow-hidden flex flex-col">
-                <StaffDashboard
-                  salon={selectedSalon}
-                  queue={queue}
-                  barbers={barbers}
-                  completedList={completedList}
-                  onBarberToggle={handleBarberToggle}
-                  onAddWalkin={handleAddWalkin}
-                  onQueueAction={handleQueueAction}
-                  queueAlert={queueAlert}
-                  onSaveStaff={handleSaveStaff}
-                  onSaveOffers={handleSaveOffers}
-                />
+                {gymStaffSelected ? (
+                  <StaffAppShell
+                    key={selectedSalon.id + ':' + gymTestRole}
+                    embedded
+                    testBusinessId={selectedSalon.id}
+                    testRole={gymTestRole}
+                    salon={selectedSalon}
+                    queue={queue}
+                    barbers={barbers}
+                    completedList={completedList}
+                    onBarberToggle={handleBarberToggle}
+                    onAddWalkin={handleAddWalkin}
+                    onQueueAction={handleQueueAction}
+                    queueAlert={queueAlert}
+                    onSaveStaff={handleSaveStaff}
+                    onSaveOffers={handleSaveOffers}
+                  />
+                ) : (
+                  <StaffDashboard
+                    salon={selectedSalon}
+                    queue={queue}
+                    barbers={barbers}
+                    completedList={completedList}
+                    onBarberToggle={handleBarberToggle}
+                    onAddWalkin={handleAddWalkin}
+                    onQueueAction={handleQueueAction}
+                    queueAlert={queueAlert}
+                    onSaveStaff={handleSaveStaff}
+                    onSaveOffers={handleSaveOffers}
+                  />
+                )}
               </div>
             </section>
           )}

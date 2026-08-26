@@ -61,6 +61,13 @@ interface GymDashboardViewProps {
   onSignOut?: () => void;
   onSetup?: () => void;
   profileIncomplete?: boolean;
+  // Rendered inside the hosted TEST preview panel instead of the real
+  // full-screen NOQ Business surface: forces the compact/collapsed layout
+  // (off-canvas sidebar, internal scroll) regardless of browser width,
+  // since the preview panel itself is always narrow. Never set for the
+  // real production/Android business app, which keeps its normal
+  // viewport-responsive full-screen layout untouched.
+  embedded?: boolean;
 }
 const icons: Record<string, React.ElementType> = {
   overview: LayoutDashboard,
@@ -219,6 +226,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   onSignOut,
   onSetup,
   profileIncomplete,
+  embedded,
 }) => {
   const [state, setState] = useState<GymState | null>(null);
   const [error, setError] = useState("");
@@ -813,7 +821,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     );
   };
   return (
-    <div className="gym-app">
+    <div className={embedded ? "gym-app gym-app--embedded" : "gym-app"}>
       <aside
         id="gym-navigation"
         ref={navigationRef}
