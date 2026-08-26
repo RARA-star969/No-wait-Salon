@@ -843,10 +843,25 @@ const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
   || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
   || renderServiceName === 'no-wait-salon-web-test';
 if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
+  if (isExplicitTestDeployment) {
+    const deterministicBusinessCodes: Record<string, string> = {
+      'salon-1': 'SALON001', 'salon-2': 'SALON002', 'gym-1': 'IRON001', 'gym-2': 'GYM002',
+      'shop-1': 'SHOP001', 'moto-1': 'MOTO001', 'pets-1': 'PETS001', 'mall-1': 'MALL001', 'food-1': 'FOOD001',
+    };
+    for (const [businessId, businessCode] of Object.entries(deterministicBusinessCodes)) {
+      db.prepare('UPDATE salon SET business_code = ?, updated_at = ? WHERE id = ?').run(businessCode, Date.now(), businessId);
+    }
+  }
   const demoStaffAccounts = [
-    { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
-    { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal-owner@nowaitsalon.test', password: 'staff123', name: 'Rajesh (Owner)', role: 'owner' },
-    { id: 'staff-acc-gym-1-owner', businessId: 'gym-1', email: 'ironhouse-owner@nowaitsalon.test', password: 'staff123', name: 'Vikram (Owner)', role: 'owner' },
+    { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut.owner@noq.test', password: 'Noq@Salon001', name: 'Sharpcut Owner', role: 'owner' },
+    { id: 'staff-acc-salon-2-owner', businessId: 'salon-2', email: 'royal.owner@noq.test', password: 'Noq@Salon002', name: 'Royal Man Owner', role: 'owner' },
+    { id: 'staff-acc-gym-1-owner', businessId: 'gym-1', email: 'singhrothritik90@gmail.com', password: 'Noq@Iron001', name: 'Iron House Owner', role: 'owner' },
+    { id: 'staff-acc-gym-2-owner', businessId: 'gym-2', email: 'velocity.owner@noq.test', password: 'Noq@Gym002', name: 'Velocity Owner', role: 'owner' },
+    { id: 'staff-acc-shop-1-owner', businessId: 'shop-1', email: 'velvet.owner@noq.test', password: 'Noq@Shop001', name: 'Velvet Owner', role: 'owner' },
+    { id: 'staff-acc-moto-1-owner', businessId: 'moto-1', email: 'torque.owner@noq.test', password: 'Noq@Moto001', name: 'Torque Owner', role: 'owner' },
+    { id: 'staff-acc-pets-1-owner', businessId: 'pets-1', email: 'paws.owner@noq.test', password: 'Noq@Pets001', name: 'Paws Owner', role: 'owner' },
+    { id: 'staff-acc-mall-1-owner', businessId: 'mall-1', email: 'forum.owner@noq.test', password: 'Noq@Mall001', name: 'Forum Owner', role: 'owner' },
+    { id: 'staff-acc-food-1-owner', businessId: 'food-1', email: 'artisan.owner@noq.test', password: 'Noq@Food001', name: 'Artisan Owner', role: 'owner' },
     { id: 'staff-acc-gym-1-trainer', businessId: 'gym-1', email: 'ironhouse-trainer@nowaitsalon.test', password: 'staff123', name: 'Coach Vikram', role: 'trainer' },
   ];
 
