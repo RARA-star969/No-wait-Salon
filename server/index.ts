@@ -2219,9 +2219,47 @@ app.post('/api/customer/address-requests', requireCustomer, (request: Authentica
 
 
 app.get('/api/admin/check-business-id/:code', requireAdmin, (request, response) => {
-  let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
-  const row = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
+  let code: string;
+  try {
+    code = validateBusinessCode(request.params.code);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid Business ID.' });
+  }
+  const excludeBusinessId = cleanText(request.query.excludeBusinessId, 100);
+  const row = excludeBusinessId
+    ? db.prepare('SELECT id FROM salon WHERE business_code = ? AND id <> ?').get(code, excludeBusinessId)
+    : db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
   response.json({ available: !row, code });
+});
+
+app.patch('/api/admin/salons/:id/business-id', requireAdmin, async (request, response) => {
+  const business = db.prepare('SELECT id, business_code FROM salon WHERE id = ?').get(request.params.id) as { id: string; business_code?: string | null } | undefined;
+  if (!business) return response.status(404).json({ error: 'Business not found.' });
+
+  let businessCode: string;
+  try {
+    businessCode = validateBusinessCode(request.body?.business_code);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid Business ID.' });
+  }
+
+  const duplicate = db.prepare('SELECT id FROM salon WHERE business_code = ? AND id <> ?').get(businessCode, business.id);
+  if (duplicate) return response.status(409).json({ error: 'This Business ID is already in use.' });
+
+  const previousBusinessCode = business.business_code || null;
+  db.prepare('UPDATE salon SET business_code = ?, updated_at = ? WHERE id = ?').run(businessCode, Date.now(), business.id);
+  await postgresPersistence?.flushNow(['salon']);
+
+  // Business QR deliberately remains untouched: printed customer QR codes resolve
+  // through the stable internal business id and public token, not this staff code.
+  response.json({
+    ok: true,
+    businessId: business.id,
+    businessCode,
+    previousBusinessCode,
+    qrUnchanged: true,
+    salon: adminSalonDetail(business.id),
+  });
 });
 
 app.get('/api/admin/salons', requireAdmin, (_request, response) => {
