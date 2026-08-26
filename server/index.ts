@@ -1606,7 +1606,7 @@ app.get('/api/staff/resolve-business/:code', (request, response) => {
 
 
 app.post('/api/staff/test-login', (request, response) => {
-  if (process.env.NO_WAIT_TEST_DEPLOYMENT !== 'true') return response.status(403).json({ error: 'Not available.' });
+  if (!isExplicitTestDeployment) return response.status(403).json({ error: 'Not available.' });
   
   let businessCode;
   try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }
