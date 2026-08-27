@@ -14,6 +14,7 @@ import { formatDurationLabel } from '../shared/durationFormat';
 import { LockedCalendarIcon } from './LockedCalendarIcon';
 import { HairCare3DIcon, Beard3DIcon, MassageSpa3DIcon, HairColour3DIcon, Facial3DIcon } from './ExploreService3DIcons';
 import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
+import { CategoryActionBar } from './CategoryActionBar';
 
 /**
  * Recovered to match APK build #45's source (commit 434289e, workflow run
@@ -348,139 +349,86 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
 
-      {/* Premium sticky action dock. Zero-state stays the simpler translucent
-          floating glass (nothing to protect readability-wise). The instant a
-          service is selected, the dock switches to an opaque warm
-          ivory/stone blurred-mirror lens material — glossy masked-gradient
-          rim, soft mirror sheen, a hint of fine noise, no page content
-          showing through — so the summary/Session text stays fully solid
-          and readable. Safe-area aware, with a micro-bounce whenever the
-          selection changes. The selected-service summary is always mounted
-          — never conditionally rendered — so it can animate open/closed via
-          a grid-rows transition instead of popping in/out or remounting. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
-        <div
-          className={`relative mx-auto max-w-xl overflow-hidden rounded-[22px] p-2.5 transition-all duration-300 ${
-            totals.count > 0
-              ? 'border border-white/75 bg-gradient-to-b from-white/78 via-white/58 to-white/72 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.95),inset_0_0_24px_rgba(255,255,255,0.35),0_-14px_32px_-12px_rgba(15,70,65,0.25),0_12px_36px_-10px_rgba(10,35,32,0.22)] backdrop-blur-2xl backdrop-saturate-[2.2] backdrop-brightness-[1.06]'
-              : 'border border-white/35 bg-gradient-to-br from-white/16 via-white/[0.06] to-[#0F766E]/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06),0_-14px_30px_-16px_rgba(10,30,27,0.35),0_8px_24px_-10px_rgba(10,30,27,0.22)] backdrop-blur-2xl backdrop-saturate-[1.8]'
-          } ${dockBounce ? 'dock-bounce' : ''}`}
-        >
-          {totals.count > 0 && (
-            <>
-              {/* Premium blurred mirror / frosted glass material highlights */}
-              <div
-                className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
-                style={{
-                  background:
-                    'linear-gradient(125deg, rgba(255,255,255,0.95), rgba(15,118,110,0.22) 35%, rgba(255,255,255,0.35) 55%, rgba(231,198,115,0.24) 75%, rgba(255,255,255,0.85))',
-                  WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-                  WebkitMaskComposite: 'xor',
-                  maskComposite: 'exclude',
-                }}
-                aria-hidden="true"
-              />
-              <div
-                className="pointer-events-none absolute inset-0 rounded-[22px] opacity-[0.14] mix-blend-overlay"
-                style={{
-                  backgroundImage:
-                    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>\")",
-                  backgroundSize: '140px 140px',
-                }}
-                aria-hidden="true"
-              />
-              <div
-                className="pointer-events-none absolute -inset-x-[10%] -inset-y-[20%] rounded-[22px] blur-[5px]"
-                style={{ background: 'linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0.12) 58%, transparent 75%)' }}
-                aria-hidden="true"
-              />
-            </>
-          )}
-          {/* Faint top sheen for the zero-state glass — purely decorative. */}
-          {totals.count === 0 && (
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.16] to-transparent" aria-hidden="true" />
-          )}
-          <div
-            className="relative grid transition-[grid-template-rows] duration-[280ms] ease-out"
-            style={{ gridTemplateRows: !userEntry && totals.count > 0 ? '1fr' : '0fr' }}
+      {/* Premium sticky action dock. The glass material, proportions, radius,
+          safe-area handling, micro-bounce and the grid-rows expand of the
+          summary region now live in the shared <CategoryActionBar>, so Gym
+          (and any future category) gets exactly the same dock without a
+          second copy of this styling. Everything below — the services
+          summary, the Session chip, Join Queue and the reserve button — is
+          Salon's own content and is unchanged. */}
+      <CategoryActionBar
+        expanded={totals.count > 0}
+        summaryOpen={!userEntry && totals.count > 0}
+        bounce={dockBounce}
+        summary={
+          <>
+          <button
+            type="button"
+            id="dock-summary-btn"
+            onClick={() => setBreakdownOpen(true)}
+            className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition active:bg-white/10"
           >
-            <div className="overflow-hidden">
-              <div
-                className={`transition-all duration-[280ms] ease-out ${
-                  !userEntry && totals.count > 0 ? 'translate-y-0 opacity-100' : '-translate-y-1.5 opacity-0'
-                }`}
-              >
-                <button
-                  type="button"
-                  id="dock-summary-btn"
-                  onClick={() => setBreakdownOpen(true)}
-                  className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition active:bg-white/10"
-                >
-                  <span className="min-w-0">
-                    <span className="block text-[11px] font-semibold leading-4 text-[#12332E]">
-                      {totals.count} {totals.count === 1 ? 'service' : 'services'} selected
-                    </span>
-                    {dockDiscountInr > 0 && appliedOffer && (
-                      <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-[#0F766E]"><Tag className="h-2.5 w-2.5" />{appliedOffer.title} applied</span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-1.5">
-                    {dockDiscountInr > 0 ? (
-                      <span className="flex items-baseline gap-1.5">
-                        <span className="text-[11px] text-[#A3ADAB] line-through">₹{totals.totalPriceInr}</span>
-                        <span className="text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">₹{dockFinalTotalInr}</span>
-                      </span>
-                    ) : (
-                      <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">
-                        ₹{totals.totalPriceInr}
-                      </span>
-                    )}
-                    <ChevronRight className="h-3.5 w-3.5 text-[#788582]" />
-                  </span>
-                </button>
-                {/* Same Session treatment as the Join Queue sheet's "To pay"
-                    card — same icon, label, type and shared duration calc —
-                    just riding on the dock's glass surface instead of a
-                    separate solid card. */}
-                {totals.totalDurationMin > 0 && (
-                  <div className="mt-1 flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_6px_-2px_rgba(15,118,110,0.12)] backdrop-blur-md">
-                    <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#0F766E] to-[#0B4A44] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
-                      <Clock className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="flex items-baseline gap-1.5">
-                      <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
-                      <span className="text-xs font-extrabold text-[#0B211E]">{formatDurationLabel(totals.totalDurationMin)}</span>
-                    </span>
-                  </div>
-                )}
-                <div className="h-2" />
-              </div>
-            </div>
-          </div>
-          <div className="relative grid grid-cols-[1fr_auto] gap-2">
-            <button
-              id="join-live-queue-btn"
-              onClick={onJoin}
-              className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
-            >
-              <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
-              <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
-            </button>
-            <button
-              id="reserve-slot-btn"
-              type="button"
-              onClick={onReserve}
-              aria-label="Reserve a future queue window"
-              className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[#E7C673]/60 bg-[#8A6A2C]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_18px_-12px_rgba(90,64,20,0.45)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
-            >
-              <CalendarDays className="relative h-4.5 w-4.5 text-[#3E2D0C]" />
-              <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
-                <Lock className="h-2 w-2" />
+            <span className="min-w-0">
+              <span className="block text-[11px] font-semibold leading-4 text-[#12332E]">
+                {totals.count} {totals.count === 1 ? 'service' : 'services'} selected
               </span>
-            </button>
-          </div>
-        </div>
-      </div>
+              {dockDiscountInr > 0 && appliedOffer && (
+                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-[#0F766E]"><Tag className="h-2.5 w-2.5" />{appliedOffer.title} applied</span>
+              )}
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              {dockDiscountInr > 0 ? (
+                <span className="flex items-baseline gap-1.5">
+                  <span className="text-[11px] text-[#A3ADAB] line-through">₹{totals.totalPriceInr}</span>
+                  <span className="text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">₹{dockFinalTotalInr}</span>
+                </span>
+              ) : (
+                <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">
+                  ₹{totals.totalPriceInr}
+                </span>
+              )}
+              <ChevronRight className="h-3.5 w-3.5 text-[#788582]" />
+            </span>
+          </button>
+          {/* Same Session treatment as the Join Queue sheet's "To pay"
+              card — same icon, label, type and shared duration calc —
+              just riding on the dock's glass surface instead of a
+              separate solid card. */}
+          {totals.totalDurationMin > 0 && (
+            <div className="mt-1 flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_6px_-2px_rgba(15,118,110,0.12)] backdrop-blur-md">
+              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#0F766E] to-[#0B4A44] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
+                <Clock className="h-3.5 w-3.5" />
+              </span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
+                <span className="text-xs font-extrabold text-[#0B211E]">{formatDurationLabel(totals.totalDurationMin)}</span>
+              </span>
+            </div>
+          )}
+          </>
+        }
+      >
+        <button
+          id="join-live-queue-btn"
+          onClick={onJoin}
+          className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
+        >
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
+          <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
+        </button>
+        <button
+          id="reserve-slot-btn"
+          type="button"
+          onClick={onReserve}
+          aria-label="Reserve a future queue window"
+          className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[#E7C673]/60 bg-[#8A6A2C]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_18px_-12px_rgba(90,64,20,0.45)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
+        >
+          <CalendarDays className="relative h-4.5 w-4.5 text-[#3E2D0C]" />
+          <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+            <Lock className="h-2 w-2" />
+          </span>
+        </button>
+      </CategoryActionBar>
 
       {addressSheetOpen && (
         <AddressSheet
