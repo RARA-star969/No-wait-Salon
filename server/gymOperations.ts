@@ -7,6 +7,8 @@ import {
   gymMemberReportCsv,
   gymMemberReportRows,
   reconcileExpiredMemberships,
+  unclaimedCustomerId,
+  isUnclaimedCustomerId,
   type GymState,
   type GymEvent,
   type GymCampaign,
@@ -14,6 +16,7 @@ import {
   type GymMembership,
   type GymPayment,
 } from "../src/shared/gymBusiness.ts";
+import { normalizePhone } from "../src/shared/phone.ts";
 import { CUSTOM_ENTRY_OFFERING_ID } from "../src/shared/gymLiveFloor.ts";
 import { qrSvgDataUrl } from "./qrRendering.ts";
 
@@ -35,6 +38,13 @@ type Dependencies = {
    * profile photo from. Resolved at serve time only and never written into
    * GymState: GymVisit stores no image data, just the customerId link. */
   customerPhotos?: (gymId: string, customerIds: string[]) => Map<string, string>;
+  /** Resolve a normalized 10-digit mobile number to an already-verified
+   * customer_account id, if one exists. Lets a staff-created membership
+   * attach directly to the real customer identity the moment staff types a
+   * phone number that already belongs to a verified account, instead of
+   * always falling back to a synthetic walk-in id. Independent of whatever
+   * OTP provider verified that phone. */
+  resolveCustomerIdByPhone: (normalizedPhone: string) => string | undefined;
 };
 const operators = ["owner", "manager", "staff", "reception"];
 const managers = ["owner", "manager"];
@@ -883,22 +893,52 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           const expiryDate = b.expiryDate
             ? date(b.expiryDate, "Expiry date").slice(0, 10)
             : claim.expiryDate;
-          const membership: GymMembership = {
-            id: randomUUID(),
-            customerId: claim.customerId,
-            customerName: name,
-            customerMobile: claim.mobile,
-            planName: claim.planText || "Existing membership",
-            source: "claim",
-            status: "active",
-            joinedDate,
-            expiryDate,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
-          s.memberships.unshift(membership);
+          const normalizedMobile = normalizePhone(claim.mobile);
+          // The same person may already exist here as an unclaimed,
+          // staff-created membership (Add Visitor, before this customer had
+          // an account) with the same mobile number. Re-point that row at
+          // the real customerId instead of minting a second membership —
+          // preserves its original joinedDate/payment/visit history rather
+          // than orphaning it next to a fresh duplicate.
+          const existingUnclaimed = normalizedMobile
+            ? s.memberships.find(
+                (m) =>
+                  isUnclaimedCustomerId(m.customerId) &&
+                  m.customerMobileNormalized === normalizedMobile,
+              )
+            : undefined;
+          let membershipId: string;
+          if (existingUnclaimed) {
+            existingUnclaimed.customerId = claim.customerId;
+            existingUnclaimed.customerName = name;
+            existingUnclaimed.updatedAt = Date.now();
+            membershipId = existingUnclaimed.id;
+            for (const p of s.payments)
+              if (!p.customerId && p.membershipId === membershipId) p.customerId = claim.customerId;
+            for (const v of s.visits)
+              if (!v.customerId && v.membershipId === membershipId) v.customerId = claim.customerId;
+            for (const q of s.entryQueue)
+              if (!q.customerId && q.membershipId === membershipId) q.customerId = claim.customerId;
+          } else {
+            const membership: GymMembership = {
+              id: randomUUID(),
+              customerId: claim.customerId,
+              customerName: name,
+              customerMobile: claim.mobile,
+              customerMobileNormalized: normalizedMobile || undefined,
+              planName: claim.planText || "Existing membership",
+              source: "claim",
+              status: "active",
+              joinedDate,
+              expiryDate,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            s.memberships.unshift(membership);
+            membershipId = membership.id;
+          }
           claim.status = "approved";
-          claim.resultingMembershipId = membership.id;
+          claim.resultingMembershipId = membershipId;
           gymEvent(s, "members", "claim_approved", claim.name, session.name);
         }
       } else if (
@@ -983,16 +1023,49 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         payment.updatedAt = Date.now();
         let membershipId: string | undefined;
         if (offering.type === "membership") {
+          // Identity bridge: the mobile number is the one thing staff always
+          // has, whether or not this customer has ever verified it yet.
+          // Normalize it the same way OTP verification does, so a later
+          // login with the same number (in any formatting) finds this row.
+          const normalizedMobile = normalizePhone(payment.customerMobile);
+          // Case A — the phone already belongs to a verified customer
+          // account: attach the membership (and the payment behind it)
+          // straight to that real customerId, no manual claim needed.
+          if (!payment.customerId && normalizedMobile.length === 10) {
+            const resolved = deps.resolveCustomerIdByPhone(normalizedMobile);
+            if (resolved) payment.customerId = resolved;
+          }
+          // Duplicate prevention: this identity (real customerId, or the
+          // same normalized mobile still unclaimed) already has an active
+          // membership at this gym — don't mint a second one.
+          const existingActive = s.memberships.find((m) => {
+            if (m.status !== "active") return false;
+            if (payment.customerId) return m.customerId === payment.customerId;
+            return (
+              normalizedMobile.length === 10 &&
+              m.customerMobileNormalized === normalizedMobile &&
+              isUnclaimedCustomerId(m.customerId)
+            );
+          });
+          if (existingActive) {
+            throw new Error(
+              `${payment.customerName} already has an active membership (${existingActive.planName}, expires ${existingActive.expiryDate}). Renew the existing membership instead of adding a new one.`,
+            );
+          }
           const expiryDate = addDuration(
             new Date().toISOString().slice(0, 10),
             offering.durationValue,
             offering.durationUnit,
           );
+          // Case B — no verified account yet: created "unclaimed", carrying
+          // the normalized mobile so a future OTP verification (this
+          // provider or any other) can find and re-point it automatically.
           const membership: GymMembership = {
             id: randomUUID(),
-            customerId: payment.customerId || `walkin-${payment.id}`,
+            customerId: payment.customerId || unclaimedCustomerId(payment.id),
             customerName: payment.customerName,
             customerMobile: payment.customerMobile,
+            customerMobileNormalized: normalizedMobile || undefined,
             offeringId: offering.id,
             planName: offering.name,
             source: "purchase",

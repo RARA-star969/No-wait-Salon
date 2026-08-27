@@ -118,6 +118,13 @@ export type GymMembership = {
   customerId: string;
   customerName: string;
   customerMobile: string;
+  // Identity bridge for auto-linking — normalizePhone(customerMobile) at the
+  // moment this row was written. Additive: absent on rows created before
+  // this field existed. Compared against a verified customer's own
+  // normalized phone to reconcile a staff-created ("unclaimed") membership
+  // to their real account once they verify — see isUnclaimedCustomerId and
+  // reconcileUnclaimedMembershipsForPhone below.
+  customerMobileNormalized?: string;
   offeringId?: string;
   planName: string;
   source: GymMembershipSource;
@@ -397,6 +404,76 @@ export function currentMembershipFor(
     .sort((a, b) => b.expiryDate.localeCompare(a.expiryDate));
   if (active.length) return active[0];
   return mine.sort((a, b) => b.expiryDate.localeCompare(a.expiryDate))[0];
+}
+
+// --- Membership identity linking ------------------------------------------
+// A staff-created membership can be written before the customer has ever
+// verified their mobile number, so it cannot carry a real customer_account
+// id yet. Such a row is marked "unclaimed" with a synthetic id derived from
+// the payment it came from, and carries customerMobileNormalized so it can
+// be found and re-pointed at the real customerId the moment that phone
+// number is verified \u2014 independent of whatever OTP provider does the
+// verifying.
+const UNCLAIMED_CUSTOMER_ID_PREFIX = "walkin-";
+
+export function unclaimedCustomerId(paymentId: string): string {
+  return `${UNCLAIMED_CUSTOMER_ID_PREFIX}${paymentId}`;
+}
+
+export function isUnclaimedCustomerId(customerId: string): boolean {
+  return customerId.startsWith(UNCLAIMED_CUSTOMER_ID_PREFIX);
+}
+
+/** Re-points every unclaimed membership at this gym whose stored mobile
+ * matches the given (already normalized) phone number at the now-verified
+ * customerId, and carries the same link onto payments/visits/queue entries
+ * that reference that membership by id \u2014 so payment history, visit history
+ * and audit trail move with the membership instead of staying orphaned on
+ * the old synthetic id. Idempotent and additive: a membership that is
+ * already linked, or belongs to a different mobile, is left untouched, and
+ * nothing is ever deleted. Call this after any successful phone
+ * verification (OTP today, any future provider tomorrow) and defensively on
+ * every authenticated read of a customer's Gym membership, so a membership
+ * added after the customer's last login still self-heals. */
+export function reconcileUnclaimedMembershipsForPhone(
+  state: Pick<GymState, "memberships" | "payments" | "visits" | "entryQueue">,
+  normalizedPhone: string,
+  customerId: string,
+): boolean {
+  if (!normalizedPhone) return false;
+  let changed = false;
+  const linkedMembershipIds = new Set<string>();
+  for (const m of state.memberships) {
+    if (
+      isUnclaimedCustomerId(m.customerId) &&
+      m.customerMobileNormalized === normalizedPhone
+    ) {
+      m.customerId = customerId;
+      m.updatedAt = Date.now();
+      linkedMembershipIds.add(m.id);
+      changed = true;
+    }
+  }
+  if (!linkedMembershipIds.size) return changed;
+  for (const p of state.payments) {
+    if (!p.customerId && p.membershipId && linkedMembershipIds.has(p.membershipId)) {
+      p.customerId = customerId;
+      changed = true;
+    }
+  }
+  for (const v of state.visits) {
+    if (!v.customerId && v.membershipId && linkedMembershipIds.has(v.membershipId)) {
+      v.customerId = customerId;
+      changed = true;
+    }
+  }
+  for (const q of state.entryQueue) {
+    if (!q.customerId && q.membershipId && linkedMembershipIds.has(q.membershipId)) {
+      q.customerId = customerId;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 /** Lazily flips memberships whose expiry date has passed into "expired" \u2014 call

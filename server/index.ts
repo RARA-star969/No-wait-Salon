@@ -12,7 +12,8 @@ import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './busine
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
 import { mountGymOperations, normalizeGymState, publicGymState, gymEvent, recomputeOccupancy } from './gymOperations.ts';
-import { currentMembershipFor, reconcileExpiredMemberships, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek } from '../src/shared/gymBusiness.ts';
+import { currentMembershipFor, reconcileExpiredMemberships, reconcileUnclaimedMembershipsForPhone, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek } from '../src/shared/gymBusiness.ts';
+import { normalizePhone } from '../src/shared/phone.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 
 
@@ -1027,6 +1028,10 @@ function requireCustomer(request: AuthenticatedRequest, response: express.Respon
   next();
 }
 
+function customerPhoneNumber(customerId: string): string | undefined {
+  return (db.prepare('SELECT phone_number FROM customer_account WHERE id = ?').get(customerId) as { phone_number: string } | undefined)?.phone_number;
+}
+
 function readCustomerProfile(customerId: string) {
   return db.prepare(`
     SELECT a.id AS customer_id, a.phone_number, p.name, p.email, p.date_of_birth, p.gender,
@@ -1613,6 +1618,37 @@ function getGymState(gymId: string) {
   return normalizeGymState(row ? JSON.parse(row.state_json) : {}, gymId);
 }
 
+// Identity bridge: resolve an already-normalized phone number to a verified
+// customer_account, so a staff-created Gym membership can attach to a real
+// customerId immediately when that phone is already registered — never
+// trusts a client-supplied customerId, always resolved server-side.
+function resolveCustomerIdByPhone(normalizedPhone: string): string | undefined {
+  return (db.prepare('SELECT id FROM customer_account WHERE phone_number = ?').get(normalizedPhone) as { id: string } | undefined)?.id;
+}
+
+function onboardedGymIds(): string[] {
+  return (db.prepare("SELECT id FROM salon WHERE main_category_id='gym' AND onboarded=1").all() as { id: string }[]).map((r) => r.id);
+}
+
+// Fires once on every successful phone verification, regardless of OTP
+// provider — reconciles any staff-created ("unclaimed") Gym memberships at
+// every gym whose stored mobile matches this verified phone onto the real
+// customerId. Also called defensively on authenticated membership reads
+// (self-healing) so a membership added by staff after this customer's last
+// login still shows up without another verification.
+async function reconcileGymMembershipsForVerifiedPhone(customerId: string, normalizedPhone: string) {
+  if (!normalizedPhone) return;
+  let changed = false;
+  for (const gymId of onboardedGymIds()) {
+    const state = getGymState(gymId);
+    if (reconcileUnclaimedMembershipsForPhone(state, normalizedPhone, customerId)) {
+      saveGymState(gymId, state);
+      changed = true;
+    }
+  }
+  if (changed) await postgresPersistence?.flushNow(['gym_state']);
+}
+
 app.get('/api/staff/resolve-business/:code', (request, response) => {
   let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
   const row = db.prepare('SELECT id, name, COALESCE(main_category_id, \'salon\') as main_category_id FROM salon WHERE business_code = ?').get(code) as any;
@@ -1791,7 +1827,7 @@ app.post('/api/staff/logout', (request, response) => {
   response.json({ ok: true });
 });
 
-mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); }, customerPhotos: gymCustomerPhotos });
+mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); }, customerPhotos: gymCustomerPhotos, resolveCustomerIdByPhone });
 
 /**
  * Resolves customerId -> a Gym-staff-readable URL for that customer's existing
@@ -1940,7 +1976,10 @@ function customerAttendanceSummary(state: ReturnType<typeof getGymState>, custom
 app.get('/api/gym/:gymId/my-membership', requireCustomer, (request: AuthenticatedRequest, response) => {
   const gymId = request.params.gymId;
   const state = getGymState(gymId);
-  if (reconcileExpiredMemberships(state.memberships)) saveGymState(gymId, state);
+  const phone = customerPhoneNumber(request.customerId!);
+  let dirty = phone ? reconcileUnclaimedMembershipsForPhone(state, phone, request.customerId!) : false;
+  if (reconcileExpiredMemberships(state.memberships)) dirty = true;
+  if (dirty) saveGymState(gymId, state);
   const membership = currentMembershipFor(state.memberships, request.customerId!);
   const pendingClaim = state.membershipClaims.find((c) => c.customerId === request.customerId && c.status === 'pending');
   const paidPass = state.payments.find((p) => p.customerId === request.customerId && p.status === 'paid' && !p.visitId);
@@ -1976,9 +2015,12 @@ app.get('/api/me/gym-memberships', requireCustomer, (request: AuthenticatedReque
   // same shared function Live Floor uses — no second timer, no stored elapsed.
   const activeVisits: any[] = [];
   const recentVisits: any[] = [];
+  const phone = customerPhoneNumber(request.customerId!);
   for (const gym of gyms) {
     const state = getGymState(gym.id);
-    if (reconcileExpiredMemberships(state.memberships)) saveGymState(gym.id, state);
+    let dirty = phone ? reconcileUnclaimedMembershipsForPhone(state, phone, request.customerId!) : false;
+    if (reconcileExpiredMemberships(state.memberships)) dirty = true;
+    if (dirty) saveGymState(gym.id, state);
     const accessName = (offeringId?: string, customEntry?: boolean) =>
       customEntry ? 'Custom Entry' : (state.offerings.find((o) => o.id === offeringId)?.name || '');
     const open = state.visits.find((v) => v.customerId === request.customerId && !v.checkedOutAt);
@@ -2884,7 +2926,7 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
 });
 
 app.post('/api/otp/request', (request, response) => {
-  const phone = String(request.body?.phone || '').replace(/\D/g, '');
+  const phone = normalizePhone(request.body?.phone);
   if (phone.length !== 10) return response.status(400).json({ error: 'Enter a valid 10-digit mobile number.' });
   const id = randomUUID();
   const code = String(Math.floor(1000 + Math.random() * 9000));
@@ -2906,11 +2948,12 @@ app.post('/api/otp/verify', async (request, response) => {
   }
   db.prepare('UPDATE otp_challenge SET verified_at = ? WHERE id = ?').run(Date.now(), challenge.id);
   const now = Date.now();
-  let account = db.prepare('SELECT id FROM customer_account WHERE phone_number = ?').get(challenge.phone) as { id: string } | undefined;
+  const normalizedPhone = normalizePhone(challenge.phone);
+  let account = db.prepare('SELECT id FROM customer_account WHERE phone_number = ?').get(normalizedPhone) as { id: string } | undefined;
   if (!account) {
     account = { id: randomUUID() };
     db.prepare('INSERT INTO customer_account (id, phone_number, created_at, updated_at) VALUES (?, ?, ?, ?)')
-      .run(account.id, challenge.phone, now, now);
+      .run(account.id, normalizedPhone, now, now);
     db.prepare('INSERT INTO customer_profile (customer_id, created_at, updated_at) VALUES (?, ?, ?)')
       .run(account.id, now, now);
   }
@@ -2918,7 +2961,12 @@ app.post('/api/otp/verify', async (request, response) => {
   db.prepare('INSERT INTO customer_session (token_hash, customer_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
     .run(hashCode(token), account.id, now + 30 * 24 * 60 * 60_000, now);
   await postgresPersistence?.flushNow(['otp_challenge','customer_account','customer_profile','customer_session']);
-  response.json({ verified: true, phone: challenge.phone, token, customerId: account.id });
+  // Identity bridge: this phone number is now proven to belong to this
+  // customerId — reconcile any staff-created Gym memberships waiting on it.
+  // Independent of demo OTP: any future provider that lands here after its
+  // own verification gets the same reconciliation for free.
+  await reconcileGymMembershipsForVerifiedPhone(account.id, normalizedPhone);
+  response.json({ verified: true, phone: normalizedPhone, token, customerId: account.id });
 });
 
 app.get('/api/me/profile', requireCustomer, (request: AuthenticatedRequest, response) => {
