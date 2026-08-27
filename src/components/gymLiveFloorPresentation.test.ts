@@ -49,9 +49,41 @@ test("Live Floor tabs are always rendered, with the required empty-state copy", 
   await t.test("Decline sits alongside Accept on each pending payment card", () => {
     const paymentsTab = source.slice(
       source.indexOf('liveFloorTab === "payments"'),
-      source.indexOf('liveFloorTab === "payments"') + 2500,
+      source.indexOf('liveFloorTab === "payments"') + 5000,
     );
     assert.match(paymentsTab, /openAcceptPayment/);
     assert.match(paymentsTab, /setDeclinePayment/);
+  });
+
+  await t.test("payment cards are driven by the shared paymentCardState resolver", () => {
+    const paymentsTab = source.slice(
+      source.indexOf('liveFloorTab === "payments"'),
+      source.indexOf('liveFloorTab === "payments"') + 5000,
+    );
+    // Cash vs online-paid wording and which actions exist are decided in
+    // shared/gymLiveFloor.ts, never re-derived inline here.
+    assert.match(paymentsTab, /paymentCardState\(p\)/);
+    assert.match(paymentsTab, /card\.canAccept/);
+    assert.match(paymentsTab, /card\.canDecline/);
+    assert.match(paymentsTab, /Confirm Check-In/);
+  });
+
+  await t.test("Inside/Left cards say ACCESS, never PLAN", () => {
+    const insideTab = source.slice(
+      source.indexOf('{liveFloorTab === "inside" && ('),
+      source.indexOf('{liveFloorTab === "waiting" && ('),
+    );
+    assert.match(insideTab, /<dt>Access<\/dt>/);
+    assert.doesNotMatch(insideTab, /<dt>Plan<\/dt>/);
+    // Left rows show a frozen total and no Check Out button.
+    assert.match(insideTab, /<dt>Total duration<\/dt>/);
+    assert.match(insideTab, /\{!left && \(/);
+  });
+
+  await t.test("the Status filter reads the full visits list, not a pre-narrowed one", () => {
+    // The regression this guards: filtering to open visits BEFORE applying the
+    // status filter made "Left" permanently empty.
+    assert.match(source, /filterVisits\(state\.visits/);
+    assert.match(source, /status: status as VisitStatusFilter/);
   });
 });

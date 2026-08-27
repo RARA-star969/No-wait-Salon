@@ -2,7 +2,9 @@ import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, BadgeCheck, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
-import { gymCustomerService, GymMembershipView } from '../services/gymCustomerService';
+import { gymCustomerService, GymMembershipView, type GymVisitActivity } from '../services/gymCustomerService';
+import { formatGymClock, formatGymTimeWithDay, gymVisitDurationLabel } from '../shared/gymTime';
+import { activeAccessHeading } from '../shared/gymLiveFloor';
 
 type Props = {
   mode: 'profile' | 'edit';
@@ -15,6 +17,10 @@ type Props = {
   onLogin: () => void;
   onSaved: (profile: CustomerProfile) => void;
   onLogout: () => void;
+  /** Opens a gym's page (used by the Gym Activity "Upgrade" button, which
+   * deliberately routes to the real access sheet rather than duplicating it
+   * inside Profile). Optional — the button is hidden when unwired. */
+  onOpenGym?: (gymId: string) => void;
 };
 
 const fieldsComplete = (profile: CustomerProfile | null) => profile
@@ -40,7 +46,7 @@ const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; on
   );
 };
 
-export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout }) => {
+export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout, onOpenGym }) => {
   const [form, setForm] = useState({ name: '', email: '', dateOfBirth: '', gender: '', anniversary: '', city: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -49,20 +55,62 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   const [gymMemberships, setGymMemberships] = useState<{ gymId: string; gymName: string; membership: GymMembershipView }[] | null>(null);
   const [gymMembershipsOpen, setGymMembershipsOpen] = useState(false);
   const [gymMembershipsLoading, setGymMembershipsLoading] = useState(false);
+  // Gym Activity. These are the same GymVisit rows the owner's Live Floor
+  // reads; the duration below is derived from their server checkedInAt /
+  // checkedOutAt through the shared helper, so Profile, the Gym page and Live
+  // Floor can never disagree — and nothing here is a second timer.
+  const [gymActive, setGymActive] = useState<GymVisitActivity[]>([]);
+  const [gymRecent, setGymRecent] = useState<GymVisitActivity[]>([]);
+  const [gymCheckoutBusy, setGymCheckoutBusy] = useState('');
+  const [nowTick, setNowTick] = useState(Date.now());
+
+  const loadGymActivity = async () => {
+    try {
+      const data = await gymCustomerService.getMyGymMemberships();
+      setGymMemberships(data.memberships);
+      setGymActive(data.activeVisits || []);
+      setGymRecent(data.recentVisits || []);
+    } catch {
+      setGymMemberships([]);
+      setGymActive([]);
+      setGymRecent([]);
+    }
+  };
+
+  // One lightweight poll while the section is open — reusing the existing
+  // request/polling approach rather than introducing a second realtime
+  // channel. An owner checkout therefore clears this card on the next tick.
+  useEffect(() => {
+    if (!gymMembershipsOpen) return;
+    const timer = setInterval(() => {
+      setNowTick(Date.now());
+      void loadGymActivity();
+    }, 15000);
+    const tick = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => { clearInterval(timer); clearInterval(tick); };
+  }, [gymMembershipsOpen]);
+
+  const checkOutOfGym = async (entry: GymVisitActivity) => {
+    if (gymCheckoutBusy) return;
+    if (!window.confirm(`Are you leaving ${entry.gymName}?`)) return;
+    setGymCheckoutBusy(entry.visit.id);
+    try {
+      await gymCustomerService.selfCheckout(entry.gymId, entry.visit.id);
+      await loadGymActivity();
+    } catch {
+      /* the next poll re-reads the real server state */
+    } finally {
+      setGymCheckoutBusy('');
+    }
+  };
 
   const toggleGymMemberships = async () => {
     if (gymMembershipsOpen) { setGymMembershipsOpen(false); return; }
     setGymMembershipsOpen(true);
     if (gymMemberships) return;
     setGymMembershipsLoading(true);
-    try {
-      const data = await gymCustomerService.getMyGymMemberships();
-      setGymMemberships(data.memberships);
-    } catch {
-      setGymMemberships([]);
-    } finally {
-      setGymMembershipsLoading(false);
-    }
+    await loadGymActivity();
+    setGymMembershipsLoading(false);
   };
 
   useEffect(() => {
@@ -172,8 +220,61 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
           <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Linked to your verified account" />
-          <ProfileRow icon={<Dumbbell />} label="My Memberships" secondary="Gym plans linked to your account" onClick={toggleGymMemberships} />
+          <ProfileRow icon={<Dumbbell />} label="My Memberships & Gym Activity" secondary="Gym plans and visits linked to your account" onClick={toggleGymMemberships} />
         </div>
+        {/* Gym Activity lives inside this one collapsible section so the rest
+            of Profile stays uncluttered. It is only ever populated from real
+            GymVisit rows — an empty account simply says so. */}
+        {gymMembershipsOpen && (gymActive.length > 0 || gymRecent.length > 0) && (
+          <div className="space-y-2 rounded-2xl border border-[#E0E7E6] bg-white p-4">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6F7C7A]">Gym activity</p>
+            {gymActive.map((entry) => (
+              <div key={entry.visit.id} className="rounded-xl border border-[#0F766E]/35 bg-[#F2FAF8] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
+                  <span className="rounded-md bg-[#0F766E] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
+                    {activeAccessHeading(entry.visit)}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] font-semibold text-[#0F766E]">
+                  Currently inside · Since {formatGymClock(entry.visit.checkedInAt)} · {gymVisitDurationLabel(entry.visit, nowTick)}
+                </p>
+                <p className="mt-0.5 text-[11px] text-[#71807E]">{entry.accessName || 'Gym access'}</p>
+                <div className="mt-2.5 flex gap-2">
+                  <button
+                    onClick={() => checkOutOfGym(entry)}
+                    disabled={gymCheckoutBusy === entry.visit.id}
+                    className="flex-1 rounded-lg bg-[#0F766E] py-2 text-[11px] font-bold text-white disabled:opacity-60"
+                  >
+                    {gymCheckoutBusy === entry.visit.id ? 'Checking out…' : 'Check Out'}
+                  </button>
+                  {onOpenGym && (
+                    <button
+                      onClick={() => onOpenGym(entry.gymId)}
+                      className="flex-1 rounded-lg border border-[#0F766E]/40 bg-white py-2 text-[11px] font-bold text-[#0F766E]"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {gymRecent.slice(0, 5).map((entry) => (
+              <div key={entry.visit.id} className="rounded-xl border border-[#E7EDEC] bg-[#FBFCFC] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#4C5F68]">{entry.gymName}</span>
+                  <span className="text-[9px] font-extrabold uppercase tracking-wide text-[#8B9997]">Past visit</span>
+                </div>
+                <p className="mt-1 text-[11px] text-[#71807E]">
+                  {entry.accessName || 'Gym access'} · {formatGymTimeWithDay(entry.visit.checkedInAt, nowTick)} → {formatGymTimeWithDay(entry.visit.checkedOutAt, nowTick)}
+                </p>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#4C5F68]">
+                  Total duration: {gymVisitDurationLabel(entry.visit, nowTick)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
         {gymMembershipsOpen && (
           <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
             {gymMembershipsLoading ? (

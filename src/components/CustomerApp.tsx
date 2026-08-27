@@ -593,6 +593,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         onLogin={onProfileLogin}
         onSaved={(profile) => { onProfileSaved(profile); setScreen('profile'); }}
         onLogout={onProfileLogout}
+        // Gym Activity's "Upgrade" opens the gym's own page, where the real
+        // access/upgrade sheet lives — Profile never duplicates that flow.
+        onOpenGym={(gymId) => {
+          const gym = nearbySalons.find((salon) => salon.id === gymId);
+          if (!gym) return;
+          setSelectedSalon(gym);
+          onQrContextChange(null);
+          setScreen('salon');
+        }}
       />
     );
   }
