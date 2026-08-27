@@ -722,10 +722,10 @@ export default function App() {
 
         {/* Main Workspaces Display */}
         <div
-          className={`grid gap-5 sm:gap-6 flex-1 items-start ${
+          className={`grid gap-5 sm:gap-6 flex-1 ${
             viewMode === 'split'
-              ? 'grid-cols-1 lg:grid-cols-2'
-              : 'grid-cols-1 max-w-xl mx-auto w-full'
+              ? 'grid-cols-1 items-stretch lg:grid-cols-2'
+              : 'grid-cols-1 items-start max-w-xl mx-auto w-full'
           }`}
         >
           {/* Panel 1: Customer Mobile App Window */}
