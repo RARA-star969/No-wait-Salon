@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import {
-  Scissors,
   MapPin,
-  Clock,
   Users,
   ChevronRight,
   ArrowLeft,
@@ -17,7 +15,6 @@ import {
   Volume2,
   Check,
   Sparkles,
-  Star,
   LocateFixed,
   LoaderCircle,
   QrCode,
@@ -30,7 +27,7 @@ import { AddressManagementModal } from './AddressManagementModal';
 import { LocationSelectScreen } from './LocationSelectScreen';
 import { AddAddressScreen } from './AddAddressScreen';
 import { RequestAddressScreen } from './RequestAddressScreen';
-import { CATEGORY_THEME_MAP } from './CustomerHomeComponents';
+import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon } from './CustomerHomeComponents';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
@@ -269,6 +266,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [selectedReservationDay, setSelectedReservationDay] = useState<'today' | 'tomorrow' | 'day3' | 'day4'>('today');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
+  const listingsSectionRef = useRef<HTMLDivElement>(null);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
   // every second (which previously restarted the QR camera).
@@ -475,6 +473,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   });
   const activeCategoryObj = mainCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
 
+  // Live per-category counts derived from the same nearby-salons data already
+  // loaded for the list — no invented backend field, just a client-side tally.
+  const categoriesWithLiveCounts = mainCategories.map((cat) => ({
+    ...cat,
+    businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
+  }));
+
   // The single authoritative pre-Home sequence: landing, then permissions
   // (location, notifications) — only then is the guest-accessible Home
   // reachable. Identity (OTP + profile) is deliberately not part of this
@@ -656,11 +661,23 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     <div ref={homeScrollRef} className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className={`min-h-full transition-colors duration-500 animate-in fade-in ${
+        <div id="customer-home-screen" className={`relative min-h-full overflow-hidden transition-colors duration-500 animate-in fade-in ${
           (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).joinedBg
         }`}>
+          {/* Futuristic ambient glow backdrop */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div
+              className="absolute -top-24 -left-16 h-72 w-72 rounded-full blur-[90px] opacity-40 transition-colors duration-700"
+              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).primary }}
+            />
+            <div
+              className="absolute top-64 -right-20 h-80 w-80 rounded-full blur-[100px] opacity-25 transition-colors duration-700"
+              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).accent }}
+            />
+          </div>
+
           {/* Header */}
-          <div className="border-b border-slate-200/80 bg-white/90 backdrop-blur-md px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
+          <div className="relative border-b border-white/[0.06] bg-black/20 backdrop-blur-xl px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
             <div className="flex items-center justify-between gap-3">
               {/* LEFT: Address Title + Short Address */}
               <button
@@ -669,11 +686,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
                 aria-label="Open address management"
               >
-                <div className="flex items-center gap-1.5 text-slate-900">
-                  <MapPin className="h-4 w-4 shrink-0 text-teal-600" />
+                <div className="flex items-center gap-1.5 text-white">
+                  <MapPin className="h-4 w-4 shrink-0 text-cyan-300" />
                   <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
                 </div>
-                <p className="truncate text-[11px] font-semibold text-slate-500 max-w-[220px] sm:max-w-xs">
+                <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
                   {locationLabel || 'Indiranagar, Bengaluru'}
                 </p>
               </button>
@@ -699,17 +716,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
-          <div className="space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
+          <div className="relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
 
-          {/* Sculpted Connected Category Tabs */}
+          {/* Premium floating category deck */}
           <TopCategoryTabs
-            categories={mainCategories}
+            categories={categoriesWithLiveCounts}
             selectedCategoryId={activeCategoryId}
             onSelectCategory={setActiveCategoryId}
           />
 
-          {/* Dynamic Theme Banner */}
-          <PromotionalBanner category={activeCategoryObj} />
+          {/* Premium hero / featured card — adapts to the selected category */}
+          <PromotionalBanner
+            category={activeCategoryObj}
+            onCtaClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          />
 
           {/* Full Address Management Modal */}
           <AddressManagementModal
@@ -729,17 +749,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="active-queue-banner"
               onClick={() => setScreen('tracking')}
-              className="flex cursor-pointer items-center justify-between rounded-2xl border border-[#B9DAD6] bg-[#EAF6F4] p-4 text-[#164E49] transition hover:bg-[#E1F1EF]"
+              className="flex cursor-pointer items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/[0.08] p-4 text-cyan-50 backdrop-blur-md transition hover:bg-cyan-400/[0.12]"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white font-bold text-[#0F766E] ring-1 ring-[#C9E3E0]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 font-bold text-cyan-200 ring-1 ring-cyan-300/30">
                   {userEntry.status === 'Called' ? '!' : userEntry.status === 'Serving' ? '✂' : '#'}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#4F7F7A]">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/80">
                     Active Queue Status
                   </div>
-                  <div className="text-sm font-bold text-[#164E49]">
+                  <div className="text-sm font-bold text-white">
                     {callPhase(userEntry, nowTick) === 'called'
                       ? `Your turn! Arrive within ${formatCountdown(remainingMs(userEntry, nowTick))}`
                       : callPhase(userEntry, nowTick) === 'call_again'
@@ -750,56 +770,56 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   </div>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-[#0F766E]" />
+              <ChevronRight className="h-5 w-5 text-cyan-200" />
             </div>
           )}
 
-          <div>
+          <div ref={listingsSectionRef}>
             <div className="mb-3 flex items-end justify-between gap-4 px-1">
               <div>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]">
+                <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                   {activeCategoryObj.name} Businesses
                 </span>
-                <h2 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-[#17201F]">
+                <h2 className="mt-0.5 text-xl font-bold tracking-[-0.025em] text-white">
                   {activeCategoryId === 'salon' ? 'Choose your chair' : `Explore ${activeCategoryObj.name}`}
                 </h2>
               </div>
-              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-[#0F766E]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
+              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-cyan-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
                 Live now
               </span>
             </div>
 
             <div className="space-y-3">
               {nearbySalons.length === 0 && isRestoringLocation && (
-                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
-                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-[#0F766E]" />
-                  <p className="mt-3 text-xs leading-5 text-[#788582]">Refreshing businesses near {locationLabel || 'you'}…</p>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center">
+                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-cyan-300" />
+                  <p className="mt-3 text-xs leading-5 text-slate-400">Refreshing businesses near {locationLabel || 'you'}…</p>
                 </div>
               )}
 
               {nearbySalons.length === 0 && !isRestoringLocation && (
-                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center">
-                  <MapPin className="mx-auto h-6 w-6 text-[#7EA7A2]" />
-                  <h3 className="mt-3 text-sm font-bold text-[#25302F]">No businesses available in your area yet.</h3>
-                  <p className="mt-1 text-xs leading-5 text-[#788582]">Try another city or area as we onboard more partners.</p>
-                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-[#0F766E]">Change location</button>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center">
+                  <MapPin className="mx-auto h-6 w-6 text-slate-500" />
+                  <h3 className="mt-3 text-sm font-bold text-white">No businesses available in your area yet.</h3>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">Try another city or area as we onboard more partners.</p>
+                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-cyan-300">Change location</button>
                 </div>
               )}
 
               {nearbySalons.length > 0 && salonSearch.trim() !== '' && categoryFilteredSalons.length === 0 && (
-                <div className="rounded-2xl border border-[#DCE5E3] bg-white px-5 py-8 text-center space-y-2">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#F0F6F5] text-[#0F766E]">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center space-y-2">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06] text-cyan-300">
                     <Search className="h-6 w-6" />
                   </div>
-                  <h3 className="text-sm font-bold text-[#25302F]">No matching {activeCategoryObj.name} listings found</h3>
-                  <p className="text-xs leading-5 text-[#788582] max-w-xs mx-auto">
+                  <h3 className="text-sm font-bold text-white">No matching {activeCategoryObj.name} listings found</h3>
+                  <p className="text-xs leading-5 text-slate-400 max-w-xs mx-auto">
                     No results found for &ldquo;{salonSearch}&rdquo; under {activeCategoryObj.name}. Try another term or switch categories.
                   </p>
                   <button
                     type="button"
                     onClick={() => setSalonSearch('')}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[#EAF5F3] px-4 py-2 text-xs font-bold text-[#0F766E] hover:bg-[#DDF0ED] transition"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-xs font-bold text-cyan-200 hover:bg-white/[0.14] transition"
                   >
                     Clear search
                   </button>
@@ -815,63 +835,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
               {categoryFilteredSalons.map((salon) => {
                 const isSelected = selectedSalon.id === salon.id;
-                const salonWait = salon.liveWaitMinutes === 0 ? 'No wait' : `${salon.liveWaitMinutes} min`;
+                const isNoWait = salon.liveWaitMinutes === 0;
+                const salonWait = isNoWait ? 'No wait' : `${salon.liveWaitMinutes} min`;
+                const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
                 return (
-                  <button
-                    key={salon.id}
-                    id={`salon-item-${salon.id}`}
-                    onClick={() => {
-                      setSelectedSalon(salon);
-                      onQrContextChange(null);
-                      setScreen('salon');
-                    }}
-                    className={`group w-full overflow-hidden rounded-2xl border bg-white text-left transition-all duration-200 ${
-                      isSelected
-                        ? 'border-[#62AAA3] ring-1 ring-[#62AAA3]'
-                        : 'border-[#E1E7E6] hover:border-[#9CCBC6]'
-                    }`}
-                  >
-                    <div className="flex items-start gap-3.5 p-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E8F5F3] text-[#0F766E]">
-                        <Scissors className="h-5 w-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <b className="truncate text-[15px] font-bold text-[#202A29]">
-                            {salon.name}
-                          </b>
-                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-[#A1ADAB] transition group-hover:translate-x-0.5 group-hover:text-[#0F766E]" />
-                        </div>
-                        <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-[#77746B]">
-                          <span className="flex items-center gap-1 text-[#475351]">
-                            <Star className="h-3 w-3 fill-[#5A8F89] text-[#5A8F89]" />
-                            {salon.rating}
-                          </span>
-                          <span className="text-[#C7C3B8]">•</span>
-                          <span>{salon.distanceKm} km</span>
-                          <span className="text-[#C7C3B8]">•</span>
-                          <span>{salon.travelTimeMinutes} min away</span>
-                        </div>
-                        <p className="mt-2 truncate text-[11px] text-[#969289]">
-                          {salon.address}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-[#E8EDEC] bg-[#FBFCFC] px-4 py-2.5">
-                      <span className="flex items-center gap-1.5 text-[10px] font-semibold text-[#77746B]">
-                        <Clock className="h-3.5 w-3.5 text-[#0F766E]" />
-                        Current wait
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {isSelected && (
-                          <span className="rounded-full bg-[#E6F4F2] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">
-                            Selected
-                          </span>
-                        )}
-                        <span className="text-xs font-bold text-[#0F766E]">{salonWait}</span>
-                      </div>
-                    </div>
-                  </button>
+                  <div key={salon.id} id={`salon-item-${salon.id}`}>
+                    <PremiumBusinessCard
+                      salon={salon}
+                      theme={theme}
+                      icon={getCategoryIcon(activeCategoryObj.iconName)}
+                      isSelected={isSelected}
+                      waitLabel={salonWait}
+                      isNoWait={isNoWait}
+                      onClick={() => {
+                        setSelectedSalon(salon);
+                        onQrContextChange(null);
+                        setScreen('salon');
+                      }}
+                    />
+                  </div>
                 );
               })}
             </div>

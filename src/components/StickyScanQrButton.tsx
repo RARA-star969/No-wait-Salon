@@ -73,25 +73,35 @@ export const StickyScanQrButton: React.FC<Props> = ({ scrollRef, onScan }) => {
       id="sticky-scan-qr"
       className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[60] flex justify-center px-4"
     >
-      <button
-        type="button"
-        onClick={onScan}
-        aria-label="Scan QR"
-        aria-expanded={expanded}
-        className={`pointer-events-auto flex h-14 items-center justify-center gap-2.5 overflow-hidden rounded-full bg-[#0F766E] text-white shadow-[0_10px_28px_-6px_rgba(15,118,110,0.55)] ring-1 ring-black/5 transition-[width,padding] duration-300 ease-out active:scale-95 ${
-          expanded ? 'w-[10.5rem] px-5' : 'w-14 px-0'
-        }`}
-      >
-        <QrCode className="h-[22px] w-[22px] shrink-0" />
-        <span
-          aria-hidden={!expanded}
-          className={`whitespace-nowrap text-sm font-bold tracking-[-0.01em] transition-opacity duration-200 ${
-            expanded ? 'opacity-100 delay-75' : 'w-0 opacity-0'
+      <div className="relative">
+        {/* Neon glow halo behind the capsule */}
+        <div
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 -m-2 rounded-full bg-cyan-400/40 blur-xl transition-opacity duration-300 ${
+            expanded ? 'opacity-100' : 'opacity-70'
+          }`}
+        />
+        <button
+          type="button"
+          onClick={onScan}
+          aria-label="Scan QR"
+          aria-expanded={expanded}
+          className={`pointer-events-auto relative flex h-14 items-center justify-center gap-2.5 overflow-hidden rounded-full border border-white/25 bg-gradient-to-br from-cyan-400 via-teal-500 to-cyan-600 text-slate-950 shadow-[0_12px_32px_-6px_rgba(34,211,238,0.65)] ring-2 ring-cyan-300/30 transition-[width,padding] duration-300 ease-out active:scale-95 ${
+            expanded ? 'w-[11rem] px-5' : 'w-14 px-0'
           }`}
         >
-          Scan QR
-        </span>
-      </button>
+          <span className="pointer-events-none absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/40 blur-[2px]" />
+          <QrCode className="relative h-[22px] w-[22px] shrink-0 drop-shadow-sm" />
+          <span
+            aria-hidden={!expanded}
+            className={`relative whitespace-nowrap text-sm font-black tracking-[-0.01em] transition-opacity duration-200 ${
+              expanded ? 'opacity-100 delay-75' : 'w-0 opacity-0'
+            }`}
+          >
+            Scan QR
+          </span>
+        </button>
+      </div>
     </div>
   );
 };
