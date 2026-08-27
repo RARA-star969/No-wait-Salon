@@ -52,6 +52,17 @@ export type GymQueueEntry = {
   customerId?: string;
   arrivedAt: number;
   status: string;
+  // Set only when this queue entry was created by the capacity-full fallback
+  // on Add Visitor / Accept Payment (never by the plain "Add to entry queue"
+  // flow): a payment was already accepted and, for memberships, the
+  // membership already created — carried here so admitting this entry later
+  // produces the same real GymVisit that would have been created at
+  // check-in time, instead of a bare walk-in row.
+  offeringId?: string;
+  membershipId?: string;
+  paymentId?: string;
+  purpose?: "member" | "visitor";
+  entryMethod?: "qr" | "staff_manual";
 };
 
 // --- Membership, Offering & Payment domain ---------------------------------
@@ -502,4 +513,289 @@ export function resolveConsistency(
   else status = "low_activity";
 
   return { status, last30DayVisits, avgPerWeek };
+}
+
+// --- Overview (Gym) — real-data-only derivation --------------------------
+// Every function here reads straight off GymState (visits/payments/
+// memberships/etc.) and nothing else: no placeholders, no synthetic trend
+// lines. Kept as pure functions (rather than inline JSX) so the Overview
+// numbers can be unit-tested without spinning up the dashboard component.
+
+/** One row per customer that currently has a real membership relationship
+ * with this gym — the same "current membership" rule used everywhere else
+ * (`currentMembershipFor`), applied once here so every Overview stat agrees
+ * with the Members list on who counts. */
+export function currentMemberships(
+  memberships: GymMembership[],
+): GymMembership[] {
+  return Array.from(new Set(memberships.map((m) => m.customerId)))
+    .map((customerId) => currentMembershipFor(memberships, customerId))
+    .filter((m): m is GymMembership => Boolean(m));
+}
+
+export type InsideNowSummary = { total: number; members: number; visitors: number };
+
+/** Inside Now — real currently-active GymVisits only, split by purpose.
+ * Deliberately independent of the manual `currentOccupancy` counter (a
+ * legacy quick +/- control): Overview shows only what real visit rows say. */
+export function overviewInsideNow(visits: GymVisit[]): InsideNowSummary {
+  const inside = visits.filter((v) => !v.checkedOutAt);
+  const members = inside.filter((v) => v.purpose === "member").length;
+  return { total: inside.length, members, visitors: inside.length - members };
+}
+
+export type CheckinsTodaySummary = { today: number; yesterday?: number };
+
+/** Real check-in event counts for today, with yesterday's count included
+ * only when the recorded event history actually reaches back that far —
+ * never a fabricated "0" or omitted comparison dressed up as data. */
+export function overviewCheckinsToday(
+  events: GymEvent[],
+  historyStartedAt: number,
+  now = Date.now(),
+): CheckinsTodaySummary {
+  const isCheckin = (e: GymEvent) => e.category === "checkins" && e.action === "checkin";
+  const today = events.filter((e) => isCheckin(e) && dayKey(e.at) === dayKey(now)).length;
+  const yesterdayAt = now - DAY_MS;
+  const yesterdayStart = new Date(yesterdayAt);
+  yesterdayStart.setHours(0, 0, 0, 0);
+  if (historyStartedAt > +yesterdayStart) return { today };
+  const yesterday = events.filter((e) => isCheckin(e) && dayKey(e.at) === dayKey(yesterdayAt)).length;
+  return { today, yesterday };
+}
+
+export type CollectionSummary = { paidToday: number; cashPendingTotal: number };
+
+/** Today's real collected amount (paid payments accepted today) kept
+ * strictly separate from real pending cash — the two are never merged into
+ * a single headline number. */
+export function overviewCollectionToday(
+  payments: GymPayment[],
+  now = Date.now(),
+): CollectionSummary {
+  const today = dayKey(now);
+  const paidToday = payments
+    .filter((p) => p.status === "paid" && p.acceptedAt && dayKey(p.acceptedAt) === today)
+    .reduce((sum, p) => sum + p.amountInr, 0);
+  const cashPendingTotal = payments
+    .filter((p) => p.status === "pending" && p.method === "cash")
+    .reduce((sum, p) => sum + p.amountInr, 0);
+  return { paidToday, cashPendingTotal };
+}
+
+/** Real memberships expiring within the next 7 days (or today) — same
+ * threshold `membershipDisplayStatus` already uses for "expiring soon". */
+export function overviewEndingSoonCount(
+  memberships: GymMembership[],
+  now = Date.now(),
+): number {
+  return currentMemberships(memberships).filter((m) => {
+    const status = membershipDisplayStatus(m, now);
+    return status === "expiring_soon" || status === "expires_today";
+  }).length;
+}
+
+export type MembersSummary = {
+  active: number;
+  newThisMonth: number;
+  expired: number;
+  endingSoon: number;
+};
+
+export function overviewMembersSummary(
+  memberships: GymMembership[],
+  now = Date.now(),
+): MembersSummary {
+  const current = currentMemberships(memberships);
+  const thisMonth = new Date(now).toISOString().slice(0, 7);
+  let active = 0,
+    newThisMonth = 0,
+    expired = 0,
+    endingSoon = 0;
+  for (const m of current) {
+    const status = membershipDisplayStatus(m, now);
+    if (status === "expired") expired++;
+    else {
+      active++;
+      if (status === "expiring_soon" || status === "expires_today") endingSoon++;
+    }
+    if (m.joinedDate.slice(0, 7) === thisMonth) newThisMonth++;
+  }
+  return { active, newThisMonth, expired, endingSoon };
+}
+
+export type MemberActivityBucket = "very_active" | "regular" | "not_visiting";
+export type MemberActivitySummary = Record<MemberActivityBucket, number>;
+
+/** Buckets real members into the same three plain-language groups shown on
+ * Overview and Members — built directly on `resolveConsistency`, the one
+ * consistency engine in this codebase, rather than a second copy of the
+ * thresholds. `low_activity` and `at_risk` both read as "not visiting
+ * recently" here; nothing here is ever labeled "retention". */
+export function overviewMemberActivity(
+  memberships: GymMembership[],
+  visits: GymVisit[],
+  now = Date.now(),
+): MemberActivitySummary {
+  const summary: MemberActivitySummary = { very_active: 0, regular: 0, not_visiting: 0 };
+  for (const m of currentMemberships(memberships)) {
+    const { status } = resolveConsistency(visits, m.customerId, now);
+    if (status === "highly_consistent") summary.very_active++;
+    else if (status === "regular") summary.regular++;
+    else summary.not_visiting++;
+  }
+  return summary;
+}
+
+export type MonthActivitySummary = {
+  visitsThisMonth: number;
+  vsLastMonthPct?: number;
+  bestDay?: string;
+  busiestTime?: string;
+};
+
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
+// Enough real check-ins for a day-of-week / time-of-day breakdown to mean
+// something, rather than one or two visits masquerading as a pattern.
+const MIN_VISITS_FOR_PATTERN = 20;
+
+function timeOfDayBucket(hour: number): string {
+  if (hour < 6) return "Early morning (12–6am)";
+  if (hour < 12) return "Morning (6am–12pm)";
+  if (hour < 17) return "Afternoon (12–5pm)";
+  if (hour < 21) return "Evening (5–9pm)";
+  return "Night (9pm–12am)";
+}
+
+/** This month's real visit total, with a month-over-month percentage shown
+ * only when recorded history actually reaches into last month, and a
+ * best-day / busiest-time pattern shown only once there's enough real
+ * history to compute one honestly. */
+export function overviewMonthActivity(
+  visits: GymVisit[],
+  historyStartedAt: number,
+  now = Date.now(),
+): MonthActivitySummary {
+  const monthKey = (t: number) => new Date(t).toISOString().slice(0, 7);
+  const thisMonth = monthKey(now);
+  const lastMonthAnchor = new Date(now);
+  lastMonthAnchor.setDate(1);
+  lastMonthAnchor.setMonth(lastMonthAnchor.getMonth() - 1);
+  const lastMonth = monthKey(+lastMonthAnchor);
+  const lastMonthStart = new Date(
+    lastMonthAnchor.getFullYear(),
+    lastMonthAnchor.getMonth(),
+    1,
+  ).getTime();
+
+  const visitsThisMonth = visits.filter((v) => monthKey(v.checkedInAt) === thisMonth).length;
+  const summary: MonthActivitySummary = { visitsThisMonth };
+
+  if (historyStartedAt <= lastMonthStart) {
+    const visitsLastMonth = visits.filter((v) => monthKey(v.checkedInAt) === lastMonth).length;
+    if (visitsLastMonth > 0) {
+      summary.vsLastMonthPct =
+        Math.round(((visitsThisMonth - visitsLastMonth) / visitsLastMonth) * 1000) / 10;
+    }
+  }
+
+  if (visits.length >= MIN_VISITS_FOR_PATTERN) {
+    const dayCounts = new Map<string, number>();
+    const timeCounts = new Map<string, number>();
+    for (const v of visits) {
+      const d = new Date(v.checkedInAt);
+      const dayName = WEEKDAY_NAMES[d.getDay()];
+      dayCounts.set(dayName, (dayCounts.get(dayName) || 0) + 1);
+      const bucket = timeOfDayBucket(d.getHours());
+      timeCounts.set(bucket, (timeCounts.get(bucket) || 0) + 1);
+    }
+    summary.bestDay = [...dayCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    summary.busiestTime = [...timeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+  }
+
+  return summary;
+}
+
+export type NeedsAttentionTarget =
+  | "live_floor_payments"
+  | "members"
+  | "members_expiring"
+  | "members_not_visiting"
+  | "live_floor_waiting";
+
+export type NeedsAttentionItem = {
+  id: string;
+  label: string;
+  target: NeedsAttentionTarget;
+  count: number;
+};
+
+/** Compact "Needs Attention" list — every item is generated only when the
+ * underlying real count is greater than zero; nothing is fabricated just to
+ * have content, and an empty result means the caller should render
+ * "Everything looks good" instead. */
+export function overviewNeedsAttention(
+  state: Pick<
+    GymState,
+    "payments" | "membershipClaims" | "memberships" | "visits" | "entryQueue"
+  >,
+  now = Date.now(),
+): NeedsAttentionItem[] {
+  const items: NeedsAttentionItem[] = [];
+  const cashPending = state.payments.filter(
+    (p) => p.status === "pending" && p.method === "cash",
+  ).length;
+  if (cashPending > 0)
+    items.push({
+      id: "cash_pending",
+      label: `${cashPending} cash payment${cashPending === 1 ? "" : "s"} waiting`,
+      target: "live_floor_payments",
+      count: cashPending,
+    });
+
+  const approvalsWaiting = state.membershipClaims.filter((c) => c.status === "pending").length;
+  if (approvalsWaiting > 0)
+    items.push({
+      id: "approvals_waiting",
+      label: `${approvalsWaiting} membership approval${approvalsWaiting === 1 ? "" : "s"} waiting`,
+      target: "members",
+      count: approvalsWaiting,
+    });
+
+  const endingSoon = overviewEndingSoonCount(state.memberships, now);
+  if (endingSoon > 0)
+    items.push({
+      id: "ending_soon",
+      label: `${endingSoon} membership${endingSoon === 1 ? "" : "s"} ending this week`,
+      target: "members_expiring",
+      count: endingSoon,
+    });
+
+  const notVisiting = overviewMemberActivity(state.memberships, state.visits, now).not_visiting;
+  if (notVisiting > 0)
+    items.push({
+      id: "not_visiting",
+      label: `${notVisiting} member${notVisiting === 1 ? "" : "s"} not visiting recently`,
+      target: "members_not_visiting",
+      count: notVisiting,
+    });
+
+  const waiting = state.entryQueue.filter((q) => q.status === "Waiting").length;
+  if (waiting > 0)
+    items.push({
+      id: "waiting_entry",
+      label: `${waiting} ${waiting === 1 ? "person" : "people"} waiting for entry`,
+      target: "live_floor_waiting",
+      count: waiting,
+    });
+
+  return items;
 }

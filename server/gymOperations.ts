@@ -550,12 +550,27 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             )
               throw new Error("Membership is paused.");
             s.currentOccupancy++;
-            s.visits.unshift({
+            const admittedVisit = {
               id: randomUUID(),
               name: q.name,
               memberId: q.memberId,
               checkedInAt: Date.now(),
-            });
+              customerId: q.customerId,
+              offeringId: q.offeringId,
+              membershipId: q.membershipId,
+              paymentId: q.paymentId,
+              purpose: q.purpose,
+              entryMethod: q.entryMethod,
+              checkedInBy: session.name,
+            };
+            s.visits.unshift(admittedVisit);
+            // Entries created by the capacity-full Add Visitor / Accept
+            // Payment fallback already have a paid payment — link it to the
+            // visit it was actually waiting for, same as the direct path.
+            if (q.paymentId) {
+              const linked = s.payments.find((p) => p.id === q.paymentId);
+              if (linked) linked.visitId = admittedVisit.id;
+            }
             gymEvent(s, "checkins", "checkin", q.name, session.name);
           }
           q.status = b.action === "admit" ? "Admitted" : "Removed";
@@ -819,10 +834,6 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           gymEvent(s, "members", "claim_approved", claim.name, session.name);
         }
       } else if (kind === "add_visitor" || kind === "accept_payment") {
-        if (s.currentOccupancy >= s.maxCapacity)
-          throw new Error(
-            "Gym is at maximum capacity. Add this visitor to the entry queue instead.",
-          );
         let payment: (typeof s.payments)[number];
         let offering: GymOffering;
         if (kind === "accept_payment") {
@@ -886,30 +897,63 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           membershipId = membership.id;
           payment.membershipId = membershipId;
         }
-        const visit = {
-          id: randomUUID(),
-          name: payment.customerName,
-          checkedInAt: Date.now(),
-          customerId: payment.customerId,
-          offeringId: offering.id,
-          membershipId,
-          paymentId: payment.id,
-          purpose: (offering.type === "membership" ? "member" : "visitor") as
-            | "member"
-            | "visitor",
-          entryMethod: "staff_manual" as const,
-          checkedInBy: session.name,
-        };
-        s.visits.unshift(visit);
-        payment.visitId = visit.id;
-        gymEvent(
-          s,
-          "checkins",
-          "checkin",
-          payment.customerName,
-          session.name,
-          {},
-        );
+        const purpose = (offering.type === "membership" ? "member" : "visitor") as
+          | "member"
+          | "visitor";
+        // Gym is full right now: route into the real Waiting queue instead of
+        // over-capacity checking them in, or failing the payment that was
+        // just collected. Reuses the same GymQueueEntry mechanism "Add to
+        // entry queue" uses, carrying the payment/offering/membership
+        // through so admitting this entry later produces the same check-in
+        // it would have made if there had been room.
+        if (s.currentOccupancy >= s.maxCapacity) {
+          const alreadyQueued =
+            !!payment.customerId &&
+            (s.entryQueue.some(
+              (q) => q.status === "Waiting" && q.customerId === payment.customerId,
+            ) ||
+              s.visits.some(
+                (v) => !v.checkedOutAt && v.customerId === payment.customerId,
+              ));
+          if (!alreadyQueued) {
+            s.entryQueue.push({
+              id: randomUUID(),
+              name: payment.customerName,
+              customerId: payment.customerId,
+              offeringId: offering.id,
+              membershipId,
+              paymentId: payment.id,
+              purpose,
+              entryMethod: "staff_manual",
+              arrivedAt: Date.now(),
+              status: "Waiting",
+            });
+            gymEvent(s, "queue", "joined", payment.customerName, session.name);
+          }
+        } else {
+          const visit = {
+            id: randomUUID(),
+            name: payment.customerName,
+            checkedInAt: Date.now(),
+            customerId: payment.customerId,
+            offeringId: offering.id,
+            membershipId,
+            paymentId: payment.id,
+            purpose,
+            entryMethod: "staff_manual" as const,
+            checkedInBy: session.name,
+          };
+          s.visits.unshift(visit);
+          payment.visitId = visit.id;
+          gymEvent(
+            s,
+            "checkins",
+            "checkin",
+            payment.customerName,
+            session.name,
+            {},
+          );
+        }
       } else throw new Error("Unknown operation.");
       await commit(res, s);
     },

@@ -14,7 +14,6 @@ import {
   LogOut,
   Megaphone,
   Menu,
-  Minus,
   Plus,
   RefreshCw,
   Search,
@@ -47,17 +46,24 @@ import {
   daysRemaining,
   membershipDisplayStatus,
   resolveConsistency,
+  overviewInsideNow,
+  overviewCheckinsToday,
+  overviewCollectionToday,
+  overviewEndingSoonCount,
+  overviewMembersSummary,
+  overviewMemberActivity,
+  overviewMonthActivity,
+  overviewNeedsAttention,
+  type NeedsAttentionTarget,
 } from "../shared/gymBusiness";
 import {
   Badge,
-  CampaignMetrics,
   CampaignsPanel,
   Empty,
   FormDialog,
   Panel,
   ReportsPanel,
   dateTime,
-  localDay,
   localInput,
   type FormSpec,
 } from "./GymBusinessPanels";
@@ -127,105 +133,6 @@ const moduleCopy: Record<string, [string, string]> = {
   settings: ["Gym settings", "Operational controls for this business only."],
 };
 
-function OccupancyTrend({ state }: { state: GymState }) {
-  const points = state.events.filter(
-    (e) =>
-      localDay(new Date(e.at)) === localDay() &&
-      ["occupancy", "checkins"].includes(e.category),
-  );
-  const max = Math.max(state.maxCapacity, ...points.map((e) => e.capacity), 1);
-  const first = points[0]?.at || Date.now();
-  const last = Math.max(points.at(-1)?.at || first, first + 1);
-  const xy = points
-    .map(
-      (e) =>
-        `${32 + ((e.at - first) / (last - first)) * 536},${150 - (e.occupancy / max) * 115}`,
-    )
-    .join(" ");
-  return (
-    <>
-      {points.length ? (
-        <>
-          <svg
-            className="gym-trend"
-            viewBox="0 0 600 180"
-            role="img"
-            aria-label={`Today's recorded occupancy: ${points.length} readings, peak ${Math.max(...points.map((e) => e.occupancy))}. Current occupancy ${state.currentOccupancy} of ${state.maxCapacity}.`}
-          >
-            <line
-              x1="32"
-              x2="568"
-              y1="35"
-              y2="35"
-              stroke="#a7b7bd"
-              strokeDasharray="5 5"
-            />
-            <line x1="32" x2="568" y1="150" y2="150" stroke="#e5edef" />
-            <text x="4" y="39" fill="#71818a" fontSize="11">
-              {max}
-            </text>
-            <text x="12" y="154" fill="#71818a" fontSize="11">
-              0
-            </text>
-            <polyline
-              points={xy}
-              fill="none"
-              stroke="#07898a"
-              strokeWidth="3"
-              strokeLinejoin="round"
-            />
-            {points.length === 1 && (
-              <circle
-                cx="32"
-                cy={150 - (points[0].occupancy / max) * 115}
-                r="4"
-                fill="#07898a"
-              />
-            )}
-            <text x="32" y="173" fill="#71818a" fontSize="11">
-              {new Date(first).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </text>
-            <text x="568" y="173" textAnchor="end" fill="#71818a" fontSize="11">
-              {new Date(last).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </text>
-          </svg>
-          <div className="gym-trend-summary">
-            <div>
-              <small>Peak recorded today</small>
-              <strong>
-                {Math.max(...points.map((e) => e.occupancy))}{" "}
-                <span>inside</span>
-              </strong>
-            </div>
-            <div>
-              <small>Current utilization</small>
-              <strong>
-                {Math.round((state.currentOccupancy / state.maxCapacity) * 100)}
-                <span>%</span>
-              </strong>
-            </div>
-          </div>
-        </>
-      ) : (
-        <Empty>
-          <Activity size={26} />
-          No occupancy history yet today. Check-ins and capacity updates will
-          draw the trend.
-        </Empty>
-      )}
-      <p className="gym-footnote">
-        Event readings from this device’s calendar day; no estimated or
-        backfilled history.
-      </p>
-    </>
-  );
-}
 // Reads the same Admin-provisioned business entry QR (gymStaffService ->
 // GET /api/gym/:gymId/entry-qr -> ensureBusinessQr()) — never generates a
 // second token client- or server-side. Owner-only regeneration is
@@ -350,7 +257,13 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const [status, setStatus] = useState("All");
   const [membershipQuery, setMembershipQuery] = useState("");
   const [membershipFilter, setMembershipFilter] = useState<
-    "all" | "highly_consistent" | "regular" | "low_activity" | "at_risk" | "expiring"
+    | "all"
+    | "highly_consistent"
+    | "regular"
+    | "low_activity"
+    | "at_risk"
+    | "not_visiting"
+    | "expiring"
   >("all");
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const navigationRef = useRef<HTMLElement>(null);
@@ -448,6 +361,24 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     setNavOpen(false);
     setQuery("");
     setStatus("All");
+  };
+  // Overview's KPI cards / Needs Attention items never render another
+  // module's content inline — they only jump to it, pre-filtered where that
+  // filter already exists (Members) or to the matching Live Floor tab.
+  const goToMembers = (filter: typeof membershipFilter = "all") => {
+    setMembershipFilter(filter);
+    navigate("members");
+  };
+  const goToLiveFloorTab = (tab: typeof liveFloorTab) => {
+    setLiveFloorTab(tab);
+    navigate("live_floor");
+  };
+  const goToNeedsAttention = (target: NeedsAttentionTarget) => {
+    if (target === "live_floor_payments") goToLiveFloorTab("payments");
+    else if (target === "live_floor_waiting") goToLiveFloorTab("waiting");
+    else if (target === "members_expiring") goToMembers("expiring");
+    else if (target === "members_not_visiting") goToMembers("not_visiting");
+    else goToMembers("all");
   };
   const mutate = async (
     work: () => Promise<{ state: GymState }>,
@@ -859,12 +790,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         <ChevronRight size={14} />
       </button>
     ) : null;
-  const todayClasses =
-    state?.classesToday
-      .filter(
-        (c) => c.startsAt && localDay(new Date(c.startsAt)) === localDay(),
-      )
-      .sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!)) || [];
   const trackedInside =
     state?.visits.filter((v) => !v.checkedOutAt).length || 0;
   const insideMembersCount =
@@ -884,135 +809,24 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         )
         .filter((m): m is GymMembership => Boolean(m))
     : [];
-  const metrics = state && (
-    <div className="gym-metrics">
-      {[
-        {
-          title: "Inside now",
-          value: state.currentOccupancy,
-          sub: trackedInside
-            ? `${insideMembersCount} members · ${insideVisitorsCount} visitors`
-            : `of ${state.maxCapacity} capacity`,
-          icon: Users,
-          target: "live_floor",
-          action: "Open Live Floor",
-        },
-        {
-          title: "Max capacity",
-          value: state.maxCapacity,
-          sub: "people on the floor",
-          icon: Activity,
-          target: "live_floor",
-          action: "Edit capacity",
-        },
-        {
-          title: "Available trainers",
-          value: state.availableTrainersCount,
-          sub: `${state.trainers.length} on the trainer roster`,
-          icon: UserCheck,
-          target: "trainers",
-          action: "View trainers",
-        },
-        {
-          title:
-            role === "trainer"
-              ? "Your active PT sessions"
-              : "Active PT sessions",
-          value: state.ptBookings.filter((p) => p.status === "In Progress")
-            .length,
-          sub: "in progress right now",
-          icon: Dumbbell,
-          target: "pt_bookings",
-          action: "View PT bookings",
-        },
-      ].map((m, i) => (
-        <section
-          className={`gym-metric ${i === 0 ? "featured" : ""}`}
-          key={m.title}
-        >
-          <div className="gym-metric-label">
-            {m.title}
-            <m.icon size={17} />
-          </div>
-          <strong>{m.value}</strong>
-          <small>{m.sub}</small>
-          {i === 0 && operator ? (
-            <div className="gym-counter">
-              <button
-                aria-label="Quick anonymous / untracked check-out"
-                disabled={
-                  busy ||
-                  !state.currentOccupancy ||
-                  (state.currentOccupancy <= trackedInside &&
-                    !state.visits.some(
-                      (v) =>
-                        !v.checkedOutAt && !v.memberId && v.name === "Walk-in",
-                    ))
-                }
-                onClick={() =>
-                  action(
-                    () => gymStaffService.checkOut(gymId),
-                    "Visitor checked out",
-                  )
-                }
-              >
-                <Minus size={19} />
-              </button>
-              <button
-                aria-label="Quick anonymous check-in"
-                disabled={busy || state.currentOccupancy >= state.maxCapacity}
-                onClick={() =>
-                  action(
-                    () => gymStaffService.checkIn(gymId),
-                    "Walk-in checked in",
-                  )
-                }
-              >
-                <Plus size={19} />
-              </button>
-            </div>
-          ) : (
-            <div className="gym-metric-spacer" />
-          )}
-          {i === 1 && manager ? (
-            <button className="gym-link" onClick={editCapacity}>
-              Edit capacity
-              <ArrowRight size={14} />
-            </button>
-          ) : (
-            go(m.target, m.action)
-          )}
-        </section>
-      ))}
-    </div>
-  );
-  const classList = (items: GymClass[]) =>
-    items.length ? (
-      <div className="gym-list">
-        {items.map((c) => (
-          <div className="gym-list-row" key={c.id}>
-            <span className="gym-avatar">
-              <CalendarDays size={18} />
-            </span>
-            <div>
-              <strong>{c.title}</strong>
-              <small>
-                {c.startsAt ? dateTime(c.startsAt) : "Needs a date"} ·{" "}
-                {c.trainer}
-              </small>
-            </div>
-            <div className="gym-row-end">
-              <Badge>{c.status || "Needs schedule"}</Badge>
-              <small>
-                {c.enrolled} / {c.maxCapacity} enrolled
-              </small>
-            </div>
-          </div>
-        ))}
-      </div>
-    ) : (
-      <Empty>No classes scheduled for today.</Empty>
-    );
+  // Overview — every number below comes straight from real GymState rows
+  // (visits/events/payments/memberships), computed once here with the
+  // shared pure helpers in gymBusiness.ts so nothing on Overview is
+  // fabricated or duplicated from another module's own logic.
+  const insideNow = state ? overviewInsideNow(state.visits) : null;
+  const checkinsToday = state
+    ? overviewCheckinsToday(state.events, state.historyStartedAt, nowTick)
+    : null;
+  const collectionToday = state ? overviewCollectionToday(state.payments, nowTick) : null;
+  const endingSoonCount = state ? overviewEndingSoonCount(state.memberships, nowTick) : 0;
+  const membersSummary = state ? overviewMembersSummary(state.memberships, nowTick) : null;
+  const memberActivity = state
+    ? overviewMemberActivity(state.memberships, state.visits, nowTick)
+    : null;
+  const monthActivity = state
+    ? overviewMonthActivity(state.visits, state.historyStartedAt, nowTick)
+    : null;
+  const needsAttention = state ? overviewNeedsAttention(state, nowTick) : [];
   const sessionButtons = (
     kind: "classes" | "pt",
     item: GymClass | GymPtBooking,
@@ -1254,247 +1068,213 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             </Panel>
           ) : (
             <>
-              {active === "overview" && metrics}
-              {active === "overview" && (
+              {active === "overview" && insideNow && checkinsToday && collectionToday && membersSummary && memberActivity && monthActivity && (
                 <>
+                  <div className="gym-metrics">
+                    <button
+                      type="button"
+                      className="gym-metric featured"
+                      onClick={() => navigate("live_floor")}
+                    >
+                      <div className="gym-metric-label">
+                        Inside now
+                        <Users size={17} />
+                      </div>
+                      <strong>{insideNow.total}</strong>
+                      <small>
+                        {insideNow.total
+                          ? `${insideNow.members} members · ${insideNow.visitors} visitors`
+                          : "No one is checked in right now"}
+                      </small>
+                      <div className="gym-metric-spacer" />
+                    </button>
+                    <button
+                      type="button"
+                      className="gym-metric"
+                      onClick={() => navigate("reports")}
+                    >
+                      <div className="gym-metric-label">
+                        Check-ins today
+                        <LogIn size={17} />
+                      </div>
+                      <strong>{checkinsToday.today}</strong>
+                      <small>
+                        {checkinsToday.yesterday === undefined
+                          ? "No comparison yet"
+                          : `Yesterday: ${checkinsToday.yesterday} ${
+                              checkinsToday.today === checkinsToday.yesterday
+                                ? "→"
+                                : checkinsToday.today > checkinsToday.yesterday
+                                  ? "↑"
+                                  : "↓"
+                            }`}
+                      </small>
+                      <div className="gym-metric-spacer" />
+                    </button>
+                    <button
+                      type="button"
+                      className="gym-metric"
+                      onClick={() => navigate("reports")}
+                    >
+                      <div className="gym-metric-label">
+                        Today’s collection
+                        <ChartNoAxesCombined size={17} />
+                      </div>
+                      <strong>₹{collectionToday.paidToday.toLocaleString("en-IN")}</strong>
+                      <small>
+                        {collectionToday.cashPendingTotal > 0
+                          ? `₹${collectionToday.cashPendingTotal.toLocaleString("en-IN")} cash pending`
+                          : "No cash pending"}
+                      </small>
+                      <div className="gym-metric-spacer" />
+                    </button>
+                    <button
+                      type="button"
+                      className="gym-metric"
+                      onClick={() => goToMembers("expiring")}
+                    >
+                      <div className="gym-metric-label">
+                        Ending soon
+                        <UsersRound size={17} />
+                      </div>
+                      <strong>{endingSoonCount}</strong>
+                      <small>Next 7 days</small>
+                      <div className="gym-metric-spacer" />
+                    </button>
+                  </div>
                   <section className="gym-quick-actions">
-                    <span className="gym-eyebrow">QUICK ACTIONS</span>
-                    {operator && (
-                      <>
-                        <button
-                          className="gym-button secondary"
-                          disabled={busy}
-                          onClick={openCheckin}
-                        >
-                          <LogIn size={17} />
-                          Check in
-                        </button>
-                        <button
-                          className="gym-button secondary"
-                          onClick={() => navigate("live_floor")}
-                        >
-                          <LogOut size={17} />
-                          Check out
-                        </button>
-                      </>
-                    )}
+                    <span className="gym-eyebrow">QUICK LINKS</span>
+                    <button className="gym-button secondary" onClick={() => navigate("live_floor")}>
+                      <Activity size={17} />
+                      Live Floor
+                    </button>
                     {(manager || role === "reception") && (
-                      <>
-                        <button
-                          className="gym-button secondary"
-                          onClick={() => editSession("pt")}
-                        >
-                          <Dumbbell size={17} />
-                          Add PT booking
-                        </button>
-                        <button
-                          className="gym-button secondary"
-                          onClick={openAddVisitor}
-                        >
-                          <UsersRound size={17} />
-                          Add visitor
-                        </button>
-                      </>
-                    )}
-                    {manager && (
-                      <>
-                        <button
-                          className="gym-button secondary"
-                          onClick={() => navigate("classes")}
-                        >
-                          <CalendarDays size={17} />
-                          Start class
-                        </button>
-                        <button
-                          className="gym-button secondary"
-                          onClick={editCapacity}
-                        >
-                          <Activity size={17} />
-                          Capacity
-                        </button>
-                      </>
-                    )}
-                    {owner && (
-                      <button
-                        className="gym-button"
-                        onClick={() => navigate("campaigns")}
-                      >
-                        <Plus size={17} />
-                        Create campaign
+                      <button className="gym-button secondary" onClick={openAddVisitor}>
+                        <UsersRound size={17} />
+                        Add Visitor
                       </button>
                     )}
-                    {!operator && (
+                    <button className="gym-button secondary" onClick={() => navigate("members")}>
+                      <UserCheck size={17} />
+                      Members
+                    </button>
+                    <button className="gym-button secondary" onClick={() => navigate("reports")}>
+                      <ChartNoAxesCombined size={17} />
+                      Reports
+                    </button>
+                  </section>
+                  <div className="gym-health-grid">
+                    <Panel title="Members">
+                      <div className="gym-mini-metrics">
+                        <div>
+                          <span>Active</span>
+                          <strong>{membersSummary.active}</strong>
+                        </div>
+                        <div>
+                          <span>New this month</span>
+                          <strong>+{membersSummary.newThisMonth}</strong>
+                        </div>
+                        <div>
+                          <span>Expired</span>
+                          <strong>{membersSummary.expired}</strong>
+                        </div>
+                        <div>
+                          <span>Ending soon</span>
+                          <strong>{membersSummary.endingSoon}</strong>
+                        </div>
+                      </div>
+                      {go("members", "Open Members")}
+                    </Panel>
+                    <Panel title="Member activity">
+                      <div className="gym-activity-buckets">
+                        <button
+                          type="button"
+                          className="gym-activity-bucket"
+                          onClick={() => goToMembers("highly_consistent")}
+                        >
+                          <strong>{memberActivity.very_active}</strong>
+                          <span>Very active</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="gym-activity-bucket"
+                          onClick={() => goToMembers("regular")}
+                        >
+                          <strong>{memberActivity.regular}</strong>
+                          <span>Regular</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="gym-activity-bucket"
+                          onClick={() => goToMembers("not_visiting")}
+                        >
+                          <strong>{memberActivity.not_visiting}</strong>
+                          <span>Not visiting recently</span>
+                        </button>
+                      </div>
+                      <p className="gym-footnote">
+                        Based on real check-ins over the last 30 days for members with a
+                        current membership.
+                      </p>
+                    </Panel>
+                  </div>
+                  <Panel title="Month activity">
+                    <div className="gym-summary-line">
+                      <span>Visits this month</span>
+                      <strong>
+                        {monthActivity.visitsThisMonth}
+                        {monthActivity.vsLastMonthPct !== undefined && (
+                          <span className="gym-metric-delta">
+                            {" "}
+                            {monthActivity.vsLastMonthPct > 0 ? "↑" : monthActivity.vsLastMonthPct < 0 ? "↓" : "→"}{" "}
+                            {Math.abs(monthActivity.vsLastMonthPct)}% vs last month
+                          </span>
+                        )}
+                      </strong>
+                    </div>
+                    {monthActivity.bestDay && monthActivity.busiestTime ? (
+                      <>
+                        <div className="gym-summary-line">
+                          <span>Best day</span>
+                          <strong>{monthActivity.bestDay}</strong>
+                        </div>
+                        <div className="gym-summary-line">
+                          <span>Busiest time</span>
+                          <strong>{monthActivity.busiestTime}</strong>
+                        </div>
+                      </>
+                    ) : (
                       <p className="gym-muted">
-                        View your assigned PT bookings and class schedule from
-                        the menu.
+                        Not enough check-in history yet to show a best day or busiest time.
                       </p>
                     )}
-                  </section>
-                  {owner && (
-                    <div className="gym-overview-feature">
-                      <Panel
-                        title="Campaign performance"
-                        action={go("campaigns", "Manage campaigns")}
-                      >
-                        <p className="gym-muted">
-                          All recorded activity · active campaigns right now
-                        </p>
-                        <CampaignMetrics
-                          campaigns={state.campaigns}
-                          events={state.events}
-                        />
-                        <p className="gym-footnote">
-                          Conversion measures browser reach to recorded
-                          interest, not sales.
-                        </p>
-                        {go("campaigns", "View analytics & export")}
-                      </Panel>
-                      <section className="gym-promo">
-                        <Megaphone size={28} />
-                        <span className="gym-eyebrow">
-                          MAKE EVERY VISIT COUNT
-                        </span>
-                        <h2>A reason to come back.</h2>
-                        <p>
-                          Create scannable offers, gym updates and membership
-                          promotions.
-                        </p>
-                        <button
-                          className="gym-button"
-                          onClick={() => navigate("campaigns")}
-                        >
-                          Build a campaign
-                          <ArrowRight size={16} />
-                        </button>
-                      </section>
-                    </div>
-                  )}
-                  <div className="gym-overview-grid">
-                    {operator && (
-                      <Panel
-                        title="Live occupancy trend"
-                        action={go("reports", "Reports")}
-                      >
-                        <OccupancyTrend state={state} />
-                      </Panel>
-                    )}
-                    <Panel title="Today’s classes" action={go("classes")}>
-                      {classList(todayClasses)}
-                    </Panel>
-                    <Panel title="Trainer availability" action={go("trainers")}>
-                      {state.trainers.length ? (
-                        <div className="gym-list">
-                          {state.trainers.slice(0, 5).map((t) => (
-                            <div className="gym-list-row" key={t.id}>
-                              <span className="gym-avatar">
-                                {t.name.charAt(0)}
-                              </span>
-                              <div>
-                                <strong>{t.name}</strong>
-                                <small>{t.role}</small>
-                              </div>
-                              <Badge>{t.status}</Badge>
+                    {go("reports", "Open Reports")}
+                  </Panel>
+                  <Panel title="Needs attention">
+                    {needsAttention.length ? (
+                      <div className="gym-list">
+                        {needsAttention.map((item) => (
+                          <button
+                            type="button"
+                            key={item.id}
+                            className="gym-list-row gym-needs-attention-row"
+                            onClick={() => goToNeedsAttention(item.target)}
+                          >
+                            <span className="gym-event-marker" />
+                            <div>
+                              <strong>{item.label}</strong>
                             </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <Empty>
-                          Add trainers to see their availability here.
-                        </Empty>
-                      )}
-                    </Panel>
-                    {operator && (
-                      <Panel title="Recent check-ins" action={go("live_floor")}>
-                        {state.visits.length ? (
-                          <div className="gym-list">
-                            {state.visits.slice(0, 5).map((v) => (
-                              <div className="gym-list-row" key={v.id}>
-                                <span className="gym-avatar">
-                                  <LogIn size={17} />
-                                </span>
-                                <div>
-                                  <strong>{v.name}</strong>
-                                  <small>{dateTime(v.checkedInAt)}</small>
-                                </div>
-                                <Badge>
-                                  {v.checkedOutAt ? "Left" : "Inside"}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <Empty>
-                            Recent visitors appear after your first check-in.
-                          </Empty>
-                        )}
-                      </Panel>
+                            <ChevronRight size={16} />
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="gym-good-state">
+                        <Check size={18} />
+                        Everything looks good
+                      </div>
                     )}
-                    {operator && (
-                      <Panel title="Alerts & activity" action={go("reports")}>
-                        {state.currentOccupancy / state.maxCapacity >= 0.85 && (
-                          <div className="gym-alert">
-                            High occupancy · {state.currentOccupancy} of{" "}
-                            {state.maxCapacity} inside
-                          </div>
-                        )}
-                        {state.waitingOutsideCount > 0 && (
-                          <div className="gym-alert">
-                            {state.waitingOutsideCount} visitors waiting for
-                            entry
-                          </div>
-                        )}
-                        {state.events.length ? (
-                          <div className="gym-list">
-                            {state.events
-                              .slice(-5)
-                              .reverse()
-                              .map((e) => (
-                                <div className="gym-list-row" key={e.id}>
-                                  <span className="gym-event-marker" />
-                                  <div>
-                                    <strong>{e.subject}</strong>
-                                    <small>
-                                      {e.action} · {dateTime(e.at)}
-                                    </small>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        ) : (
-                          <Empty>No activity recorded yet.</Empty>
-                        )}
-                      </Panel>
-                    )}
-                    {operator && (
-                      <Panel title="Today at a glance">
-                        <div className="gym-summary-line">
-                          <span>Recorded check-ins today</span>
-                          <strong>
-                            {
-                              state.events.filter(
-                                (e) =>
-                                  e.action === "checkin" &&
-                                  localDay(new Date(e.at)) === localDay(),
-                              ).length
-                            }
-                          </strong>
-                        </div>
-                        <div className="gym-summary-line">
-                          <span>Waiting outside</span>
-                          <strong>{state.waitingOutsideCount}</strong>
-                        </div>
-                        <div className="gym-summary-line">
-                          <span>Scheduled classes today</span>
-                          <strong>{todayClasses.length}</strong>
-                        </div>
-                        <p className="gym-footnote">
-                          Based only on saved records. Existing manual occupancy
-                          is not counted as check-in history.
-                        </p>
-                        {go("reports", "Open operations reports")}
-                      </Panel>
-                    )}
-                  </div>
+                  </Panel>
                 </>
               )}
               {active === "live_floor" && (() => {
@@ -1869,7 +1649,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     </Panel>
                   )}
                   <Panel
-                    title="Members (retention)"
+                    title="Members"
                     action={
                       <input
                         aria-label="Search members"
@@ -1883,9 +1663,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                       {(
                         [
                           ["all", "All"],
-                          ["highly_consistent", "Consistent"],
-                          ["low_activity", "Low activity"],
-                          ["at_risk", "At risk"],
+                          ["highly_consistent", "Very active"],
+                          ["regular", "Regular"],
+                          ["not_visiting", "Not visiting recently"],
                           ["expiring", "Expiring soon"],
                         ] as const
                       ).map(([value, label]) => (
@@ -1918,10 +1698,16 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                 membershipDisplayStatus(m) === "expiring_soon" ||
                                 membershipDisplayStatus(m) === "expires_today"
                               );
-                            return (
-                              resolveConsistency(state.visits, m.customerId)
-                                .status === membershipFilter
-                            );
+                            const consistency = resolveConsistency(
+                              state.visits,
+                              m.customerId,
+                            ).status;
+                            if (membershipFilter === "not_visiting")
+                              return (
+                                consistency === "low_activity" ||
+                                consistency === "at_risk"
+                              );
+                            return consistency === membershipFilter;
                           })
                           .map((m) => {
                             const displayStatus = membershipDisplayStatus(m);
@@ -1972,12 +1758,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                   </Badge>
                                   <Badge>
                                     {consistency.status === "highly_consistent"
-                                      ? "Highly consistent"
+                                      ? "Very active"
                                       : consistency.status === "regular"
                                         ? "Regular"
-                                        : consistency.status === "low_activity"
-                                          ? "Low activity"
-                                          : "At risk"}
+                                        : "Not visiting recently"}
                                   </Badge>
                                   <ChevronRight size={16} />
                                 </button>
