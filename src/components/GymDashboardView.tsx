@@ -230,6 +230,142 @@ function EntryQrPanel({ gymId, gymName }: { gymId: string; gymName: string }) {
     </Panel>
   );
 }
+// Decline reasons shown to staff — codes match the server's
+// GymPaymentDeclineReasonCode union exactly. "Other" is the only one that
+// reveals (and requires) the free-text box.
+const DECLINE_REASONS: { code: string; label: string }[] = [
+  { code: "no_payment", label: "Customer did not pay" },
+  { code: "duplicate", label: "Duplicate / wrong entry" },
+  { code: "cancelled", label: "Customer changed mind / cancelled" },
+  { code: "other", label: "Other" },
+];
+
+function DeclinePaymentDialog({
+  gymId,
+  payment,
+  close,
+  onDeclined,
+}: {
+  gymId: string;
+  payment: GymPayment;
+  close: () => void;
+  onDeclined: (state: GymState) => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [reasonCode, setReasonCode] = useState("");
+  const [reasonText, setReasonText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!reasonCode) {
+      setError("Choose a reason for declining this payment.");
+      return;
+    }
+    if (reasonCode === "other" && !reasonText.trim()) {
+      setError("Add a short reason before confirming.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const result = await gymStaffService.operate(gymId, "decline_payment", {
+        paymentId: payment.id,
+        reasonCode,
+        reasonText: reasonText.trim() || undefined,
+      });
+      onDeclined(result.state);
+      close();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to decline this payment.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <dialog
+      ref={ref}
+      className="gym-dialog"
+      onCancel={(e) => {
+        e.preventDefault();
+        if (!busy) close();
+      }}
+    >
+      <form onSubmit={submit}>
+        <div className="gym-panel-heading">
+          <h2>Decline payment</h2>
+          <button
+            type="button"
+            aria-label="Close form"
+            disabled={busy}
+            className="gym-icon-button"
+            onClick={close}
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <p className="gym-muted">
+          {payment.customerName} — {payment.offeringName} · ₹{payment.amountInr}{" "}
+          ({payment.method === "online" ? "online" : "cash"}). This cannot be
+          undone — the payment will no longer be pending.
+        </p>
+        <div className="gym-form-fields">
+          <label>
+            Reason
+            <select
+              value={reasonCode}
+              onChange={(e) => setReasonCode(e.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Choose a reason
+              </option>
+              {DECLINE_REASONS.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {reasonCode === "other" && (
+            <label>
+              Details
+              <textarea
+                value={reasonText}
+                onChange={(e) => setReasonText(e.target.value)}
+                required
+                maxLength={500}
+                rows={3}
+                placeholder="What happened?"
+              />
+            </label>
+          )}
+        </div>
+        {error && (
+          <p role="alert" className="gym-error">
+            {error}
+          </p>
+        )}
+        <div className="gym-form-actions">
+          <button
+            type="button"
+            className="gym-button secondary"
+            onClick={close}
+            disabled={busy}
+          >
+            Cancel
+          </button>
+          <button className="gym-button danger" disabled={busy}>
+            {busy ? "Declining…" : "Decline payment"}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  );
+}
 export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   gymId,
   gymName,
@@ -252,6 +388,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const [liveFloorTab, setLiveFloorTab] = useState<
     "inside" | "waiting" | "payments"
   >("inside");
+  const [declinePayment, setDeclinePayment] = useState<GymPayment | null>(null);
   const [nowTick, setNowTick] = useState(Date.now());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
@@ -1281,16 +1418,30 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                 const insideVisits = state.visits.filter((v) => !v.checkedOutAt);
                 const waitingQueue = state.entryQueue.filter((q) => q.status === "Waiting");
                 const pendingPayments = state.payments.filter((p) => p.status === "pending");
+                const cashPendingTotal = pendingPayments
+                  .filter((p) => p.method === "cash")
+                  .reduce((sum, p) => sum + p.amountInr, 0);
+                const spacesAvailable = Math.max(
+                  0,
+                  state.maxCapacity - state.currentOccupancy,
+                );
+                const longestWaitMinutes = waitingQueue.length
+                  ? Math.max(
+                      ...waitingQueue.map((q) =>
+                        Math.max(0, Math.round((nowTick - q.arrivedAt) / 60000)),
+                      ),
+                    )
+                  : 0;
                 const offeringName = (id?: string) =>
                   (id && state.offerings.find((o) => o.id === id)?.name) || "";
-                const entrySourceLabel = (v: (typeof state.visits)[number]) =>
-                  v.entryMethod === "qr"
-                    ? "QR ENTRY"
-                    : v.entryMethod === "staff_manual"
-                      ? "STAFF ENTRY"
-                      : "ENTRY";
+                const entrySourceLabel = (entryMethod?: string) =>
+                  entryMethod === "qr" ? "QR" : entryMethod === "staff_manual" ? "Staff" : "—";
                 const insideMinutes = (checkedInAt: number) =>
                   Math.max(0, Math.round((nowTick - checkedInAt) / 60000));
+                const durationLabel = (minutes: number) =>
+                  minutes >= 60
+                    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+                    : `${minutes}m`;
                 const paymentFor = (v: (typeof state.visits)[number]) =>
                   v.paymentId ? state.payments.find((p) => p.id === v.paymentId) : undefined;
                 const filtered = (list: typeof insideVisits) =>
@@ -1300,15 +1451,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     <div className="gym-floor-header">
                       <div>
                         <h2>Live Floor</h2>
-                        <p>
-                          <strong>
-                            {state.currentOccupancy} / {state.maxCapacity}
-                          </strong>{" "}
-                          Inside · {insideMembersCount} Members ·{" "}
-                          {insideVisitorsCount} Visitors ·{" "}
-                          {Math.max(0, state.maxCapacity - state.currentOccupancy)}{" "}
-                          spaces available
-                        </p>
+                        <p>The whole entry flow — who's in, who's waiting, what's owed.</p>
                       </div>
                       {(manager || role === "reception") && (
                         <button className="gym-button" onClick={openAddVisitor} disabled={busy}>
@@ -1316,6 +1459,62 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                           Add Visitor
                         </button>
                       )}
+                    </div>
+                    <div className="gym-floor-summary">
+                      <button
+                        type="button"
+                        className="gym-floor-summary-card"
+                        onClick={() => setLiveFloorTab("inside")}
+                      >
+                        <span className="gym-floor-summary-label">Inside Now</span>
+                        <strong>
+                          {state.currentOccupancy}
+                          <small>/ {state.maxCapacity}</small>
+                        </strong>
+                        <span className="gym-floor-summary-note">
+                          {spacesAvailable} space{spacesAvailable === 1 ? "" : "s"} available
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gym-floor-summary-card"
+                        onClick={() => setLiveFloorTab("waiting")}
+                      >
+                        <span className="gym-floor-summary-label">Waiting</span>
+                        <strong>{waitingQueue.length}</strong>
+                        <span className="gym-floor-summary-note">
+                          {waitingQueue.length
+                            ? `Longest wait ${durationLabel(longestWaitMinutes)}`
+                            : "Entry queue is clear"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="gym-floor-summary-card"
+                        onClick={() => setLiveFloorTab("payments")}
+                      >
+                        <span className="gym-floor-summary-label">Pending Payments</span>
+                        <strong>{pendingPayments.length}</strong>
+                        <span className="gym-floor-summary-note">
+                          {cashPendingTotal > 0
+                            ? `₹${cashPendingTotal.toLocaleString("en-IN")} cash pending`
+                            : "Nothing waiting on collection"}
+                        </span>
+                      </button>
+                      <div className="gym-floor-summary-card gym-floor-summary-split">
+                        <span className="gym-floor-summary-label">Inside by type</span>
+                        <div className="gym-floor-summary-split-row">
+                          <div>
+                            <strong>{insideMembersCount}</strong>
+                            <span>Members</span>
+                          </div>
+                          <div className="gym-floor-summary-split-divider" />
+                          <div>
+                            <strong>{insideVisitorsCount}</strong>
+                            <span>Visitors</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                     <div className="gym-floor-tabs" role="tablist">
                       {(
@@ -1337,7 +1536,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                         </button>
                       ))}
                     </div>
-                    {filters(["Inside", "Left"])}
+                    {liveFloorTab === "inside" && filters(["Inside", "Left"])}
                     {liveFloorTab === "inside" && (
                       filtered(insideVisits).length ? (
                         <div className="gym-floor-cards">
@@ -1350,8 +1549,8 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                   <div className="gym-floor-card-id">
                                     <strong>{v.name}</strong>
                                     <div className="gym-floor-chips">
-                                      <Badge>{v.purpose === "member" ? "MEMBER" : "VISITOR"}</Badge>
-                                      <Badge>{entrySourceLabel(v)}</Badge>
+                                      <Badge>{v.purpose === "member" ? "Member" : "Visitor"}</Badge>
+                                      <Badge>{entrySourceLabel(v.entryMethod)} entry</Badge>
                                     </div>
                                   </div>
                                 </header>
@@ -1369,7 +1568,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                         {payment?.status === "paid"
                                           ? `₹${payment.amountInr} paid`
                                           : payment
-                                            ? "CASH PENDING"
+                                            ? "Cash pending"
                                             : "—"}
                                       </dd>
                                     </div>
@@ -1380,7 +1579,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                   </div>
                                   <div>
                                     <dt>Duration</dt>
-                                    <dd>inside {insideMinutes(v.checkedInAt)}m</dd>
+                                    <dd>inside {durationLabel(insideMinutes(v.checkedInAt))}</dd>
                                   </div>
                                 </dl>
                                 <div className="gym-inline-actions">
@@ -1409,6 +1608,8 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                             );
                           })}
                         </div>
+                      ) : insideVisits.length === 0 ? (
+                        <Empty>No one is inside right now</Empty>
                       ) : (
                         <Empty>No matching visits. Check in a member or visitor to begin.</Empty>
                       )
@@ -1425,15 +1626,25 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                 <div className="gym-floor-card-id">
                                   <strong>{q.name}</strong>
                                   <div className="gym-floor-chips">
-                                    <Badge>{q.memberId ? "MEMBER" : "VISITOR"}</Badge>
-                                    <Badge>{q.customerId ? "QR VERIFIED" : "STAFF ADDED"}</Badge>
+                                    <Badge>{q.purpose === "member" || q.memberId ? "Member" : "Visitor"}</Badge>
+                                    <Badge>{entrySourceLabel(q.entryMethod || (q.customerId ? "qr" : "staff_manual"))} entry</Badge>
                                   </div>
                                 </div>
                               </header>
                               <dl className="gym-floor-card-facts">
+                                {offeringName(q.offeringId) && (
+                                  <div>
+                                    <dt>Plan</dt>
+                                    <dd>{offeringName(q.offeringId)}</dd>
+                                  </div>
+                                )}
+                                <div>
+                                  <dt>Arrived</dt>
+                                  <dd>{dateTime(q.arrivedAt)}</dd>
+                                </div>
                                 <div>
                                   <dt>Waiting</dt>
-                                  <dd>{insideMinutes(q.arrivedAt)}m</dd>
+                                  <dd>{durationLabel(insideMinutes(q.arrivedAt))}</dd>
                                 </div>
                               </dl>
                               <div className="gym-inline-actions">
@@ -1473,10 +1684,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                           ))}
                         </div>
                       ) : (
-                        <Empty>
-                          The entry queue is clear. Visitors land here only when the floor
-                          is full and they've scanned in on site.
-                        </Empty>
+                        <Empty>No waiting entries</Empty>
                       )
                     )}
                     {liveFloorTab === "payments" && (
@@ -1490,24 +1698,41 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                   <strong>{p.customerName}</strong>
                                   <div className="gym-floor-chips">
                                     <Badge>{p.offeringName}</Badge>
-                                    <Badge>CASH PENDING</Badge>
+                                    <Badge>{p.method === "online" ? "Online" : "Cash"} pending</Badge>
                                   </div>
                                 </div>
                               </header>
+                              <dl className="gym-floor-card-facts">
+                                <div>
+                                  <dt>Amount</dt>
+                                  <dd>₹{p.amountInr}</dd>
+                                </div>
+                                <div>
+                                  <dt>Pending since</dt>
+                                  <dd>{durationLabel(insideMinutes(p.createdAt))}</dd>
+                                </div>
+                              </dl>
                               <div className="gym-inline-actions">
                                 <button
                                   className="gym-button"
                                   disabled={busy}
                                   onClick={() => openAcceptPayment(p)}
                                 >
-                                  Accept ₹{p.amountInr} & Check In
+                                  Accept & Check In
+                                </button>
+                                <button
+                                  className="gym-button secondary danger"
+                                  disabled={busy}
+                                  onClick={() => setDeclinePayment(p)}
+                                >
+                                  Decline
                                 </button>
                               </div>
                             </article>
                           ))}
                         </div>
                       ) : (
-                        <Empty>No cash payments waiting right now.</Empty>
+                        <Empty>No pending cash payments</Empty>
                       )
                     )}
                   </>
@@ -2120,6 +2345,18 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         </main>
       </div>
       {form && <FormDialog spec={form} close={() => setForm(null)} />}
+      {declinePayment && (
+        <DeclinePaymentDialog
+          gymId={gymId}
+          payment={declinePayment}
+          close={() => setDeclinePayment(null)}
+          onDeclined={(next) => {
+            setState(next);
+            setUpdated(Date.now());
+            setNotice("Payment declined");
+          }}
+        />
+      )}
     </div>
   );
 };

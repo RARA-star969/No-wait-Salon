@@ -127,7 +127,12 @@ export type GymMembershipClaim = {
 };
 
 export type GymPaymentMethod = "online" | "cash";
-export type GymPaymentStatus = "pending" | "paid" | "failed" | "refunded";
+export type GymPaymentStatus = "pending" | "paid" | "failed" | "refunded" | "declined";
+export type GymPaymentDeclineReasonCode =
+  | "no_payment"
+  | "duplicate"
+  | "cancelled"
+  | "other";
 export type GymPayment = {
   id: string;
   customerId?: string;
@@ -144,6 +149,12 @@ export type GymPayment = {
   acceptedAt?: number;
   createdAt: number;
   updatedAt: number;
+  // Decline audit — additive, only ever set when status === "declined".
+  // Never overwritten: a declined payment is terminal, same as a paid one.
+  reasonCode?: GymPaymentDeclineReasonCode;
+  reasonText?: string;
+  declinedAt?: number;
+  declinedBy?: string;
 };
 export type GymPtBooking = {
   id: string;

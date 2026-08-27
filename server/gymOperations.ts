@@ -10,6 +10,7 @@ import {
   type GymCampaign,
   type GymOffering,
   type GymMembership,
+  type GymPayment,
 } from "../src/shared/gymBusiness.ts";
 import { qrSvgDataUrl } from "./qrRendering.ts";
 
@@ -954,6 +955,38 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             {},
           );
         }
+      } else if (kind === "decline_payment") {
+        const payment = find(s.payments, b.paymentId, "Payment");
+        if (payment.status !== "pending")
+          throw new Error(
+            payment.status === "declined"
+              ? "This payment has already been declined."
+              : "This payment has already been processed.",
+          );
+        const reasonCode = choice(
+          b.reasonCode,
+          ["no_payment", "duplicate", "cancelled", "other"],
+          "decline reason",
+        ) as GymPayment["reasonCode"];
+        const reasonText =
+          reasonCode === "other"
+            ? requireText(b.reasonText, "Reason", 500)
+            : typeof b.reasonText === "string" && b.reasonText.trim()
+              ? b.reasonText.trim().slice(0, 500)
+              : undefined;
+        payment.status = "declined";
+        payment.reasonCode = reasonCode;
+        payment.reasonText = reasonText;
+        payment.declinedAt = Date.now();
+        payment.declinedBy = session.name;
+        payment.updatedAt = Date.now();
+        gymEvent(
+          s,
+          "members",
+          "payment_declined",
+          payment.customerName,
+          session.name,
+        );
       } else throw new Error("Unknown operation.");
       await commit(res, s);
     },
