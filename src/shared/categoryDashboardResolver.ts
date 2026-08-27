@@ -66,16 +66,17 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
   const cat = (mainCategoryId || 'salon').toLowerCase();
 
   if (cat === 'gym') {
+    // Live Capacity, Check-in/Out and Entry Queue are consolidated into one
+    // "Live Floor" module (backend/services for all three are unchanged and
+    // still used internally by Live Floor's Inside/Waiting/Payments tabs).
     const modules: CategoryModuleConfig[] = [
       { id: 'overview', label: 'Overview', icon: 'LayoutDashboard', allowedRoles: ['owner', 'manager', 'staff', 'trainer', 'reception'] },
-      { id: 'capacity', label: 'Live Capacity', icon: 'Users', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
-      { id: 'checkin', label: 'Check-in / Out', icon: 'QrCode', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
-      { id: 'queue', label: 'Entry Queue', icon: 'ListOrdered', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
+      { id: 'live_floor', label: 'Live Floor', icon: 'Activity', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
+      { id: 'members', label: 'Members', icon: 'UsersRound', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
+      { id: 'plans', label: 'Plans & Services', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
       { id: 'classes', label: 'Classes', icon: 'CalendarDays', allowedRoles: ['owner', 'manager', 'trainer'] },
       { id: 'trainers', label: 'Trainers', icon: 'UserCheck', allowedRoles: ['owner', 'manager'] },
       { id: 'pt_bookings', label: 'PT Bookings', icon: 'Dumbbell', allowedRoles: ['owner', 'manager', 'trainer', 'reception'] },
-      { id: 'plans', label: 'Plans & Services', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
-      { id: 'members', label: 'Members', icon: 'UsersRound', allowedRoles: ['owner', 'manager', 'staff', 'reception'] },
       { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },
       { id: 'campaigns', label: 'Campaigns', icon: 'Megaphone', allowedRoles: ['owner'] },
       { id: 'settings', label: 'Gym Settings', icon: 'Settings', allowedRoles: ['owner'] },

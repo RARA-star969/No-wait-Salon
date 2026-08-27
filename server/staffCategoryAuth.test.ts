@@ -26,7 +26,9 @@ test('Backend Cross-Business Isolation & Staff Session Authorization', async (t)
     const gymModules = resolveCategoryModules('gym', 'owner');
     const labels = gymModules.map((m) => m.label);
     assert.ok(labels.includes('Overview'));
-    assert.ok(labels.includes('Live Capacity'));
+    // Live Capacity, Check-in/Out and Entry Queue are consolidated into one
+    // "Live Floor" nav item.
+    assert.ok(labels.includes('Live Floor'));
     assert.ok(labels.includes('Classes'));
     assert.ok(labels.includes('Trainers'));
     assert.equal(labels.includes('Chairs & Stylists'), false);

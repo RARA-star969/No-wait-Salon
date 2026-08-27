@@ -37,6 +37,16 @@ export type GymReportFilter = {
   category: GymReportCategory;
   campaignId?: string;
 };
+export type GymEntryQr = {
+  businessId: string;
+  businessName: string;
+  publicToken: string;
+  publicUrl: string;
+  previewImageUrl: string;
+  downloadImageUrl: string;
+  status: string;
+  version: number;
+};
 export const gymStaffService = {
   getOverview: (id: string) => request<GymState>(`${root(id)}/overview`),
   checkIn: (id: string, details: { name?: string; memberId?: string } = {}) =>
@@ -73,6 +83,10 @@ export const gymStaffService = {
     request<{ events: GymEvent[]; historyStartedAt: number }>(
       `${root(id)}/reports?${new URLSearchParams(filters as unknown as Record<string, string>)}`,
     ),
+  // Reads the SAME Admin-provisioned business entry QR/barcode token — this
+  // never mints a new one, it only reads whatever ensureBusinessQr() already
+  // holds for this gym (server/businessQr.ts is the single source of truth).
+  getEntryQr: (id: string) => request<{ qr: GymEntryQr }>(`${root(id)}/entry-qr`),
   exportReport: async (id: string, filters: GymReportFilter) => {
     const res = await fetch(
       `${getBaseUrl()}${root(id)}/reports?${new URLSearchParams({ ...filters, format: "csv" })}`,

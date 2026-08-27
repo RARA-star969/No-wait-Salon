@@ -41,6 +41,9 @@ export type GymVisit = {
   entryMethod?: "qr" | "staff_manual";
   checkedInBy?: string;
   checkedOutBy?: string;
+  // Who closed this visit — additive; absent on legacy rows (render a
+  // neutral fallback instead of guessing which one it was).
+  checkoutSource?: "staff" | "customer";
 };
 export type GymQueueEntry = {
   id: string;

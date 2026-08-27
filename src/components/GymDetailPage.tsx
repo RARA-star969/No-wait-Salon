@@ -97,6 +97,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [purchaseResultMsg, setPurchaseResultMsg] = useState<string | null>(null);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
 
   const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
 
@@ -333,8 +334,31 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     choose_access: 'Choose Access',
   };
 
+  const handleSelfCheckout = async () => {
+    if (!myMembership?.activeVisit || checkoutBusy) return;
+    if (!window.confirm(`Are you leaving ${salon.name}?`)) return;
+    setCheckoutBusy(true);
+    try {
+      await gymCustomerService.selfCheckout(salon.id, myMembership.activeVisit.id);
+      setBookingSuccessMessage('✓ Checked out. See you next time!');
+      setTimeout(() => setBookingSuccessMessage(null), 4000);
+      await refreshMine();
+      const updated = await gymCustomerService.getPublicOverview(salon.id);
+      setOverview(updated);
+    } catch (err: any) {
+      setBookingSuccessMessage(err.message || 'Unable to check you out right now.');
+      setTimeout(() => setBookingSuccessMessage(null), 5000);
+    } finally {
+      setCheckoutBusy(false);
+    }
+  };
+
   const handleBottomCta = () => {
-    if (bottomCtaState === 'checked_in' || bottomCtaState === 'queued') return;
+    if (bottomCtaState === 'checked_in') {
+      void handleSelfCheckout();
+      return;
+    }
+    if (bottomCtaState === 'queued') return;
     if (bottomCtaState === 'scan') {
       requireReady('scan', () => setQrScannerOpen(true));
       return;
@@ -874,7 +898,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               {bottomCtaState === 'checked_in' ? 'Currently inside' : bottomCtaState === 'queued' ? 'Entry queue' : 'Gym access'}
             </div>
             <div className="text-xs font-extrabold text-[#17201F]">
-              {bottomCtaState === 'scan'
+              {bottomCtaState === 'checked_in' && myMembership?.activeVisit
+                ? `In since ${new Date(myMembership.activeVisit.checkedInAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+                : bottomCtaState === 'scan'
                 ? membership?.planName || myMembership?.paidPass?.offeringName || 'Ready to check in'
                 : bottomCtaState === 'renew'
                 ? membership?.planName || 'Membership expired'
@@ -885,13 +911,17 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           </div>
           <button
             onClick={handleBottomCta}
-            disabled={bottomCtaState === 'checked_in' || bottomCtaState === 'queued' || scanBusy}
+            disabled={bottomCtaState === 'queued' || scanBusy || (bottomCtaState === 'checked_in' && checkoutBusy)}
             className={`flex items-center gap-1.5 rounded-xl px-5 py-2.5 text-xs font-extrabold text-white shadow-sm transition active:scale-95 disabled:opacity-70 ${
               bottomCtaState === 'checked_in' ? 'bg-[#0F766E]' : bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[#0F766E]'
             }`}
           >
             {bottomCtaState === 'scan' && <QrCode className="h-3.5 w-3.5" />}
-            {scanBusy ? 'Checking in…' : bottomCtaLabel[bottomCtaState]}
+            {scanBusy
+              ? 'Checking in…'
+              : bottomCtaState === 'checked_in'
+              ? (checkoutBusy ? 'Checking out…' : 'Check Out')
+              : bottomCtaLabel[bottomCtaState]}
           </button>
         </div>
       </div>

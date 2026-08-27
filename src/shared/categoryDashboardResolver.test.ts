@@ -15,7 +15,9 @@ test('Gym Owner resolves full Gym capabilities & modules without Salon terms', (
   const modules = resolveCategoryModules('gym', 'owner');
   const ids = modules.map((m) => m.id);
   assert.ok(ids.includes('overview'));
-  assert.ok(ids.includes('capacity'));
+  // Live Capacity, Check-in/Out and Entry Queue are consolidated into one
+  // "Live Floor" nav item (backend capabilities/services are unchanged).
+  assert.ok(ids.includes('live_floor'));
   assert.ok(ids.includes('classes'));
   assert.ok(ids.includes('trainers'));
   assert.ok(ids.includes('settings'));

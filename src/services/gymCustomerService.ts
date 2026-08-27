@@ -211,4 +211,13 @@ export const gymCustomerService = {
       `/api/gym/${encodeURIComponent(gymId)}/checkin/scan`,
       { method: 'POST', body: JSON.stringify({ qrToken }) },
     ),
+
+  // Closes the caller's own open visit at this gym. The server re-verifies
+  // ownership (authenticated customerId), gym scope, and that the visit is
+  // still open — this call never assumes those hold client-side.
+  selfCheckout: (gymId: string, visitId?: string) =>
+    authedRequest<{ ok: boolean; visit: { id: string; checkedOutAt: number } }>(
+      `/api/gym/${encodeURIComponent(gymId)}/checkout/self`,
+      { method: 'POST', body: JSON.stringify(visitId ? { visitId } : {}) },
+    ),
 };

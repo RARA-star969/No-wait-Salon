@@ -30,7 +30,7 @@ import {
   resolveCategoryModules,
   type StaffRole,
 } from "../shared/categoryDashboardResolver";
-import { gymStaffService } from "../services/gymStaffService";
+import { gymStaffService, type GymEntryQr } from "../services/gymStaffService";
 import type {
   GymClass,
   GymMember,
@@ -83,9 +83,7 @@ interface GymDashboardViewProps {
 }
 const icons: Record<string, React.ElementType> = {
   overview: LayoutDashboard,
-  capacity: Activity,
-  checkin: LogIn,
-  queue: ListOrdered,
+  live_floor: Activity,
   classes: CalendarDays,
   trainers: UserCheck,
   pt_bookings: Dumbbell,
@@ -100,17 +98,9 @@ const moduleCopy: Record<string, [string, string]> = {
     "Gym operations dashboard",
     "A clear view of your floor. Every visit, session and opportunity.",
   ],
-  capacity: [
-    "Live capacity",
-    "Keep the floor comfortable and the entry moving.",
-  ],
-  checkin: [
-    "Check-in / Out",
-    "Welcome members in. Close visits as they leave.",
-  ],
-  queue: [
-    "Entry queue",
-    "A fair, visible line. Admit visitors when space opens.",
+  live_floor: [
+    "Live Floor",
+    "Inside, waiting and cash payments — the whole entry flow in one place.",
   ],
   classes: ["Classes", "Plan the schedule and run each session."],
   trainers: ["Trainers", "Your team, their expertise and live availability."],
@@ -236,6 +226,103 @@ function OccupancyTrend({ state }: { state: GymState }) {
     </>
   );
 }
+// Reads the same Admin-provisioned business entry QR (gymStaffService ->
+// GET /api/gym/:gymId/entry-qr -> ensureBusinessQr()) — never generates a
+// second token client- or server-side. Owner-only regeneration is
+// intentionally not offered here: the current permission model keeps QR
+// regeneration Admin-only.
+function EntryQrPanel({ gymId, gymName }: { gymId: string; gymName: string }) {
+  const [qr, setQr] = useState<GymEntryQr | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "missing" | "error">("loading");
+
+  useEffect(() => {
+    let active = true;
+    setLoadState("loading");
+    setQr(null);
+    gymStaffService
+      .getEntryQr(gymId)
+      .then((data) => {
+        if (!active) return;
+        setQr(data.qr);
+        setLoadState("ready");
+      })
+      .catch((e) => {
+        if (!active) return;
+        setLoadState(
+          e instanceof Error && /not been created|not found/i.test(e.message)
+            ? "missing"
+            : "error",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [gymId]);
+
+  const filename = `${gymName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "gym"}-entry-qr.png`;
+
+  const share = async () => {
+    if (!qr) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${gymName} entry QR`, url: qr.publicUrl });
+      } else {
+        await navigator.clipboard?.writeText(qr.publicUrl);
+      }
+    } catch {
+      /* user cancelled or share unavailable — no-op */
+    }
+  };
+
+  return (
+    <Panel title="Your Gym Entry QR">
+      <p className="gym-footnote">
+        Members and visitors scan this at your front desk to check themselves
+        in. It's the same code Admin issued for this business — printing,
+        sharing or downloading it here never creates a new one.
+      </p>
+      {loadState === "loading" && <Empty>Loading your entry code…</Empty>}
+      {loadState === "error" && (
+        <Empty>Unable to load your entry code right now. Try again shortly.</Empty>
+      )}
+      {loadState === "missing" && (
+        <Empty>Entry code has not been created yet.</Empty>
+      )}
+      {loadState === "ready" && qr && (
+        <div className="gym-entry-qr">
+          <img
+            src={qr.previewImageUrl}
+            alt={`${gymName} entry QR`}
+            className="gym-entry-qr-image"
+          />
+          <div className="gym-entry-qr-meta">
+            <div className="gym-summary-line">
+              <span>Gym</span>
+              <strong>{gymName}</strong>
+            </div>
+            <div className="gym-summary-line">
+              <span>Business ID</span>
+              <strong>{gymId}</strong>
+            </div>
+            <div className="gym-inline-actions">
+              <a
+                className="gym-button"
+                href={qr.downloadImageUrl}
+                download={filename}
+              >
+                <ArrowDownToLine size={16} />
+                Download
+              </a>
+              <button className="gym-button secondary" onClick={share}>
+                Share
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Panel>
+  );
+}
 export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   gymId,
   gymName,
@@ -255,6 +342,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const [updated, setUpdated] = useState(0);
   const [navOpen, setNavOpen] = useState(false);
   const [form, setForm] = useState<FormSpec | null>(null);
+  const [liveFloorTab, setLiveFloorTab] = useState<
+    "inside" | "waiting" | "payments"
+  >("inside");
+  const [nowTick, setNowTick] = useState(Date.now());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
   const [membershipQuery, setMembershipQuery] = useState("");
@@ -314,6 +405,12 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     const timer = setTimeout(() => setNotice(""), 5000);
     return () => clearTimeout(timer);
   }, [notice]);
+  // Drives the live "inside Xm" duration on Live Floor cards without waiting
+  // for the next 5s data refresh.
+  useEffect(() => {
+    const timer = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!navOpen) return;
     const buttons = () =>
@@ -797,15 +894,15 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             ? `${insideMembersCount} members · ${insideVisitorsCount} visitors`
             : `of ${state.maxCapacity} capacity`,
           icon: Users,
-          target: "capacity",
-          action: "Manage capacity",
+          target: "live_floor",
+          action: "Open Live Floor",
         },
         {
           title: "Max capacity",
           value: state.maxCapacity,
           sub: "people on the floor",
           icon: Activity,
-          target: "capacity",
+          target: "live_floor",
           action: "Edit capacity",
         },
         {
@@ -1021,7 +1118,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
               >
                 <Icon size={19} />
                 <span>{m.id === "settings" ? "Settings" : m.label}</span>
-                {m.id === "queue" && !!state?.waitingOutsideCount && (
+                {m.id === "live_floor" && !!state?.waitingOutsideCount && (
                   <b>{state.waitingOutsideCount}</b>
                 )}
               </button>
@@ -1157,7 +1254,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             </Panel>
           ) : (
             <>
-              {["overview", "capacity"].includes(active) && metrics}
+              {active === "overview" && metrics}
               {active === "overview" && (
                 <>
                   <section className="gym-quick-actions">
@@ -1174,7 +1271,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                         </button>
                         <button
                           className="gym-button secondary"
-                          onClick={() => navigate("checkin")}
+                          onClick={() => navigate("live_floor")}
                         >
                           <LogOut size={17} />
                           Check out
@@ -1307,7 +1404,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                       )}
                     </Panel>
                     {operator && (
-                      <Panel title="Recent check-ins" action={go("checkin")}>
+                      <Panel title="Recent check-ins" action={go("live_floor")}>
                         {state.visits.length ? (
                           <div className="gym-list">
                             {state.visits.slice(0, 5).map((v) => (
@@ -1400,182 +1497,176 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   </div>
                 </>
               )}
-              {active === "capacity" && (
-                <div className="gym-two-columns">
-                  <Panel title="Floor utilization">
-                    <div className="gym-utilization">
-                      <strong>
-                        {Math.round(
-                          (state.currentOccupancy / state.maxCapacity) * 100,
-                        )}
-                        %
-                      </strong>
-                      <span>
-                        {Math.max(
-                          0,
-                          state.maxCapacity - state.currentOccupancy,
-                        )}{" "}
-                        spaces available
-                      </span>
-                    </div>
-                    <progress
-                      max={state.maxCapacity}
-                      value={state.currentOccupancy}
-                      aria-label="Capacity utilization"
-                    />
-                    {manager && (
-                      <div className="gym-inline-actions">
-                        <button className="gym-button" onClick={editCapacity}>
-                          Edit capacity / count
-                        </button>
-                        <button
-                          className="gym-button secondary"
-                          onClick={editCount}
-                        >
-                          Set available trainers
-                        </button>
+              {active === "live_floor" && (() => {
+                const insideVisits = state.visits.filter((v) => !v.checkedOutAt);
+                const waitingQueue = state.entryQueue.filter((q) => q.status === "Waiting");
+                const pendingPayments = state.payments.filter((p) => p.status === "pending");
+                const offeringName = (id?: string) =>
+                  (id && state.offerings.find((o) => o.id === id)?.name) || "";
+                const entrySourceLabel = (v: (typeof state.visits)[number]) =>
+                  v.entryMethod === "qr"
+                    ? "QR ENTRY"
+                    : v.entryMethod === "staff_manual"
+                      ? "STAFF ENTRY"
+                      : "ENTRY";
+                const insideMinutes = (checkedInAt: number) =>
+                  Math.max(0, Math.round((nowTick - checkedInAt) / 60000));
+                const paymentFor = (v: (typeof state.visits)[number]) =>
+                  v.paymentId ? state.payments.find((p) => p.id === v.paymentId) : undefined;
+                const filtered = (list: typeof insideVisits) =>
+                  list.filter((v) => matches(v.name, ""));
+                return (
+                  <>
+                    <div className="gym-floor-header">
+                      <div>
+                        <h2>Live Floor</h2>
+                        <p>
+                          <strong>
+                            {state.currentOccupancy} / {state.maxCapacity}
+                          </strong>{" "}
+                          Inside · {insideMembersCount} Members ·{" "}
+                          {insideVisitorsCount} Visitors ·{" "}
+                          {Math.max(0, state.maxCapacity - state.currentOccupancy)}{" "}
+                          spaces available
+                        </p>
                       </div>
+                      {(manager || role === "reception") && (
+                        <button className="gym-button" onClick={openAddVisitor} disabled={busy}>
+                          <Plus size={17} />
+                          Add Visitor
+                        </button>
+                      )}
+                    </div>
+                    <div className="gym-floor-tabs" role="tablist">
+                      {(
+                        [
+                          ["inside", "Inside", insideVisits.length],
+                          ["waiting", "Waiting", waitingQueue.length],
+                          ["payments", "Payments", pendingPayments.length],
+                        ] as const
+                      ).map(([id, label, count]) => (
+                        <button
+                          key={id}
+                          role="tab"
+                          aria-selected={liveFloorTab === id}
+                          className={`gym-floor-tab ${liveFloorTab === id ? "active" : ""}`}
+                          onClick={() => setLiveFloorTab(id)}
+                        >
+                          {label}
+                          <span className="gym-floor-tab-count">{count}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {filters(["Inside", "Left"])}
+                    {liveFloorTab === "inside" && (
+                      filtered(insideVisits).length ? (
+                        <div className="gym-floor-cards">
+                          {filtered(insideVisits).map((v) => {
+                            const payment = paymentFor(v);
+                            return (
+                              <article className="gym-floor-card" key={v.id}>
+                                <header>
+                                  <span className="gym-avatar">{v.name.charAt(0)}</span>
+                                  <div className="gym-floor-card-id">
+                                    <strong>{v.name}</strong>
+                                    <div className="gym-floor-chips">
+                                      <Badge>{v.purpose === "member" ? "MEMBER" : "VISITOR"}</Badge>
+                                      <Badge>{entrySourceLabel(v)}</Badge>
+                                    </div>
+                                  </div>
+                                </header>
+                                <dl className="gym-floor-card-facts">
+                                  {offeringName(v.offeringId) && (
+                                    <div>
+                                      <dt>Plan</dt>
+                                      <dd>{offeringName(v.offeringId)}</dd>
+                                    </div>
+                                  )}
+                                  {v.purpose === "visitor" && (
+                                    <div>
+                                      <dt>Payment</dt>
+                                      <dd>
+                                        {payment?.status === "paid"
+                                          ? `₹${payment.amountInr} paid`
+                                          : payment
+                                            ? "CASH PENDING"
+                                            : "—"}
+                                      </dd>
+                                    </div>
+                                  )}
+                                  <div>
+                                    <dt>Checked in</dt>
+                                    <dd>{dateTime(v.checkedInAt)}</dd>
+                                  </div>
+                                  <div>
+                                    <dt>Duration</dt>
+                                    <dd>inside {insideMinutes(v.checkedInAt)}m</dd>
+                                  </div>
+                                </dl>
+                                <div className="gym-inline-actions">
+                                  {v.memberId && (
+                                    <button
+                                      className="gym-button secondary"
+                                      onClick={() => navigate("members")}
+                                    >
+                                      View Member
+                                    </button>
+                                  )}
+                                  <button
+                                    className="gym-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      action(
+                                        () => gymStaffService.checkOut(gymId, v.id),
+                                        "Visitor checked out",
+                                      )
+                                    }
+                                  >
+                                    Check Out
+                                  </button>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <Empty>No matching visits. Check in a member or visitor to begin.</Empty>
+                      )
                     )}
-                    <p className="gym-footnote">
-                      Use check-in / out for visits. Use count corrections only
-                      to reconcile the floor.
-                    </p>
-                  </Panel>
-                  <Panel title="Today’s recorded occupancy">
-                    <OccupancyTrend state={state} />
-                  </Panel>
-                </div>
-              )}
-              {active === "checkin" && (
-                <Panel
-                  title="Visitor register"
-                  action={
-                    <button
-                      className="gym-button"
-                      onClick={openCheckin}
-                      disabled={busy}
-                    >
-                      <Plus size={17} />
-                      Check in
-                    </button>
-                  }
-                >
-                  {filters(["Inside", "Left"])}
-                  {state.currentOccupancy > trackedInside && (
-                    <div className="gym-setup">
-                      <p>
-                        {state.currentOccupancy - trackedInside} inside from
-                        manual counts or earlier activity, without named visits.
-                      </p>
-                      <button
-                        className="gym-button secondary"
-                        disabled={busy}
-                        onClick={() =>
-                          action(
-                            () => gymStaffService.checkOut(gymId),
-                            "Untracked visitor checked out",
-                          )
-                        }
-                      >
-                        Check out one
-                      </button>
-                    </div>
-                  )}
-                  {!state.visits.filter((v) =>
-                    matches(v.name, v.checkedOutAt ? "Left" : "Inside"),
-                  ).length ? (
-                    <Empty>
-                      No matching visits. Check in a member or walk-in to begin.
-                    </Empty>
-                  ) : (
-                    <div className="gym-list">
-                      {state.visits
-                        .filter((v) =>
-                          matches(v.name, v.checkedOutAt ? "Left" : "Inside"),
-                        )
-                        .map((v) => (
-                          <div className="gym-list-row" key={v.id}>
-                            <span className="gym-avatar">
-                              {v.name.charAt(0)}
-                            </span>
-                            <div>
-                              <strong>{v.name}</strong>
-                              <small>
-                                In {dateTime(v.checkedInAt)}
-                                {v.checkedOutAt
-                                  ? ` · Out ${dateTime(v.checkedOutAt)}`
-                                  : ""}
-                              </small>
-                            </div>
-                            {v.checkedOutAt ? (
-                              <Badge>Left</Badge>
-                            ) : (
-                              <button
-                                className="gym-button secondary"
-                                disabled={busy}
-                                onClick={() =>
-                                  action(
-                                    () => gymStaffService.checkOut(gymId, v.id),
-                                    "Visitor checked out",
-                                  )
-                                }
-                              >
-                                Check out
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </Panel>
-              )}
-              {active === "queue" && (
-                <Panel
-                  title="Waiting for entry"
-                  action={
-                    <button className="gym-button" onClick={addQueue}>
-                      <Plus size={17} />
-                      Add visitor
-                    </button>
-                  }
-                >
-                  {filters(["Waiting", "Admitted", "Removed"])}
-                  {!state.entryQueue.filter((q) => matches(q.name, q.status))
-                    .length ? (
-                    <Empty>
-                      The entry queue is clear. Add visitors when the floor is
-                      full.
-                    </Empty>
-                  ) : (
-                    <div className="gym-list">
-                      {state.entryQueue
-                        .filter((q) => matches(q.name, q.status))
-                        .map((q) => (
-                          <div className="gym-list-row" key={q.id}>
-                            <span className="gym-avatar">
-                              <Users size={18} />
-                            </span>
-                            <div>
-                              <strong>{q.name}</strong>
-                              <small>Arrived {dateTime(q.arrivedAt)}</small>
-                            </div>
-                            <Badge>{q.status}</Badge>
-                            {q.status === "Waiting" && (
+                    {liveFloorTab === "waiting" && (
+                      waitingQueue.length ? (
+                        <div className="gym-floor-cards">
+                          {waitingQueue.map((q) => (
+                            <article className="gym-floor-card" key={q.id}>
+                              <header>
+                                <span className="gym-avatar">
+                                  <Users size={18} />
+                                </span>
+                                <div className="gym-floor-card-id">
+                                  <strong>{q.name}</strong>
+                                  <div className="gym-floor-chips">
+                                    <Badge>{q.memberId ? "MEMBER" : "VISITOR"}</Badge>
+                                    <Badge>{q.customerId ? "QR VERIFIED" : "STAFF ADDED"}</Badge>
+                                  </div>
+                                </div>
+                              </header>
+                              <dl className="gym-floor-card-facts">
+                                <div>
+                                  <dt>Waiting</dt>
+                                  <dd>{insideMinutes(q.arrivedAt)}m</dd>
+                                </div>
+                              </dl>
                               <div className="gym-inline-actions">
                                 <button
                                   className="gym-button"
-                                  disabled={
-                                    busy ||
-                                    state.currentOccupancy >= state.maxCapacity
-                                  }
+                                  disabled={busy || state.currentOccupancy >= state.maxCapacity}
                                   onClick={() =>
                                     action(
                                       () =>
-                                        gymStaffService.operate(
-                                          gymId,
-                                          "queue",
-                                          { id: q.id, action: "admit" },
-                                        ),
+                                        gymStaffService.operate(gymId, "queue", {
+                                          id: q.id,
+                                          action: "admit",
+                                        }),
                                       "Visitor admitted",
                                     )
                                   }
@@ -1591,23 +1682,57 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                       description: q.name,
                                       fields: [],
                                       submit: () =>
-                                        operate("queue", {
-                                          id: q.id,
-                                          action: "remove",
-                                        }),
+                                        operate("queue", { id: q.id, action: "remove" }),
                                     })
                                   }
                                 >
                                   Remove
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </Panel>
-              )}
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty>
+                          The entry queue is clear. Visitors land here only when the floor
+                          is full and they've scanned in on site.
+                        </Empty>
+                      )
+                    )}
+                    {liveFloorTab === "payments" && (
+                      pendingPayments.length ? (
+                        <div className="gym-floor-cards">
+                          {pendingPayments.map((p) => (
+                            <article className="gym-floor-card" key={p.id}>
+                              <header>
+                                <span className="gym-avatar">{p.customerName.charAt(0)}</span>
+                                <div className="gym-floor-card-id">
+                                  <strong>{p.customerName}</strong>
+                                  <div className="gym-floor-chips">
+                                    <Badge>{p.offeringName}</Badge>
+                                    <Badge>CASH PENDING</Badge>
+                                  </div>
+                                </div>
+                              </header>
+                              <div className="gym-inline-actions">
+                                <button
+                                  className="gym-button"
+                                  disabled={busy}
+                                  onClick={() => openAcceptPayment(p)}
+                                >
+                                  Accept ₹{p.amountInr} & Check In
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty>No cash payments waiting right now.</Empty>
+                      )
+                    )}
+                  </>
+                );
+              })()}
               {active === "plans" && (
                 <Panel
                   title="Plans & services"
@@ -2194,6 +2319,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     Business-ID login and session remain unchanged.
                   </p>
                 </Panel>
+              )}
+              {active === "settings" && (
+                <EntryQrPanel gymId={gymId} gymName={gymName} />
               )}
             </>
           )}

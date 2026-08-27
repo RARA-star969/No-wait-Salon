@@ -2030,6 +2030,36 @@ app.post('/api/gym/:gymId/checkin/scan', requireCustomer, async (request: Authen
   response.json({ ok: true, result: 'queued', queueEntry });
 });
 
+// Customer self-checkout: closes the caller's own open visit at this gym.
+// Authorization chain — every one of these must hold or the request is
+// rejected, never silently ignored: requireCustomer gives us a verified
+// customerId from the session token; getGymState(gymId) scopes the lookup
+// to this gym only (a visit from another gym's state can never match); and
+// visit.customerId === customerId is checked explicitly below so a customer
+// can never close someone else's visit even if they guess/replay a visitId.
+app.post('/api/gym/:gymId/checkout/self', requireCustomer, async (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const state = getGymState(gymId);
+  const customerId = request.customerId!;
+  const visitId = cleanText(request.body?.visitId, 100);
+  const visit = visitId
+    ? state.visits.find((v) => v.id === visitId)
+    : state.visits.find((v) => v.customerId === customerId && !v.checkedOutAt);
+  if (!visit || visit.customerId !== customerId) {
+    return response.status(404).json({ error: 'No matching open visit found for your account at this gym.' });
+  }
+  if (visit.checkedOutAt) {
+    return response.status(409).json({ error: 'This visit is already checked out.', code: 'ALREADY_CHECKED_OUT' });
+  }
+  visit.checkedOutAt = Date.now();
+  visit.checkoutSource = 'customer';
+  recomputeOccupancy(state);
+  gymEvent(state, 'checkins', 'checkout', visit.name, 'Customer (self checkout)');
+  saveGymState(gymId, state);
+  await postgresPersistence?.flushNow(['gym_state']);
+  response.json({ ok: true, visit });
+});
+
 // Staff-only lookup used by "Add Visitor" to link an existing NOQ customer by
 // mobile number instead of creating a duplicate identity for someone who
 // already has an account.
@@ -2359,25 +2389,45 @@ function qrPayload(request:express.Request,qr:BusinessQrRow,businessName:string)
 }
 
 app.get('/api/admin/businesses/:businessId/qr',requireAdmin,(request,response)=>{
-  const salon=db.prepare('SELECT id,name FROM salon WHERE id=?').get(request.params.businessId) as {id:string;name:string}|undefined;
+  const salon=db.prepare("SELECT id,name,COALESCE(main_category_id,'salon') as main_category_id FROM salon WHERE id=?").get(request.params.businessId) as {id:string;name:string;main_category_id:string}|undefined;
   if(!salon)return response.status(404).json({error:'Business not found.'});
-  const qr=ensureBusinessQr(db,salon.id,'salon');
+  const businessType=salon.main_category_id==='gym'?'gym':'salon';
+  const qr=ensureBusinessQr(db,salon.id,businessType);
   response.set('Cache-Control','no-store');
   response.json({qr:qrPayload(request,qr,salon.name)});
 });
 
 app.post('/api/admin/businesses/:businessId/qr/regenerate',requireAdmin,async(request,response)=>{
-  const salon=db.prepare('SELECT id,name FROM salon WHERE id=?').get(request.params.businessId) as {id:string;name:string}|undefined;
+  const salon=db.prepare("SELECT id,name,COALESCE(main_category_id,'salon') as main_category_id FROM salon WHERE id=?").get(request.params.businessId) as {id:string;name:string;main_category_id:string}|undefined;
   if(!salon)return response.status(404).json({error:'Business not found.'});
+  const businessType=salon.main_category_id==='gym'?'gym':'salon';
   const now=Date.now();
   try{
     db.exec('BEGIN IMMEDIATE');
-    db.prepare("UPDATE business_qr SET status='revoked',revoked_at=?,updated_at=? WHERE business_id=? AND business_type='salon' AND status='active'").run(now,now,salon.id);
-    const qr=ensureBusinessQr(db,salon.id,'salon');
+    db.prepare("UPDATE business_qr SET status='revoked',revoked_at=?,updated_at=? WHERE business_id=? AND business_type=? AND status='active'").run(now,now,salon.id,businessType);
+    const qr=ensureBusinessQr(db,salon.id,businessType);
     db.exec('COMMIT');
     await postgresPersistence?.flushNow(['business_qr']);
     response.status(201).json({qr:qrPayload(request,qr,salon.name)});
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to replace this QR right now. Please try again.'})}
+});
+
+// Business-scoped read of the SAME Admin-provisioned entry QR — reuses
+// ensureBusinessQr (idempotent: returns the existing active row rather than
+// minting a new one) so this endpoint can never diverge from what Admin
+// issued. Gym Settings' "Your Gym Entry QR" calls this, never a second
+// generator. Authorized by the staff session's own businessId — a business
+// can only ever read its own code, never another business's.
+app.get('/api/gym/:gymId/entry-qr',(request,response)=>{
+  const session=resolveStaffSession(request);
+  if(!session||session.businessId!==request.params.gymId||session.mainCategoryId!=='gym'){
+    return response.status(403).json({error:'Valid Gym staff session required for this business.'});
+  }
+  const salon=db.prepare("SELECT id,name FROM salon WHERE id=? AND main_category_id='gym'").get(request.params.gymId) as {id:string;name:string}|undefined;
+  if(!salon)return response.status(404).json({error:'Gym business not found.'});
+  const qr=ensureBusinessQr(db,salon.id,'gym');
+  response.set('Cache-Control','no-store');
+  response.json({qr:qrPayload(request,qr,salon.name)});
 });
 
 function resolveAdminMainCategoryId(body: Record<string, unknown>, fallback?: string) {

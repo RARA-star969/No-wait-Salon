@@ -376,7 +376,11 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         const trackedInside = s.visits.filter((v) => !v.checkedOutAt).length;
         if (!visit && s.currentOccupancy <= trackedInside)
           throw new Error("Select a checked-in visitor to check out.");
-        if (visit) visit.checkedOutAt = Date.now();
+        if (visit) {
+          visit.checkedOutAt = Date.now();
+          visit.checkedOutBy = session.name;
+          visit.checkoutSource = "staff";
+        }
         s.currentOccupancy--;
         gymEvent(
           s,
