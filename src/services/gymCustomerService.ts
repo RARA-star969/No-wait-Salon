@@ -29,6 +29,9 @@ export interface GymOffering {
   active: boolean;
   customerVisible: boolean;
   paymentOptions: ('online' | 'cash')[];
+  // Owner's real "Recommend this plan" toggle. Absent/false means this plan is
+  // simply not recommended — the customer sheet never fabricates one.
+  recommended?: boolean;
 }
 
 export interface GymPublicOverview {
@@ -68,8 +71,43 @@ export interface GymMyMembershipResponse {
     lastVisit: number | null;
     monthly: { month: string; visits: number }[];
   };
-  activeVisit: { id: string; checkedInAt: number } | null;
+  // The raw GymVisit row — every surface derives its duration from these
+  // server timestamps through the shared gymTime helpers, never from a
+  // locally stored elapsed counter.
+  activeVisit: GymVisitView | null;
   queued: { id: string; arrivedAt: number } | null;
+  pendingPayments: GymPendingPaymentView[];
+  recentVisits: GymVisitView[];
+}
+
+export interface GymVisitView {
+  id: string;
+  name: string;
+  checkedInAt: number;
+  checkedOutAt?: number;
+  offeringId?: string;
+  membershipId?: string;
+  paymentId?: string;
+  purpose?: 'member' | 'visitor';
+  entryMethod?: 'qr' | 'staff_manual';
+  customEntry?: boolean;
+}
+
+export interface GymPendingPaymentView {
+  id: string;
+  offeringId: string;
+  offeringName: string;
+  amountInr: number;
+  method: 'online' | 'cash';
+  status: 'pending' | 'paid';
+  createdAt: number;
+}
+
+export interface GymVisitActivity {
+  gymId: string;
+  gymName: string;
+  visit: GymVisitView;
+  accessName: string;
 }
 
 const getBaseUrl = () => {
@@ -186,10 +224,15 @@ export const gymCustomerService = {
   getMyMembership: (gymId: string) =>
     authedRequest<GymMyMembershipResponse>(`/api/gym/${encodeURIComponent(gymId)}/my-membership`),
 
+  // Profile "Gym Activity": memberships plus the caller's own open visit and
+  // recent closed visits, carrying raw GymVisit timestamps so Profile derives
+  // durations from the same record Live Floor reads.
   getMyGymMemberships: () =>
-    authedRequest<{ memberships: { gymId: string; gymName: string; membership: GymMembershipView }[] }>(
-      '/api/me/gym-memberships',
-    ),
+    authedRequest<{
+      memberships: { gymId: string; gymName: string; membership: GymMembershipView }[];
+      activeVisits: GymVisitActivity[];
+      recentVisits: GymVisitActivity[];
+    }>('/api/me/gym-memberships'),
 
   submitMembershipClaim: (
     gymId: string,

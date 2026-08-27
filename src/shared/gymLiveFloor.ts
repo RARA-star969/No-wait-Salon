@@ -172,19 +172,27 @@ export function paymentsAwaitingAction(payments: readonly GymPayment[]): GymPaym
 
 // --- Recommended offerings (Part 17/18) ----------------------------------
 
-export type OfferingSections = {
-  recommended: GymOffering[];
-  others: GymOffering[];
+/** The minimum an offering must expose to be sorted into the sheet's two
+ * sections — so both the owner-side GymOffering and the customer-facing
+ * public projection of it can use this one function. */
+export type RecommendableOffering = {
+  id: string;
+  active: boolean;
+  recommended?: boolean;
+};
+export type OfferingSections<T extends RecommendableOffering = GymOffering> = {
+  recommended: T[];
+  others: T[];
 };
 
 /** Splits real, currently-purchasable offerings into the customer sheet's two
  * sections. `recommended` is empty unless the owner actually toggled
  * "Recommend this plan" — the caller must then render no Recommended heading
  * at all rather than promoting the priciest plan. */
-export function splitRecommendedOfferings(
-  offerings: GymOffering[],
+export function splitRecommendedOfferings<T extends RecommendableOffering>(
+  offerings: readonly T[],
   options: { excludeOfferingId?: string } = {},
-): OfferingSections {
+): OfferingSections<T> {
   const available = offerings.filter(
     (o) => o.active && o.id !== options.excludeOfferingId,
   );
