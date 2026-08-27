@@ -743,7 +743,19 @@ export default function App() {
               // (PACKAGED_MODE === 'customer', Android included) never gets
               // this class, so those elements keep their normal
               // viewport-fixed behavior there, matching a real device.
-              className={`flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all ${PACKAGED_MODE !== 'customer' ? '[contain:layout] relative' : ''}`}
+              //
+              // In TEST split view (never true for the packaged apps —
+              // PACKAGED_MODE forces viewMode to 'customer'/'staff', never
+              // 'split') both preview panels get a fixed `h-[820px]`
+              // instead of `min-h-[640px] max-h-[820px]`. Letting height
+              // stay content-driven meant the Customer panel (more content)
+              // and Staff panel (Gym Overview has little content) settled
+              // at different heights even with `items-stretch` on the grid,
+              // since a grid row's auto track height is the *shorter*
+              // item's max-content size once alignment resolves — nothing
+              // forced both boxes to the same explicit height. A fixed
+              // height makes both frames identical regardless of content.
+              className={`flex ${viewMode === 'split' ? 'h-[820px]' : 'min-h-[640px] max-h-[820px]'} flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all ${PACKAGED_MODE !== 'customer' ? '[contain:layout] relative' : ''}`}
             >
               {/* Development workspace chrome is hidden in the customer app. */}
               {PACKAGED_MODE !== 'customer' && !isQrRoute && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
@@ -814,7 +826,7 @@ export default function App() {
           {(viewMode === 'split' || viewMode === 'staff') && (
             <section
               id="staff-dashboard-window"
-              className="flex min-h-[640px] max-h-[820px] flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all"
+              className={`flex ${viewMode === 'split' ? 'h-[820px]' : 'min-h-[640px] max-h-[820px]'} flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all`}
             >
               {/* Window Header */}
               <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
