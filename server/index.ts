@@ -1791,7 +1791,74 @@ app.post('/api/staff/logout', (request, response) => {
   response.json({ ok: true });
 });
 
-mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); } });
+mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); }, customerPhotos: gymCustomerPhotos });
+
+/**
+ * Resolves customerId -> a Gym-staff-readable URL for that customer's existing
+ * profile photo. Reuses the same customer_profile.profile_photo_url the
+ * customer-facing profile already owns — GymVisit stores no image data, only
+ * the customerId link, so changing the photo updates every Live Floor card on
+ * the next poll. Customers with no photo are simply absent from the map, and
+ * the Live Floor falls back to initials. No other profile field crosses over.
+ */
+function gymCustomerPhotos(gymId: string, customerIds: string[]): Map<string, string> {
+  if (!customerIds.length) return new Map();
+  const rows = db.prepare(
+    `SELECT customer_id, profile_photo_url FROM customer_profile WHERE customer_id IN (${customerIds.map(() => '?').join(',')})`,
+  ).all(...customerIds) as Array<{ customer_id: string; profile_photo_url: string }>;
+  return new Map(
+    rows
+      .filter((row) => row.profile_photo_url)
+      .map((row) => [
+        row.customer_id,
+        `/api/gym/${encodeURIComponent(gymId)}/customer-photo/${encodeURIComponent(row.customer_id)}`,
+      ]),
+  );
+}
+
+/** Reads a stored profile-photo file for a customer, or null when they have
+ * none. Shared by the customer's own /api/me/profile/photo route and the
+ * gym-staff-scoped Live Floor lookup so there is one place that knows how
+ * these files are named. */
+function readProfilePhotoFile(customerId: string): { body: Buffer; contentType: string } | null {
+  const profile = db.prepare('SELECT profile_photo_url FROM customer_profile WHERE customer_id = ?')
+    .get(customerId) as { profile_photo_url?: string } | undefined;
+  if (!profile?.profile_photo_url) return null;
+  for (const extension of ['jpg', 'png', 'webp']) {
+    try {
+      const body = readFileSync(path.join(profilePhotoDir, `${customerId}.${extension}`));
+      return { body, contentType: extension === 'jpg' ? 'image/jpeg' : `image/${extension}` };
+    } catch { /* try the next extension */ }
+  }
+  return null;
+}
+
+/**
+ * Gym-staff-scoped read of a customer's existing profile photo, for Live Floor
+ * cards. Authorization is deliberately narrow and re-checked server-side on
+ * every request: a valid staff session for THIS gym, and the customer must
+ * actually have a record at THIS gym (a visit, a waiting queue entry, or a
+ * membership). Staff at another business can never read it, and nothing but
+ * the image bytes is returned — no name, phone, email or any other private
+ * profile field.
+ */
+app.get('/api/gym/:gymId/customer-photo/:customerId', (request, response) => {
+  const gymId = request.params.gymId;
+  const session = resolveStaffSession(request);
+  if (!session || session.businessId !== gymId || session.mainCategoryId !== 'gym') {
+    return response.status(403).json({ error: 'Valid Gym staff session required for this business.' });
+  }
+  const customerId = String(request.params.customerId || '');
+  const state = getGymState(gymId);
+  const linkedHere =
+    state.visits.some((v) => v.customerId === customerId) ||
+    state.entryQueue.some((q) => q.customerId === customerId) ||
+    state.memberships.some((m) => m.customerId === customerId);
+  if (!linkedHere) return response.status(404).json({ error: 'No record for this customer at this gym.' });
+  const photo = readProfilePhotoFile(customerId);
+  if (!photo) return response.sendStatus(404);
+  response.set('Cache-Control', 'private, max-age=300').type(photo.contentType).send(photo.body);
+});
 
 // Preserve Gym customer endpoints while rejecting cross-category writes.
 app.use('/api/gym/:gymId', (request, response, next) => {
@@ -1884,15 +1951,53 @@ app.get('/api/gym/:gymId/my-membership', requireCustomer, (request: Authenticate
     attendance: customerAttendanceSummary(state, request.customerId!),
     activeVisit: state.visits.find((v) => v.customerId === request.customerId && !v.checkedOutAt) || null,
     queued: state.entryQueue.find((q) => q.customerId === request.customerId && q.status === 'Waiting') || null,
+    // Real payment rows this customer has open at this gym — the honest source
+    // for "Cash pending at the front desk" on the customer CTA. Never a
+    // client-side guess, and never shown as paid/complete on its own.
+    pendingPayments: state.payments
+      .filter((p) => p.customerId === request.customerId && (p.status === 'pending' || (p.status === 'paid' && !p.visitId)))
+      .map((p) => ({ id: p.id, offeringId: p.offeringId, offeringName: p.offeringName, amountInr: p.amountInr, method: p.method, status: p.status, createdAt: p.createdAt })),
+    // Closed visits for this customer at this gym, most recent first — the
+    // same GymVisit rows Live Floor's "Left" tab reads, so the frozen
+    // durations can never disagree between owner and customer.
+    recentVisits: state.visits
+      .filter((v) => v.customerId === request.customerId && v.checkedOutAt)
+      .sort((a, b) => (b.checkedOutAt || 0) - (a.checkedOutAt || 0))
+      .slice(0, 10),
   });
 });
 
 app.get('/api/me/gym-memberships', requireCustomer, (request: AuthenticatedRequest, response) => {
   const gyms = db.prepare("SELECT id, name FROM salon WHERE main_category_id='gym' AND onboarded=1").all() as { id: string; name: string }[];
   const results: any[] = [];
+  // Gym Activity for the Customer Profile: the caller's own open visit (if
+  // any) and their most recent closed visits, carrying the raw GymVisit
+  // timestamps so Profile derives its duration from the same record and the
+  // same shared function Live Floor uses — no second timer, no stored elapsed.
+  const activeVisits: any[] = [];
+  const recentVisits: any[] = [];
   for (const gym of gyms) {
     const state = getGymState(gym.id);
     if (reconcileExpiredMemberships(state.memberships)) saveGymState(gym.id, state);
+    const accessName = (offeringId?: string, customEntry?: boolean) =>
+      customEntry ? 'Custom Entry' : (state.offerings.find((o) => o.id === offeringId)?.name || '');
+    const open = state.visits.find((v) => v.customerId === request.customerId && !v.checkedOutAt);
+    if (open) {
+      activeVisits.push({
+        gymId: gym.id,
+        gymName: gym.name,
+        visit: open,
+        accessName: accessName(open.offeringId, open.customEntry),
+      });
+    }
+    for (const closed of state.visits.filter((v) => v.customerId === request.customerId && v.checkedOutAt)) {
+      recentVisits.push({
+        gymId: gym.id,
+        gymName: gym.name,
+        visit: closed,
+        accessName: accessName(closed.offeringId, closed.customEntry),
+      });
+    }
     const membership = currentMembershipFor(state.memberships, request.customerId!);
     if (!membership) continue;
     results.push({
@@ -1901,7 +2006,12 @@ app.get('/api/me/gym-memberships', requireCustomer, (request: AuthenticatedReque
       membership: { ...membership, displayStatus: membershipDisplayStatus(membership), daysRemaining: daysRemaining(membership.expiryDate) },
     });
   }
-  response.set('Cache-Control', 'no-store').json({ memberships: results });
+  recentVisits.sort((a, b) => (b.visit.checkedOutAt || 0) - (a.visit.checkedOutAt || 0));
+  response.set('Cache-Control', 'no-store').json({
+    memberships: results,
+    activeVisits,
+    recentVisits: recentVisits.slice(0, 10),
+  });
 });
 
 app.post('/api/gym/:gymId/membership-claims', requireCustomer, async (request: AuthenticatedRequest, response) => {
@@ -1947,6 +2057,25 @@ app.post('/api/gym/:gymId/purchase-intent', requireCustomer, async (request: Aut
   const method = request.body?.method === 'online' ? 'online' : 'cash';
   if (!offering.paymentOptions.includes(method)) {
     return response.status(400).json({ error: 'This payment method is not offered for this plan.' });
+  }
+  // Active-pass lock, enforced here rather than only hidden in the UI: while a
+  // visit is genuinely open, a visitor pass cannot be bought again. Checking
+  // out clears the lock, so buying a new pass afterwards works normally.
+  // Memberships stay purchasable (that is a renewal, not a second entry).
+  if (offering.type !== 'membership'
+    && state.visits.some((v) => v.customerId === request.customerId && !v.checkedOutAt)) {
+    return response.status(409).json({
+      error: "You're currently inside this gym on an active visit. Check out first, or choose Upgrade.",
+      code: 'ACTIVE_VISIT_EXISTS',
+    });
+  }
+  // One pending intent at a time for the same plan — a double tap on Payment
+  // must not queue two cash collections against the same person.
+  if (state.payments.some((p) => p.customerId === request.customerId && p.offeringId === offering.id && p.status === 'pending')) {
+    return response.status(409).json({
+      error: 'You already have a pending payment for this access. The gym will confirm it at the front desk.',
+      code: 'PAYMENT_ALREADY_PENDING',
+    });
   }
   const profile = readCustomerProfile(request.customerId!);
   const payment = {

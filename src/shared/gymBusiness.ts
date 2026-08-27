@@ -44,6 +44,18 @@ export type GymVisit = {
   // Who closed this visit — additive; absent on legacy rows (render a
   // neutral fallback instead of guessing which one it was).
   checkoutSource?: "staff" | "customer";
+  // Free staff-verified entry with no GymOffering and no payment behind it
+  // ("Custom Entry — Free" on Add Visitor). Deliberately a flag rather than a
+  // synthetic ₹0 offering/payment, so nothing downstream ever mistakes it for
+  // a real transaction. Always a visit, never a membership.
+  customEntry?: boolean;
+  // Contact number captured by a staff-entered walk-in (Add Visitor). Additive
+  // and optional — legacy and QR-sourced visits never set it.
+  mobile?: string;
+  // Resolved at serve time from customer_profile for visits linked to a real
+  // authenticated customer — never persisted into GymState, so a later photo
+  // change is reflected immediately and no image data is duplicated here.
+  customerPhotoUrl?: string;
 };
 export type GymQueueEntry = {
   id: string;
@@ -63,6 +75,8 @@ export type GymQueueEntry = {
   paymentId?: string;
   purpose?: "member" | "visitor";
   entryMethod?: "qr" | "staff_manual";
+  customEntry?: boolean;
+  mobile?: string;
 };
 
 // --- Membership, Offering & Payment domain ---------------------------------
@@ -88,6 +102,11 @@ export type GymOffering = {
   active: boolean;
   customerVisible: boolean;
   paymentOptions: ("online" | "cash")[];
+  // Owner-controlled "Recommend this plan" toggle (Plans & Services form).
+  // The ONLY source for the customer-facing "Recommended for you" section —
+  // when no offering at this gym has it set, that section is not rendered at
+  // all rather than auto-picking one.
+  recommended?: boolean;
   createdAt: number;
   updatedAt: number;
 };

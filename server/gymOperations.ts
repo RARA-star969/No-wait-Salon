@@ -12,6 +12,7 @@ import {
   type GymMembership,
   type GymPayment,
 } from "../src/shared/gymBusiness.ts";
+import { CUSTOM_ENTRY_OFFERING_ID } from "../src/shared/gymLiveFloor.ts";
 import { qrSvgDataUrl } from "./qrRendering.ts";
 
 type Session = {
@@ -28,6 +29,10 @@ type Dependencies = {
   active: (id: string) => boolean;
   trainerAccounts: (id: string) => { id: string; name: string }[];
   flush: () => Promise<unknown>;
+  /** customerId -> URL a Gym staff session can load that customer's existing
+   * profile photo from. Resolved at serve time only and never written into
+   * GymState: GymVisit stores no image data, just the customerId link. */
+  customerPhotos?: (gymId: string, customerIds: string[]) => Map<string, string>;
 };
 const operators = ["owner", "manager", "staff", "reception"];
 const managers = ["owner", "manager"];
@@ -105,6 +110,9 @@ export function publicGymState(state: GymState) {
       .length,
     insideVisitorsCount: activeVisits.filter((v) => v.purpose !== "member")
       .length,
+    // `recommended` rides along untouched so the customer Access/Upgrade
+    // sheets read the owner's real toggle. No client-side substitute exists:
+    // if nothing here is flagged, the sheet shows no Recommended section.
     offerings: state.offerings.filter((o) => o.active && o.customerVisible),
   };
 }
@@ -154,6 +162,18 @@ function addDuration(
   else if (unit === "year") d.setFullYear(d.getFullYear() + value);
   else d.setDate(d.getDate() + 1); // "session"-based offerings still need a nominal access window
   return d.toISOString().slice(0, 10);
+}
+/** Server-enforced single-active-visit rule (never merely hidden in the UI):
+ * one authenticated customer can hold at most one open GymVisit per gym at a
+ * time. Every path that could open a second one — staff Add Visitor, Custom
+ * Entry, Accept Payment / Confirm Check-In, queue admit, QR scan — routes
+ * through this. Checking out clears it, so buying another pass afterwards is
+ * allowed again. */
+export function assertNoOpenVisit(s: GymState, customerId: string) {
+  if (s.visits.some((v) => v.customerId === customerId && !v.checkedOutAt))
+    throw new Error(
+      "This customer already has an open visit at this gym. Check them out first, or use Upgrade.",
+    );
 }
 function find<T extends { id: string }>(
   items: T[],
@@ -324,7 +344,32 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
       s.campaigns = [];
       s.events = s.events.filter((e) => e.category !== "campaigns");
     }
-    res.set("Cache-Control", "no-store").json(s);
+    // Profile photos are attached to the response only — never persisted into
+    // GymState — so a customer changing their photo is reflected on the next
+    // poll and no image data is ever duplicated into a GymVisit row. Only the
+    // photo URL crosses over; no other private profile field does.
+    const linkedCustomerIds = [
+      ...new Set(
+        s.visits
+          .map((v) => v.customerId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const photos = linkedCustomerIds.length
+      ? deps.customerPhotos?.(s.gymId, linkedCustomerIds)
+      : undefined;
+    const payload =
+      photos && photos.size
+        ? {
+            ...s,
+            visits: s.visits.map((v) =>
+              v.customerId && photos.has(v.customerId)
+                ? { ...v, customerPhotoUrl: photos.get(v.customerId) }
+                : v,
+            ),
+          }
+        : s;
+    res.set("Cache-Control", "no-store").json(payload);
   });
   for (const action of ["checkin", "checkout"] as const)
     route("post", action, operators, async (req, res, s, session) => {
@@ -550,6 +595,7 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
               s.members.find((m) => m.id === q.memberId)?.status === "Paused"
             )
               throw new Error("Membership is paused.");
+            if (q.customerId) assertNoOpenVisit(s, q.customerId);
             s.currentOccupancy++;
             const admittedVisit = {
               id: randomUUID(),
@@ -557,11 +603,13 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
               memberId: q.memberId,
               checkedInAt: Date.now(),
               customerId: q.customerId,
+              mobile: q.mobile,
               offeringId: q.offeringId,
               membershipId: q.membershipId,
               paymentId: q.paymentId,
               purpose: q.purpose,
               entryMethod: q.entryMethod,
+              customEntry: q.customEntry,
               checkedInBy: session.name,
             };
             s.visits.unshift(admittedVisit);
@@ -777,6 +825,15 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           customerVisible:
             b.customerVisible === undefined ? true : Boolean(b.customerVisible),
           paymentOptions: paymentOptions.length ? paymentOptions : ["cash"],
+          // Owner-only "Recommend this plan" toggle. Scoped to this gym's own
+          // state record (the route already proved the session owns this
+          // business), so it can never leak across businesses. Absent in the
+          // body -> keep whatever the existing row had, rather than silently
+          // clearing a recommendation on an unrelated edit.
+          recommended:
+            b.recommended === undefined
+              ? existing?.recommended === true
+              : Boolean(b.recommended),
           createdAt: existing?.createdAt || Date.now(),
           updatedAt: Date.now(),
         };
@@ -833,6 +890,47 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           claim.status = "approved";
           claim.resultingMembershipId = membership.id;
           gymEvent(s, "members", "claim_approved", claim.name, session.name);
+        }
+      } else if (
+        kind === "add_visitor" &&
+        b.offeringId === CUSTOM_ENTRY_OFFERING_ID
+      ) {
+        // Custom Entry — Free. A staff member is physically standing with this
+        // person, so their presence IS the verification: no GymOffering, no
+        // GymPayment, no membership, no Accept Payment step. Deliberately not
+        // modelled as a ₹0 "paid" transaction — a fake transaction would show
+        // up in collections, reports and the Payments tab as if money moved.
+        // The visit simply carries customEntry: true.
+        const name = requireText(b.name, "Visitor name");
+        const mobile =
+          typeof b.mobile === "string" ? b.mobile.trim().slice(0, 20) : "";
+        const customerId =
+          typeof b.customerId === "string" && b.customerId ? b.customerId : undefined;
+        if (customerId) assertNoOpenVisit(s, customerId);
+        const base = {
+          name,
+          customerId,
+          mobile: mobile || undefined,
+          purpose: "visitor" as const,
+          entryMethod: "staff_manual" as const,
+          customEntry: true,
+        };
+        if (s.currentOccupancy >= s.maxCapacity) {
+          s.entryQueue.push({
+            id: randomUUID(),
+            ...base,
+            arrivedAt: Date.now(),
+            status: "Waiting",
+          });
+          gymEvent(s, "queue", "joined", name, session.name);
+        } else {
+          s.visits.unshift({
+            id: randomUUID(),
+            ...base,
+            checkedInAt: Date.now(),
+            checkedInBy: session.name,
+          });
+          gymEvent(s, "checkins", "checkin", name, session.name);
         }
       } else if (kind === "add_visitor" || kind === "accept_payment") {
         let payment: (typeof s.payments)[number];
@@ -932,6 +1030,9 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             gymEvent(s, "queue", "joined", payment.customerName, session.name);
           }
         } else {
+          // Server-enforced: accepting a payment for someone who is already
+          // inside must never open a second concurrent visit.
+          if (payment.customerId) assertNoOpenVisit(s, payment.customerId);
           const visit = {
             id: randomUUID(),
             name: payment.customerName,
@@ -954,6 +1055,57 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             session.name,
             {},
           );
+        }
+      } else if (kind === "confirm_checkin") {
+        // Payment != physical entry. A payment that genuinely reached `paid`
+        // (today: only via staff Accept; an online gateway would land here
+        // too) still does not put anyone on the floor. This is the explicit
+        // staff confirmation that they are physically present, and the only
+        // thing that opens their GymVisit. It never mutates payment.status —
+        // the money side is already settled and stays untouched.
+        const payment = find(s.payments, b.paymentId, "Payment");
+        if (payment.status !== "paid")
+          throw new Error(
+            "Only a paid payment can be confirmed for check-in.",
+          );
+        if (payment.visitId)
+          throw new Error("This payment has already been checked in.");
+        if (payment.customerId) assertNoOpenVisit(s, payment.customerId);
+        const offering = find(s.offerings, payment.offeringId, "Offering");
+        const purpose = (
+          offering.type === "membership" ? "member" : "visitor"
+        ) as "member" | "visitor";
+        if (s.currentOccupancy >= s.maxCapacity) {
+          s.entryQueue.push({
+            id: randomUUID(),
+            name: payment.customerName,
+            customerId: payment.customerId,
+            offeringId: offering.id,
+            membershipId: payment.membershipId,
+            paymentId: payment.id,
+            purpose,
+            entryMethod: "staff_manual",
+            arrivedAt: Date.now(),
+            status: "Waiting",
+          });
+          gymEvent(s, "queue", "joined", payment.customerName, session.name);
+        } else {
+          const visit = {
+            id: randomUUID(),
+            name: payment.customerName,
+            checkedInAt: Date.now(),
+            customerId: payment.customerId,
+            offeringId: offering.id,
+            membershipId: payment.membershipId,
+            paymentId: payment.id,
+            purpose,
+            entryMethod: "staff_manual" as const,
+            checkedInBy: session.name,
+          };
+          s.visits.unshift(visit);
+          payment.visitId = visit.id;
+          payment.updatedAt = Date.now();
+          gymEvent(s, "checkins", "checkin", payment.customerName, session.name);
         }
       } else if (kind === "decline_payment") {
         const payment = find(s.payments, b.paymentId, "Payment");
