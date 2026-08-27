@@ -24,7 +24,7 @@ export type ResolvedAccess = { kind: AccessKind; label: string };
 
 export function resolveAccess(
   source: { offeringId?: string; customEntry?: boolean } | undefined,
-  offerings: Pick<GymOffering, "id" | "name">[],
+  offerings: readonly Pick<GymOffering, "id" | "name">[],
 ): ResolvedAccess {
   if (!source) return { kind: "unknown", label: "—" };
   if (source.customEntry) return { kind: "custom_entry", label: CUSTOM_ENTRY_LABEL };
@@ -66,10 +66,10 @@ export function visitStatus(visit: Pick<GymVisit, "checkedOutAt">): "Inside" | "
 /** Status + free-text search composed together, in that order, over the full
  * (active AND historical) visit list. Search matches the visitor's name; an
  * empty query matches everything. */
-export function filterVisits<T extends Pick<GymVisit, "name" | "checkedOutAt">>(
-  visits: T[],
+export function filterVisits(
+  visits: readonly GymVisit[],
   options: { status?: VisitStatusFilter; query?: string } = {},
-): T[] {
+): GymVisit[] {
   const status = options.status || "All";
   const query = (options.query || "").trim().toLowerCase();
   return visits.filter((visit) => {
@@ -81,9 +81,7 @@ export function filterVisits<T extends Pick<GymVisit, "name" | "checkedOutAt">>(
 
 /** Most-recent-first ordering that keeps open visits meaningful in the "All"
  * tab: sort by whichever timestamp last changed on the row. */
-export function sortVisitsForFloor<T extends Pick<GymVisit, "checkedInAt" | "checkedOutAt">>(
-  visits: T[],
-): T[] {
+export function sortVisitsForFloor(visits: readonly GymVisit[]): GymVisit[] {
   return [...visits].sort(
     (a, b) => (b.checkedOutAt || b.checkedInAt) - (a.checkedOutAt || a.checkedInAt),
   );
@@ -117,7 +115,7 @@ export type VisitPaymentDisplay =
 
 export function visitPaymentDisplay(
   visit: Pick<GymVisit, "paymentId" | "customEntry">,
-  payments: Pick<GymPayment, "id" | "status" | "amountInr" | "method">[],
+  payments: readonly Pick<GymPayment, "id" | "status" | "amountInr" | "method">[],
 ): VisitPaymentDisplay {
   if (visit.customEntry) return { kind: "not_required", label: "Not required" };
   const payment = visit.paymentId
@@ -168,9 +166,7 @@ export function paymentCardState(
 
 /** Everything the Payments tab should show: real pending cash/online rows plus
  * genuinely-paid online rows still awaiting the staff Confirm Check-In step. */
-export function paymentsAwaitingAction<
-  T extends Pick<GymPayment, "status" | "method" | "visitId">,
->(payments: T[]): T[] {
+export function paymentsAwaitingAction(payments: readonly GymPayment[]): GymPayment[] {
   return payments.filter((p) => paymentCardState(p) !== null);
 }
 

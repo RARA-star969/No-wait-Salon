@@ -57,6 +57,27 @@ import {
   type NeedsAttentionTarget,
 } from "../shared/gymBusiness";
 import {
+  ACCESS_LABEL,
+  CUSTOM_ENTRY_LABEL,
+  CUSTOM_ENTRY_OFFERING_ID,
+  filterVisits,
+  paymentCardState,
+  paymentsAwaitingAction,
+  resolveAccess,
+  sortVisitsForFloor,
+  visitPaymentDisplay,
+  VISIT_STATUS_OPTIONS,
+  type VisitStatusFilter,
+} from "../shared/gymLiveFloor";
+import {
+  formatGymClock,
+  formatGymDuration,
+  formatGymTimeWithDay,
+  gymElapsedLabel,
+  gymVisitDurationLabel,
+} from "../shared/gymTime";
+import { GymCustomerAvatar } from "./GymCustomerAvatar";
+import {
   Badge,
   CampaignsPanel,
   Empty,
@@ -738,6 +759,16 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             { value: "false", label: "No — staff use only" },
           ],
         },
+        {
+          name: "recommended",
+          label: "Recommend this plan",
+          value: o?.recommended ? "true" : "false",
+          options: [
+            { value: "false", label: "No" },
+            { value: "true", label: "Yes — highlight it to customers" },
+          ],
+          help: "Recommended plans appear under \u201cRecommended for you\u201d in the customer Access and Upgrade sheets. Leave every plan off and that section simply is not shown.",
+        },
       ],
       submit: (v) =>
         operate("offerings", {
@@ -745,37 +776,44 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           id: o?.id,
           active: v.active === "true",
           customerVisible: v.customerVisible === "true",
+          recommended: v.recommended === "true",
           paymentOptions: o?.paymentOptions || ["cash"],
         }),
     });
   const openAddVisitor = () => {
     if (!state) return;
     const offerings = state.offerings.filter((o) => o.active);
-    if (!offerings.length) {
-      setNotice("Add a plan or service first.");
-      if (manager) navigate("plans");
-      return;
-    }
+    // Custom Entry needs no offering at all, so this form is always usable —
+    // an empty Plans list no longer blocks letting someone in for free.
     setForm({
       title: "Add visitor",
       description:
-        "Records the payment, activates any membership, and checks the visitor in — staff presence is the physical verification, no QR scan needed.",
+        "Staff presence is the physical verification — no QR scan needed. A paid access records the payment and activates any membership; Custom Entry is free and creates the visit immediately with no payment at all.",
       fields: [
         { name: "name", label: "Full name" },
         { name: "mobile", label: "Mobile number", type: "tel", optional: true },
         {
           name: "offeringId",
-          label: "Plan / service",
-          options: offerings.map((o) => ({
-            value: o.id,
-            label: `${o.name} — ₹${o.priceInr}`,
-          })),
+          label: ACCESS_LABEL,
+          value: CUSTOM_ENTRY_OFFERING_ID,
+          options: [
+            {
+              value: CUSTOM_ENTRY_OFFERING_ID,
+              label: `${CUSTOM_ENTRY_LABEL} — Free`,
+            },
+            ...offerings.map((o) => ({
+              value: o.id,
+              label: `${o.name} — ₹${o.priceInr}`,
+            })),
+          ],
+          help: `${CUSTOM_ENTRY_LABEL} takes no payment and needs no plan — use it for a trial, a guest, or a comped entry.`,
         },
         {
           name: "method",
           label: "Payment collected as",
           value: "cash",
           options: [{ value: "cash", label: "Cash" }],
+          help: "Ignored for Custom Entry — nothing is collected and no payment record is created.",
         },
       ],
       submit: (v) => operate("add_visitor", v),
@@ -784,9 +822,18 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   const openAcceptPayment = (p: GymPayment) =>
     setForm({
       title: "Accept payment & check in",
-      description: `${p.customerName} — ${p.offeringName} · ₹${p.amountInr} (${p.method === "online" ? "online" : "cash"})`,
+      description: `${p.customerName} — ${ACCESS_LABEL}: ${p.offeringName} · ₹${p.amountInr} (${p.method === "online" ? "online" : "cash"})`,
       fields: [],
       submit: () => operate("accept_payment", { paymentId: p.id }),
+    });
+  // Money already settled; this is only the physical-entry confirmation. The
+  // payment record is not touched — the visit is what gets created.
+  const openConfirmCheckIn = (p: GymPayment) =>
+    setForm({
+      title: "Confirm check-in",
+      description: `${p.customerName} — ${ACCESS_LABEL}: ${p.offeringName} · ₹${p.amountInr} already paid online. Confirm they are physically here to start their visit.`,
+      fields: [],
+      submit: () => operate("confirm_checkin", { paymentId: p.id }),
     });
   const reviewClaim = (c: GymMembershipClaim, decision: "approve" | "reject") => {
     if (decision === "reject") {
@@ -897,7 +944,11 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
       ],
       submit: (v) => operate("queue", { ...v, action: "add" }),
     });
-  const filters = (options: string[]) => (
+  // Search + Status share one control pair. The list each module renders
+  // applies them together through a shared pure filter (see
+  // shared/gymLiveFloor.filterVisits for Live Floor), never by pre-narrowing
+  // the source list first — that is what used to make "Left" always empty.
+  const filters = (options: readonly string[]) => (
     <div className="gym-filters">
       <label>
         Search
@@ -1417,7 +1468,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
               {active === "live_floor" && (() => {
                 const insideVisits = state.visits.filter((v) => !v.checkedOutAt);
                 const waitingQueue = state.entryQueue.filter((q) => q.status === "Waiting");
-                const pendingPayments = state.payments.filter((p) => p.status === "pending");
+                // Everything that needs a staff decision: real pending cash /
+                // online intents, plus online payments that genuinely reached
+                // `paid` and still need the explicit Confirm Check-In step.
+                const pendingPayments = paymentsAwaitingAction(state.payments);
                 const cashPendingTotal = pendingPayments
                   .filter((p) => p.method === "cash")
                   .reduce((sum, p) => sum + p.amountInr, 0);
@@ -1432,20 +1486,25 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                       ),
                     )
                   : 0;
-                const offeringName = (id?: string) =>
-                  (id && state.offerings.find((o) => o.id === id)?.name) || "";
                 const entrySourceLabel = (entryMethod?: string) =>
                   entryMethod === "qr" ? "QR" : entryMethod === "staff_manual" ? "Staff" : "—";
-                const insideMinutes = (checkedInAt: number) =>
-                  Math.max(0, Math.round((nowTick - checkedInAt) / 60000));
-                const durationLabel = (minutes: number) =>
-                  minutes >= 60
-                    ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-                    : `${minutes}m`;
-                const paymentFor = (v: (typeof state.visits)[number]) =>
-                  v.paymentId ? state.payments.find((p) => p.id === v.paymentId) : undefined;
-                const filtered = (list: typeof insideVisits) =>
-                  list.filter((v) => matches(v.name, ""));
+                // Inside AND Left read the same full visits array — historical
+                // checked-out rows are never removed from GymState.visits, so
+                // "Left" is a filter over the same source, not a second fetch.
+                // Status and search compose in one shared pure function.
+                // Photo URLs are resolved server-side onto visit rows; payment
+                // cards reuse the same resolution via the customer's visit
+                // rather than fetching a second time.
+                const photoForCustomer = (customerId?: string) =>
+                  customerId
+                    ? state.visits.find((v) => v.customerId === customerId)?.customerPhotoUrl
+                    : undefined;
+                const visibleVisits = sortVisitsForFloor(
+                  filterVisits(state.visits, {
+                    status: status as VisitStatusFilter,
+                    query,
+                  }),
+                );
                 return (
                   <>
                     <div className="gym-floor-header">
@@ -1484,7 +1543,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                         <strong>{waitingQueue.length}</strong>
                         <span className="gym-floor-summary-note">
                           {waitingQueue.length
-                            ? `Longest wait ${durationLabel(longestWaitMinutes)}`
+                            ? `Longest wait ${formatGymDuration(longestWaitMinutes)}`
                             : "Entry queue is clear"}
                         </span>
                       </button>
@@ -1536,51 +1595,67 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                         </button>
                       ))}
                     </div>
-                    {liveFloorTab === "inside" && filters(["Inside", "Left"])}
+                    {liveFloorTab === "inside" && filters(VISIT_STATUS_OPTIONS)}
                     {liveFloorTab === "inside" && (
-                      filtered(insideVisits).length ? (
+                      visibleVisits.length ? (
                         <div className="gym-floor-cards">
-                          {filtered(insideVisits).map((v) => {
-                            const payment = paymentFor(v);
+                          {visibleVisits.map((v) => {
+                            const left = Boolean(v.checkedOutAt);
+                            const access = resolveAccess(v, state.offerings);
+                            const paymentState = visitPaymentDisplay(v, state.payments);
                             return (
-                              <article className="gym-floor-card" key={v.id}>
+                              <article
+                                className={`gym-floor-card${left ? " left" : ""}`}
+                                key={v.id}
+                              >
                                 <header>
-                                  <span className="gym-avatar">{v.name.charAt(0)}</span>
+                                  <GymCustomerAvatar name={v.name} photoUrl={v.customerPhotoUrl} />
                                   <div className="gym-floor-card-id">
                                     <strong>{v.name}</strong>
                                     <div className="gym-floor-chips">
                                       <Badge>{v.purpose === "member" ? "Member" : "Visitor"}</Badge>
                                       <Badge>{entrySourceLabel(v.entryMethod)} entry</Badge>
+                                      {/* Every card in the combined "All" view
+                                          says plainly whether this person is
+                                          still on the floor or has left. */}
+                                      <Badge>{left ? "Left" : "Currently inside"}</Badge>
                                     </div>
                                   </div>
                                 </header>
                                 <dl className="gym-floor-card-facts">
-                                  {offeringName(v.offeringId) && (
+                                  {access.kind !== "unknown" && (
                                     <div>
-                                      <dt>Plan</dt>
-                                      <dd>{offeringName(v.offeringId)}</dd>
+                                      <dt>Access</dt>
+                                      <dd>{access.label}</dd>
                                     </div>
                                   )}
                                   {v.purpose === "visitor" && (
                                     <div>
                                       <dt>Payment</dt>
-                                      <dd>
-                                        {payment?.status === "paid"
-                                          ? `₹${payment.amountInr} paid`
-                                          : payment
-                                            ? "Cash pending"
-                                            : "—"}
-                                      </dd>
+                                      <dd>{paymentState.label}</dd>
                                     </div>
                                   )}
                                   <div>
                                     <dt>Checked in</dt>
-                                    <dd>{dateTime(v.checkedInAt)}</dd>
+                                    <dd>{formatGymTimeWithDay(v.checkedInAt, nowTick)}</dd>
                                   </div>
-                                  <div>
-                                    <dt>Duration</dt>
-                                    <dd>inside {durationLabel(insideMinutes(v.checkedInAt))}</dd>
-                                  </div>
+                                  {left ? (
+                                    <>
+                                      <div>
+                                        <dt>Checked out</dt>
+                                        <dd>{formatGymTimeWithDay(v.checkedOutAt, nowTick)}</dd>
+                                      </div>
+                                      <div>
+                                        <dt>Total duration</dt>
+                                        <dd>{gymVisitDurationLabel(v, nowTick)}</dd>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div>
+                                      <dt>Duration</dt>
+                                      <dd>inside {gymVisitDurationLabel(v, nowTick)}</dd>
+                                    </div>
+                                  )}
                                 </dl>
                                 <div className="gym-inline-actions">
                                   {v.memberId && (
@@ -1591,24 +1666,28 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                       View Member
                                     </button>
                                   )}
-                                  <button
-                                    className="gym-button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      action(
-                                        () => gymStaffService.checkOut(gymId, v.id),
-                                        "Visitor checked out",
-                                      )
-                                    }
-                                  >
-                                    Check Out
-                                  </button>
+                                  {/* A left visit is history: it is never
+                                      deleted and never offers Check Out. */}
+                                  {!left && (
+                                    <button
+                                      className="gym-button"
+                                      disabled={busy}
+                                      onClick={() =>
+                                        action(
+                                          () => gymStaffService.checkOut(gymId, v.id),
+                                          "Visitor checked out",
+                                        )
+                                      }
+                                    >
+                                      Check Out
+                                    </button>
+                                  )}
                                 </div>
                               </article>
                             );
                           })}
                         </div>
-                      ) : insideVisits.length === 0 ? (
+                      ) : state.visits.length === 0 ? (
                         <Empty>No one is inside right now</Empty>
                       ) : (
                         <Empty>No matching visits. Check in a member or visitor to begin.</Empty>
@@ -1632,19 +1711,19 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                                 </div>
                               </header>
                               <dl className="gym-floor-card-facts">
-                                {offeringName(q.offeringId) && (
+                                {resolveAccess(q, state.offerings).kind !== "unknown" && (
                                   <div>
-                                    <dt>Plan</dt>
-                                    <dd>{offeringName(q.offeringId)}</dd>
+                                    <dt>Access</dt>
+                                    <dd>{resolveAccess(q, state.offerings).label}</dd>
                                   </div>
                                 )}
                                 <div>
                                   <dt>Arrived</dt>
-                                  <dd>{dateTime(q.arrivedAt)}</dd>
+                                  <dd>{formatGymTimeWithDay(q.arrivedAt, nowTick)}</dd>
                                 </div>
                                 <div>
                                   <dt>Waiting</dt>
-                                  <dd>{durationLabel(insideMinutes(q.arrivedAt))}</dd>
+                                  <dd>{gymElapsedLabel(q.arrivedAt, nowTick)}</dd>
                                 </div>
                               </dl>
                               <div className="gym-inline-actions">
@@ -1690,46 +1769,77 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     {liveFloorTab === "payments" && (
                       pendingPayments.length ? (
                         <div className="gym-floor-cards">
-                          {pendingPayments.map((p) => (
+                          {pendingPayments.map((p) => {
+                            const card = paymentCardState(p);
+                            if (!card) return null;
+                            return (
                             <article className="gym-floor-card" key={p.id}>
                               <header>
-                                <span className="gym-avatar">{p.customerName.charAt(0)}</span>
+                                <GymCustomerAvatar name={p.customerName} photoUrl={photoForCustomer(p.customerId)} />
                                 <div className="gym-floor-card-id">
                                   <strong>{p.customerName}</strong>
                                   <div className="gym-floor-chips">
-                                    <Badge>{p.offeringName}</Badge>
-                                    <Badge>{p.method === "online" ? "Online" : "Cash"} pending</Badge>
+                                    <Badge>{card.badge}</Badge>
                                   </div>
                                 </div>
                               </header>
                               <dl className="gym-floor-card-facts">
                                 <div>
+                                  <dt>Access</dt>
+                                  <dd>{p.offeringName}</dd>
+                                </div>
+                                <div>
                                   <dt>Amount</dt>
                                   <dd>₹{p.amountInr}</dd>
                                 </div>
                                 <div>
-                                  <dt>Pending since</dt>
-                                  <dd>{durationLabel(insideMinutes(p.createdAt))}</dd>
+                                  <dt>{card.kind === "online_paid" ? "Paid at" : "Requested"}</dt>
+                                  <dd>
+                                    {formatGymTimeWithDay(
+                                      card.kind === "online_paid" ? p.acceptedAt ?? p.updatedAt : p.createdAt,
+                                      nowTick,
+                                    )}
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>Waiting</dt>
+                                  <dd>{gymElapsedLabel(p.createdAt, nowTick)}</dd>
                                 </div>
                               </dl>
                               <div className="gym-inline-actions">
-                                <button
-                                  className="gym-button"
-                                  disabled={busy}
-                                  onClick={() => openAcceptPayment(p)}
-                                >
-                                  Accept & Check In
-                                </button>
-                                <button
-                                  className="gym-button secondary danger"
-                                  disabled={busy}
-                                  onClick={() => setDeclinePayment(p)}
-                                >
-                                  Decline
-                                </button>
+                                {/* Cash: Accept & Check In collects the money
+                                    AND opens the visit in one staff action.
+                                    Online paid: the money is already settled,
+                                    so this is purely the physical-entry
+                                    confirmation — and no Decline is offered,
+                                    because refunding a captured payment is not
+                                    something this system can actually do. */}
+                                {card.canAccept && (
+                                  <button
+                                    className="gym-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      card.kind === "online_paid"
+                                        ? openConfirmCheckIn(p)
+                                        : openAcceptPayment(p)
+                                    }
+                                  >
+                                    {card.kind === "online_paid" ? "Confirm Check-In" : "Accept & Check In"}
+                                  </button>
+                                )}
+                                {card.canDecline && (
+                                  <button
+                                    className="gym-button secondary danger"
+                                    disabled={busy}
+                                    onClick={() => setDeclinePayment(p)}
+                                  >
+                                    Decline
+                                  </button>
+                                )}
                               </div>
                             </article>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <Empty>No pending cash payments</Empty>
@@ -1769,6 +1879,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                               {o.type.replace("_", " ")}
                             </small>
                           </div>
+                          {o.recommended && <Badge>Recommended</Badge>}
                           <Badge>{o.active ? "Active" : "Disabled"}</Badge>
                           <div className="gym-inline-actions">
                             <button
@@ -2338,7 +2449,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             <span>NOQ BUSINESS · GYM OPERATIONS</span>
             <span>
               {updated
-                ? `Last synced ${new Date(updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+                ? `Last synced ${formatGymClock(updated)}`
                 : "Waiting for connection"}
             </span>
           </footer>

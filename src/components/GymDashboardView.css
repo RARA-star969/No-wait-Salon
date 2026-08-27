@@ -737,6 +737,15 @@ button.gym-metric:focus-visible {
   border-radius: 50%;
   flex-shrink: 0;
 }
+/* Live Floor avatar: the customer's real profile photo when one exists,
+   otherwise initials, otherwise a neutral glyph. */
+.gym-avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
 .gym-avatar.large {
   width: 48px;
   height: 48px;
@@ -999,6 +1008,15 @@ button.gym-floor-summary-card:focus-visible {
   flex-direction: column;
   gap: 10px;
   background: #fff;
+}
+/* A checked-out (historical) visit reads as settled rather than live — it is
+   still a full record, never removed, just visually de-emphasised. */
+.gym-floor-card.left {
+  background: #fbfcfd;
+  border-color: #e6ebee;
+}
+.gym-floor-card.left .gym-floor-card-id > strong {
+  color: #4c5f68;
 }
 .gym-floor-card header {
   display: flex;

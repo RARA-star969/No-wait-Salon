@@ -11,16 +11,12 @@ import {
   type GymEvent,
   type GymState,
 } from "../shared/gymBusiness";
+import { formatGymDateTime } from "../shared/gymTime";
 
+// Routed through the one shared Gym formatter so no Gym surface can drift
+// into a 24-hour clock on a locale that defaults to one.
 export const dateTime = (value: number | string) =>
-  value
-    ? new Date(value).toLocaleString([], {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : "Not scheduled";
+  value ? formatGymDateTime(value) : "Not scheduled";
 export const localInput = (value: number | string = Date.now()) => {
   const d = new Date(value);
   if (!Number.isFinite(+d)) return "";

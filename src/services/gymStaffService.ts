@@ -87,6 +87,15 @@ export const gymStaffService = {
   // never mints a new one, it only reads whatever ensureBusinessQr() already
   // holds for this gym (server/businessQr.ts is the single source of truth).
   getEntryQr: (id: string) => request<{ qr: GymEntryQr }>(`${root(id)}/entry-qr`),
+  // Live Floor profile photos. The URL comes from the server (already scoped
+  // to this gym and this customer) and is fetched with the staff session
+  // token — an <img src> could not carry that header. Returns an object URL
+  // the caller is responsible for revoking.
+  customerPhotoObjectUrl: async (photoUrl: string) => {
+    const res = await fetch(`${getBaseUrl()}${photoUrl}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Unable to load profile photo.");
+    return URL.createObjectURL(await res.blob());
+  },
   exportReport: async (id: string, filters: GymReportFilter) => {
     const res = await fetch(
       `${getBaseUrl()}${root(id)}/reports?${new URLSearchParams({ ...filters, format: "csv" })}`,
