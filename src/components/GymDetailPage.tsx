@@ -462,7 +462,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   };
 
   return (
-    <div id="gym-detail-page" className="min-h-full bg-[#F8FAFA] pb-24 text-[#17201F]">
+    <div id="gym-detail-page" className="min-h-full bg-[#F8FAFA] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F]">
+      {/* Bottom padding matches the Salon page: enough clearance for the
+          shared sticky dock at its tallest (expanded summary + action row)
+          plus the device safe area, so the last section is never hidden
+          behind it at customer mobile width. */}
       {/* Toast Notification Banner */}
       {bookingSuccessMessage && (
         <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between rounded-xl border border-[#0F766E]/40 bg-[#0F766E] px-4 py-3 text-xs font-bold text-white shadow-lg animate-in fade-in slide-in-from-top-2">
