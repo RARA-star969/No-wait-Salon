@@ -508,6 +508,31 @@ test("Gym business v1 real APIs, persistence and analytics", async (t) => {
       );
       assert.ok(filtered.every((e) => e.campaignId === campaignId));
       assert.ok(gymEventsCsv([]).includes("Event ID"));
+      const memberReport = await api(
+        "GET",
+        gym("members-report") + "?from=2020-01-01&to=2030-01-01",
+      );
+      assert.equal(memberReport.status, 200);
+      assert.ok(Array.isArray(memberReport.data.rows));
+      assert.equal(
+        (
+          await api(
+            "GET",
+            gym("members-report") + "?from=2020-01-01&to=2030-01-01",
+            undefined,
+            trainer,
+          )
+        ).status,
+        403,
+      );
+      const memberCsv = await fetch(
+        base +
+          gym("members-report") +
+          "?from=2020-01-01&to=2030-01-01&format=csv",
+        { headers: { Authorization: `Bearer ${owner}` } },
+      );
+      assert.match(memberCsv.headers.get("content-type")!, /text\/csv/);
+      assert.ok((await memberCsv.text()).includes("Total visits in range"));
     },
   );
   await t.test(

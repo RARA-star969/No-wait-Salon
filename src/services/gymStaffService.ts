@@ -104,4 +104,19 @@ export const gymStaffService = {
     if (!res.ok) throw new Error((await res.json()).error || "Export failed.");
     return res.blob();
   },
+  exportMembersReport: async (
+    id: string,
+    range: { from: string; to: string },
+  ) => {
+    const res = await fetch(
+      `${getBaseUrl()}${root(id)}/members-report?${new URLSearchParams({ ...range, format: "csv" })}`,
+      { headers: authHeaders() },
+    );
+    if (!res.ok)
+      throw new Error(
+        (await res.json().catch(() => ({}))).error ||
+          "Member report download failed.",
+      );
+    return res.blob();
+  },
 };

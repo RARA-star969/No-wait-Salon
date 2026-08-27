@@ -125,6 +125,9 @@ export type GymMembership = {
   joinedDate: string; // ISO date (yyyy-mm-dd)
   expiryDate: string; // ISO date (yyyy-mm-dd)
   previousMembershipId?: string; // renewal chain — history is never overwritten
+  // Response-only, gym-scoped profile photo URL. Never persisted; resolved
+  // from the existing customer profile on each authorized staff overview.
+  customerPhotoUrl?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -359,7 +362,7 @@ export type MembershipDisplayStatus =
   | "expired";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const EXPIRING_SOON_DAYS = 7;
+export const EXPIRING_SOON_DAYS = 7;
 
 /** Whole days remaining until (positive) or since (negative) expiryDate, from local midnight. */
 export function daysRemaining(expiryDate: string, now = Date.now()): number {
@@ -545,6 +548,197 @@ export function resolveConsistency(
   return { status, last30DayVisits, avgPerWeek };
 }
 
+export type GymMemberReportRow = {
+  memberName: string;
+  mobileNumber: string;
+  membershipPlan: string;
+  joinDate: string;
+  expiryDate: string;
+  membershipStatus: MembershipDisplayStatus;
+  lastVisitDate: string;
+  visitsInRange: number;
+  activityBucket: MemberActivityBucket;
+  amountPaidInr: number;
+  paymentStatus: string;
+  expectedRenewal: "Included in estimate" | "Not estimated";
+  source: GymMembershipSource;
+};
+
+const isMembershipPayment = (state: GymState, payment: GymPayment) =>
+  Boolean(payment.membershipId) ||
+  state.offerings.some(
+    (offering) =>
+      offering.id === payment.offeringId && offering.type === "membership",
+  );
+
+export const gymPaymentRecordedAt = (payment: GymPayment) =>
+  payment.acceptedAt ?? payment.updatedAt ?? payment.createdAt;
+
+export function memberActivityFor(
+  visits: GymVisit[],
+  customerId: string,
+  now = Date.now(),
+): {
+  bucket: MemberActivityBucket;
+  lastVisit?: number;
+  visitsLast30Days: number;
+  visitsPerWeek: number;
+} {
+  const consistency = resolveConsistency(visits, customerId, now);
+  const { lastVisit } = attendanceStreaks(visits, customerId, now);
+  return {
+    bucket:
+      consistency.status === "highly_consistent"
+        ? "very_active"
+        : consistency.status === "regular"
+          ? "regular"
+          : "not_visiting",
+    lastVisit,
+    visitsLast30Days: consistency.last30DayVisits,
+    visitsPerWeek: consistency.avgPerWeek,
+  };
+}
+
+/** One real-data row per current member relationship. A member is included
+ * when their membership overlaps the requested dates, or when a linked visit
+ * or membership payment falls inside them. */
+export function gymMemberReportRows(
+  state: GymState,
+  from: number,
+  to: number,
+  now = Date.now(),
+): GymMemberReportRow[] {
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to) return [];
+  return currentMemberships(state.memberships)
+    .map((membership) => {
+      const membershipIds = new Set(
+        state.memberships
+          .filter((candidate) => candidate.customerId === membership.customerId)
+          .map((candidate) => candidate.id),
+      );
+      const visits = state.visits.filter(
+        (visit) =>
+          visit.customerId === membership.customerId &&
+          visit.checkedInAt >= from &&
+          visit.checkedInAt <= to,
+      );
+      const payments = state.payments.filter(
+        (payment) =>
+          isMembershipPayment(state, payment) &&
+          (payment.customerId === membership.customerId ||
+            (payment.membershipId && membershipIds.has(payment.membershipId))) &&
+          gymPaymentRecordedAt(payment) >= from &&
+          gymPaymentRecordedAt(payment) <= to,
+      );
+      const overlaps =
+        Date.parse(`${membership.joinedDate}T00:00:00`) <= to &&
+        Date.parse(`${membership.expiryDate}T23:59:59.999`) >= from;
+      const activity = memberActivityFor(
+        state.visits,
+        membership.customerId,
+        Math.min(now, to),
+      );
+      const membershipStatus = membershipDisplayStatus(membership, now);
+      const canEstimate =
+        membershipStatus !== "expired" &&
+        state.offerings.some(
+          (offering) =>
+            offering.id === membership.offeringId &&
+            offering.type === "membership",
+        );
+      const row: GymMemberReportRow = {
+        memberName: membership.customerName,
+        mobileNumber: membership.customerMobile,
+        membershipPlan: membership.planName,
+        joinDate: membership.joinedDate,
+        expiryDate: membership.expiryDate,
+        membershipStatus,
+        lastVisitDate: activity.lastVisit
+          ? new Date(activity.lastVisit).toISOString()
+          : "",
+        visitsInRange: visits.length,
+        activityBucket: activity.bucket,
+        amountPaidInr: payments
+          .filter((payment) => payment.status === "paid")
+          .reduce((sum, payment) => sum + payment.amountInr, 0),
+        paymentStatus: payments.length
+          ? Array.from(new Set(payments.map((payment) => payment.status))).join(
+              ", ",
+            )
+          : "No payment in range",
+        expectedRenewal: canEstimate
+          ? "Included in estimate"
+          : "Not estimated",
+        source: membership.source,
+      };
+      return { include: overlaps || visits.length > 0 || payments.length > 0, row };
+    })
+    .filter(({ include }) => include)
+    .map(({ row }) => row)
+    .sort((a, b) => a.memberName.localeCompare(b.memberName));
+}
+
+/** Excel-friendly UTF-8 CSV with formula neutralization for user-entered
+ * names, phone numbers and plan labels. */
+export function gymMemberReportCsv(rows: GymMemberReportRow[]) {
+  const cell = (value: unknown) => {
+    const text = String(value ?? "");
+    return (
+      '"' +
+      (/^[\s]*[=+@-]/.test(text) ? "'" + text : text).replace(/"/g, '""') +
+      '"'
+    );
+  };
+  const activityLabels: Record<MemberActivityBucket, string> = {
+    very_active: "Very active",
+    regular: "Regular",
+    not_visiting: "Not visiting recently",
+  };
+  const statusLabels: Record<MembershipDisplayStatus, string> = {
+    active: "Active",
+    expiring_soon: "Expiring soon",
+    expires_today: "Expires today",
+    expired: "Expired",
+  };
+  const sourceLabels: Record<GymMembershipSource, string> = {
+    claim: "Customer claim",
+    purchase: "Purchase",
+    manual: "Manual",
+  };
+  const table: unknown[][] = [[
+    "Member name",
+    "Mobile number",
+    "Membership plan / access type",
+    "Join date",
+    "Expiry date",
+    "Current membership status",
+    "Last visit date (UTC)",
+    "Total visits in range",
+    "Attendance activity",
+    "Amount paid in range (INR)",
+    "Payment status in range",
+    "Expected-renewal indicator",
+    "Created source",
+  ]];
+  for (const row of rows)
+    table.push([
+      row.memberName,
+      row.mobileNumber,
+      row.membershipPlan,
+      row.joinDate,
+      row.expiryDate,
+      statusLabels[row.membershipStatus],
+      row.lastVisitDate,
+      row.visitsInRange,
+      activityLabels[row.activityBucket],
+      row.amountPaidInr,
+      row.paymentStatus,
+      row.expectedRenewal,
+      sourceLabels[row.source],
+    ]);
+  return "\uFEFF" + table.map((row) => row.map(cell).join(",")).join("\r\n");
+}
+
 // --- Overview (Gym) — real-data-only derivation --------------------------
 // Every function here reads straight off GymState (visits/payments/
 // memberships/etc.) and nothing else: no placeholders, no synthetic trend
@@ -714,7 +908,13 @@ export function overviewMonthActivity(
   historyStartedAt: number,
   now = Date.now(),
 ): MonthActivitySummary {
-  const monthKey = (t: number) => new Date(t).toISOString().slice(0, 7);
+  // Business analytics follow the owner's local calendar. ISO/UTC slicing
+  // can move a local first-of-month visit into the previous month in positive
+  // time zones, making a real comparison disappear around midnight.
+  const monthKey = (t: number) => {
+    const d = new Date(t);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
   const thisMonth = monthKey(now);
   const lastMonthAnchor = new Date(now);
   lastMonthAnchor.setDate(1);

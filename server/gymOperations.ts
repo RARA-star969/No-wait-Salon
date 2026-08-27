@@ -4,6 +4,8 @@ import {
   campaignIsLive,
   filterGymEvents,
   gymEventsCsv,
+  gymMemberReportCsv,
+  gymMemberReportRows,
   reconcileExpiredMemberships,
   type GymState,
   type GymEvent,
@@ -350,8 +352,8 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
     // photo URL crosses over; no other private profile field does.
     const linkedCustomerIds = [
       ...new Set(
-        s.visits
-          .map((v) => v.customerId)
+        [...s.visits, ...s.memberships]
+          .map((row) => row.customerId)
           .filter((id): id is string => Boolean(id)),
       ),
     ];
@@ -366,6 +368,14 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
               v.customerId && photos.has(v.customerId)
                 ? { ...v, customerPhotoUrl: photos.get(v.customerId) }
                 : v,
+            ),
+            memberships: s.memberships.map((membership) =>
+              photos.has(membership.customerId)
+                ? {
+                    ...membership,
+                    customerPhotoUrl: photos.get(membership.customerId),
+                  }
+                : membership,
             ),
           }
         : s;
@@ -1224,6 +1234,30 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         .set("Content-Disposition", 'attachment; filename="gym-report.csv"')
         .send(gymEventsCsv(events));
     else res.json({ events, historyStartedAt: s.historyStartedAt });
+  });
+  route("get", "members-report", managers, (req, res, s) => {
+    const fromText = String(req.query.from || "");
+    const toText = String(req.query.to || "");
+    const from = Date.parse(`${fromText}T00:00:00`);
+    const to = Date.parse(`${toText}T23:59:59.999`);
+    if (
+      !/^\d{4}-\d{2}-\d{2}$/.test(fromText) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(toText) ||
+      !Number.isFinite(from) ||
+      !Number.isFinite(to) ||
+      from > to
+    )
+      throw new Error("Choose a valid start and end date.");
+    const rows = gymMemberReportRows(s, from, to);
+    if (req.query.format === "csv")
+      res
+        .type("text/csv")
+        .set(
+          "Content-Disposition",
+          `attachment; filename="gym-members-${fromText}-to-${toText}.csv"`,
+        )
+        .send(gymMemberReportCsv(rows));
+    else res.json({ rows, from: fromText, to: toText });
   });
   const escape = (s: string) =>
     s.replace(

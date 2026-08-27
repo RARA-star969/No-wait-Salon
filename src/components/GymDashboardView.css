@@ -1115,6 +1115,130 @@ button.gym-floor-summary-card:focus-visible {
   display: block;
   margin: 15px 0;
 }
+
+/* Members — shared across full web, Android staff and embedded TEST. */
+.gym-members-module { display: flex; flex-direction: column; gap: 18px; }
+.gym-members-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; }
+.gym-members-kpi {
+  min-width: 0;
+  border: 1px solid #dfe9eb;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fff, #f8fbfb);
+  box-shadow: 0 12px 28px #24454d0b, inset 0 1px #fff;
+  padding: 17px;
+  position: relative;
+  overflow: hidden;
+}
+.gym-members-kpi::after { content: ""; position: absolute; width: 70px; height: 70px; border-radius: 50%; right: -32px; top: -32px; background: #1091960c; }
+.gym-members-kpi > div { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #61747d; }
+.gym-members-kpi > div span { text-transform: uppercase; letter-spacing: .55px; font-size: 9px; font-weight: 750; }
+.gym-members-kpi > div svg { color: #15868a; }
+.gym-members-kpi > strong { display: block; font-size: clamp(23px, 2.2vw, 31px); line-height: 1.2; letter-spacing: -1px; margin-top: 16px; color: #16343c; overflow-wrap: anywhere; }
+.gym-members-kpi > small { display: block; color: #7a8b92; font-size: 9px; margin-top: 5px; line-height: 1.5; }
+.gym-members-kpi.teal { border-color: #bcdedc; background: linear-gradient(145deg, #effaf8, #fff); }
+.gym-members-kpi.amber > div svg { color: #c47b24; }
+.gym-members-kpi.rose > div svg { color: #b76162; }
+.gym-members-kpi.navy > div svg { color: #405f76; }
+.gym-members-revenue-note {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 13px;
+  background: linear-gradient(100deg, #123f44, #17656a);
+  color: #fff;
+  border: 1px solid #2d777b;
+  border-radius: 14px;
+  padding: 15px 18px;
+  box-shadow: 0 12px 30px #12454b1c;
+}
+.gym-members-revenue-note > svg { color: #8ce0d8; }
+.gym-members-revenue-note strong { font-size: 11px; }
+.gym-members-revenue-note p { color: #c4dddc; font-size: 9px; margin-top: 3px; }
+.gym-members-revenue-note > span { font-size: 17px; font-weight: 750; text-align: right; }
+.gym-members-revenue-note > span small { display: block; color: #b8d6d4; font-size: 8px; font-weight: 500; max-width: 130px; }
+.gym-members-analytics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.gym-members-chart-card { min-width: 0; border: 1px solid #e0e9eb; border-radius: 16px; padding: 19px; background: #fff; box-shadow: 0 8px 24px #183c4407; }
+.gym-members-chart-card > header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.gym-members-chart-card > header span,
+.gym-members-list-heading > div > span { display: block; color: #0a8589; font-size: 8px; font-weight: 800; letter-spacing: 1.2px; margin-bottom: 4px; }
+.gym-members-chart-card > header h2 { font-size: 14px; }
+.gym-members-chart-card > header svg { color: #4a8d90; }
+.gym-members-chart-card > p { border-top: 1px solid #eef3f4; padding-top: 10px; margin-top: 11px; color: #839198; font-size: 9px; }
+.gym-members-bars { min-height: 145px; height: 145px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); align-items: end; gap: 10px; padding-top: 18px; }
+.gym-members-bar-column { height: 100%; min-width: 0; display: grid; grid-template-rows: 16px 1fr 15px; gap: 4px; align-items: end; text-align: center; }
+.gym-members-bar-column > span { font-size: 8px; color: #607780; font-weight: 650; overflow: hidden; }
+.gym-members-bar-column > small { font-size: 8px; color: #819097; }
+.gym-members-bar-track { height: 100%; width: min(28px, 75%); margin: 0 auto; border-radius: 7px 7px 3px 3px; background: #eef5f4; display: flex; align-items: end; overflow: hidden; }
+.gym-members-bar-track i { display: block; width: 100%; border-radius: 7px 7px 3px 3px; background: linear-gradient(180deg, #39aaa5, #087f83); box-shadow: inset 0 1px #ffffff55; }
+.gym-members-chart-card.revenue .gym-members-bar-track i { background: linear-gradient(180deg, #5e8495, #294f63); }
+.gym-members-chart-card.attendance .gym-members-bar-track i { background: linear-gradient(180deg, #74b5aa, #407b74); }
+.gym-members-chart-empty { height: 145px; display: grid; place-items: center; text-align: center; color: #86969c; font-size: 10px; padding: 20px; background: repeating-linear-gradient(0deg, transparent 0 31px, #eef3f4 32px); }
+.gym-members-activity-list { display: grid; gap: 12px; min-height: 145px; padding: 15px 0 5px; }
+.gym-members-activity-list > div > span { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; color: #566b74; }
+.gym-members-activity-list > div > span b { color: #18343d; }
+.gym-members-activity-list > div > i { display: block; height: 7px; border-radius: 8px; background: #edf3f3; overflow: hidden; margin-top: 5px; }
+.gym-members-activity-list > div > i > em { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #138b8e, #5bb9af); }
+.gym-members-report { border: 1px solid #b9dcda; border-radius: 16px; padding: 18px; background: linear-gradient(135deg, #eff9f7, #fff 60%); display: flex; align-items: end; justify-content: space-between; gap: 18px; box-shadow: 0 8px 24px #1d615f09; }
+.gym-members-report-copy { display: flex; align-items: center; gap: 12px; max-width: 410px; }
+.gym-members-report-copy > span { width: 42px; height: 42px; border-radius: 12px; background: #d8efeb; color: #087f83; display: grid; place-items: center; flex-shrink: 0; }
+.gym-members-report-copy h2 { font-size: 14px; }
+.gym-members-report-copy p { color: #647b82; font-size: 9px; margin-top: 4px; }
+.gym-members-report-fields { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) auto; gap: 10px; align-items: end; }
+.gym-members-report-fields label { color: #536c74; font-size: 9px; font-weight: 650; }
+.gym-members-report-fields input { margin-top: 5px; }
+.gym-members-list-panel { border: 1px solid #dfe8ea; border-radius: 17px; background: #fff; padding: 20px; box-shadow: 0 12px 32px #17394208; min-width: 0; }
+.gym-members-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.gym-members-list-heading h2 { font-size: 16px; }
+.gym-members-list-heading p { color: #7e8f96; font-size: 9px; margin-top: 3px; }
+.gym-members-search { width: min(320px, 42%); display: flex; align-items: center; gap: 7px; border: 1px solid #dbe5e7; border-radius: 10px; padding-left: 11px; color: #73868e; }
+.gym-members-search input { border: 0; margin: 0; min-height: 42px; padding-left: 0; outline: 0; }
+.gym-members-filter-row { display: flex; gap: 7px; overflow-x: auto; padding: 15px 0 12px; scrollbar-width: thin; }
+.gym-members-filter-row button { flex: 0 0 auto; min-height: 34px; border: 1px solid #e0e8ea; border-radius: 20px; background: #f7fafa; color: #587079; padding: 7px 11px; font-size: 9px; font-weight: 650; }
+.gym-members-filter-row button.active { color: #fff; background: #087f83; border-color: #087f83; box-shadow: 0 4px 12px #087f8328; }
+.gym-members-list { border-top: 1px solid #edf2f3; }
+.gym-member-row { width: 100%; display: grid; grid-template-columns: auto minmax(135px, 1.25fr) minmax(125px, 1fr) 75px minmax(105px, .8fr) auto auto auto; align-items: center; gap: 11px; padding: 14px 3px; border: 0; border-bottom: 1px solid #edf2f3; background: transparent; color: #1b343d; text-align: left; }
+.gym-member-row:hover { background: #f7fbfa; }
+.gym-member-row > .gym-avatar { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(145deg, #dff3ef, #eef8f6); border-color: #d3eae6; color: #167b7e; font-size: 10px; font-weight: 800; }
+.gym-member-person, .gym-member-plan, .gym-member-stat { min-width: 0; }
+.gym-member-person strong, .gym-member-plan strong, .gym-member-stat strong { display: block; font-size: 10px; overflow-wrap: anywhere; }
+.gym-member-person small, .gym-member-plan small, .gym-member-stat small { display: block; color: #819097; font-size: 8px; margin-top: 3px; overflow-wrap: anywhere; }
+.gym-member-stat { text-align: center; }
+.gym-member-pill { display: inline-flex; align-items: center; min-height: 25px; border-radius: 20px; padding: 4px 8px; white-space: nowrap; font-size: 8px; font-weight: 700; background: #eef4f4; color: #547078; }
+.gym-member-pill.very_active { background: #e8f7ed; color: #32834d; }
+.gym-member-pill.regular { background: #eaf5f5; color: #197a7d; }
+.gym-member-pill.not_visiting { background: #fff2e5; color: #a16625; }
+.gym-member-pill.status.active { background: #eaf6f0; color: #347b55; }
+.gym-member-pill.status.expiring_soon,
+.gym-member-pill.status.expires_today { background: #fff4dc; color: #a66e1e; }
+.gym-member-pill.status.expired { background: #f8eaea; color: #a75555; }
+.gym-members-empty { min-height: 190px; display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; color: #759096; gap: 7px; }
+.gym-members-empty strong { color: #36515a; font-size: 12px; }
+.gym-members-empty p { font-size: 9px; max-width: 350px; }
+.gym-member-detail { position: fixed; inset: 0; z-index: 90; width: min(860px, calc(100% - 30px)); max-height: min(780px, calc(100dvh - 30px)); margin: auto; overflow-y: auto; border: 1px solid #d8e5e7; border-radius: 20px; background: #f8fbfb; color: #19343c; padding: 24px; box-shadow: 0 30px 110px #112a3270, 0 0 0 100vmax #112a3270; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+.gym-member-detail-close { position: absolute; right: 18px; top: 18px; width: 40px; height: 40px; border: 1px solid #dce6e8; border-radius: 11px; background: #fff; color: #536b74; display: grid; place-items: center; }
+.gym-member-detail > header { display: flex; align-items: center; gap: 13px; padding-right: 45px; }
+.gym-member-detail > header > div { flex: 1; min-width: 0; }
+.gym-member-detail > header > div > span { font-size: 8px; letter-spacing: 1.1px; color: #148287; font-weight: 800; }
+.gym-member-detail > header h2 { font-size: 20px; margin-top: 2px; }
+.gym-member-detail > header p { font-size: 10px; color: #74878e; margin-top: 3px; }
+.gym-member-detail-hero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.gym-member-detail-hero > div { background: #fff; border: 1px solid #e0e9eb; border-radius: 13px; padding: 14px; }
+.gym-member-detail-hero span { display: block; color: #70848b; font-size: 8px; text-transform: uppercase; letter-spacing: .5px; }
+.gym-member-detail-hero strong { display: block; font-size: 14px; margin-top: 7px; }
+.gym-member-detail-hero small { display: block; color: #809097; font-size: 8px; margin-top: 3px; }
+.gym-member-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.gym-member-detail-grid > section { background: #fff; border: 1px solid #e0e9eb; border-radius: 14px; padding: 17px; min-width: 0; }
+.gym-member-detail-grid > section.payments { grid-column: 1 / -1; }
+.gym-member-detail-grid h3 { font-size: 12px; margin: 0 0 9px; }
+.gym-member-detail dl { margin: 0; }
+.gym-member-detail dl > div, .gym-member-history > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid #edf2f3; }
+.gym-member-detail dl > div:last-child, .gym-member-history > div:last-child { border: 0; }
+.gym-member-detail dt, .gym-member-history span { color: #6c8088; font-size: 9px; }
+.gym-member-detail dd, .gym-member-history strong { margin: 0; color: #29454e; font-size: 9px; text-align: right; }
+.gym-member-history small { display: block; font-size: 8px; color: #8a999f; margin-top: 2px; font-weight: 500; text-transform: capitalize; }
+.gym-member-history .payment-paid { color: #388354; }
+.gym-member-history .payment-pending { color: #ad7425; }
+.gym-member-detail-empty { color: #829298; font-size: 9px; padding: 22px 0; }
 .gym-inline-actions {
   display: flex;
   gap: 9px;
@@ -1399,6 +1523,10 @@ button.gym-floor-summary-card:focus-visible {
   .gym-user > div {
     display: none;
   }
+  .gym-members-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gym-member-row { grid-template-columns: auto minmax(120px, 1.2fr) minmax(110px, 1fr) 65px auto auto; }
+  .gym-member-row .last-visit,
+  .gym-member-row .gym-member-pill:not(.status) { display: none; }
 }
 @media (max-width: 960px) {
   .gym-sidebar {
@@ -1448,6 +1576,8 @@ button.gym-floor-summary-card:focus-visible {
   .gym-overview-grid .gym-list-row strong {
     font-size: 12px;
   }
+  .gym-members-report { align-items: stretch; flex-direction: column; }
+  .gym-members-report-fields { width: 100%; }
 }
 @media (max-width: 640px) {
   .gym-app {
@@ -1666,6 +1796,29 @@ button.gym-floor-summary-card:focus-visible {
   .gym-dialog .gym-panel-heading {
     flex-wrap: nowrap;
   }
+  .gym-members-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .gym-members-kpi { padding: 14px; }
+  .gym-members-kpi:last-child { grid-column: 1 / -1; }
+  .gym-members-kpi > strong { font-size: 24px; margin-top: 12px; }
+  .gym-members-revenue-note { grid-template-columns: auto 1fr; padding: 14px; }
+  .gym-members-revenue-note > span { grid-column: 1 / -1; text-align: left; border-top: 1px solid #ffffff20; padding-top: 10px; }
+  .gym-members-revenue-note > span small { display: inline; margin-left: 4px; }
+  .gym-members-analytics { grid-template-columns: minmax(0, 1fr); }
+  .gym-members-report-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gym-members-report-fields .gym-button { grid-column: 1 / -1; width: 100%; }
+  .gym-members-list-panel { padding: 15px; }
+  .gym-members-list-heading { align-items: stretch; flex-direction: column; }
+  .gym-members-search { width: 100%; }
+  .gym-member-row { grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 9px; }
+  .gym-member-row .gym-member-plan { grid-column: 2 / -1; }
+  .gym-member-row .gym-member-stat,
+  .gym-member-row .gym-member-pill:not(.status) { display: none; }
+  .gym-member-detail { width: calc(100% - 16px); max-height: calc(100dvh - 16px); padding: 17px; border-radius: 16px; }
+  .gym-member-detail > header { align-items: flex-start; flex-wrap: wrap; }
+  .gym-member-detail > header .gym-member-pill { margin-left: 71px; }
+  .gym-member-detail-hero,
+  .gym-member-detail-grid { grid-template-columns: minmax(0, 1fr); }
+  .gym-member-detail-grid > section.payments { grid-column: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .gym-app * {
@@ -1744,6 +1897,8 @@ button.gym-floor-summary-card:focus-visible {
 }
 .gym-app.gym-app--embedded .gym-main {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1830,6 +1985,49 @@ button.gym-floor-summary-card:focus-visible {
 }
 .gym-app.gym-app--embedded .gym-quick-actions .gym-button {
   flex: 1 1 120px;
+}
+.gym-app.gym-app--embedded .gym-members-kpis {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.gym-app.gym-app--embedded .gym-members-kpi:last-child {
+  grid-column: 1 / -1;
+}
+.gym-app.gym-app--embedded .gym-members-analytics {
+  grid-template-columns: minmax(0, 1fr);
+}
+.gym-app.gym-app--embedded .gym-members-revenue-note,
+.gym-app.gym-app--embedded .gym-members-report,
+.gym-app.gym-app--embedded .gym-members-list-heading {
+  align-items: stretch;
+  flex-direction: column;
+}
+.gym-app.gym-app--embedded .gym-members-revenue-note {
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+.gym-app.gym-app--embedded .gym-members-revenue-note > span {
+  grid-column: 1 / -1;
+  text-align: left;
+}
+.gym-app.gym-app--embedded .gym-members-report-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.gym-app.gym-app--embedded .gym-members-report-fields .gym-button {
+  grid-column: 1 / -1;
+}
+.gym-app.gym-app--embedded .gym-members-search {
+  width: 100%;
+}
+.gym-app.gym-app--embedded .gym-member-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+.gym-app.gym-app--embedded .gym-member-row .gym-member-plan {
+  grid-column: 2 / -1;
+}
+.gym-app.gym-app--embedded .gym-member-row .gym-member-stat,
+.gym-app.gym-app--embedded .gym-member-row .gym-member-pill:not(.status) {
+  display: none;
 }
 .gym-app.gym-app--embedded .gym-dialog,
 .gym-app.gym-app--embedded .gym-form-actions .gym-button {
