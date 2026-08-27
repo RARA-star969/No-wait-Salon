@@ -200,7 +200,7 @@ test("Decline a pending payment", async (t) => {
     const reports = await api(
       "GET",
       gym(
-        `reports?from=${Date.now() - 3600_000}&to=${Date.now() + 3600_000}&category=members`,
+        `reports?from=${encodeURIComponent(new Date(Date.now() - 3600_000).toISOString())}&to=${encodeURIComponent(new Date(Date.now() + 3600_000).toISOString())}&category=members`,
       ),
     );
     assert.equal(reports.status, 200);
