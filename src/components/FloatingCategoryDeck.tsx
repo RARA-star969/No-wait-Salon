@@ -102,8 +102,12 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
   const [reducedMotion, setReducedMotion] = useState(false);
 
   const activeIndex = Math.max(0, categories.findIndex((category) => category.id === selectedCategoryId));
-  const cardStep = clamp(stageWidth * 0.255, 88, 112);
-  const cardWidth = clamp(stageWidth * 0.64, 210, 244);
+  // ~8-9% smaller than the original (stageWidth*0.64, max 244) footprint;
+  // cardStep is scaled down by the same ratio so the 3D spacing/depth
+  // character (how much cards overlap/stagger) reads the same as before,
+  // just at the smaller size.
+  const cardStep = clamp(stageWidth * 0.235, 82, 103);
+  const cardWidth = clamp(stageWidth * 0.59, 196, 224);
   const dragProgress = -dragX / cardStep;
 
   useEffect(() => {
@@ -234,10 +238,20 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     // "readable" a card behind the active one looks: a denser frosted wash,
     // a soft mirror blur on the glass itself, and dimmer inner content so text
     // stops competing with the front card while the shape stays recognizable.
-    const frost = clamp(distance * 0.16, 0, 0.6);
+    // Nudged ~5% denser than before — still a frosted silhouette, not opaque.
+    const frost = clamp(distance * 0.19, 0, 0.63);
     const frostBlur = clamp(distance * 1.4, 0, 5);
-    const contentOpacity = clamp(1 - distance * 0.24, 0.32, 1);
-    return { relative, distance, x, scale, depth, rotate, opacity, frost, frostBlur, contentOpacity };
+    const contentOpacity = clamp(1 - distance * 0.26, 0.3, 1);
+    // Ambient idle-float tuning (Task 1) — active card drifts a touch more
+    // than its neighbours, and neighbours are phase-offset so the stack
+    // reads as loosely organic rather than moving in lockstep. Only cards
+    // within `isNear` actually get the CSS animation applied (see className
+    // below), so this is free to compute for every card without any cost.
+    const isNear = distance <= 1.5;
+    const floatAmp = clamp(4 - distance * 1.3, 2, 4);
+    const floatDuration = 4 + (index % 2 === 0 ? 0 : 0.6);
+    const floatDelay = relative * -0.35;
+    return { relative, distance, x, scale, depth, rotate, opacity, frost, frostBlur, contentOpacity, isNear, floatAmp, floatDuration, floatDelay };
   }), [activeIndex, cardStep, categories, dragProgress]);
 
   return (
@@ -277,7 +291,7 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
               aria-current={isActive ? 'true' : undefined}
               aria-label={`${category.name}${isActive ? ', selected. Tap to explore' : ', tap to select'}`}
               onClick={() => openActiveCategory(category.id)}
-              className={`floating-glass-card ${isActive ? 'is-active' : ''} ${settling ? 'is-settling' : ''}`}
+              className={`floating-glass-card ${isActive ? 'is-active' : ''} ${settling ? 'is-settling' : ''} ${transform.isNear && !reducedMotion ? 'is-near' : ''}`}
               style={{
                 width: cardWidth,
                 zIndex,
@@ -286,6 +300,13 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                 transitionDuration: dragging || reducedMotion ? '0ms' : '520ms',
                 background: `linear-gradient(145deg, ${palette.edge} 0%, ${palette.to}b8 9%, ${palette.middle}d9 48%, ${palette.from}f2 100%)`,
                 boxShadow: `inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 16px 32px -18px ${palette.glow}, 0 12px 24px -14px rgba(4,12,28,.8)`,
+                // Ambient idle-float knobs consumed by the `.is-near` CSS
+                // animation (see index.css) — pure CSS custom properties, no
+                // JS timer. Cards further than `isNear` never get the class,
+                // so these are simply unused (and free) for them.
+                ['--float-amp' as any]: `${-transform.floatAmp}px`,
+                ['--float-duration' as any]: `${transform.floatDuration}s`,
+                ['--float-delay' as any]: `${transform.floatDelay}s`,
               }}
             >
               <span className="floating-glass-reflection" aria-hidden />
@@ -302,7 +323,7 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                 />
               )}
               <span
-                className="relative z-10 flex h-full flex-col justify-between p-4 text-left text-white"
+                className="relative z-10 flex h-full flex-col justify-between p-3.5 text-left text-white"
                 style={{
                   opacity: transform.contentOpacity,
                   transitionProperty: 'opacity',
@@ -310,16 +331,15 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                   transitionTimingFunction: 'cubic-bezier(.2, .9, .18, 1.18)',
                 }}
               >
+                {/* No business-count badge here by design — top-right stays
+                    clean, carried only by the glass reflection/caustic. */}
                 <span className="flex items-start justify-between gap-3">
-                  <span className="grid h-12 w-12 place-items-center rounded-[18px] border border-white/35 bg-white/16 shadow-[inset_0_1px_0_rgba(255,255,255,.55),0_8px_18px_-10px_rgba(0,0,0,.8)] backdrop-blur-md">
-                    <Icon className="h-6 w-6 drop-shadow-md" />
-                  </span>
-                  <span className="rounded-full border border-white/25 bg-black/10 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.15em] backdrop-blur-md">
-                    {category.businessCount ? `${category.businessCount} live` : 'Explore'}
+                  <span className="grid h-11 w-11 place-items-center rounded-[16px] border border-white/35 bg-white/16 shadow-[inset_0_1px_0_rgba(255,255,255,.55),0_8px_18px_-10px_rgba(0,0,0,.8)] backdrop-blur-md">
+                    <Icon className="h-5 w-5 drop-shadow-md" />
                   </span>
                 </span>
                 <span>
-                  <strong className="block text-[22px] font-black tracking-[-0.04em] drop-shadow-md">{category.name}</strong>
+                  <strong className="block text-[20px] font-black tracking-[-0.04em] drop-shadow-md">{category.name}</strong>
                   <span className="mt-0.5 block max-w-[180px] truncate text-[10px] font-semibold text-white/78">
                     {category.description || category.label}
                   </span>
@@ -330,13 +350,29 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
         })}
 
         <div className="pointer-events-none absolute inset-x-0 bottom-1 z-[120] flex items-center justify-center gap-3 text-slate-400">
-          <ChevronLeft className={`h-3.5 w-3.5 ${activeIndex === 0 ? 'opacity-20' : 'opacity-70'}`} />
+          <button
+            type="button"
+            onClick={() => selectIndex(activeIndex - 1)}
+            disabled={activeIndex === 0}
+            aria-label="Previous category"
+            className="pointer-events-auto grid h-6 w-6 place-items-center rounded-full transition active:scale-90 disabled:pointer-events-none"
+          >
+            <ChevronLeft className={`h-3.5 w-3.5 ${activeIndex === 0 ? 'opacity-20' : 'opacity-70'}`} />
+          </button>
           <div className="flex items-center gap-1.5">
             {categories.map((category, index) => (
               <span key={category.id} className={`h-1 rounded-full transition-all duration-300 ${index === activeIndex ? 'w-5 bg-white/85' : 'w-1.5 bg-white/20'}`} />
             ))}
           </div>
-          <ChevronRight className={`h-3.5 w-3.5 ${activeIndex === categories.length - 1 ? 'opacity-20' : 'opacity-70'}`} />
+          <button
+            type="button"
+            onClick={() => selectIndex(activeIndex + 1)}
+            disabled={activeIndex === categories.length - 1}
+            aria-label="Next category"
+            className="pointer-events-auto grid h-6 w-6 place-items-center rounded-full transition active:scale-90 disabled:pointer-events-none"
+          >
+            <ChevronRight className={`h-3.5 w-3.5 ${activeIndex === categories.length - 1 ? 'opacity-20' : 'opacity-70'}`} />
+          </button>
         </div>
       </div>
     </section>

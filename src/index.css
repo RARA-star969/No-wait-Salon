@@ -48,7 +48,7 @@ body {
 
 .floating-category-stage {
   position: relative;
-  height: 244px;
+  height: 224px;
   margin-inline: -1rem;
   perspective: 900px;
   perspective-origin: 50% 44%;
@@ -81,14 +81,16 @@ body {
   position: absolute;
   left: 50%;
   top: 48%;
-  height: 174px;
+  height: 160px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, .58);
   border-radius: 30px;
   transform-origin: 50% 55%;
   transform-style: preserve-3d;
   backface-visibility: hidden;
-  will-change: transform, opacity;
+  /* `will-change` is intentionally NOT set here for every card — it's added
+     only on `.is-near`/`.is-active` below, so far cards (which never animate)
+     don't force a GPU layer they'll never use. */
   transition-property: transform, opacity, filter, box-shadow;
   transition-timing-function: cubic-bezier(.2, .9, .18, 1.18);
   -webkit-tap-highlight-color: transparent;
@@ -109,7 +111,38 @@ body {
   filter: saturate(1.09) brightness(1.04);
 }
 
+/* Ambient "floating in air" idle motion (Task 1). Deliberately animates the
+   standalone CSS `translate` property, never `transform` — the drag/depth/
+   rotate/scale transform is driven inline from JS per frame of a gesture,
+   and `translate`/`rotate`/`scale`/`transform` all composite independently,
+   so this idle drift layers on top of that without ever touching it or
+   fighting over the same property. Compositor-only (translate), no JS timer,
+   no React state. Only cards close enough to matter get `.is-near`, so far
+   cards never carry a running animation or an extra GPU layer. `!important`
+   on the reduced-motion rule further down still wins over this regardless of
+   specificity, so reduced-motion users get zero motion. */
+@keyframes deck-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 var(--float-amp, -3px); }
+}
+
+.floating-glass-card.is-near {
+  animation: deck-float var(--float-duration, 4.2s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  will-change: transform, opacity, translate;
+}
+
+/* A real drag or an in-flight open/settle both fully own the card's motion
+   for their duration — the float must not compete visually or for frame
+   budget while either is happening. */
+.floating-category-stage.is-dragging .floating-glass-card.is-near {
+  animation-play-state: paused;
+}
+
 .floating-glass-card.is-settling {
+  /* Higher-priority than `.is-near` by source order (equal specificity):
+     this fully replaces `animation` for the settle's duration, which is
+     what stops the float rather than fighting it for the same property. */
   animation: glass-card-settle 260ms cubic-bezier(.2, .9, .2, 1) both;
 }
 
