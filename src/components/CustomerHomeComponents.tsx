@@ -1,6 +1,7 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock } from 'lucide-react';
+import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, Users } from 'lucide-react';
 import type { NearbySalon } from '../types';
+import { deriveCrowdStatus } from '../shared/crowdStatus';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -504,6 +505,22 @@ export const CategoryLandingState: React.FC<{
  * Premium dark listing card for a nearby business. Renders only real data
  * already carried on `NearbySalon` — no invented fields.
  */
+const CROWD_BADGE_STYLE: Record<'busy' | 'moderate' | 'low', (theme: CategoryTheme) => React.CSSProperties> = {
+  // Busy leans on the category accent at full strength — the strongest
+  // visual weight, since it is the state most worth noticing at a glance.
+  busy: (theme) => ({ backgroundColor: theme.accent, color: '#0B0F0F' }),
+  // Moderate: a soft tint of the same accent, not a fully separate hue —
+  // stays inside the category's color language instead of the usual
+  // universal red/amber/green.
+  moderate: (theme) => ({ backgroundColor: `${theme.accent}26`, color: theme.accent, border: `1px solid ${theme.accent}40` }),
+  low: () => ({ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(226,232,240,0.75)', border: '1px solid rgba(255,255,255,0.1)' }),
+};
+
+/**
+ * Premium dark listing card for a nearby business. Renders only real data
+ * already carried on `NearbySalon` — no invented fields. Crowd status is a
+ * deterministic front-end read of the same wait/queue numbers shown below it.
+ */
 export const PremiumBusinessCard: React.FC<{
   salon: NearbySalon;
   theme: CategoryTheme;
@@ -513,6 +530,10 @@ export const PremiumBusinessCard: React.FC<{
   isNoWait: boolean;
   onClick: () => void;
 }> = ({ salon, theme, icon: IconComponent, isSelected, waitLabel, isNoWait, onClick }) => {
+  const crowd = deriveCrowdStatus({ liveWaitMinutes: salon.liveWaitMinutes, waitingCustomers: salon.waitingCustomers });
+  const tags = salon.services.slice(0, 3).map((service) => service.name);
+  const areaLabel = salon.area || salon.address;
+
   return (
     <button
       type="button"
@@ -525,11 +546,24 @@ export const PremiumBusinessCard: React.FC<{
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       <div className="flex items-start gap-3.5 p-4">
-        <div
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-md`}
-        >
-          <IconComponent className="h-5 w-5" />
-        </div>
+        {/* Thumbnail: real cover photo when the business has one, otherwise
+            the same category-icon tile as before — no placeholder imagery
+            invented for businesses that don't carry a photo. */}
+        {salon.coverImageUrl ? (
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-md">
+            <img src={salon.coverImageUrl} alt="" className="h-full w-full object-cover" />
+            <span
+              className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-lg text-white"
+              style={{ backgroundColor: theme.accent }}
+            >
+              <IconComponent className="h-3 w-3" />
+            </span>
+          </div>
+        ) : (
+          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-md`}>
+            <IconComponent className="h-6 w-6" />
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <b className="truncate text-[15px] font-bold text-white">
@@ -547,31 +581,47 @@ export const PremiumBusinessCard: React.FC<{
             <span className="text-slate-600">•</span>
             <span>{salon.travelTimeMinutes} min away</span>
           </div>
-          <p className="mt-2 truncate text-[11px] text-slate-500">
-            {salon.address}
+          <p className="mt-1.5 truncate text-[11px] text-slate-500">
+            {areaLabel}
           </p>
+          {!!tags.length && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="truncate rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9.5px] font-semibold text-slate-300"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-4 py-2.5">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-          <Clock className="h-3.5 w-3.5" style={{ color: theme.accent }} />
-          Current wait
-        </span>
-        <div className="flex items-center gap-2">
-          {isSelected && (
-            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
-              Selected
-            </span>
-          )}
+      <div className="flex items-center justify-between gap-2 border-t border-white/[0.06] bg-black/20 px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+            <Clock className="h-3.5 w-3.5" style={{ color: theme.accent }} />
+          </span>
           <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              isNoWait ? 'bg-emerald-400/15 text-emerald-300' : 'text-slate-950'
-            }`}
-            style={isNoWait ? undefined : { backgroundColor: theme.accent }}
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isNoWait ? 'bg-emerald-400/15 text-emerald-300' : ''}`}
+            style={isNoWait ? undefined : { backgroundColor: theme.accent, color: '#0B0F0F' }}
           >
             {waitLabel}
           </span>
+          <span
+            className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-wider"
+            style={CROWD_BADGE_STYLE[crowd.level](theme)}
+          >
+            <Users className="h-2.5 w-2.5" />
+            {crowd.label}
+          </span>
         </div>
+        {isSelected && (
+          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
+            Selected
+          </span>
+        )}
       </div>
     </button>
   );

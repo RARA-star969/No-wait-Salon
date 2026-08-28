@@ -509,22 +509,29 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   // Header is initially present, then yields space once the customer begins
   // exploring. Returning to the very top (pull-down) or tapping the affordance
-  // makes location/search immediately available again.
+  // makes location/search immediately available again. The idle delay is
+  // deliberately generous — collapsing the header while someone is simply
+  // reading Home (not scrolling) is exactly the "attention-seeking pop" this
+  // was tuned away from.
   useEffect(() => {
     if (
       currentScreen !== 'home' || salonSearch || isListening ||
       !locationHydrated || !storedLocation?.setupCompleted
     ) return;
     setHomeHeaderCollapsed(false);
-    const timer = setTimeout(() => setHomeHeaderCollapsed(true), 8000);
+    const timer = setTimeout(() => setHomeHeaderCollapsed(true), 14000);
     return () => clearTimeout(timer);
   }, [currentScreen, homeHeaderIdleCycle, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
 
+  // Debounced against the scroll position rather than reacting to every
+  // frame: a wide dead zone (60–90px) between collapse and reveal thresholds
+  // means casual back-and-forth scrolling near the top never flips the
+  // header state on every tick, which was the source of the reported jitter.
   const handleHomeScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     if (currentScreen !== 'home') return;
     const scrollTop = event.currentTarget.scrollTop;
-    if (scrollTop > 52) setHomeHeaderCollapsed(true);
-    else if (scrollTop <= 2) setHomeHeaderCollapsed(false);
+    if (scrollTop > 90) setHomeHeaderCollapsed(true);
+    else if (scrollTop <= 4) setHomeHeaderCollapsed(false);
   }, [currentScreen]);
 
   // The header itself is left alone here — it keeps unfolding exactly as
@@ -766,13 +773,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             />
           </div>
 
-          {/* Header */}
+          {/* Header — opacity/translate lead the motion and max-height trails
+              slightly slower, so the collapse reads as a soft fade-and-fold
+              rather than a hard snap. */}
           <div
             id="customer-home-header"
-            className={`relative overflow-hidden border-b bg-black/20 px-4 backdrop-blur-xl transition-[max-height,opacity,transform,padding,border-color] duration-500 ease-[cubic-bezier(.22,1,.36,1)] sm:px-5 ${
+            className={`relative overflow-hidden border-b bg-black/20 px-4 backdrop-blur-xl transition-[max-height,opacity,transform,padding,border-color] ease-[cubic-bezier(.32,.72,.33,1)] sm:px-5 ${
               homeHeaderCollapsed
-                ? 'pointer-events-none max-h-0 -translate-y-8 border-transparent py-0 opacity-0'
-                : 'max-h-64 translate-y-0 border-white/[0.06] pb-4 pt-[max(1rem,env(safe-area-inset-top))] opacity-100'
+                ? 'pointer-events-none max-h-0 -translate-y-3 border-transparent py-0 opacity-0 duration-300'
+                : 'max-h-64 translate-y-0 border-white/[0.06] pb-4 pt-[max(1rem,env(safe-area-inset-top))] opacity-100 duration-[420ms]'
             }`}
           >
             <div className="flex items-center justify-between gap-3">
@@ -813,20 +822,30 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
-          {homeHeaderCollapsed && (
-            <button
-              type="button"
-              onClick={revealHomeHeader}
-              className="sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl transition-transform duration-150 ease-out active:scale-90"
-              aria-label="Reveal location and search"
-            >
-              <ChevronDown className="h-3.5 w-3.5 text-[var(--category-accent)]" /> Location & search
-            </button>
-          )}
+          {/* Always mounted so appearing/disappearing is a soft fade + slide
+              instead of an instant pop; pointer-events/aria stay off while
+              hidden so it never intercepts touches meant for the header. */}
+          <button
+            type="button"
+            onClick={revealHomeHeader}
+            tabIndex={homeHeaderCollapsed ? 0 : -1}
+            aria-hidden={!homeHeaderCollapsed}
+            className={`sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-95 ${
+              homeHeaderCollapsed
+                ? 'pointer-events-auto translate-y-0 opacity-100'
+                : 'pointer-events-none -translate-y-2 opacity-0'
+            }`}
+            aria-label="Reveal location and search"
+          >
+            <ChevronDown className="h-3.5 w-3.5 text-[var(--category-accent)]" /> Location & search
+          </button>
 
+          {/* A near-imperceptible depth cue during the scripted return-to-top
+              glide (Task 1: "premium and controlled, not flashy") — barely a
+              1% scale dip, no brightness/opacity change to draw the eye. */}
           <div
-            className={`relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5 transition-[transform,filter] ease-[cubic-bezier(.22,1,.36,1)] ${
-              isReturningToTop ? 'duration-500 scale-[0.985] brightness-[0.94]' : 'duration-300 scale-100 brightness-100'
+            className={`relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
+              isReturningToTop ? 'duration-500 scale-[0.994]' : 'duration-300 scale-100'
             }`}
           >
 
@@ -1039,7 +1058,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       {currentScreen === 'home' && !isQrScannerOpen && (
-        <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} />
+        <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} onProfile={() => setScreen('profile')} />
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
