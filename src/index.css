@@ -27,12 +27,12 @@ body {
 :root {
   --category-primary: #22D3EE;
   --category-accent: #2DD4BF;
-  --category-glow: rgba(34, 211, 238, 0.4);
+  --category-glow: rgba(34, 211, 238, 0.28);
   --category-border: rgba(34, 211, 238, 0.25);
   --category-soft: rgba(45, 212, 191, 0.7);
   --category-surface: #050B0C;
   --category-tint-10: rgba(34, 211, 238, 0.1);
-  --category-tint-20: rgba(34, 211, 238, 0.2);
+  --category-tint-20: rgba(34, 211, 238, 0.14);
   --category-primary-dark: #0B4A44;
   --category-primary-light: #5EEAD4;
 }

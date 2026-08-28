@@ -60,8 +60,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-cyan-500/15',
     badgeText: 'text-cyan-200',
     joinedBg: 'bg-[#050B0C]',
-    bannerGradient: 'from-cyan-500/25 via-teal-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(34,211,238,0.65)]',
+    bannerGradient: 'from-cyan-500/18 via-teal-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(34,211,238,0.45)]',
     ring: 'ring-cyan-400/50',
     chip: 'bg-cyan-400 text-slate-950',
     cardBg: 'from-[#0B3033] to-[#061B1D]',
@@ -76,8 +76,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-purple-500/15',
     badgeText: 'text-purple-200',
     joinedBg: 'bg-[#0A0713]',
-    bannerGradient: 'from-purple-500/25 via-fuchsia-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(168,85,247,0.65)]',
+    bannerGradient: 'from-purple-500/18 via-fuchsia-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(168,85,247,0.45)]',
     ring: 'ring-purple-400/50',
     chip: 'bg-purple-400 text-slate-950',
     cardBg: 'from-[#251035] to-[#150A20]',
@@ -92,8 +92,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-amber-500/15',
     badgeText: 'text-amber-200',
     joinedBg: 'bg-[#0C0904]',
-    bannerGradient: 'from-amber-500/25 via-orange-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(245,158,11,0.6)]',
+    bannerGradient: 'from-amber-500/18 via-orange-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(245,158,11,0.42)]',
     ring: 'ring-amber-400/50',
     chip: 'bg-amber-400 text-slate-950',
     cardBg: 'from-[#332008] to-[#1C1204]',
@@ -108,8 +108,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-blue-500/15',
     badgeText: 'text-blue-200',
     joinedBg: 'bg-[#050813]',
-    bannerGradient: 'from-blue-500/25 via-sky-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(59,130,246,0.6)]',
+    bannerGradient: 'from-blue-500/18 via-sky-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(59,130,246,0.42)]',
     ring: 'ring-blue-400/50',
     chip: 'bg-blue-400 text-slate-950',
     cardBg: 'from-[#0C2038] to-[#071120]',
@@ -124,8 +124,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-pink-500/15',
     badgeText: 'text-pink-200',
     joinedBg: 'bg-[#0C0409]',
-    bannerGradient: 'from-pink-500/25 via-rose-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(236,72,153,0.6)]',
+    bannerGradient: 'from-pink-500/18 via-rose-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(236,72,153,0.42)]',
     ring: 'ring-pink-400/50',
     chip: 'bg-pink-400 text-slate-950',
     cardBg: 'from-[#341123] to-[#1D0A13]',
@@ -140,8 +140,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-indigo-500/15',
     badgeText: 'text-indigo-200',
     joinedBg: 'bg-[#07071A]',
-    bannerGradient: 'from-indigo-500/25 via-violet-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(99,102,241,0.6)]',
+    bannerGradient: 'from-indigo-500/18 via-violet-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(99,102,241,0.42)]',
     ring: 'ring-indigo-400/50',
     chip: 'bg-indigo-400 text-slate-950',
     cardBg: 'from-[#181246] to-[#0D0A28]',
@@ -156,8 +156,8 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     badgeBg: 'bg-rose-500/15',
     badgeText: 'text-rose-200',
     joinedBg: 'bg-[#0C0507]',
-    bannerGradient: 'from-rose-500/25 via-red-600/10 to-transparent',
-    glow: 'shadow-[0_0_45px_-10px_rgba(244,63,94,0.6)]',
+    bannerGradient: 'from-rose-500/18 via-red-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(244,63,94,0.42)]',
     ring: 'ring-rose-400/50',
     chip: 'bg-rose-400 text-slate-950',
     cardBg: 'from-[#360F17] to-[#1E0A0F]',
@@ -190,12 +190,15 @@ export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
   return {
     '--category-primary': theme.primary,
     '--category-accent': theme.accent,
-    '--category-glow': `${theme.primary}66`,
+    // Glow/tint alphas are tuned ~30% down from their original values —
+    // enough to pull the UI back from a neon/gaming feel toward polished
+    // glass, without losing the category-colored halo entirely.
+    '--category-glow': `${theme.primary}47`,
     '--category-border': `${theme.primary}40`,
     '--category-soft': `${theme.accent}B3`,
     '--category-surface': surfaceMatch ? surfaceMatch[0] : '#050B0C',
     '--category-tint-10': `${theme.primary}1A`,
-    '--category-tint-20': `${theme.primary}33`,
+    '--category-tint-20': `${theme.primary}24`,
     '--category-primary-dark': shadeHex(theme.primary, -0.35),
     '--category-primary-light': shadeHex(theme.primary, 0.3),
   };
@@ -368,7 +371,7 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
               type="button"
               onClick={onCtaClick}
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-950 shadow-lg transition active:scale-[0.97]"
-              style={{ backgroundColor: theme.accent, boxShadow: `0 8px 20px -6px ${theme.primary}88` }}
+              style={{ backgroundColor: theme.accent, boxShadow: `0 6px 16px -6px ${theme.primary}5F` }}
             >
               {ctaText}
               <ChevronRight className="h-3.5 w-3.5" />
@@ -377,7 +380,7 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
           <div className="relative shrink-0">
             <div
               className="absolute inset-0 -m-3 rounded-[2rem] blur-xl"
-              style={{ background: `radial-gradient(circle, ${theme.primary}55, transparent 70%)` }}
+              style={{ background: `radial-gradient(circle, ${theme.primary}3C, transparent 70%)` }}
             />
             <div
               className={`relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/20 bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-2xl sm:h-24 sm:w-24`}
@@ -484,7 +487,7 @@ export const CategoryLandingState: React.FC<{
               ? 'bg-emerald-500 text-slate-950'
               : 'text-slate-950 shadow-md'
           }`}
-          style={notified ? undefined : { backgroundColor: theme.accent, boxShadow: `0 8px 20px -6px ${theme.primary}88` }}
+          style={notified ? undefined : { backgroundColor: theme.accent, boxShadow: `0 6px 16px -6px ${theme.primary}5F` }}
         >
           {notified ? '✓ You will be notified' : `Notify Me When ${category.name} Launches`}
         </button>

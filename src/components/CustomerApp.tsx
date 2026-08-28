@@ -20,7 +20,7 @@ import {
   QrCode,
   Search,
   AlertTriangle,
-  ChevronDown,
+  ArrowUp,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -275,7 +275,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const homeScrollRef = useRef<HTMLDivElement>(null);
   const listingsSectionRef = useRef<HTMLDivElement>(null);
   const [homeHeaderCollapsed, setHomeHeaderCollapsed] = useState(false);
-  const [homeHeaderIdleCycle, setHomeHeaderIdleCycle] = useState(0);
   // True only while the scripted "Location & search" return-to-top glide is
   // running — drives the very subtle depth/parallax dip on Home's content.
   const [isReturningToTop, setIsReturningToTop] = useState(false);
@@ -522,7 +521,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       !locationHydrated || !storedLocation?.setupCompleted
     ) return;
     setHomeHeaderCollapsed(false);
-  }, [currentScreen, homeHeaderIdleCycle, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
+  }, [currentScreen, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
 
   // Debounced against the scroll position rather than reacting to every
   // frame: a wide dead zone (60–90px) between collapse and reveal thresholds
@@ -538,12 +537,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     else if (scrollTop <= 4) setHomeHeaderCollapsed(false);
   }, [currentScreen]);
 
-  // The header itself is left alone here — it keeps unfolding exactly as
-  // before, driven by handleHomeScroll's own scrollTop<=2 check as the
-  // scripted glide passes near the top, which is what gives the "header
-  // begins to unfold near the top" feel for free.
+  // Purely a scroll-to-top glide — it never forces the header open itself.
+  // The Location/Search header reveals on its own, driven by
+  // handleHomeScroll's scrollTop<=4 check as this glide passes near the top,
+  // exactly as if the customer had scrolled there by hand.
   const revealHomeHeader = useCallback(() => {
-    setHomeHeaderIdleCycle((cycle) => cycle + 1);
     const container = homeScrollRef.current;
     if (!container) return;
 
@@ -768,11 +766,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           {/* Futuristic ambient glow backdrop */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="absolute -top-24 -left-16 h-72 w-72 rounded-full blur-[90px] opacity-40 transition-colors duration-700"
+              className="absolute -top-24 -left-16 h-72 w-72 rounded-full blur-[72px] opacity-[28%] transition-colors duration-700"
               style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).primary }}
             />
             <div
-              className="absolute top-64 -right-20 h-80 w-80 rounded-full blur-[100px] opacity-25 transition-colors duration-700"
+              className="absolute top-64 -right-20 h-80 w-80 rounded-full blur-[80px] opacity-[17%] transition-colors duration-700"
               style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).accent }}
             />
           </div>
@@ -831,23 +829,29 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
-          {/* Always mounted so appearing/disappearing is a soft fade + slide
-              instead of an instant pop; pointer-events/aria stay off while
-              hidden so it never intercepts touches meant for the header. */}
-          <button
-            type="button"
-            onClick={revealHomeHeader}
-            tabIndex={homeHeaderCollapsed ? 0 : -1}
-            aria-hidden={!homeHeaderCollapsed}
-            className={`sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-95 ${
-              homeHeaderCollapsed
-                ? 'pointer-events-auto translate-y-0 opacity-100'
-                : 'pointer-events-none -translate-y-2 opacity-0'
-            }`}
-            aria-label="Reveal location and search"
-          >
-            <ChevronDown className="h-3.5 w-3.5 text-[var(--category-accent)]" /> Location & search
-          </button>
+          {/* Minimal return-to-top shortcut only — no text, no capsule, and it
+              never opens the header itself. It is always mounted (so the
+              appearance is a soft fade+slide, never a pop), hidden near the
+              top, and appears once the customer has scrolled meaningfully
+              down. The Location/Search header reveals on its own once the
+              scroll-to-top glide this triggers actually reaches the top. */}
+          <div className="pointer-events-none sticky top-3 z-[130] flex justify-end pr-1">
+            <button
+              type="button"
+              onClick={revealHomeHeader}
+              tabIndex={homeHeaderCollapsed ? 0 : -1}
+              aria-hidden={!homeHeaderCollapsed}
+              className={`flex h-8 w-8 items-center justify-center rounded-full border bg-black/40 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-90 ${
+                homeHeaderCollapsed
+                  ? 'pointer-events-auto translate-y-0 opacity-100'
+                  : 'pointer-events-none -translate-y-2 opacity-0'
+              }`}
+              style={{ borderColor: 'var(--category-tint-20, rgba(148,163,184,0.25))' }}
+              aria-label="Return to top"
+            >
+              <ArrowUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
+            </button>
+          </div>
 
           {/* A near-imperceptible depth cue during the scripted return-to-top
               glide (Task 1: "premium and controlled, not flashy") — barely a

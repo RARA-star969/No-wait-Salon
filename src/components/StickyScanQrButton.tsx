@@ -85,12 +85,15 @@ export const StickyScanQrButton: React.FC<Props> = ({
         </div>
 
         {/* Raised Scan QR CTA — fixed size always, never shrinks/expands with
-            Home's scroll; only its own press state animates. */}
+            Home's scroll; only its own press state animates. The halo is
+            deliberately tight (small margin, moderate blur) rather than a
+            wide diffuse bloom — this stays the strongest accented element on
+            the bar, just without reading as neon. */}
         <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2">
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -m-2 rounded-full blur-xl"
-            style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.4))' }}
+            className="pointer-events-none absolute inset-0 -m-1 rounded-full blur-[14px]"
+            style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.28))' }}
           />
           <button
             type="button"
@@ -99,8 +102,8 @@ export const StickyScanQrButton: React.FC<Props> = ({
             className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-slate-950 ring-2 transition-transform duration-150 ease-out active:scale-90"
             style={{
               backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
-              boxShadow: '0 12px 32px -6px var(--category-glow, rgba(34,211,238,0.65))',
-              ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.3))',
+              boxShadow: '0 8px 20px -7px var(--category-glow, rgba(34,211,238,0.45))',
+              ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.2))',
             }}
           >
             <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />

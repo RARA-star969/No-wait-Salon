@@ -22,20 +22,23 @@ type DeckPalette = {
   edge: string;
 };
 
+// `glow` alphas are ~30% down from their original values (0.44–0.52) to pull
+// the deck's halo back from neon/gaming territory toward polished glass;
+// `edge` (the glass reflection highlight) is untouched.
 const DECK_PALETTES: Record<string, DeckPalette> = {
-  salon: { from: '#053f46', middle: '#087f83', to: '#22d3c5', glow: 'rgba(45, 212, 191, .48)', edge: 'rgba(172, 255, 246, .72)' },
-  gym: { from: '#32105d', middle: '#7226ba', to: '#c084fc', glow: 'rgba(168, 85, 247, .52)', edge: 'rgba(232, 205, 255, .76)' },
-  shop: { from: '#643707', middle: '#bd7310', to: '#f8c34f', glow: 'rgba(245, 158, 11, .5)', edge: 'rgba(255, 236, 173, .8)' },
-  moto: { from: '#071d57', middle: '#0b4ead', to: '#3294ff', glow: 'rgba(37, 99, 235, .52)', edge: 'rgba(190, 222, 255, .78)' },
-  pets: { from: '#5d0a2c', middle: '#b01657', to: '#fb5d9a', glow: 'rgba(244, 63, 130, .5)', edge: 'rgba(255, 198, 222, .8)' },
-  mall: { from: '#123449', middle: '#197493', to: '#50c9d7', glow: 'rgba(34, 211, 238, .44)', edge: 'rgba(202, 250, 255, .78)' },
-  food: { from: '#62210b', middle: '#cc4e15', to: '#fb8b45', glow: 'rgba(249, 115, 22, .48)', edge: 'rgba(255, 213, 182, .78)' },
+  salon: { from: '#053f46', middle: '#087f83', to: '#22d3c5', glow: 'rgba(45, 212, 191, .336)', edge: 'rgba(172, 255, 246, .72)' },
+  gym: { from: '#32105d', middle: '#7226ba', to: '#c084fc', glow: 'rgba(168, 85, 247, .364)', edge: 'rgba(232, 205, 255, .76)' },
+  shop: { from: '#643707', middle: '#bd7310', to: '#f8c34f', glow: 'rgba(245, 158, 11, .35)', edge: 'rgba(255, 236, 173, .8)' },
+  moto: { from: '#071d57', middle: '#0b4ead', to: '#3294ff', glow: 'rgba(37, 99, 235, .364)', edge: 'rgba(190, 222, 255, .78)' },
+  pets: { from: '#5d0a2c', middle: '#b01657', to: '#fb5d9a', glow: 'rgba(244, 63, 130, .35)', edge: 'rgba(255, 198, 222, .8)' },
+  mall: { from: '#123449', middle: '#197493', to: '#50c9d7', glow: 'rgba(34, 211, 238, .308)', edge: 'rgba(202, 250, 255, .78)' },
+  food: { from: '#62210b', middle: '#cc4e15', to: '#fb8b45', glow: 'rgba(249, 115, 22, .336)', edge: 'rgba(255, 213, 182, .78)' },
 };
 
 const FALLBACK_PALETTES: DeckPalette[] = [
-  { from: '#1f245c', middle: '#4654bd', to: '#8da2ff', glow: 'rgba(99, 102, 241, .48)', edge: 'rgba(214, 219, 255, .76)' },
-  { from: '#16452f', middle: '#24835b', to: '#62d99d', glow: 'rgba(34, 197, 94, .44)', edge: 'rgba(207, 255, 226, .76)' },
-  { from: '#4b174d', middle: '#973d91', to: '#e987d9', glow: 'rgba(217, 70, 239, .45)', edge: 'rgba(255, 216, 250, .76)' },
+  { from: '#1f245c', middle: '#4654bd', to: '#8da2ff', glow: 'rgba(99, 102, 241, .336)', edge: 'rgba(214, 219, 255, .76)' },
+  { from: '#16452f', middle: '#24835b', to: '#62d99d', glow: 'rgba(34, 197, 94, .308)', edge: 'rgba(207, 255, 226, .76)' },
+  { from: '#4b174d', middle: '#973d91', to: '#e987d9', glow: 'rgba(217, 70, 239, .315)', edge: 'rgba(255, 216, 250, .76)' },
 ];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -282,7 +285,7 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                 transform: `translate3d(calc(-50% + ${transform.x}px), -50%, ${transform.depth}px) rotateY(${transform.rotate}deg) scale(${transform.scale})`,
                 transitionDuration: dragging || reducedMotion ? '0ms' : '520ms',
                 background: `linear-gradient(145deg, ${palette.edge} 0%, ${palette.to}b8 9%, ${palette.middle}d9 48%, ${palette.from}f2 100%)`,
-                boxShadow: `inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 22px 44px -18px ${palette.glow}, 0 12px 24px -14px rgba(4,12,28,.8)`,
+                boxShadow: `inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 16px 32px -18px ${palette.glow}, 0 12px 24px -14px rgba(4,12,28,.8)`,
               }}
             >
               <span className="floating-glass-reflection" aria-hidden />
