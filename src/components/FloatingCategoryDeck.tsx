@@ -1,11 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, MoveHorizontal } from 'lucide-react';
 import { CategoryItemConfig, getCategoryIcon } from './CustomerHomeComponents';
 
 type GestureIntent = 'pending' | 'horizontal' | 'vertical';
 
 type DragState = {
-  pointerId: number;
   startX: number;
   startY: number;
   lastX: number;
@@ -43,7 +42,14 @@ const FALLBACK_PALETTES: DeckPalette[] = [
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-/** Pure release projection, exported so Android-like flicks can be regression tested. */
+/**
+ * Velocity-tiered release projection: a slow drag barely projects past where
+ * the finger let go, a medium flick projects further, and a hard flick
+ * projects the most — but is still capped so a single release can never
+ * carry the deck more than 2 categories. Exported so both the Android-style
+ * flick and the tiering itself can be regression tested independent of any
+ * DOM/gesture plumbing.
+ */
 export function resolveDeckTarget(
   activeIndex: number,
   dragX: number,
@@ -52,12 +58,35 @@ export function resolveDeckTarget(
   categoryCount: number,
 ) {
   if (categoryCount <= 0) return 0;
-  const projectedX = dragX + velocityX * 90;
-  // A single physical flick may pass one neighbour, but should never fling a
-  // customer across the whole deck because of a short WebView velocity spike.
+  const speed = Math.abs(velocityX);
+  // px/ms bands tuned against the pointermove EMA smoothing below: a slow
+  // drag rarely exceeds ~0.3px/ms, a deliberate flick lands ~0.4-0.9, and a
+  // genuinely hard throw clears ~0.9.
+  const projectionGain = speed < 0.32 ? 70 : speed < 0.9 ? 150 : 240;
+  const projectedX = dragX + velocityX * projectionGain;
+  // A single physical flick may pass one neighbour (or two on a hard throw),
+  // but should never fling a customer across the whole category list.
   const delta = clamp(Math.round(-projectedX / Math.max(1, cardStep)), -2, 2);
   return clamp(activeIndex + delta, 0, categoryCount - 1);
 }
+
+/**
+ * Exponential rubber-band: near zero it tracks the input almost 1:1, and as
+ * the overscroll grows it asymptotically approaches `maxPull` — progressive
+ * resistance instead of a flat linear damping factor. Exported so the edge
+ * feel can be regression tested without simulating pointer/touch events.
+ */
+export function rubberBandResistance(overscroll: number, maxPull: number): number {
+  if (maxPull <= 0) return 0;
+  const sign = Math.sign(overscroll);
+  const magnitude = Math.abs(overscroll);
+  return sign * maxPull * (1 - Math.exp(-magnitude / maxPull));
+}
+
+/** Visual maximum for how far a card can be dragged past the first/last category. */
+const EDGE_MAX_PULL = 44;
+/** px/ms above which a release counts as a "hard" flick for bounce/kick tuning. */
+const HARD_FLICK_SPEED = 0.9;
 
 function paletteFor(category: CategoryItemConfig, index: number) {
   return DECK_PALETTES[category.themeKey || category.id] || FALLBACK_PALETTES[index % FALLBACK_PALETTES.length];
@@ -93,13 +122,21 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
   const stageRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const dragXRef = useRef(0);
+  const activePointerIdRef = useRef<number | null>(null);
+  const activeTouchIdRef = useRef<number | null>(null);
   const suppressClickRef = useRef(false);
   const openTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const edgeBounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fastSnapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [settlingId, setSettlingId] = useState<string | null>(null);
   const [stageWidth, setStageWidth] = useState(360);
   const [reducedMotion, setReducedMotion] = useState(false);
+  // A brief, transient release-only kick — never continuous, never a JS
+  // physics loop. Both are cleared automatically a moment after they start.
+  const [edgeBounce, setEdgeBounce] = useState<{ cardId: string; amp: number; duration: number } | null>(null);
+  const [fastSnap, setFastSnap] = useState(false);
 
   const activeIndex = Math.max(0, categories.findIndex((category) => category.id === selectedCategoryId));
   // ~8-9% smaller than the original (stageWidth*0.64, max 244) footprint;
@@ -109,6 +146,23 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
   const cardStep = clamp(stageWidth * 0.235, 82, 103);
   const cardWidth = clamp(stageWidth * 0.59, 196, 224);
   const dragProgress = -dragX / cardStep;
+
+  // "Latest value" refs so the native touch listeners (attached once, see
+  // below) and the stable gesture callbacks always see current state/props
+  // without needing to re-attach on every render — re-attaching mid-touch on
+  // iOS is exactly the kind of thing that drops a gesture.
+  const activeIndexRef = useRef(activeIndex);
+  activeIndexRef.current = activeIndex;
+  const categoryCountRef = useRef(categories.length);
+  categoryCountRef.current = categories.length;
+  const cardStepRef = useRef(cardStep);
+  cardStepRef.current = cardStep;
+  const selectedCategoryIdRef = useRef(selectedCategoryId);
+  selectedCategoryIdRef.current = selectedCategoryId;
+  const onSelectCategoryRef = useRef(onSelectCategory);
+  onSelectCategoryRef.current = onSelectCategory;
+  const categoriesRef = useRef(categories);
+  categoriesRef.current = categories;
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -127,6 +181,8 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
 
   useEffect(() => () => {
     if (openTimerRef.current) clearTimeout(openTimerRef.current);
+    if (edgeBounceTimerRef.current) clearTimeout(edgeBounceTimerRef.current);
+    if (fastSnapTimerRef.current) clearTimeout(fastSnapTimerRef.current);
   }, []);
 
   const setLiveDrag = (value: number) => {
@@ -134,16 +190,56 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     setDragX(value);
   };
 
-  const selectIndex = (targetIndex: number) => {
-    const target = categories[targetIndex];
+  const selectIndex = useCallback((targetIndex: number) => {
+    const target = categoriesRef.current[targetIndex];
     setLiveDrag(0);
     setDragging(false);
-    if (!target || target.id === selectedCategoryId) return;
+    if (!target || target.id === selectedCategoryIdRef.current) return;
     pulseHaptic('snap');
-    onSelectCategory(target.id);
-  };
+    onSelectCategoryRef.current(target.id);
+  }, []);
 
-  const finishGesture = (cancelled = false) => {
+  /** Shared by Pointer Events (mouse/pen) and the native touch fallback below. */
+  const beginGesture = useCallback((x: number, y: number, time: number) => {
+    dragRef.current = { startX: x, startY: y, lastX: x, lastTime: time, velocityX: 0, intent: 'pending' };
+  }, []);
+
+  const moveGesture = useCallback((x: number, y: number, time: number, preventDefault: () => void, onHorizontalLock?: () => void) => {
+    const gesture = dragRef.current;
+    if (!gesture) return;
+    const dx = x - gesture.startX;
+    const dy = y - gesture.startY;
+
+    if (gesture.intent === 'pending' && Math.hypot(dx, dy) >= 8) {
+      if (Math.abs(dx) > Math.abs(dy) * 1.18) {
+        gesture.intent = 'horizontal';
+        setDragging(true);
+        // Deliberately does NOT call onExploreStart — horizontal category
+        // browsing must never collapse Location/Search on its own. Only an
+        // actual tap-to-open (see openActiveCategory) does that.
+        onHorizontalLock?.();
+      } else {
+        // Permanently yield this gesture to the authoritative vertical scroller.
+        gesture.intent = 'vertical';
+      }
+    }
+
+    if (gesture.intent !== 'horizontal') return;
+    // Only ever prevented once horizontal intent has actually won — the
+    // pending window above (first ~8px) never blocks native scrolling.
+    preventDefault();
+    const elapsed = Math.max(1, time - gesture.lastTime);
+    const instantaneousVelocity = (x - gesture.lastX) / elapsed;
+    gesture.velocityX = gesture.velocityX * 0.68 + instantaneousVelocity * 0.32;
+    gesture.lastX = x;
+    gesture.lastTime = time;
+
+    const atStart = activeIndexRef.current === 0 && dx > 0;
+    const atEnd = activeIndexRef.current === categoryCountRef.current - 1 && dx < 0;
+    setLiveDrag((atStart || atEnd) ? rubberBandResistance(dx, EDGE_MAX_PULL) : dx);
+  }, []);
+
+  const endGesture = useCallback((cancelled: boolean) => {
     const gesture = dragRef.current;
     dragRef.current = null;
     if (!gesture || gesture.intent !== 'horizontal') {
@@ -158,53 +254,127 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
       setLiveDrag(0);
       return;
     }
-    const target = resolveDeckTarget(activeIndex, dragXRef.current, gesture.velocityX, cardStep, categories.length);
+
+    const rawDx = dragXRef.current;
+    const activeIndexAtRelease = activeIndexRef.current;
+    const atStart = activeIndexAtRelease === 0 && rawDx > 0;
+    const atEnd = activeIndexAtRelease === categoryCountRef.current - 1 && rawDx < 0;
+    const speed = Math.abs(gesture.velocityX);
+    const speedFactor = clamp(speed / HARD_FLICK_SPEED, 0, 1);
+
+    if (atStart || atEnd) {
+      // Pulled past the first/last category: nothing to select, just a
+      // physical spring-back with a small opposite-direction overshoot,
+      // scaled by how far it was pulled and how fast it was released.
+      const overscroll = Math.abs(rawDx);
+      const amp = clamp(8 + (overscroll / EDGE_MAX_PULL) * 6 + speedFactor * 4, 8, 18);
+      const duration = clamp(280 + speedFactor * 140, 280, 420);
+      const cardId = categoriesRef.current[activeIndexAtRelease]?.id;
+      if (cardId) {
+        if (edgeBounceTimerRef.current) clearTimeout(edgeBounceTimerRef.current);
+        setEdgeBounce({ cardId, amp: Math.sign(rawDx) * -amp, duration });
+        edgeBounceTimerRef.current = setTimeout(() => setEdgeBounce(null), duration);
+      }
+      setDragging(false);
+      setLiveDrag(0);
+      return;
+    }
+
+    const target = resolveDeckTarget(activeIndexAtRelease, rawDx, gesture.velocityX, cardStepRef.current, categoryCountRef.current);
+    if (target !== activeIndexAtRelease && speed >= HARD_FLICK_SPEED) {
+      // A restrained "this had real force" cue on a genuine hard flick — a
+      // touch faster settle plus a tiny one-shot scale kick on the card that
+      // becomes active, not a different animation altogether.
+      if (fastSnapTimerRef.current) clearTimeout(fastSnapTimerRef.current);
+      setFastSnap(true);
+      fastSnapTimerRef.current = setTimeout(() => setFastSnap(false), 320);
+    }
     selectIndex(target);
-  };
+  }, [selectIndex]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    // Touch is handled exclusively by the native listeners below — WebKit's
+    // touch-driven PointerEvents have proven unreliable for this gesture, and
+    // handling both would double-track the same physical touch.
+    if (event.pointerType === 'touch') return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      lastX: event.clientX,
-      lastTime: event.timeStamp,
-      velocityX: 0,
-      intent: 'pending',
-    };
+    activePointerIdRef.current = event.pointerId;
+    beginGesture(event.clientX, event.clientY, event.timeStamp);
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const gesture = dragRef.current;
-    if (!gesture || gesture.pointerId !== event.pointerId) return;
-    const dx = event.clientX - gesture.startX;
-    const dy = event.clientY - gesture.startY;
-
-    if (gesture.intent === 'pending' && Math.hypot(dx, dy) >= 8) {
-      if (Math.abs(dx) > Math.abs(dy) * 1.18) {
-        gesture.intent = 'horizontal';
-        setDragging(true);
-        onExploreStart?.();
-        try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* WebView may already own it. */ }
-      } else {
-        // Permanently yield this gesture to the authoritative vertical scroller.
-        gesture.intent = 'vertical';
-      }
-    }
-
-    if (gesture.intent !== 'horizontal') return;
-    event.preventDefault();
-    const elapsed = Math.max(1, event.timeStamp - gesture.lastTime);
-    const instantaneousVelocity = (event.clientX - gesture.lastX) / elapsed;
-    gesture.velocityX = gesture.velocityX * 0.68 + instantaneousVelocity * 0.32;
-    gesture.lastX = event.clientX;
-    gesture.lastTime = event.timeStamp;
-
-    const atStart = activeIndex === 0 && dx > 0;
-    const atEnd = activeIndex === categories.length - 1 && dx < 0;
-    setLiveDrag((atStart || atEnd) ? dx * 0.28 : dx);
+    if (event.pointerType === 'touch') return;
+    if (activePointerIdRef.current !== event.pointerId) return;
+    const node = event.currentTarget;
+    const id = event.pointerId;
+    moveGesture(event.clientX, event.clientY, event.timeStamp, () => event.preventDefault(), () => {
+      try { node.setPointerCapture(id); } catch { /* already captured or unsupported */ }
+    });
   };
+
+  const handlePointerFinish = (event: React.PointerEvent<HTMLDivElement>, cancelled: boolean) => {
+    if (event.pointerType === 'touch') return;
+    if (activePointerIdRef.current !== event.pointerId) return;
+    activePointerIdRef.current = null;
+    endGesture(cancelled);
+  };
+
+  // Native touch fallback for Safari/WebKit: attached once (not re-bound on
+  // every render) so an in-progress touch is never dropped mid-gesture.
+  // `touchmove` must be non-passive so preventDefault() actually suppresses
+  // the native page pan once horizontal intent has won — Pointer Events
+  // alone were not reliably honoring that on iOS.
+  useEffect(() => {
+    const node = stageRef.current;
+    if (!node) return;
+
+    const findTouch = (list: TouchList) => {
+      for (let i = 0; i < list.length; i += 1) {
+        if (list[i].identifier === activeTouchIdRef.current) return list[i];
+      }
+      return null;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (activeTouchIdRef.current !== null) return; // one gesture at a time
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      activeTouchIdRef.current = touch.identifier;
+      beginGesture(touch.clientX, touch.clientY, event.timeStamp);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (activeTouchIdRef.current === null) return;
+      const touch = findTouch(event.touches);
+      if (!touch) return;
+      moveGesture(touch.clientX, touch.clientY, event.timeStamp, () => event.preventDefault());
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (activeTouchIdRef.current === null) return;
+      const ended = Array.from(event.changedTouches).some((t) => t.identifier === activeTouchIdRef.current);
+      if (!ended) return;
+      activeTouchIdRef.current = null;
+      endGesture(false);
+    };
+
+    const onTouchCancel = () => {
+      if (activeTouchIdRef.current === null) return;
+      activeTouchIdRef.current = null;
+      endGesture(true);
+    };
+
+    node.addEventListener('touchstart', onTouchStart, { passive: true });
+    node.addEventListener('touchmove', onTouchMove, { passive: false });
+    node.addEventListener('touchend', onTouchEnd, { passive: true });
+    node.addEventListener('touchcancel', onTouchCancel, { passive: true });
+    return () => {
+      node.removeEventListener('touchstart', onTouchStart);
+      node.removeEventListener('touchmove', onTouchMove);
+      node.removeEventListener('touchend', onTouchEnd);
+      node.removeEventListener('touchcancel', onTouchCancel);
+    };
+  }, [beginGesture, moveGesture, endGesture]);
 
   const openActiveCategory = (id: string) => {
     if (suppressClickRef.current || dragging) return;
@@ -268,13 +438,16 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
 
       <div
         ref={stageRef}
-        className={`floating-category-stage ${dragging ? 'is-dragging' : ''}`}
+        className={`floating-category-stage ${dragging ? 'is-dragging' : ''} ${fastSnap ? 'is-fast-snap' : ''}`}
         style={{ touchAction: 'pan-y' }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={() => finishGesture(false)}
-        onPointerCancel={() => finishGesture(true)}
-        onLostPointerCapture={() => { if (dragRef.current?.intent === 'horizontal') finishGesture(false); }}
+        onPointerUp={(event) => handlePointerFinish(event, false)}
+        onPointerCancel={(event) => handlePointerFinish(event, true)}
+        onLostPointerCapture={(event) => {
+          if (event.pointerType === 'touch') return;
+          if (dragRef.current?.intent === 'horizontal') handlePointerFinish(event, false);
+        }}
       >
         <div className="pointer-events-none absolute inset-x-[10%] bottom-5 h-16 rounded-[50%] bg-black/60 blur-2xl" />
         {categories.map((category, index) => {
@@ -283,6 +456,7 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
           const palette = paletteFor(category, index);
           const Icon = getCategoryIcon(category.iconName);
           const settling = settlingId === category.id;
+          const bouncing = edgeBounce?.cardId === category.id;
           const zIndex = 100 - Math.round(transform.distance * 10);
           return (
             <button
@@ -291,13 +465,13 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
               aria-current={isActive ? 'true' : undefined}
               aria-label={`${category.name}${isActive ? ', selected. Tap to explore' : ', tap to select'}`}
               onClick={() => openActiveCategory(category.id)}
-              className={`floating-glass-card ${isActive ? 'is-active' : ''} ${settling ? 'is-settling' : ''} ${transform.isNear && !reducedMotion ? 'is-near' : ''}`}
+              className={`floating-glass-card ${isActive ? 'is-active' : ''} ${settling ? 'is-settling' : ''} ${bouncing ? 'is-edge-bouncing' : ''} ${transform.isNear && !reducedMotion ? 'is-near' : ''}`}
               style={{
                 width: cardWidth,
                 zIndex,
                 opacity: transform.opacity,
                 transform: `translate3d(calc(-50% + ${transform.x}px), -50%, ${transform.depth}px) rotateY(${transform.rotate}deg) scale(${transform.scale})`,
-                transitionDuration: dragging || reducedMotion ? '0ms' : '520ms',
+                transitionDuration: dragging || reducedMotion ? '0ms' : fastSnap ? '420ms' : '520ms',
                 background: `linear-gradient(145deg, ${palette.edge} 0%, ${palette.to}b8 9%, ${palette.middle}d9 48%, ${palette.from}f2 100%)`,
                 boxShadow: `inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 16px 32px -18px ${palette.glow}, 0 12px 24px -14px rgba(4,12,28,.8)`,
                 // Ambient idle-float knobs consumed by the `.is-near` CSS
@@ -307,6 +481,10 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                 ['--float-amp' as any]: `${-transform.floatAmp}px`,
                 ['--float-duration' as any]: `${transform.floatDuration}s`,
                 ['--float-delay' as any]: `${transform.floatDelay}s`,
+                ...(bouncing ? {
+                  ['--edge-amp' as any]: `${edgeBounce!.amp}px`,
+                  ['--edge-duration' as any]: `${edgeBounce!.duration}ms`,
+                } : null),
               }}
             >
               <span className="floating-glass-reflection" aria-hidden />

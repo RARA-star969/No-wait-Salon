@@ -55,9 +55,20 @@ body {
   transform-style: preserve-3d;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   cursor: grab;
-  pointer-events: none;
+  /* The stage itself is the real gesture surface — pointer/touch handlers
+     are attached here, so it must actually be hit-testable rather than
+     relying on events bubbling up from individually-`auto` children. That
+     fragile bubbling arrangement is what made touch unreliable on iOS
+     Safari: `touch-action` computed for the actual touch target (a card)
+     didn't reliably resolve from this ancestor, so WebKit could commit the
+     gesture to native scrolling before our JS ever saw a horizontal
+     pointermove. `touch-action: pan-y` is set both here and on
+     `.floating-glass-card` below for that reason. */
+  touch-action: pan-y;
+  pointer-events: auto;
 }
 
 .floating-category-stage.is-dragging {
@@ -94,6 +105,13 @@ body {
   transition-property: transform, opacity, filter, box-shadow;
   transition-timing-function: cubic-bezier(.2, .9, .18, 1.18);
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Set explicitly on the actual touch target, not just inherited from the
+     stage — see the note above on why the ancestor-only value was unreliable
+     in WebKit. */
+  touch-action: pan-y;
   pointer-events: auto;
 }
 
@@ -144,6 +162,39 @@ body {
      this fully replaces `animation` for the settle's duration, which is
      what stops the float rather than fighting it for the same property. */
   animation: glass-card-settle 260ms cubic-bezier(.2, .9, .2, 1) both;
+}
+
+/* Elastic edge physics (Task 4). Released past the first/last category: a
+   one-shot spring-back with a small opposite-direction overshoot, amplitude
+   and duration set per-release via --edge-amp/--edge-duration (computed from
+   overscroll distance + release speed in the component). Same technique as
+   the ambient float — the standalone `translate` property, never the JS
+   `transform` — and, by source order after `.is-near`, this fully takes over
+   `animation` for its short duration and the float simply resumes once the
+   class is removed. Transient only; never a running/looping animation. */
+@keyframes edge-bounce {
+  0% { translate: 0 0; }
+  50% { translate: var(--edge-amp, 10px) 0; }
+  100% { translate: 0 0; }
+}
+
+.floating-glass-card.is-edge-bouncing {
+  animation: edge-bounce var(--edge-duration, 320ms) cubic-bezier(.2, .8, .2, 1) both;
+}
+
+/* High-speed reaction (Task 5): a restrained, one-shot cue on the card that
+   becomes active from a genuinely hard flick — a tiny scale kick using the
+   standalone `scale` property, which composites with (never replaces) the
+   inline transform's own scale. `.is-fast-snap` lives on the stage and is
+   cleared automatically a moment after the flick, alongside a slightly
+   shorter settle transition set inline for that one render. */
+@keyframes fast-snap-kick {
+  0% { scale: 1.035; }
+  100% { scale: 1; }
+}
+
+.floating-category-stage.is-fast-snap .floating-glass-card.is-active {
+  animation: fast-snap-kick 260ms cubic-bezier(.2, .8, .2, 1) both;
 }
 
 .floating-glass-reflection {
