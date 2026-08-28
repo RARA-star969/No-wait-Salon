@@ -53,6 +53,12 @@ import {
   resolveStartupPlan,
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
+import { lastViewedBusinessPreference, type LastViewedByCategory } from '../services/recentBusinessPreferenceService';
+import { summarizeServiceLabels } from '../shared/serviceSelection';
+import { resolveSalonQueueSignal } from '../shared/salonQueueLevel';
+import { salonListingPositionLabel } from '../shared/liveQueueDisplayMetrics';
+import { resolveGymCrowdLevel } from '../shared/gymCrowdResolver';
+import { gymListingSignal } from '../shared/gymListingSignal';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { getNotificationPermissionStatus } from '../services/notificationService';
@@ -198,6 +204,24 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [mainCategories, setMainCategories] = useState<CategoryItemConfig[]>(DEFAULT_MAIN_CATEGORIES);
   const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
+  // UI-only "last viewed" memory per category — no card starts selected;
+  // one becomes marked only once the customer actually opens it. Never a
+  // source of truth for booking/queue/payment state.
+  const [lastViewedByCategory, setLastViewedByCategory] = useState<LastViewedByCategory>({});
+  useEffect(() => {
+    let cancelled = false;
+    lastViewedBusinessPreference.read().then((stored) => {
+      if (!cancelled) setLastViewedByCategory(stored);
+    });
+    return () => { cancelled = true; };
+  }, []);
+  const markLastViewed = useCallback((categoryId: string, businessId: string) => {
+    setLastViewedByCategory((prev) => {
+      const next = { ...prev, [categoryId.toLowerCase()]: businessId };
+      void lastViewedBusinessPreference.save(next);
+      return next;
+    });
+  }, []);
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -1039,10 +1063,39 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
 
               {categoryFilteredSalons.map((salon) => {
-                const isSelected = selectedSalon.id === salon.id;
-                const isNoWait = salon.liveWaitMinutes === 0;
-                const salonWait = isNoWait ? 'No wait' : `${salon.liveWaitMinutes} min`;
+                const catId = (salon.mainCategoryId || 'salon').toLowerCase();
+                const isGym = catId === 'gym';
+                const isSelected = lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
                 const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
+
+                let liveLine1: string;
+                let liveLine2: string;
+                let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
+                let signalLabel: string;
+                let positionLabel: string | null = null;
+                let serviceSummary: string | undefined;
+
+                if (isGym) {
+                  const currentOccupancy = salon.currentOccupancy ?? 0;
+                  const maxCapacity = salon.maxCapacity ?? 0;
+                  const crowd = resolveGymCrowdLevel(currentOccupancy, maxCapacity);
+                  const signal = gymListingSignal(crowd.level);
+                  liveLine1 = `Live Floor: ${currentOccupancy} / ${maxCapacity}`;
+                  liveLine2 = `${crowd.availableSlots} ${crowd.availableSlots === 1 ? 'space' : 'spaces'} available`;
+                  signalColor = signal.color;
+                  signalLabel = signal.label;
+                } else {
+                  const waitingCustomers = salon.waitingCustomers;
+                  const isNoWait = waitingCustomers === 0;
+                  liveLine1 = isNoWait ? 'No wait' : `Live queue: ${waitingCustomers} ${waitingCustomers === 1 ? 'person' : 'people'}`;
+                  liveLine2 = isNoWait ? 'Ready now' : `Est. wait: ${salon.liveWaitMinutes} min`;
+                  const signal = resolveSalonQueueSignal(waitingCustomers);
+                  signalColor = signal.color;
+                  signalLabel = signal.label;
+                  positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
+                  serviceSummary = summarizeServiceLabels(salon.services);
+                }
+
                 return (
                   <div key={salon.id} id={`salon-item-${salon.id}`}>
                     <PremiumBusinessCard
@@ -1050,10 +1103,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       theme={theme}
                       icon={getCategoryIcon(activeCategoryObj.iconName)}
                       isSelected={isSelected}
-                      waitLabel={salonWait}
-                      isNoWait={isNoWait}
+                      serviceSummary={serviceSummary}
+                      liveLine1={liveLine1}
+                      liveLine2={liveLine2}
+                      signalColor={signalColor}
+                      signalLabel={signalLabel}
+                      positionLabel={positionLabel}
                       onClick={() => {
                         setSelectedSalon(salon);
+                        markLastViewed(activeCategoryId, salon.id);
                         onQrContextChange(null);
                         setScreen('salon');
                       }}

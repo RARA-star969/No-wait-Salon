@@ -250,6 +250,12 @@ export interface NearbySalon extends Salon {
   travelTimeMinutes: number;
   liveWaitMinutes: number;
   waitingCustomers: number;
+  /** Barbers currently free to take the next customer — same count the
+   *  Salon Detail page's live-queue card uses for its Position field. */
+  readyChairs?: number;
+  /** Gym occupancy, present only for `mainCategoryId === 'gym'` listings. */
+  currentOccupancy?: number;
+  maxCapacity?: number;
 }
 
 export type ViewMode = 'split' | 'customer' | 'staff';
