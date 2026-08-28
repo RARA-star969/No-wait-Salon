@@ -20,6 +20,129 @@ body {
   margin: 0;
 }
 
+/* Customer Home's signature category controller. The stage itself never
+   scrolls horizontally: pointer intent drives transform-only depth motion,
+   while touch-action: pan-y leaves vertical gestures native to CustomerApp. */
+.floating-category-deck {
+  position: relative;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.floating-category-stage {
+  position: relative;
+  height: 244px;
+  margin-inline: -1rem;
+  perspective: 900px;
+  perspective-origin: 50% 44%;
+  transform-style: preserve-3d;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+  pointer-events: none;
+}
+
+.floating-category-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.floating-category-stage::before {
+  content: '';
+  position: absolute;
+  inset: 18px 7% 28px;
+  border-radius: 42%;
+  background:
+    radial-gradient(circle at 48% 35%, rgba(255, 255, 255, .12), transparent 25%),
+    radial-gradient(circle at 22% 58%, rgba(45, 212, 191, .2), transparent 34%),
+    radial-gradient(circle at 78% 54%, rgba(139, 92, 246, .2), transparent 36%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.floating-glass-card {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  height: 174px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .58);
+  border-radius: 30px;
+  transform-origin: 50% 55%;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  transition-property: transform, opacity, filter, box-shadow;
+  transition-timing-function: cubic-bezier(.2, .9, .18, 1.18);
+  -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+}
+
+.floating-glass-card::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow: inset 0 -8px 20px rgba(0, 0, 0, .12);
+  pointer-events: none;
+}
+
+.floating-glass-card.is-active {
+  filter: saturate(1.09) brightness(1.04);
+}
+
+.floating-glass-card.is-settling {
+  animation: glass-card-settle 260ms cubic-bezier(.2, .9, .2, 1) both;
+}
+
+.floating-glass-reflection {
+  position: absolute;
+  inset: -42% 35% 34% -24%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(255,255,255,.04) 68%);
+  filter: blur(1px);
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+
+.floating-glass-caustic {
+  position: absolute;
+  right: -18%;
+  bottom: -54%;
+  width: 78%;
+  height: 100%;
+  border-radius: 50%;
+  border: 12px solid rgba(255, 255, 255, .13);
+  filter: blur(5px);
+  transform: rotate(-28deg);
+  pointer-events: none;
+}
+
+.category-content-transition {
+  animation: category-content-in 360ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes category-content-in {
+  from { opacity: 0; transform: translate3d(0, 9px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes glass-card-settle {
+  0% { transform: translate3d(-50%, -50%, 0) scale(1); filter: brightness(1.04); }
+  55% { transform: translate3d(-50%, -53%, 100px) scale(1.075); filter: brightness(1.14); }
+  100% { transform: translate3d(-50%, -50%, 24px) scale(1.02); filter: brightness(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-glass-card,
+  .category-content-transition,
+  #customer-home-header {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Phase 1. The scanner renders in a portal on <body>, outside #root, so Home
    can be hidden the moment the scanner opens - before any camera work or
    WebView transparency begins. Nothing can composite Home through the shell. */

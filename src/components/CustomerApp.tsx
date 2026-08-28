@@ -20,6 +20,7 @@ import {
   QrCode,
   Search,
   AlertTriangle,
+  ChevronDown,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -34,7 +35,8 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { FloatingCategoryDeck } from './FloatingCategoryDeck';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { GymDetailPage } from './GymDetailPage';
@@ -267,6 +269,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
   const listingsSectionRef = useRef<HTMLDivElement>(null);
+  const [homeHeaderCollapsed, setHomeHeaderCollapsed] = useState(false);
+  const [homeHeaderIdleCycle, setHomeHeaderIdleCycle] = useState(0);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
   // every second (which previously restarted the QR camera).
@@ -480,6 +484,39 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
 
+  // Header is initially present, then yields space once the customer begins
+  // exploring. Returning to the very top (pull-down) or tapping the affordance
+  // makes location/search immediately available again.
+  useEffect(() => {
+    if (
+      currentScreen !== 'home' || salonSearch || isListening ||
+      !locationHydrated || !storedLocation?.setupCompleted
+    ) return;
+    setHomeHeaderCollapsed(false);
+    const timer = setTimeout(() => setHomeHeaderCollapsed(true), 8000);
+    return () => clearTimeout(timer);
+  }, [currentScreen, homeHeaderIdleCycle, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
+
+  const handleHomeScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    if (currentScreen !== 'home') return;
+    const scrollTop = event.currentTarget.scrollTop;
+    if (scrollTop > 52) setHomeHeaderCollapsed(true);
+    else if (scrollTop <= 2) setHomeHeaderCollapsed(false);
+  }, [currentScreen]);
+
+  const revealHomeHeader = useCallback(() => {
+    setHomeHeaderCollapsed(false);
+    setHomeHeaderIdleCycle((cycle) => cycle + 1);
+    homeScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const openCategoryExploration = useCallback((_categoryId: string) => {
+    setHomeHeaderCollapsed(true);
+    const target = document.getElementById('category-exploration-anchor');
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+  }, []);
+
   // The single authoritative pre-Home sequence: landing, then permissions
   // (location, notifications) — only then is the guest-accessible Home
   // reachable. Identity (OTP + profile) is deliberately not part of this
@@ -658,10 +695,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   }
 
   return (
-    <div ref={homeScrollRef} className="flex flex-col h-full bg-[#F8FAFA] text-[#17201F] overflow-y-auto">
+    <div
+      ref={homeScrollRef}
+      onScroll={handleHomeScroll}
+      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#050B0C] text-slate-100 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+    >
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className={`relative min-h-full overflow-hidden transition-colors duration-500 animate-in fade-in ${
+        <div id="customer-home-screen" className={`relative min-h-full overflow-x-clip transition-colors duration-500 animate-in fade-in ${
           (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).joinedBg
         }`}>
           {/* Futuristic ambient glow backdrop */}
@@ -677,7 +718,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           </div>
 
           {/* Header */}
-          <div className="relative border-b border-white/[0.06] bg-black/20 backdrop-blur-xl px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] sm:px-5">
+          <div
+            id="customer-home-header"
+            className={`relative overflow-hidden border-b bg-black/20 px-4 backdrop-blur-xl transition-[max-height,opacity,transform,padding,border-color] duration-500 ease-[cubic-bezier(.22,1,.36,1)] sm:px-5 ${
+              homeHeaderCollapsed
+                ? 'pointer-events-none max-h-0 -translate-y-8 border-transparent py-0 opacity-0'
+                : 'max-h-64 translate-y-0 border-white/[0.06] pb-4 pt-[max(1rem,env(safe-area-inset-top))] opacity-100'
+            }`}
+          >
             <div className="flex items-center justify-between gap-3">
               {/* LEFT: Address Title + Short Address */}
               <button
@@ -716,20 +764,35 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           </div>
 
+          {homeHeaderCollapsed && (
+            <button
+              type="button"
+              onClick={revealHomeHeader}
+              className="sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl"
+              aria-label="Reveal location and search"
+            >
+              <ChevronDown className="h-3.5 w-3.5 text-cyan-300" /> Location & search
+            </button>
+          )}
+
           <div className="relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
 
-          {/* Premium floating category deck */}
-          <TopCategoryTabs
+          {/* Physical floating glass deck; this is the only Home category interaction. */}
+          <FloatingCategoryDeck
             categories={categoriesWithLiveCounts}
             selectedCategoryId={activeCategoryId}
             onSelectCategory={setActiveCategoryId}
+            onOpenCategory={openCategoryExploration}
+            onExploreStart={() => setHomeHeaderCollapsed(true)}
           />
 
           {/* Premium hero / featured card — adapts to the selected category */}
-          <PromotionalBanner
-            category={activeCategoryObj}
-            onCtaClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          />
+          <div id="category-exploration-anchor" key={`banner-${activeCategoryId}`} className="scroll-mt-3 category-content-transition">
+            <PromotionalBanner
+              category={activeCategoryObj}
+              onCtaClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            />
+          </div>
 
           {/* Full Address Management Modal */}
           <AddressManagementModal
@@ -774,7 +837,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           )}
 
-          <div ref={listingsSectionRef}>
+          <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition">
             <div className="mb-3 flex items-end justify-between gap-4 px-1">
               <div>
                 <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">

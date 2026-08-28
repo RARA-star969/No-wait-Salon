@@ -39,6 +39,7 @@ export function QrScannerModal({
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<number | null>(null);
   const nativeRef = useRef(false);
+  const lifecycleOpenRef = useRef(false);
   const [state, setState] = useState<ScannerState>('starting');
   const [message, setMessage] = useState('');
   const [manual, setManual] = useState('');
@@ -66,9 +67,11 @@ export function QrScannerModal({
     frameRef.current = null;
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
+    // Always restore the transparency class, including the narrow race where
+    // close happens while native startScan() is still resolving.
+    document.body.classList.remove('barcode-scanner-active');
     if (nativeRef.current) {
       nativeRef.current = false;
-      document.body.classList.remove('barcode-scanner-active');
       void BarcodeScanner.stopScan().catch(() => undefined);
       void BarcodeScanner.removeAllListeners().catch(() => undefined);
     }
@@ -98,9 +101,11 @@ export function QrScannerModal({
 
   const startNative = useCallback(async () => {
     let permission = await BarcodeScanner.checkPermissions();
+    if (!lifecycleOpenRef.current) return;
     if (permission.camera === 'prompt' || permission.camera === 'prompt-with-rationale') {
       permission = await BarcodeScanner.requestPermissions();
     }
+    if (!lifecycleOpenRef.current) return;
     if (permission.camera !== 'granted') {
       setState('denied');
       setMessage('Camera access is off. Enable Camera Access in Settings, then try again.');
@@ -118,6 +123,12 @@ export function QrScannerModal({
     });
     setState('scanning');
     await BarcodeScanner.startScan({ formats: [BarcodeFormat.QrCode], lensFacing: LensFacing.Back });
+    if (!lifecycleOpenRef.current) {
+      nativeRef.current = false;
+      void BarcodeScanner.stopScan().catch(() => undefined);
+      void BarcodeScanner.removeAllListeners().catch(() => undefined);
+      return;
+    }
     // Go transparent only once the native preview is actually running. The
     // opaque shell stays up until revealWhenReady() promotes the phase, so the
     // WebView is never see-through while Home is still painted underneath.
@@ -139,6 +150,10 @@ export function QrScannerModal({
       return;
     }
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
+    if (!lifecycleOpenRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
     streamRef.current = stream;
     if (!videoRef.current) return;
     videoRef.current.srcObject = stream;
@@ -203,6 +218,7 @@ export function QrScannerModal({
   // WebView transparency work begins, so Home can never be composited through.
   useEffect(() => {
     if (!open) return;
+    lifecycleOpenRef.current = true;
     openedAt.current = Date.now();
     setPhase('covering');
     setTorchOn(false);
@@ -210,9 +226,11 @@ export function QrScannerModal({
     document.body.classList.add('scanner-open');
     void startRef.current();
     return () => {
+      lifecycleOpenRef.current = false;
       if (revealTimer.current !== null) clearTimeout(revealTimer.current);
       if (closeTimer.current !== null) clearTimeout(closeTimer.current);
       document.body.classList.remove('scanner-open');
+      document.body.classList.remove('barcode-scanner-active');
       stopRef.current();
     };
   }, [open]);
@@ -231,8 +249,10 @@ export function QrScannerModal({
     // Repaint the shell opaque and tear the camera down behind it, then hand
     // the screen back to Home under a fade instead of snapping to it.
     setPhase('closing');
+    lifecycleOpenRef.current = false;
     stop();
     document.body.classList.remove('scanner-open');
+    document.body.classList.remove('barcode-scanner-active');
     if (closeTimer.current !== null) clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(onClose, CLOSE_FADE_MS);
   };
@@ -278,7 +298,9 @@ export function QrScannerModal({
         </div>
       )}
 
-      <header className="relative z-10 flex items-start justify-between gap-3 px-5 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+      {/* Keep close above the startup cover so a slow/blocked camera permission
+          request can never trap the customer or leave Home scroll-locked. */}
+      <header className="relative z-30 flex items-start justify-between gap-3 px-5 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
         <button
           type="button"
           onClick={close}

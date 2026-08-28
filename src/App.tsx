@@ -703,9 +703,11 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F]">
+    <div className={`flex flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F] ${
+      PACKAGED_MODE === 'customer' ? 'h-[100dvh] min-h-0 overflow-hidden' : 'min-h-screen'
+    }`}>
       {testSwitcherBanner}
-      <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex-1 flex flex-col">
+      <div className={`${PACKAGED_MODE === 'customer' ? 'h-full min-h-0 w-full p-0' : 'mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8'} flex flex-1 flex-col`}>
         {/* Top Header */}
         {PACKAGED_MODE !== 'customer' && !isQrRoute && (
           <Header
@@ -722,7 +724,7 @@ export default function App() {
 
         {/* Main Workspaces Display */}
         <div
-          className={`grid gap-5 sm:gap-6 flex-1 ${
+          className={`grid min-h-0 flex-1 gap-5 sm:gap-6 ${
             viewMode === 'split'
               ? 'grid-cols-1 items-stretch lg:grid-cols-2'
               : 'grid-cols-1 items-start max-w-xl mx-auto w-full'
@@ -755,7 +757,11 @@ export default function App() {
               // item's max-content size once alignment resolves — nothing
               // forced both boxes to the same explicit height. A fixed
               // height makes both frames identical regardless of content.
-              className={`flex ${viewMode === 'split' ? 'h-[820px]' : 'min-h-[640px] max-h-[820px]'} flex-col overflow-hidden rounded-2xl border border-[#DDE5E3] bg-white transition-all ${PACKAGED_MODE !== 'customer' ? '[contain:layout] relative' : ''}`}
+              className={`flex ${
+                PACKAGED_MODE === 'customer'
+                  ? 'h-full min-h-0 border-0'
+                  : `${viewMode === 'split' ? 'h-[820px]' : 'min-h-[640px] max-h-[820px]'} rounded-2xl border border-[#DDE5E3]`
+              } flex-col overflow-hidden bg-white transition-all ${PACKAGED_MODE !== 'customer' ? '[contain:layout] relative' : ''}`}
             >
               {/* Development workspace chrome is hidden in the customer app. */}
               {PACKAGED_MODE !== 'customer' && !isQrRoute && <div className="flex items-center justify-between border-b border-[#E1E7E6] bg-white px-5 py-4">
@@ -779,7 +785,7 @@ export default function App() {
               </div>}
 
               {/* Customer Body */}
-              <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                 <CustomerApp
                   currentScreen={currentScreen}
                   setScreen={setCurrentScreen}
