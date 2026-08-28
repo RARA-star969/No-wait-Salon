@@ -274,6 +274,33 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
   const listingsSectionRef = useRef<HTMLDivElement>(null);
+  const homeHeaderObserverRef = useRef<ResizeObserver | null>(null);
+  // Real rendered height of the Location/Search header — measured rather
+  // than hardcoded because safe-area insets and device font/DPI settings
+  // change it. Drives both the top spacer's height and the scroll-position
+  // thresholds below, so neither ever drifts out of sync with what's
+  // actually on screen.
+  const [homeHeaderHeight, setHomeHeaderHeight] = useState(0);
+  // A callback ref (rather than a plain ref + a `useEffect(..., [])`) because
+  // the header's DOM node doesn't exist yet on first mount — the app starts
+  // on the landing/location/notifications stages, which return before the
+  // header ever renders. An effect keyed on mount would attach to a null
+  // node and never retry once Home actually appears; this re-attaches the
+  // observer every time the node itself mounts or unmounts.
+  const setHomeHeaderNode = useCallback((node: HTMLDivElement | null) => {
+    homeHeaderObserverRef.current?.disconnect();
+    homeHeaderObserverRef.current = null;
+    if (!node) return;
+    // `offsetHeight` (border-box, padding included) — not
+    // ResizeObserver's `contentRect` (content-box only), which undershoots by
+    // the header's own top/bottom padding and left the spacer a bit short of
+    // the header's real painted height.
+    const measure = () => setHomeHeaderHeight(node.offsetHeight);
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    measure();
+    homeHeaderObserverRef.current = observer;
+  }, []);
   const [homeHeaderCollapsed, setHomeHeaderCollapsed] = useState(false);
   // True only while the scripted "Location & search" return-to-top glide is
   // running — drives the very subtle depth/parallax dip on Home's content.
@@ -523,19 +550,34 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     setHomeHeaderCollapsed(false);
   }, [currentScreen, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
 
+  // Reveal/hide thresholds are derived from the header's own measured
+  // height rather than a hardcoded guess, so they never drift out of sync
+  // with the safe-area-dependent spacer below. Reveal fires a bit *before*
+  // the spacer's region would actually enter the viewport (headerHeight +
+  // buffer, not headerHeight itself) so the header is already painted over
+  // that region by the time it would otherwise show through as blank —
+  // this is what actually fixes the "empty gap while scrolling up" bug.
+  // Hide only fires well past that, giving a wide hysteresis band so
+  // casual back-and-forth scrolling near the top never flickers.
+  const headerRevealThreshold = homeHeaderHeight + 24;
+  const headerHideThreshold = homeHeaderHeight + 110;
+
   // Debounced against the scroll position rather than reacting to every
-  // frame: a wide dead zone (60–90px) between collapse and reveal thresholds
+  // frame: a wide hysteresis band between collapse and reveal thresholds
   // means casual back-and-forth scrolling near the top never flips the
   // header state on every tick, which was the source of the reported jitter.
-  // This only ever toggles a transform/opacity flag — see the header markup
-  // below, which is `position: sticky` at a constant height, so flipping this
-  // state never changes document layout or reflows the deck/listings under it.
+  // This only ever toggles a transform/opacity flag on an overlay that
+  // never reserves document height (see the header markup below) — flipping
+  // this state never reflows the deck/listings under it, and — unlike a
+  // fixed scrollTop<=4 check — the threshold tracks the real header height,
+  // so the header is never still-hidden while its own reserved region has
+  // already scrolled into view.
   const handleHomeScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     if (currentScreen !== 'home') return;
     const scrollTop = event.currentTarget.scrollTop;
-    if (scrollTop > 90) setHomeHeaderCollapsed(true);
-    else if (scrollTop <= 4) setHomeHeaderCollapsed(false);
-  }, [currentScreen]);
+    if (scrollTop > headerHideThreshold) setHomeHeaderCollapsed(true);
+    else if (scrollTop <= headerRevealThreshold) setHomeHeaderCollapsed(false);
+  }, [currentScreen, headerHideThreshold, headerRevealThreshold]);
 
   // Purely a scroll-to-top glide — it never forces the header open itself.
   // The Location/Search header reveals on its own, driven by
@@ -775,59 +817,69 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             />
           </div>
 
-          {/* Header — structural fix: this used to animate max-height/padding,
-              which changes the box's own size and reflows every sibling below
-              it (the deck, banner, listings) on every collapse/reveal, which
-              is what read as Home "jumping" while scrolling. It now has a
-              constant height and lives in the normal document flow as
-              `position: sticky; top: 0`, so hiding it is purely a
-              transform/opacity change on a box whose flow space never moves —
-              nothing beneath it is ever displaced. */}
-          <div
-            id="customer-home-header"
-            className={`sticky top-0 z-[140] overflow-hidden border-b bg-black/20 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
-              homeHeaderCollapsed
-                ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
-                : 'translate-y-0 border-white/[0.06] opacity-100'
-            }`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              {/* LEFT: Address Title + Short Address */}
-              <button
-                type="button"
-                onClick={() => setScreen('location-select')}
-                className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
-                aria-label="Open address management"
-              >
-                <div className="flex items-center gap-1.5 text-white">
-                  <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
-                  <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
-                </div>
-                <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
-                  {locationLabel || 'Indiranagar, Bengaluru'}
-                </p>
-              </button>
+          {/* Header — overlay architecture. The sticky shell has `h-0`, so it
+              reserves ZERO document height at any scroll position; the actual
+              header is `position: absolute` inside it and purely paints over
+              whatever is currently scrolled beneath. This is what fixes both
+              bugs at once: no reflow when it hides/reveals (nothing beneath it
+              ever moves), and no "reserved but invisible" blank gap while
+              scrolling up through the middle of Home (there's no reservation
+              to be blank — see the explicit spacer below instead). */}
+          <div className="sticky top-0 z-[140] h-0 overflow-visible">
+            <div
+              id="customer-home-header"
+              ref={setHomeHeaderNode}
+              className={`absolute inset-x-0 top-0 overflow-hidden border-b bg-black/20 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+                homeHeaderCollapsed
+                  ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
+                  : 'translate-y-0 border-white/[0.06] opacity-100'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                {/* LEFT: Address Title + Short Address */}
+                <button
+                  type="button"
+                  onClick={() => setScreen('location-select')}
+                  className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
+                  aria-label="Open address management"
+                >
+                  <div className="flex items-center gap-1.5 text-white">
+                    <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
+                    <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
+                  </div>
+                  <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
+                    {locationLabel || 'Indiranagar, Bengaluru'}
+                  </p>
+                </button>
 
-              {/* RIGHT: Compact 3D Wallet + Profile controls ONLY */}
-              <div className="flex shrink-0 items-center gap-2">
-                <WalletButton />
-                <ProfileButton onClick={() => setScreen('profile')} />
+                {/* RIGHT: Compact 3D Wallet + Profile controls ONLY */}
+                <div className="flex shrink-0 items-center gap-2">
+                  <WalletButton />
+                  <ProfileButton onClick={() => setScreen('profile')} />
+                </div>
+              </div>
+
+              {/* Large Search Box with rotating placeholder & inner mic button */}
+              <div className="mt-3.5">
+                <SalonSearchBar
+                  value={salonSearch}
+                  onChange={setSalonSearch}
+                  categories={mainCategories}
+                  activeCategoryName={activeCategoryObj.name}
+                  isListening={isListening}
+                  onVoiceSearch={handleVoiceSearch}
+                  voiceFeedback={voiceFeedback}
+                />
               </div>
             </div>
-
-            {/* Large Search Box with rotating placeholder & inner mic button */}
-            <div className="mt-3.5">
-              <SalonSearchBar
-                value={salonSearch}
-                onChange={setSalonSearch}
-                categories={mainCategories}
-                activeCategoryName={activeCategoryObj.name}
-                isListening={isListening}
-                onVoiceSearch={handleVoiceSearch}
-                voiceFeedback={voiceFeedback}
-              />
-            </div>
           </div>
+
+          {/* Ordinary static spacer — the ONLY thing that reserves the
+              header's vertical space, so the deck begins naturally below
+              Location/Search at rest. It is a plain block (not sticky, not
+              transform-hidden) and scrolls away with the rest of the
+              document exactly like any other content. */}
+          <div style={{ height: homeHeaderHeight }} aria-hidden="true" />
 
           {/* Minimal return-to-top shortcut only — no text, no capsule, and it
               never opens the header itself. It is always mounted (so the
