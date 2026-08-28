@@ -54,8 +54,9 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { lastViewedBusinessPreference, type LastViewedByCategory } from '../services/recentBusinessPreferenceService';
-import { summarizeServiceLabels } from '../shared/serviceSelection';
 import { resolveSalonQueueSignal } from '../shared/salonQueueLevel';
+import { deriveLocalityLabel } from '../shared/localityLabel';
+import { mergeLiveOperationalFields } from '../shared/nearbySalonsSync';
 import { salonListingPositionLabel } from '../shared/liveQueueDisplayMetrics';
 import { resolveGymCrowdLevel } from '../shared/gymCrowdResolver';
 import { gymListingSignal } from '../shared/gymListingSignal';
@@ -421,6 +422,53 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       cancelled = true;
     };
   }, []);
+
+  // Keeps listing operational fields (queue/wait/occupancy) live while Home
+  // is on screen — reuses the already-stored area/coordinates (never GPS,
+  // never a permission prompt) against the same server-authoritative
+  // /api/salons/nearby endpoint the initial load already used. Only the
+  // live fields are merged in by id, so the array's order/membership and
+  // the customer's selected/last-viewed state are untouched. There is no
+  // multi-business realtime/SSE stream to reuse here (the existing SSE
+  // path is scoped to one salon's own queue), so short polling is the
+  // documented fallback.
+  useEffect(() => {
+    if (currentScreen !== 'home') return;
+    if (!storedLocation?.setupCompleted) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const poll = async () => {
+      if (inFlight || cancelled) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      inFlight = true;
+      try {
+        const fresh = storedLocation.mode === 'manual' && storedLocation.area
+          ? (await salonDiscoveryService.byArea(storedLocation.area)).salons
+          : storedLocation.latitude !== undefined && storedLocation.longitude !== undefined
+            ? (await salonDiscoveryService.byCoordinates(storedLocation.latitude, storedLocation.longitude)).salons
+            : null;
+        if (!cancelled && fresh) {
+          setNearbySalons((current) => mergeLiveOperationalFields(current, fresh));
+        }
+      } catch {
+        // Keep showing the last known live values; the next tick retries.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const intervalId = setInterval(poll, 2500);
+    const onVisibilityChange = () => { if (!document.hidden) poll(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [currentScreen, storedLocation]);
 
   const [now, setNow] = useState(Date.now());
 
@@ -1073,7 +1121,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
                 let signalLabel: string;
                 let positionLabel: string | null = null;
-                let serviceSummary: string | undefined;
 
                 if (isGym) {
                   const currentOccupancy = salon.currentOccupancy ?? 0;
@@ -1087,13 +1134,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 } else {
                   const waitingCustomers = salon.waitingCustomers;
                   const isNoWait = waitingCustomers === 0;
-                  liveLine1 = isNoWait ? 'No wait' : `Live queue: ${waitingCustomers} ${waitingCustomers === 1 ? 'person' : 'people'}`;
-                  liveLine2 = isNoWait ? 'Ready now' : `Est. wait: ${salon.liveWaitMinutes} min`;
+                  // Compact form — no "Live queue:"/"Est. wait:" prefixes,
+                  // which read as verbose duplication once the signal chip
+                  // already names the status.
+                  liveLine1 = isNoWait ? 'No wait' : `${waitingCustomers} ahead`;
+                  liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
                   const signal = resolveSalonQueueSignal(waitingCustomers);
                   signalColor = signal.color;
                   signalLabel = signal.label;
                   positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
-                  serviceSummary = summarizeServiceLabels(salon.services);
                 }
 
                 return (
@@ -1103,7 +1152,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       theme={theme}
                       icon={getCategoryIcon(activeCategoryObj.iconName)}
                       isSelected={isSelected}
-                      serviceSummary={serviceSummary}
+                      localityLabel={deriveLocalityLabel(salon)}
                       liveLine1={liveLine1}
                       liveLine2={liveLine2}
                       signalColor={signalColor}

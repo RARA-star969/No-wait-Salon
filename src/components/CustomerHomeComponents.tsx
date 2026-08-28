@@ -513,19 +513,19 @@ const SIGNAL_STYLES: Record<SignalColor, { bar: string; text: string; bg: string
 
 /** How many of the three bars light up per signal color — a busier state
  *  lights more bars, on top of the color change, so the signal never relies
- *  on color alone. */
+ *  on color alone. Heights are ~15-20% smaller than the chip's first pass. */
 const SIGNAL_ACTIVE_BARS: Record<SignalColor, number> = { green: 1, yellow: 2, orange: 3, red: 3 };
-const SIGNAL_BAR_HEIGHTS = [5, 8, 11];
+const SIGNAL_BAR_HEIGHTS = [4, 6.5, 9];
 
 const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
   const active = SIGNAL_ACTIVE_BARS[color];
   const barColor = SIGNAL_STYLES[color].bar;
   return (
-    <span className="flex items-end gap-[2px]" aria-hidden="true">
+    <span className="flex items-end gap-[1.5px]" aria-hidden="true">
       {SIGNAL_BAR_HEIGHTS.map((height, index) => (
         <span
           key={height}
-          className="w-[3px] rounded-sm"
+          className="w-[2.5px] rounded-sm"
           style={{ height: `${height}px`, backgroundColor: index < active ? barColor : 'rgba(255,255,255,0.18)' }}
         />
       ))}
@@ -534,11 +534,12 @@ const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
 };
 
 /** Traffic-light live-status chip shared by Salon and Gym listing cards —
- *  always icon + text together, never color alone. */
+ *  always icon + text together, never color alone. Sized down ~15-20% from
+ *  its first pass so it reads as a small status marker, not a headline. */
 export const SignalStatusChip: React.FC<{ color: SignalColor; label: string }> = ({ color, label }) => {
   const style = SIGNAL_STYLES[color];
   return (
-    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ${style.bg} ${style.text}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[9px] font-bold ${style.bg} ${style.text}`}>
       <SignalBars color={color} />
       {label}
     </span>
@@ -555,25 +556,26 @@ export const PremiumBusinessCard: React.FC<{
   theme: CategoryTheme;
   icon: React.FC<{ className?: string }>;
   isSelected: boolean;
-  /** Compact "Haircut · Beard · Grooming +2 more" summary. Salon only. */
-  serviceSummary?: string;
-  /** Primary live-data line, e.g. "Live queue: 2 people" or "Live Floor: 42 / 80". */
+  /** Compact "Locality · 0.4 km" — no full street address on the listing;
+   *  the full address stays on the Detail page. */
+  localityLabel: string;
+  /** Primary live-data line, e.g. "1 ahead" or "Live Floor: 42 / 80". */
   liveLine1: string;
-  /** Secondary live-data line, e.g. "Est. wait: 15 min" or "38 spaces available". */
+  /** Secondary live-data line, e.g. "~8 min wait" or "38 spaces available". */
   liveLine2: string;
   signalColor: SignalColor;
   signalLabel: string;
   /** "You'd be #3" — salon only, and only while there's an actual wait. */
   positionLabel?: string | null;
   onClick: () => void;
-}> = ({ salon, theme, icon: IconComponent, isSelected, serviceSummary, liveLine1, liveLine2, signalColor, signalLabel, positionLabel, onClick }) => {
+}> = ({ salon, theme, icon: IconComponent, isSelected, localityLabel, liveLine1, liveLine2, signalColor, signalLabel, positionLabel, onClick }) => {
   return (
     <button
       type="button"
       onClick={onClick}
       className={`group relative w-full overflow-hidden rounded-2xl border text-left transition-all duration-200 ${
         isSelected
-          ? `border-white/20 bg-gradient-to-br ${theme.cardBg} ring-1 ${theme.ring} ${theme.glow}`
+          ? `border-white/15 bg-white/[0.035] ring-1 ${theme.ring} shadow-[0_0_0_1px_rgba(255,255,255,0.02)]`
           : 'border-white/[0.07] bg-white/[0.035] hover:border-white/15 hover:bg-white/[0.06]'
       }`}
     >
@@ -603,7 +605,7 @@ export const PremiumBusinessCard: React.FC<{
               {salon.name}
             </b>
             {isSelected && (
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
+              <span className={`shrink-0 text-[9px] font-semibold uppercase tracking-wider ${theme.softText}`}>
                 Last viewed
               </span>
             )}
@@ -615,15 +617,8 @@ export const PremiumBusinessCard: React.FC<{
               {salon.rating}
             </span>
             <span className="shrink-0 text-slate-600">•</span>
-            <span className="shrink-0 whitespace-nowrap">{salon.distanceKm} km</span>
-            <span className="shrink-0 text-slate-600">•</span>
-            <span className="min-w-0 truncate">{salon.area || salon.address}</span>
+            <span className="min-w-0 truncate">{localityLabel} · {salon.distanceKm} km</span>
           </div>
-          {serviceSummary && (
-            <p className="mt-1.5 truncate text-[11px] font-medium text-slate-400">
-              {serviceSummary}
-            </p>
-          )}
         </div>
       </div>
 
