@@ -124,6 +124,9 @@ interface CustomerAppProps {
   onQrContextChange: (token: string | null) => void;
   queueError: string;
   isJoinSheetOpen?: boolean;
+  /** Opens App.tsx's existing NotificationCenterModal — reused as-is for the
+   *  bottom nav's "Alerts" destination. */
+  onOpenNotifications?: () => void;
 }
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({
@@ -160,6 +163,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onQrContextChange,
   queueError,
   isJoinSheetOpen,
+  onOpenNotifications,
 }) => {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [cancelSheetOpen, setCancelSheetOpen] = useState(false);
@@ -507,26 +511,26 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     Object.entries(vars).forEach(([key, value]) => root.style.setProperty(key, value));
   }, [detailTheme]);
 
-  // Header is initially present, then yields space once the customer begins
-  // exploring. Returning to the very top (pull-down) or tapping the affordance
-  // makes location/search immediately available again. The idle delay is
-  // deliberately generous — collapsing the header while someone is simply
-  // reading Home (not scrolling) is exactly the "attention-seeking pop" this
-  // was tuned away from.
+  // Header is visible whenever Home is freshly entered (or search/voice is
+  // active) and otherwise purely follows scroll position — there is no idle
+  // timer collapsing it while someone is simply reading. An unrequested
+  // disappearance is exactly the "attention-seeking pop" this was tuned away
+  // from; the only way it hides now is the customer's own scroll gesture.
   useEffect(() => {
     if (
       currentScreen !== 'home' || salonSearch || isListening ||
       !locationHydrated || !storedLocation?.setupCompleted
     ) return;
     setHomeHeaderCollapsed(false);
-    const timer = setTimeout(() => setHomeHeaderCollapsed(true), 14000);
-    return () => clearTimeout(timer);
   }, [currentScreen, homeHeaderIdleCycle, isListening, locationHydrated, salonSearch, storedLocation?.setupCompleted]);
 
   // Debounced against the scroll position rather than reacting to every
   // frame: a wide dead zone (60–90px) between collapse and reveal thresholds
   // means casual back-and-forth scrolling near the top never flips the
   // header state on every tick, which was the source of the reported jitter.
+  // This only ever toggles a transform/opacity flag — see the header markup
+  // below, which is `position: sticky` at a constant height, so flipping this
+  // state never changes document layout or reflows the deck/listings under it.
   const handleHomeScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
     if (currentScreen !== 'home') return;
     const scrollTop = event.currentTarget.scrollTop;
@@ -773,15 +777,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             />
           </div>
 
-          {/* Header — opacity/translate lead the motion and max-height trails
-              slightly slower, so the collapse reads as a soft fade-and-fold
-              rather than a hard snap. */}
+          {/* Header — structural fix: this used to animate max-height/padding,
+              which changes the box's own size and reflows every sibling below
+              it (the deck, banner, listings) on every collapse/reveal, which
+              is what read as Home "jumping" while scrolling. It now has a
+              constant height and lives in the normal document flow as
+              `position: sticky; top: 0`, so hiding it is purely a
+              transform/opacity change on a box whose flow space never moves —
+              nothing beneath it is ever displaced. */}
           <div
             id="customer-home-header"
-            className={`relative overflow-hidden border-b bg-black/20 px-4 backdrop-blur-xl transition-[max-height,opacity,transform,padding,border-color] ease-[cubic-bezier(.32,.72,.33,1)] sm:px-5 ${
+            className={`sticky top-0 z-[140] overflow-hidden border-b bg-black/20 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
               homeHeaderCollapsed
-                ? 'pointer-events-none max-h-0 -translate-y-3 border-transparent py-0 opacity-0 duration-300'
-                : 'max-h-64 translate-y-0 border-white/[0.06] pb-4 pt-[max(1rem,env(safe-area-inset-top))] opacity-100 duration-[420ms]'
+                ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
+                : 'translate-y-0 border-white/[0.06] opacity-100'
             }`}
           >
             <div className="flex items-center justify-between gap-3">
@@ -1058,7 +1067,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       {currentScreen === 'home' && !isQrScannerOpen && (
-        <StickyScanQrButton scrollRef={homeScrollRef} onScan={openScanner} onProfile={() => setScreen('profile')} />
+        <StickyScanQrButton
+          activeHome
+          onScan={openScanner}
+          onHome={revealHomeHeader}
+          onBookings={() => setScreen('tracking')}
+          onNotifications={onOpenNotifications}
+          onMore={() => setScreen('profile')}
+        />
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />

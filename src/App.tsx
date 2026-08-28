@@ -823,6 +823,7 @@ export default function App() {
                   onQrContextChange={setActiveQrToken}
                   queueError={queueAlert}
                   isJoinSheetOpen={isJoinSheetOpen}
+                  onOpenNotifications={() => setIsNotificationCenterOpen(true)}
                 />
               </div>
             </section>

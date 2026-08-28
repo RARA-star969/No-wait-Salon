@@ -1,141 +1,110 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QrCode, House, UserRound } from 'lucide-react';
-
-/** Idle delay before a collapsed button expands back into the full pill. */
-const IDLE_EXPAND_MS = 3500;
-/** Below this scroll offset the expanded pill is always preferred. */
-const NEAR_TOP_PX = 24;
+import React from 'react';
+import { QrCode, House, CalendarCheck, Bell, Menu } from 'lucide-react';
 
 type Props = {
-  /** The Home scroll container this button reacts to. */
-  scrollRef: React.RefObject<HTMLElement | null>;
+  activeHome?: boolean;
   onScan: () => void;
-  /** Opens the existing Profile screen — same navigation CustomerApp already
-   *  wires from the header's ProfileButton, just also reachable from here. */
-  onProfile?: () => void;
+  /** Tapping Home while already on Home reuses the existing return-to-top glide. */
+  onHome?: () => void;
+  /** Opens the existing tracking screen — the app's own "my active booking"
+   *  view, reused as-is rather than inventing a separate bookings list. */
+  onBookings?: () => void;
+  /** Opens the existing NotificationCenterModal (App.tsx), unchanged. */
+  onNotifications?: () => void;
+  /** Opens the existing Profile screen — the app's catch-all account/settings
+   *  surface, reused as the "More" destination. */
+  onMore?: () => void;
+  /** True while an unread/undismissed alert exists, for the small dot. */
+  hasNotifications?: boolean;
 };
 
+const NavIcon: React.FC<{
+  icon: React.FC<{ className?: string }>;
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  dot?: boolean;
+}> = ({ icon: Icon, label, active, onClick, dot }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    aria-current={active ? 'page' : undefined}
+    className="flex h-12 flex-1 flex-col items-center justify-center gap-0.5 transition active:scale-90"
+  >
+    <span className="relative flex h-6 w-6 items-center justify-center">
+      <Icon
+        className="h-[19px] w-[19px]"
+        style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
+      />
+      {dot && (
+        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-rose-400 ring-1 ring-black/40" />
+      )}
+    </span>
+    <span
+      className="text-[9px] font-bold uppercase tracking-wide"
+      style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.75)' }}
+    >
+      {label}
+    </span>
+  </button>
+);
+
 /**
- * Bottom-centered Scan QR action, presented on a persistent bottom shelf
- * (Home/Profile either side) so the lower composition reads as a bottom
- * navigation bar. Home and Profile route through CustomerApp's existing
- * screen state — no new routes or screens are introduced. The Scan pill
- * itself is expanded by default, collapses to a compact circle while the
- * customer scrolls or touches, and expands again once idle. Triggers the
- * same scanner as the header QR icon.
+ * Persistent bottom navigation: Home | Bookings | Scan QR | Notifications |
+ * More, with Scan raised as a fixed-size floating center CTA. All four side
+ * items route through screens/modals CustomerApp and App.tsx already own
+ * (tracking, NotificationCenterModal, profile) — no new routes are added.
+ * The bar and the Scan CTA are both a constant size at all times; neither
+ * reacts to Home's scroll position, matching the "stays stable while
+ * scrolling" requirement. The Scan CTA's fill/glow/ring read the active
+ * category's CSS variables, so it recolors with the selected category.
  */
-export const StickyScanQrButton: React.FC<Props> = ({ scrollRef, onScan, onProfile }) => {
-  const [expanded, setExpanded] = useState(true);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearIdleTimer = useCallback(() => {
-    if (idleTimer.current !== null) {
-      clearTimeout(idleTimer.current);
-      idleTimer.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-
-    const scheduleExpand = () => {
-      clearIdleTimer();
-      idleTimer.current = setTimeout(() => setExpanded(true), IDLE_EXPAND_MS);
-    };
-
-    const collapseForInteraction = () => {
-      // Near the top the expanded pill is the preferred resting state.
-      if (scroller.scrollTop <= NEAR_TOP_PX) {
-        clearIdleTimer();
-        setExpanded(true);
-        return;
-      }
-      setExpanded(false);
-      scheduleExpand();
-    };
-
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        ticking = false;
-        collapseForInteraction();
-      });
-    };
-
-    scroller.addEventListener('scroll', onScroll, { passive: true });
-    scroller.addEventListener('touchstart', collapseForInteraction, { passive: true });
-
-    return () => {
-      scroller.removeEventListener('scroll', onScroll);
-      scroller.removeEventListener('touchstart', collapseForInteraction);
-      clearIdleTimer();
-    };
-  }, [scrollRef, clearIdleTimer]);
-
+export const StickyScanQrButton: React.FC<Props> = ({
+  activeHome = true,
+  onScan,
+  onHome,
+  onBookings,
+  onNotifications,
+  onMore,
+  hasNotifications,
+}) => {
   return (
     <div
       id="sticky-scan-qr"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
-      <div className="relative flex w-full max-w-sm items-center justify-between">
-        {/* Persistent bottom shelf — Home/Profile flank the floating Scan
-            CTA, giving the lower composition a bottom-nav feel while reusing
-            the screens CustomerApp already has. */}
-        <div className="pointer-events-auto flex h-14 flex-1 items-center justify-between rounded-full border border-white/10 bg-black/55 px-5 shadow-[0_14px_34px_-14px_rgba(0,0,0,.75)] backdrop-blur-2xl">
-          <span
-            className="flex h-9 w-9 items-center justify-center rounded-full"
-            aria-current="page"
-            style={{ color: 'var(--category-accent, #22D3EE)' }}
-          >
-            <House className="h-5 w-5" />
-          </span>
-          <span className="w-12 shrink-0" aria-hidden />
-          <button
-            type="button"
-            onClick={onProfile}
-            aria-label="Open profile"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-400 transition hover:text-slate-200 active:scale-90"
-          >
-            <UserRound className="h-5 w-5" />
-          </button>
+      <div className="relative flex w-full max-w-sm items-end justify-center">
+        <div className="pointer-events-auto flex w-full items-center rounded-[26px] border border-white/10 bg-black/60 px-2 shadow-[0_14px_34px_-14px_rgba(0,0,0,.8)] backdrop-blur-2xl">
+          <NavIcon icon={House} label="Home" active={activeHome} onClick={onHome} />
+          <NavIcon icon={CalendarCheck} label="Bookings" onClick={onBookings} />
+          {/* Reserves the center slot the raised Scan CTA floats above. */}
+          <span className="w-16 shrink-0" aria-hidden />
+          <NavIcon icon={Bell} label="Alerts" onClick={onNotifications} dot={hasNotifications} />
+          <NavIcon icon={Menu} label="More" onClick={onMore} />
         </div>
 
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[calc(50%+10px)]">
-          {/* Neon glow halo behind the capsule */}
+        {/* Raised Scan QR CTA — fixed size always, never shrinks/expands with
+            Home's scroll; only its own press state animates. */}
+        <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2">
           <div
             aria-hidden="true"
-            className={`pointer-events-none absolute inset-0 -m-2 rounded-full blur-xl transition-opacity duration-300 ${
-              expanded ? 'opacity-100' : 'opacity-70'
-            }`}
+            className="pointer-events-none absolute inset-0 -m-2 rounded-full blur-xl"
             style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.4))' }}
           />
           <button
             type="button"
             onClick={onScan}
             aria-label="Scan QR"
-            aria-expanded={expanded}
-            className={`pointer-events-auto relative flex h-14 items-center justify-center gap-2.5 overflow-hidden rounded-full border border-white/25 text-slate-950 ring-2 transition-[width,padding] duration-300 ease-out active:scale-95 ${
-              expanded ? 'w-[11rem] px-5' : 'w-14 px-0'
-            }`}
+            className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-slate-950 ring-2 transition-transform duration-150 ease-out active:scale-90"
             style={{
               backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
-              boxShadow: `0 12px 32px -6px var(--category-glow, rgba(34,211,238,0.65))`,
+              boxShadow: '0 12px 32px -6px var(--category-glow, rgba(34,211,238,0.65))',
               ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.3))',
             }}
           >
-            <span className="pointer-events-none absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/40 blur-[2px]" />
-            <QrCode className="relative h-[22px] w-[22px] shrink-0 drop-shadow-sm" />
-            <span
-              aria-hidden={!expanded}
-              className={`relative whitespace-nowrap text-sm font-black tracking-[-0.01em] transition-opacity duration-200 ${
-                expanded ? 'opacity-100 delay-75' : 'w-0 opacity-0'
-              }`}
-            >
-              Scan QR
-            </span>
+            <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />
+            <QrCode className="relative h-7 w-7 drop-shadow-sm" />
           </button>
         </div>
       </div>

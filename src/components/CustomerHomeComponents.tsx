@@ -503,23 +503,20 @@ export const CategoryLandingState: React.FC<{
 
 /**
  * Premium dark listing card for a nearby business. Renders only real data
- * already carried on `NearbySalon` — no invented fields.
+ * already carried on `NearbySalon` — no invented fields. Crowd status is a
+ * deterministic front-end read of the same wait/queue numbers shown below it.
  */
-const CROWD_BADGE_STYLE: Record<'busy' | 'moderate' | 'low', (theme: CategoryTheme) => React.CSSProperties> = {
-  // Busy leans on the category accent at full strength — the strongest
-  // visual weight, since it is the state most worth noticing at a glance.
-  busy: (theme) => ({ backgroundColor: theme.accent, color: '#0B0F0F' }),
-  // Moderate: a soft tint of the same accent, not a fully separate hue —
-  // stays inside the category's color language instead of the usual
-  // universal red/amber/green.
-  moderate: (theme) => ({ backgroundColor: `${theme.accent}26`, color: theme.accent, border: `1px solid ${theme.accent}40` }),
-  low: () => ({ backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(226,232,240,0.75)', border: '1px solid rgba(255,255,255,0.1)' }),
+const CROWD_DOT_COLOR: Record<'busy' | 'moderate' | 'low', (theme: CategoryTheme) => string> = {
+  busy: (theme) => theme.accent,
+  moderate: (theme) => `${theme.accent}B3`,
+  low: () => 'rgba(148,163,184,0.7)',
 };
 
 /**
  * Premium dark listing card for a nearby business. Renders only real data
  * already carried on `NearbySalon` — no invented fields. Crowd status is a
- * deterministic front-end read of the same wait/queue numbers shown below it.
+ * deterministic front-end read of the same wait/queue numbers shown in the
+ * status line below it (never a separately-invented time slot).
  */
 export const PremiumBusinessCard: React.FC<{
   salon: NearbySalon;
@@ -531,8 +528,10 @@ export const PremiumBusinessCard: React.FC<{
   onClick: () => void;
 }> = ({ salon, theme, icon: IconComponent, isSelected, waitLabel, isNoWait, onClick }) => {
   const crowd = deriveCrowdStatus({ liveWaitMinutes: salon.liveWaitMinutes, waitingCustomers: salon.waitingCustomers });
-  const tags = salon.services.slice(0, 3).map((service) => service.name);
   const areaLabel = salon.area || salon.address;
+  // One concise text line instead of a row of tag chips — real service names,
+  // just typeset as prose rather than pills.
+  const servicesLine = salon.services.slice(0, 3).map((service) => service.name).join(' • ');
 
   return (
     <button
@@ -545,7 +544,7 @@ export const PremiumBusinessCard: React.FC<{
       }`}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-      <div className="flex items-start gap-3.5 p-4">
+      <div className="flex items-start gap-3.5 p-4 pb-3">
         {/* Thumbnail: real cover photo when the business has one, otherwise
             the same category-icon tile as before — no placeholder imagery
             invented for businesses that don't carry a photo. */}
@@ -571,57 +570,57 @@ export const PremiumBusinessCard: React.FC<{
             </b>
             <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-slate-300" />
           </div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-slate-400">
-            <span className="flex items-center gap-1 text-slate-300">
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-[11px] font-medium text-slate-400">
+            <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-slate-300">
               <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
               {salon.rating}
             </span>
-            <span className="text-slate-600">•</span>
-            <span>{salon.distanceKm} km</span>
-            <span className="text-slate-600">•</span>
-            <span>{salon.travelTimeMinutes} min away</span>
+            <span className="shrink-0 text-slate-600">•</span>
+            <span className="shrink-0 whitespace-nowrap">{salon.distanceKm} km</span>
+            <span className="shrink-0 text-slate-600">•</span>
+            <span className="min-w-0 truncate">{areaLabel}</span>
           </div>
-          <p className="mt-1.5 truncate text-[11px] text-slate-500">
-            {areaLabel}
-          </p>
-          {!!tags.length && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="truncate rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9.5px] font-semibold text-slate-300"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+          {!!servicesLine && (
+            <p className="mt-1.5 truncate text-[11px] font-medium text-slate-400">
+              {servicesLine}
+            </p>
           )}
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-white/[0.06] bg-black/20 px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-            <Clock className="h-3.5 w-3.5" style={{ color: theme.accent }} />
-          </span>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isNoWait ? 'bg-emerald-400/15 text-emerald-300' : ''}`}
-            style={isNoWait ? undefined : { backgroundColor: theme.accent, color: '#0B0F0F' }}
-          >
-            {waitLabel}
-          </span>
-          <span
-            className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-wider"
-            style={CROWD_BADGE_STYLE[crowd.level](theme)}
-          >
-            <Users className="h-2.5 w-2.5" />
+
+      {/* Status section — the primary visual weight of the card, not a chip
+          row: live queue size / wait estimate on the left, crowd read on the
+          right with its own small indicator dot. */}
+      <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] bg-black/20 px-4 py-3">
+        <div className="min-w-0">
+          {isNoWait ? (
+            <p className="flex items-center gap-1.5 text-[13px] font-bold text-emerald-300">
+              <Clock className="h-3.5 w-3.5" />
+              No wait · Ready now
+            </p>
+          ) : (
+            <>
+              <p className="flex items-center gap-1.5 text-[13px] font-bold text-white">
+                <Users className="h-3.5 w-3.5" style={{ color: theme.accent }} />
+                Live queue: {salon.waitingCustomers} {salon.waitingCustomers === 1 ? 'person' : 'people'}
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                Est. wait <span style={{ color: theme.accent }}>{waitLabel}</span>
+              </p>
+            </>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: CROWD_DOT_COLOR[crowd.level](theme) }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: CROWD_DOT_COLOR[crowd.level](theme) }} />
             {crowd.label}
           </span>
+          {isSelected && (
+            <span className={`rounded-full px-2 py-0.5 text-[8.5px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
+              Selected
+            </span>
+          )}
         </div>
-        {isSelected && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
-            Selected
-          </span>
-        )}
       </div>
     </button>
   );
