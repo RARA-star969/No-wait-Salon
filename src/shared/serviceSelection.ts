@@ -46,3 +46,39 @@ export function selectionTotals(services: SalonProfileService[], selectedIds: Re
 }
 
 export const combinedServiceLabel = (names: string[]): string => (names.length ? names.join(' + ') : '');
+
+/**
+ * Broad, glanceable label for one service name — used only to build the
+ * listing card's compact summary below. Deliberately coarser than the
+ * Salon Detail page's own category grouping (kept local to that page); this
+ * one exists purely to keep listing cards a fixed height regardless of how
+ * many services a salon has.
+ */
+function listingServiceLabel(name: string): string {
+  const value = name.toLowerCase();
+  if (value.includes('beard')) return 'Beard';
+  if (value.includes('massage') || value.includes('spa')) return 'Grooming';
+  if (value.includes('colour') || value.includes('color')) return 'Hair Colour';
+  if (value.includes('facial')) return 'Facial';
+  if (value.includes('hair') || value.includes('cut') || value.includes('trim') || value.includes('shave') || value.includes('style')) return 'Haircut';
+  return 'Grooming';
+}
+
+/**
+ * Compact "Haircut · Beard · Grooming +2 more" summary for a salon listing
+ * card. Always at most `max` labels plus an optional "+N more" — never the
+ * full services list — so the card height never grows with the catalog
+ * size. The full catalog stays on the Salon Detail page.
+ */
+export function summarizeServiceLabels(services: Pick<SalonProfileService, 'name'>[], max = 3): string {
+  if (!services.length) return '';
+  const uniqueLabels: string[] = [];
+  for (const service of services) {
+    const label = listingServiceLabel(service.name);
+    if (!uniqueLabels.includes(label)) uniqueLabels.push(label);
+  }
+  const shown = uniqueLabels.slice(0, max);
+  const remaining = services.length - shown.length;
+  const summary = shown.join(' · ');
+  return remaining > 0 ? `${summary} +${remaining} more` : summary;
+}

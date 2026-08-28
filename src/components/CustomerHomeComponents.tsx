@@ -1,6 +1,7 @@
 import React from 'react';
 import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock } from 'lucide-react';
 import type { NearbySalon } from '../types';
+import type { SignalColor } from '../shared/signalColor';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -541,19 +542,69 @@ export const CategoryLandingState: React.FC<{
   );
 };
 
+const SIGNAL_STYLES: Record<SignalColor, { bar: string; text: string; bg: string }> = {
+  green: { bar: '#34D399', text: 'text-emerald-300', bg: 'bg-emerald-400/15' },
+  yellow: { bar: '#FBBF24', text: 'text-amber-300', bg: 'bg-amber-400/15' },
+  orange: { bar: '#FB923C', text: 'text-orange-300', bg: 'bg-orange-400/15' },
+  red: { bar: '#F87171', text: 'text-red-300', bg: 'bg-red-400/15' },
+};
+
+/** How many of the three bars light up per signal color — a busier state
+ *  lights more bars, on top of the color change, so the signal never relies
+ *  on color alone. */
+const SIGNAL_ACTIVE_BARS: Record<SignalColor, number> = { green: 1, yellow: 2, orange: 3, red: 3 };
+const SIGNAL_BAR_HEIGHTS = [5, 8, 11];
+
+const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
+  const active = SIGNAL_ACTIVE_BARS[color];
+  const barColor = SIGNAL_STYLES[color].bar;
+  return (
+    <span className="flex items-end gap-[2px]" aria-hidden="true">
+      {SIGNAL_BAR_HEIGHTS.map((height, index) => (
+        <span
+          key={height}
+          className="w-[3px] rounded-sm"
+          style={{ height: `${height}px`, backgroundColor: index < active ? barColor : 'rgba(255,255,255,0.18)' }}
+        />
+      ))}
+    </span>
+  );
+};
+
+/** Traffic-light live-status chip shared by Salon and Gym listing cards —
+ *  always icon + text together, never color alone. */
+export const SignalStatusChip: React.FC<{ color: SignalColor; label: string }> = ({ color, label }) => {
+  const style = SIGNAL_STYLES[color];
+  return (
+    <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold ${style.bg} ${style.text}`}>
+      <SignalBars color={color} />
+      {label}
+    </span>
+  );
+};
+
 /**
  * Premium dark listing card for a nearby business. Renders only real data
- * already carried on `NearbySalon` — no invented fields.
+ * already carried on `NearbySalon` (plus values passed in that were derived
+ * from it via the shared resolvers) — no invented fields.
  */
 export const PremiumBusinessCard: React.FC<{
   salon: NearbySalon;
   theme: CategoryTheme;
   icon: React.FC<{ className?: string }>;
   isSelected: boolean;
-  waitLabel: string;
-  isNoWait: boolean;
+  /** Compact "Haircut · Beard · Grooming +2 more" summary. Salon only. */
+  serviceSummary?: string;
+  /** Primary live-data line, e.g. "Live queue: 2 people" or "Live Floor: 42 / 80". */
+  liveLine1: string;
+  /** Secondary live-data line, e.g. "Est. wait: 15 min" or "38 spaces available". */
+  liveLine2: string;
+  signalColor: SignalColor;
+  signalLabel: string;
+  /** "You'd be #3" — salon only, and only while there's an actual wait. */
+  positionLabel?: string | null;
   onClick: () => void;
-}> = ({ salon, theme, icon: IconComponent, isSelected, waitLabel, isNoWait, onClick }) => {
+}> = ({ salon, theme, icon: IconComponent, isSelected, serviceSummary, liveLine1, liveLine2, signalColor, signalLabel, positionLabel, onClick }) => {
   return (
     <button
       type="button"
@@ -573,9 +624,14 @@ export const PremiumBusinessCard: React.FC<{
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <b className="truncate text-[15px] font-bold text-white">
+            <b className="min-w-0 flex-1 truncate text-[15px] font-bold text-white">
               {salon.name}
             </b>
+            {isSelected && (
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
+                Last viewed
+              </span>
+            )}
             <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-slate-300" />
           </div>
           <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-slate-400">
@@ -586,32 +642,28 @@ export const PremiumBusinessCard: React.FC<{
             <span className="text-slate-600">•</span>
             <span>{salon.distanceKm} km</span>
             <span className="text-slate-600">•</span>
-            <span>{salon.travelTimeMinutes} min away</span>
+            <span className="truncate">{salon.area || salon.address}</span>
           </div>
-          <p className="mt-2 truncate text-[11px] text-slate-500">
-            {salon.address}
-          </p>
+          {serviceSummary && (
+            <p className="mt-1.5 truncate text-[11px] text-slate-500">
+              {serviceSummary}
+            </p>
+          )}
         </div>
       </div>
-      <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/20 px-4 py-2.5">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-          <Clock className="h-3.5 w-3.5" style={{ color: theme.accent }} />
-          Current wait
-        </span>
-        <div className="flex items-center gap-2">
-          {isSelected && (
-            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${theme.badgeBg} ${theme.badgeText}`}>
-              Selected
-            </span>
+      <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] bg-black/20 px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 truncate text-[11px] font-bold text-white">
+            <Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />
+            {liveLine1}
+          </p>
+          <p className="truncate text-[10px] font-medium text-slate-400">{liveLine2}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <SignalStatusChip color={signalColor} label={signalLabel} />
+          {positionLabel && (
+            <span className="text-[9px] font-semibold text-slate-400">{positionLabel}</span>
           )}
-          <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-              isNoWait ? 'bg-emerald-400/15 text-emerald-300' : 'text-slate-950'
-            }`}
-            style={isNoWait ? undefined : { backgroundColor: theme.accent }}
-          >
-            {waitLabel}
-          </span>
         </div>
       </div>
     </button>

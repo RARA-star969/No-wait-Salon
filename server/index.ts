@@ -2818,19 +2818,41 @@ app.get('/api/salons/nearby', (request, response) => {
     .filter((salon) => !area || `${salon.name} ${salon.address}`.toLocaleLowerCase().includes(area))
     .filter((salon) => !categoryId || (salon.mainCategoryId || 'salon').toLowerCase() === categoryId)
     .map((salon) => {
-      const state = readState(salon.id);
-      const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
-      const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
-      const liveWaitMinutes = activeBarbers > 0 ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
       const distanceKm = hasCoordinates
         ? Number(distanceBetweenKm(latitude, longitude, salon.latitude, salon.longitude).toFixed(1))
         : salon.distanceKm;
-      return {
+      const base = {
         ...salon,
         distanceKm,
         travelTimeMinutes: Math.max(3, Math.round(distanceKm * 4)),
+      };
+
+      // Gym listings surface Live Floor occupancy, not a salon-style queue —
+      // read from the same `getGymState` the Gym Detail page's live card
+      // uses, so the two can never disagree. The client derives the crowd
+      // level from these same numbers via the shared `resolveGymCrowdLevel`.
+      if ((salon.mainCategoryId || 'salon').toLowerCase() === 'gym') {
+        const gymState = getGymState(salon.id);
+        return {
+          ...base,
+          liveWaitMinutes: 0,
+          waitingCustomers: 0,
+          readyChairs: 0,
+          currentOccupancy: gymState.currentOccupancy,
+          maxCapacity: gymState.maxCapacity,
+        };
+      }
+
+      const state = readState(salon.id);
+      const waitingCustomers = state.queue.filter((item) => ['Waiting', 'Called'].includes(item.status)).length;
+      const activeBarbers = state.barbers.filter((barber) => barber.status !== 'unavailable').length;
+      const readyChairs = state.barbers.filter((barber) => barber.status === 'available').length;
+      const liveWaitMinutes = activeBarbers > 0 ? Math.max(0, Math.ceil(waitingCustomers * 15 / activeBarbers)) : 0;
+      return {
+        ...base,
         liveWaitMinutes,
         waitingCustomers,
+        readyChairs,
       };
     })
     .sort((first, second) => first.distanceKm - second.distanceKm);
