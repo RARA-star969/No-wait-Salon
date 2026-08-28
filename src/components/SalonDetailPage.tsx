@@ -211,13 +211,13 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <button onClick={onBack} id="back-to-salons-btn" aria-label="Back to nearby salons" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex gap-2">
-            <button onClick={() => setSaved((value) => !value)} aria-label={saved ? 'Remove saved salon' : 'Save salon'} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md ${saved ? 'bg-white text-[#0F766E]' : 'bg-black/35 text-white'}`}><Bookmark className={`h-[18px] w-[18px] ${saved ? 'fill-current' : ''}`} /></button>
+            <button onClick={() => setSaved((value) => !value)} aria-label={saved ? 'Remove saved salon' : 'Save salon'} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/35 text-white'}`}><Bookmark className={`h-[18px] w-[18px] ${saved ? 'fill-current' : ''}`} /></button>
             <button onClick={shareSalon} aria-label="Share salon" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><Share2 className="h-[18px] w-[18px]" /></button>
           </div>
         </div>
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-5">
           <div className="flex items-end gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#E3F1EF] text-[#0F766E] shadow-lg">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#E3F1EF] text-[var(--category-primary-dark)] shadow-lg">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
@@ -263,7 +263,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               pattern used in LiveQueueCard, so the backdrop-blur below has
               real content to filter. Purely decorative. */}
           <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[#C9A24B]/55 blur-2xl" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[#0F766E]/30 blur-2xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[var(--category-primary-dark)]/30 blur-2xl" aria-hidden="true" />
 
           {/* Secondary future-booking CTA: translucent warm glass, deliberately
               quieter than the Live Queue hero above it — "later", not "now".
@@ -293,7 +293,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
         </section>
 
-        {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-xs font-bold text-[#0F766E]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
+        {!!profile.offers.length && <section><SectionTitle eyebrow="Savings" title="Available offers" /><div className="flex snap-x gap-3 overflow-x-auto pb-1">{profile.offers.map((offer) => <div key={offer.id} className="min-w-[260px] snap-start rounded-2xl border border-[#E0E6E5] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-xs font-bold text-[var(--category-primary-dark)]">{offer.discount}</p><h3 className="mt-1 text-sm font-bold">{offer.title}</h3>{offer.minimumBill && <p className="mt-2 text-[10px] text-[#778481]">Minimum bill {offer.minimumBill}</p>}<p className="mt-1 text-[10px] text-[#778481]">{offer.validity}</p></div>)}</div></section>}
 
         <section>
           <SectionTitle eyebrow="Explore" title="Services" />
@@ -304,7 +304,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 href="#service-menu"
                 className="group flex min-w-[104px] flex-1 flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-3.5 text-center shadow-[0_4px_14px_-8px_rgba(15,40,37,0.08)] transition active:scale-[0.98]"
               >
-                <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[#0F766E]/20 bg-gradient-to-b from-white via-[#F2FAF8] to-[#DEF3EF] shadow-[inset_0_1.5px_0_rgba(255,255,255,1),inset_0_-1px_2px_rgba(15,118,110,0.06),0_3px_8px_-2px_rgba(15,118,110,0.16)] transition-transform duration-200 group-hover:scale-105">
+                <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-white via-[#F2FAF8] to-[#DEF3EF] shadow-[inset_0_1.5px_0_rgba(255,255,255,1),inset_0_-1px_2px_var(--category-glow),0_3px_8px_-2px_var(--category-glow)] transition-transform duration-200 group-hover:scale-105">
                   {CATEGORY_ICONS[category] || <HairCare3DIcon className="h-6 w-6" />}
                 </span>
                 <span className="mt-2 text-[11px] font-bold text-[#17201F]">{category}</span>
@@ -321,7 +321,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 key={filter}
                 type="button"
                 onClick={() => setServiceFilter(filter)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[#0F766E] bg-[#0F766E] text-white' : 'border-[#DDE7E5] bg-white text-[#536966]'}`}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[var(--category-primary-dark)] bg-[var(--category-primary-dark)] text-white' : 'border-[#DDE7E5] bg-white text-[#536966]'}`}
               >
                 {filter}
               </button>
@@ -342,9 +342,9 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#0F766E]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
+        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-primary-dark)]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[#0F766E]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
+        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[var(--category-primary-dark)]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
       </div>
@@ -373,7 +373,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 {totals.count} {totals.count === 1 ? 'service' : 'services'} selected
               </span>
               {dockDiscountInr > 0 && appliedOffer && (
-                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-[#0F766E]"><Tag className="h-2.5 w-2.5" />{appliedOffer.title} applied</span>
+                <span className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-[var(--category-primary-dark)]"><Tag className="h-2.5 w-2.5" />{appliedOffer.title} applied</span>
               )}
             </span>
             <span className="flex shrink-0 items-center gap-1.5">
@@ -395,8 +395,8 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               just riding on the dock's glass surface instead of a
               separate solid card. */}
           {totals.totalDurationMin > 0 && (
-            <div className="mt-1 flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_6px_-2px_rgba(15,118,110,0.12)] backdrop-blur-md">
-              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#0F766E] to-[#0B4A44] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
+            <div className="mt-1 flex items-center gap-2.5 rounded-xl border border-white/70 bg-white/60 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.85),0_2px_6px_-2px_var(--category-glow)] backdrop-blur-md">
+              <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[var(--category-primary-dark)] to-[var(--category-primary-dark)] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
                 <Clock className="h-3.5 w-3.5" />
               </span>
               <span className="flex items-baseline gap-1.5">
@@ -411,7 +411,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <button
           id="join-live-queue-btn"
           onClick={onJoin}
-          className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[#0F766E] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
+          className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--category-primary-dark)] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
           <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
@@ -507,13 +507,13 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
             {descExpanded || !isLong ? service.description : (
               <>
                 {preview}
-                <button type="button" onClick={() => setDescExpanded(true)} className="ml-1 font-bold text-[#0F766E]">…more</button>
+                <button type="button" onClick={() => setDescExpanded(true)} className="ml-1 font-bold text-[var(--category-primary-dark)]">…more</button>
               </>
             )}
           </p>
         )}
         <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EFF4F3] px-2 py-0.5 text-[10px] font-bold text-[#4C5A58]">
-          <Timer className="h-3 w-3 text-[#0F766E]" />
+          <Timer className="h-3 w-3 text-[var(--category-primary-dark)]" />
           Session time : {service.durationMin} min
         </span>
       </div>
@@ -526,7 +526,7 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
           </span>
         )}
         {showAddPing && (
-          <span className="add-to-dock-ping pointer-events-none absolute -top-3 right-0 inline-flex items-center gap-0.5 rounded-full bg-[#0F766E] px-2 py-0.5 text-[9px] font-bold text-white">
+          <span className="add-to-dock-ping pointer-events-none absolute -top-3 right-0 inline-flex items-center gap-0.5 rounded-full bg-[var(--category-primary-dark)] px-2 py-0.5 text-[9px] font-bold text-white">
             <Check className="h-2.5 w-2.5" /> Added
           </span>
         )}
@@ -538,8 +538,8 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
           aria-label={active ? `Remove ${service.name}` : `Add ${service.name}`}
           className={`group relative mt-2 flex h-8 min-w-[76px] select-none items-center justify-center gap-1.5 rounded-full px-3 text-[11px] font-extrabold tracking-[-0.01em] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] active:translate-y-[1px] active:scale-[0.95] motion-reduce:transition-none motion-reduce:active:transform-none ${
             active
-              ? 'border border-[#094E48] bg-gradient-to-b from-[#138E86] via-[#0F766E] to-[#0A5A53] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_3px_8px_-2px_rgba(15,118,110,0.5),0_1.5px_0_rgba(8,68,62,0.85)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.35)]'
-              : 'border border-[#0F766E]/30 bg-gradient-to-b from-[#FFFFFF] via-[#F3FAF8] to-[#E3F2EF] text-[#0F766E] shadow-[inset_0_1px_0_rgba(255,255,255,1),0_2px_5px_-1px_rgba(15,118,110,0.18),0_1.5px_0_rgba(15,118,110,0.14)] active:shadow-[inset_0_2px_4px_rgba(15,118,110,0.22)]'
+              ? 'border border-[var(--category-primary-dark)] bg-gradient-to-b from-[var(--category-primary-light)] via-[var(--category-primary-dark)] to-[var(--category-primary-dark)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_3px_8px_-2px_var(--category-glow),0_1.5px_0_rgba(8,68,62,0.85)] active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.35)]'
+              : 'border border-[var(--category-primary-dark)]/30 bg-gradient-to-b from-[#FFFFFF] via-[#F3FAF8] to-[#E3F2EF] text-[var(--category-primary-dark)] shadow-[inset_0_1px_0_rgba(255,255,255,1),0_2px_5px_-1px_var(--category-glow),0_1.5px_0_var(--category-glow)] active:shadow-[inset_0_2px_4px_var(--category-glow)]'
           }`}
         >
           {/* Subtle top specular sheen */}
@@ -553,7 +553,7 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
           {/* Morphing 3D Glyph */}
           <span className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
             <Plus
-              className={`absolute h-3 w-3 stroke-[2.75] text-[#0F766E] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
+              className={`absolute h-3 w-3 stroke-[2.75] text-[var(--category-primary-dark)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
                 active ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100'
               }`}
             />

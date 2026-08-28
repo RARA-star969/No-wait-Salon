@@ -9,7 +9,7 @@ export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> 
     aria-label={`Wallet balance ${balance}`}
     className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-slate-100 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
   >
-    <WalletCards className="h-4 w-4 text-cyan-300" />
+    <WalletCards className="h-4 w-4" style={{ color: 'var(--category-accent, #22D3EE)' }} />
     <span className="text-xs font-bold">{balance}</span>
   </button>
 );
@@ -19,7 +19,8 @@ export const ProfileButton: React.FC<{ onClick?: () => void }> = ({ onClick }) =
     type="button"
     onClick={onClick}
     aria-label="Open customer profile"
-    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-cyan-300 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
+    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
+    style={{ color: 'var(--category-accent, #22D3EE)' }}
   >
     <UserRound className="h-[18px] w-[18px]" />
   </button>
@@ -163,6 +164,47 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
   },
 };
 
+/**
+ * Semantic CSS custom properties that carry the active category's identity
+ * onto the customer app root. Every category-sensitive surface (scanner,
+ * wallet, profile, chips, listings, detail pages…) reads these instead of a
+ * hardcoded Tailwind color, so switching category re-themes the whole app
+ * from a single write site. `--category-*-tint` are pre-mixed translucent
+ * variants for borders/backgrounds where a flat alpha hex is enough;
+ * anything needing a live alpha blend can use `color-mix(in srgb, var(--category-primary) X%, transparent)`.
+ */
+function shadeHex(hex: string, percent: number): string {
+  const match = /^#([0-9A-Fa-f]{6})$/.exec(hex);
+  if (!match) return hex;
+  const num = parseInt(match[1], 16);
+  const clamp = (value: number) => Math.max(0, Math.min(255, value));
+  const r = clamp(((num >> 16) & 0xff) + Math.round(255 * percent));
+  const g = clamp(((num >> 8) & 0xff) + Math.round(255 * percent));
+  const b = clamp((num & 0xff) + Math.round(255 * percent));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
+  const surfaceMatch = theme.joinedBg.match(/#[0-9A-Fa-f]{3,8}/);
+  return {
+    '--category-primary': theme.primary,
+    '--category-accent': theme.accent,
+    '--category-glow': `${theme.primary}66`,
+    '--category-border': `${theme.primary}40`,
+    '--category-soft': `${theme.accent}B3`,
+    '--category-surface': surfaceMatch ? surfaceMatch[0] : '#050B0C',
+    '--category-tint-10': `${theme.primary}1A`,
+    '--category-tint-20': `${theme.primary}33`,
+    '--category-primary-dark': shadeHex(theme.primary, -0.35),
+    '--category-primary-light': shadeHex(theme.primary, 0.3),
+  };
+}
+
+export function resolveCategoryTheme(themeKeyOrId?: string | null): CategoryTheme {
+  if (!themeKeyOrId) return CATEGORY_THEME_MAP.salon;
+  return CATEGORY_THEME_MAP[themeKeyOrId.toLowerCase()] || CATEGORY_THEME_MAP.salon;
+}
+
 type SearchProps = {
   value: string;
   onChange: (value: string) => void;
@@ -198,11 +240,16 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
 
   return (
     <div className="relative w-full space-y-2">
-      <div className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border bg-white/[0.06] px-4 backdrop-blur-md transition-all duration-200 ${
-        isListening
-          ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
-          : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:border-cyan-400/50 focus-within:ring-2 focus-within:ring-cyan-400/15'
-      }`}>
+      <div
+        className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border bg-white/[0.06] px-4 backdrop-blur-md transition-all duration-200 ${
+          isListening
+            ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
+            : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
+        }`}
+        style={isListening ? undefined : ({ '--tw-ring-color': 'var(--category-tint-20, rgba(34,211,238,0.15))' } as React.CSSProperties)}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--category-border, rgba(34,211,238,0.5))'; }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
+      >
         <Search className="h-5 w-5 shrink-0 text-slate-400" />
         <input
           value={value}
@@ -241,18 +288,25 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
       </div>
 
       {voiceFeedback && (
-        <div className={`flex items-center justify-between gap-3 rounded-xl p-3 text-xs font-bold backdrop-blur-md transition-all animate-in fade-in duration-200 ${
-          isListening
-            ? 'bg-red-500/10 text-red-200 border border-red-400/30'
-            : voiceFeedback.includes('Heard')
-              ? 'bg-cyan-500/10 text-cyan-200 border border-cyan-400/30'
-              : 'bg-amber-500/10 text-amber-200 border border-amber-400/30'
-        }`}>
+        <div
+          className={`flex items-center justify-between gap-3 rounded-xl p-3 text-xs font-bold backdrop-blur-md transition-all animate-in fade-in duration-200 border ${
+            isListening
+              ? 'bg-red-500/10 text-red-200 border-red-400/30'
+              : voiceFeedback.includes('Heard')
+                ? ''
+                : 'bg-amber-500/10 text-amber-200 border-amber-400/30'
+          }`}
+          style={!isListening && voiceFeedback.includes('Heard') ? {
+            backgroundColor: 'var(--category-tint-10, rgba(34,211,238,0.1))',
+            color: 'var(--category-accent, #67E8F9)',
+            borderColor: 'var(--category-tint-20, rgba(34,211,238,0.3))',
+          } : undefined}
+        >
           <div className="flex items-center gap-2">
             {isListening ? (
               <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" />
             ) : (
-              <Volume2 className="h-4 w-4 shrink-0 text-cyan-300" />
+              <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--category-accent, #22D3EE)' }} />
             )}
             <span>{voiceFeedback}</span>
           </div>

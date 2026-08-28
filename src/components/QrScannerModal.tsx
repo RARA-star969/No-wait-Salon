@@ -291,7 +291,7 @@ export function QrScannerModal({
         <div className="absolute inset-0 z-20 grid place-items-center bg-[#070C0C]">
           <div className="animate-[qr-shell-in_220ms_ease-out] text-center">
             <span className="mx-auto grid h-16 w-16 place-items-center rounded-3xl bg-white/10 ring-1 ring-white/15">
-              <QrCode className="h-8 w-8 animate-pulse text-[#2DD4BF]" />
+              <QrCode className="h-8 w-8 animate-pulse text-[var(--category-accent)]" />
             </span>
             <p className="mt-4 text-sm font-semibold text-white/80">Opening scanner…</p>
           </div>
@@ -320,7 +320,7 @@ export function QrScannerModal({
             aria-label={torchOn ? 'Turn flashlight off' : 'Turn flashlight on'}
             aria-pressed={torchOn}
             className={`grid h-11 w-11 shrink-0 place-items-center rounded-full backdrop-blur-sm transition active:scale-95 ${
-              torchOn ? 'bg-white text-[#0F766E]' : 'bg-white/12 text-white'
+              torchOn ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-white/12 text-white'
             }`}
           >
             <Flashlight className="h-5 w-5" />
@@ -334,20 +334,20 @@ export function QrScannerModal({
         <div className="relative aspect-square w-full max-w-[19rem]">
           {/* Rounded corner brackets frame the scan target. */}
           <span className="pointer-events-none absolute inset-0 rounded-[2rem] ring-1 ring-white/25" />
-          <span className="pointer-events-none absolute -left-px -top-px h-12 w-12 rounded-tl-[2rem] border-l-[3px] border-t-[3px] border-[#2DD4BF]" />
-          <span className="pointer-events-none absolute -right-px -top-px h-12 w-12 rounded-tr-[2rem] border-r-[3px] border-t-[3px] border-[#2DD4BF]" />
-          <span className="pointer-events-none absolute -bottom-px -left-px h-12 w-12 rounded-bl-[2rem] border-b-[3px] border-l-[3px] border-[#2DD4BF]" />
-          <span className="pointer-events-none absolute -bottom-px -right-px h-12 w-12 rounded-br-[2rem] border-b-[3px] border-r-[3px] border-[#2DD4BF]" />
+          <span className="pointer-events-none absolute -left-px -top-px h-12 w-12 rounded-tl-[2rem] border-l-[3px] border-t-[3px] border-[var(--category-accent)]" />
+          <span className="pointer-events-none absolute -right-px -top-px h-12 w-12 rounded-tr-[2rem] border-r-[3px] border-t-[3px] border-[var(--category-accent)]" />
+          <span className="pointer-events-none absolute -bottom-px -left-px h-12 w-12 rounded-bl-[2rem] border-b-[3px] border-l-[3px] border-[var(--category-accent)]" />
+          <span className="pointer-events-none absolute -bottom-px -right-px h-12 w-12 rounded-br-[2rem] border-b-[3px] border-r-[3px] border-[var(--category-accent)]" />
 
           {scanning && (
-            <span className="pointer-events-none absolute inset-x-5 top-0 h-px animate-[qr-scan-sweep_2.4s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-[#2DD4BF] to-transparent shadow-[0_0_12px_2px_rgba(45,212,191,0.55)]" />
+            <span className="pointer-events-none absolute inset-x-5 top-0 h-px animate-[qr-scan-sweep_2.4s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-[var(--category-accent)] to-transparent shadow-[0_0_12px_2px_var(--category-glow)]" />
           )}
 
           {!scanning && (
             <div className="absolute inset-0 grid place-items-center rounded-[2rem] bg-[#070C0C]/85 px-6 text-center">
               <div>
                 {state === 'starting' ? (
-                  <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-[#2DD4BF]" />
+                  <LoaderCircle className="mx-auto h-7 w-7 animate-spin text-[var(--category-accent)]" />
                 ) : (
                   <CameraOff className="mx-auto h-8 w-8 text-white/80" />
                 )}

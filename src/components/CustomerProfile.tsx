@@ -38,10 +38,10 @@ const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; on
   }, [profile?.profilePhotoUrl, profile?.updatedAt]);
   return (
     <button type="button" onClick={onClick} disabled={!editable} aria-label={editable ? 'Change profile photo' : 'Profile photo'}
-      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#DFF0ED] text-2xl font-bold text-[#0F766E] ring-1 ring-[#C6DEDA] disabled:cursor-default">
+      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#DFF0ED] text-2xl font-bold text-[var(--category-primary-dark)] ring-1 ring-[#C6DEDA] disabled:cursor-default">
       {photoSrc ? <img src={photoSrc} alt="Customer profile" className="h-full w-full object-cover" />
         : initials || <UserRound className="h-10 w-10" />}
-      {editable && <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[#0F766E] text-white ring-2 ring-white"><Camera className="h-4 w-4" /></span>}
+      {editable && <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--category-primary-dark)] text-white ring-2 ring-white"><Camera className="h-4 w-4" /></span>}
     </button>
   );
 };
@@ -155,15 +155,15 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
     <div id="customer-profile-screen" className="min-h-full bg-[#F8FAFA] px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))]">
       <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3] bg-white" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
       <div className="mx-auto flex max-w-sm flex-col items-center px-3 pt-16 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#E2F2EF] text-[#0F766E]"><CircleUserRound className="h-9 w-9" /></div>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#E2F2EF] text-[var(--category-primary-dark)]"><CircleUserRound className="h-9 w-9" /></div>
         <h1 className="mt-5 text-2xl font-bold tracking-[-0.035em]">Your personal salon account</h1>
         <p className="mt-2 text-sm leading-6 text-[#6B7977]">Verify your mobile number to view bookings and keep your profile safely synced.</p>
-        <button onClick={onLogin} className="mt-7 h-12 w-full rounded-xl bg-[#0F766E] text-sm font-bold text-white">Verify mobile number</button>
+        <button onClick={onLogin} className="mt-7 h-12 w-full rounded-xl bg-[var(--category-primary-dark)] text-sm font-bold text-white">Verify mobile number</button>
       </div>
     </div>
   );
 
-  if (loading || !profile) return <div className="flex min-h-full items-center justify-center bg-[#F8FAFA]"><LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" /></div>;
+  if (loading || !profile) return <div className="flex min-h-full items-center justify-center bg-[#F8FAFA]"><LoaderCircle className="h-6 w-6 animate-spin text-[var(--category-primary-dark)]" /></div>;
 
   if (mode === 'edit') return (
     <form id="customer-edit-profile-screen" onSubmit={submit} className="min-h-full bg-[#F8FAFA] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
@@ -176,7 +176,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
           <Avatar profile={profile} editable onClick={() => fileRef.current?.click()} />
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => uploadPhoto(event.target.files?.[0])} />
           <p className="mt-2 text-[10px] text-[#788582]">JPEG, PNG or WebP · Max 256 KB</p>
-          {photoUploading && <p className="mt-1 text-xs font-semibold text-[#0F766E]">Uploading photo…</p>}
+          {photoUploading && <p className="mt-1 text-xs font-semibold text-[var(--category-primary-dark)]">Uploading photo…</p>}
         </div>
         <div className="space-y-4 rounded-2xl border border-[#E0E7E6] bg-white p-4">
           <ProfileInput label="Full name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} placeholder="Your full name" icon={<UserRound />} autoComplete="name" />
@@ -195,7 +195,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         {(formError || error) && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{formError || error}</div>}
       </div>
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#E0E7E6] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <button disabled={saving || photoUploading} className="mx-auto flex h-12 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white disabled:opacity-60">
+        <button disabled={saving || photoUploading} className="mx-auto flex h-12 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-sm font-bold text-white disabled:opacity-60">
           {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{saving ? 'Saving…' : 'Save profile'}
         </button>
       </div>
@@ -209,13 +209,13 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         <div className="mt-5 flex flex-col items-center text-center">
           <Avatar profile={profile} />
           <h1 className="mt-3 text-2xl font-bold tracking-[-0.035em]">{profile.name || 'Welcome to No-Wait Salon'}</h1>
-          <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[#58706D]"><ShieldCheck className="h-3.5 w-3.5 text-[#0F766E]" />+91 {profile.phoneNumber} · Verified</p>
+          <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[#58706D]"><ShieldCheck className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />+91 {profile.phoneNumber} · Verified</p>
         </div>
       </div>
       <div className="mx-auto -mt-2 max-w-md space-y-4 px-4">
         <button onClick={onEdit} className="w-full rounded-2xl border border-[#CBE0DD] bg-white p-4 text-left">
-          <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs text-[#71807E]">{completed === 4 ? 'All essential details added' : `${completed} / 4 steps completed`}</p></div><ChevronRight className="h-5 w-5 text-[#0F766E]" /></div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E6EEEC]"><div className="h-full rounded-full bg-[#0F766E] transition-all" style={{ width: `${percentage}%` }} /></div>
+          <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs text-[#71807E]">{completed === 4 ? 'All essential details added' : `${completed} / 4 steps completed`}</p></div><ChevronRight className="h-5 w-5 text-[var(--category-primary-dark)]" /></div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E6EEEC]"><div className="h-full rounded-full bg-[var(--category-primary-dark)] transition-all" style={{ width: `${percentage}%` }} /></div>
         </button>
         <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
@@ -229,14 +229,14 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
           <div className="space-y-2 rounded-2xl border border-[#E0E7E6] bg-white p-4">
             <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6F7C7A]">Gym activity</p>
             {gymActive.map((entry) => (
-              <div key={entry.visit.id} className="rounded-xl border border-[#0F766E]/35 bg-[#F2FAF8] p-3">
+              <div key={entry.visit.id} className="rounded-xl border border-[var(--category-primary-dark)]/35 bg-[#F2FAF8] p-3">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
-                  <span className="rounded-md bg-[#0F766E] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
+                  <span className="rounded-md bg-[var(--category-primary-dark)] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
                     {activeAccessHeading(entry.visit)}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] font-semibold text-[#0F766E]">
+                <p className="mt-1 text-[11px] font-semibold text-[var(--category-primary-dark)]">
                   Currently inside · Since {formatGymClock(entry.visit.checkedInAt)} · {gymVisitDurationLabel(entry.visit, nowTick)}
                 </p>
                 <p className="mt-0.5 text-[11px] text-[#71807E]">{entry.accessName || 'Gym access'}</p>
@@ -244,14 +244,14 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
                   <button
                     onClick={() => checkOutOfGym(entry)}
                     disabled={gymCheckoutBusy === entry.visit.id}
-                    className="flex-1 rounded-lg bg-[#0F766E] py-2 text-[11px] font-bold text-white disabled:opacity-60"
+                    className="flex-1 rounded-lg bg-[var(--category-primary-dark)] py-2 text-[11px] font-bold text-white disabled:opacity-60"
                   >
                     {gymCheckoutBusy === entry.visit.id ? 'Checking out…' : 'Check Out'}
                   </button>
                   {onOpenGym && (
                     <button
                       onClick={() => onOpenGym(entry.gymId)}
-                      className="flex-1 rounded-lg border border-[#0F766E]/40 bg-white py-2 text-[11px] font-bold text-[#0F766E]"
+                      className="flex-1 rounded-lg border border-[var(--category-primary-dark)]/40 bg-white py-2 text-[11px] font-bold text-[var(--category-primary-dark)]"
                     >
                       Upgrade
                     </button>
@@ -278,7 +278,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         {gymMembershipsOpen && (
           <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
             {gymMembershipsLoading ? (
-              <div className="flex items-center justify-center py-4"><LoaderCircle className="h-5 w-5 animate-spin text-[#0F766E]" /></div>
+              <div className="flex items-center justify-center py-4"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--category-primary-dark)]" /></div>
             ) : !gymMemberships || gymMemberships.length === 0 ? (
               <p className="text-xs text-[#71807E]">No gym memberships linked to this account yet.</p>
             ) : (
@@ -287,13 +287,13 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
                   <div key={entry.gymId} className="rounded-xl border border-[#E0E7E6] p-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <BadgeCheck className="h-3.5 w-3.5 text-[#0F766E]" />
+                        <BadgeCheck className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
                         <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
                       </div>
                       <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
                         entry.membership.displayStatus === 'expired' ? 'bg-rose-50 text-rose-700'
                         : entry.membership.displayStatus === 'expires_today' || entry.membership.displayStatus === 'expiring_soon' ? 'bg-amber-50 text-amber-800'
-                        : 'bg-[#E7F5F2] text-[#0F766E]'
+                        : 'bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'
                       }`}>
                         {entry.membership.displayStatus === 'expired' ? 'Expired' : entry.membership.displayStatus === 'expires_today' ? 'Expires today' : entry.membership.displayStatus === 'expiring_soon' ? 'Expiring soon' : 'Active'}
                       </span>
@@ -319,7 +319,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
 
 const ProfileRow: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void }> = ({ icon, label, secondary, onClick }) => (
   <button type="button" onClick={onClick} className="flex min-h-16 w-full items-center gap-3 border-b border-[#EDF1F0] px-4 text-left last:border-0">
-    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E9F4F2] text-[#0F766E] [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E9F4F2] text-[var(--category-primary-dark)] [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
     <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span>{secondary && <span className="block truncate text-[10px] text-[#7A8785]">{secondary}</span>}</span>
     <ChevronRight className="h-4 w-4 text-[#9AA6A4]" />
   </button>

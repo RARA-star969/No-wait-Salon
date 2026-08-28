@@ -24,11 +24,12 @@ import {
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
+import { smoothScrollTo } from '../shared/smoothScroll';
 import { AddressManagementModal } from './AddressManagementModal';
 import { LocationSelectScreen } from './LocationSelectScreen';
 import { AddAddressScreen } from './AddAddressScreen';
 import { RequestAddressScreen } from './RequestAddressScreen';
-import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon } from './CustomerHomeComponents';
+import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon, categoryCssVars, resolveCategoryTheme } from './CustomerHomeComponents';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
@@ -271,6 +272,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const listingsSectionRef = useRef<HTMLDivElement>(null);
   const [homeHeaderCollapsed, setHomeHeaderCollapsed] = useState(false);
   const [homeHeaderIdleCycle, setHomeHeaderIdleCycle] = useState(0);
+  // True only while the scripted "Location & search" return-to-top glide is
+  // running — drives the very subtle depth/parallax dip on Home's content.
+  const [isReturningToTop, setIsReturningToTop] = useState(false);
   // Drives the server-authoritative arrival countdown. It only ticks while the
   // customer is actually inside a call window, so the app is not re-rendering
   // every second (which previously restarted the QR camera).
@@ -484,6 +488,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
 
+  // The browse theme follows the customer's chosen category everywhere they
+  // explore (Home, Profile, scanner) and never resets to Salon just because
+  // they left Home. A business detail page is themed by the business's own
+  // category instead — its identity is authoritative there, per-listing.
+  const browseTheme = resolveCategoryTheme(activeCategoryObj.themeKey || activeCategoryId);
+  const businessScreens: CustomerScreen[] = ['salon', 'slots', 'tracking', 'complete'];
+  const detailTheme = businessScreens.includes(currentScreen)
+    ? resolveCategoryTheme(selectedSalon.mainCategoryId)
+    : browseTheme;
+
+  // Single write site for the whole app's category identity: plain CSS/Tailwind
+  // arbitrary-value classes anywhere (including portaled modals like the QR
+  // scanner) can read `var(--category-*)` without any prop drilling.
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars = categoryCssVars(detailTheme);
+    Object.entries(vars).forEach(([key, value]) => root.style.setProperty(key, value));
+  }, [detailTheme]);
+
   // Header is initially present, then yields space once the customer begins
   // exploring. Returning to the very top (pull-down) or tapping the affordance
   // makes location/search immediately available again.
@@ -504,10 +527,36 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     else if (scrollTop <= 2) setHomeHeaderCollapsed(false);
   }, [currentScreen]);
 
+  // The header itself is left alone here — it keeps unfolding exactly as
+  // before, driven by handleHomeScroll's own scrollTop<=2 check as the
+  // scripted glide passes near the top, which is what gives the "header
+  // begins to unfold near the top" feel for free.
   const revealHomeHeader = useCallback(() => {
-    setHomeHeaderCollapsed(false);
     setHomeHeaderIdleCycle((cycle) => cycle + 1);
-    homeScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    const container = homeScrollRef.current;
+    if (!container) return;
+
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!reducedMotion) setIsReturningToTop(true);
+    const handle = smoothScrollTo(container, 0);
+
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      handle.cancel();
+      setIsReturningToTop(false);
+      container.removeEventListener('wheel', onUserInterrupt);
+      container.removeEventListener('touchstart', onUserInterrupt);
+      container.removeEventListener('pointerdown', onUserInterrupt);
+    };
+    // A real touch/wheel/pointer gesture always wins over the scripted glide —
+    // it hands control back to the user immediately, mid-flight.
+    function onUserInterrupt() { finish(); }
+    container.addEventListener('wheel', onUserInterrupt, { passive: true, once: true });
+    container.addEventListener('touchstart', onUserInterrupt, { passive: true, once: true });
+    container.addEventListener('pointerdown', onUserInterrupt, { passive: true, once: true });
+    window.setTimeout(finish, 800);
   }, []);
 
   const openCategoryExploration = useCallback((_categoryId: string) => {
@@ -735,7 +784,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 aria-label="Open address management"
               >
                 <div className="flex items-center gap-1.5 text-white">
-                  <MapPin className="h-4 w-4 shrink-0 text-cyan-300" />
+                  <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
                   <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
                 </div>
                 <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
@@ -768,14 +817,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <button
               type="button"
               onClick={revealHomeHeader}
-              className="sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl"
+              className="sticky top-0 z-[130] mx-auto flex h-8 items-center gap-1.5 rounded-b-2xl border border-t-0 border-white/10 bg-black/45 px-3 text-[9px] font-extrabold uppercase tracking-[0.16em] text-slate-300 shadow-[0_8px_22px_-14px_rgba(0,0,0,.8)] backdrop-blur-xl transition-transform duration-150 ease-out active:scale-90"
               aria-label="Reveal location and search"
             >
-              <ChevronDown className="h-3.5 w-3.5 text-cyan-300" /> Location & search
+              <ChevronDown className="h-3.5 w-3.5 text-[var(--category-accent)]" /> Location & search
             </button>
           )}
 
-          <div className="relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
+          <div
+            className={`relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5 transition-[transform,filter] ease-[cubic-bezier(.22,1,.36,1)] ${
+              isReturningToTop ? 'duration-500 scale-[0.985] brightness-[0.94]' : 'duration-300 scale-100 brightness-100'
+            }`}
+          >
 
           {/* Physical floating glass deck; this is the only Home category interaction. */}
           <FloatingCategoryDeck
@@ -812,14 +865,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="active-queue-banner"
               onClick={() => setScreen('tracking')}
-              className="flex cursor-pointer items-center justify-between rounded-2xl border border-cyan-400/25 bg-cyan-400/[0.08] p-4 text-cyan-50 backdrop-blur-md transition hover:bg-cyan-400/[0.12]"
+              className="flex cursor-pointer items-center justify-between rounded-2xl border p-4 text-white backdrop-blur-md transition"
+              style={{
+                borderColor: 'var(--category-tint-20)',
+                backgroundColor: 'var(--category-tint-10)',
+              }}
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 font-bold text-cyan-200 ring-1 ring-cyan-300/30">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 font-bold ring-1" style={{ color: 'var(--category-accent)', ['--tw-ring-color' as any]: 'var(--category-tint-20)' }}>
                   {userEntry.status === 'Called' ? '!' : userEntry.status === 'Serving' ? '✂' : '#'}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/80">
+                  <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--category-soft)' }}>
                     Active Queue Status
                   </div>
                   <div className="text-sm font-bold text-white">
@@ -833,7 +890,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   </div>
                 </div>
               </div>
-              <ChevronRight className="h-5 w-5 text-cyan-200" />
+              <ChevronRight className="h-5 w-5" style={{ color: 'var(--category-accent)' }} />
             </div>
           )}
 
@@ -847,8 +904,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   {activeCategoryId === 'salon' ? 'Choose your chair' : `Explore ${activeCategoryObj.name}`}
                 </h2>
               </div>
-              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-cyan-300">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
+              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold" style={{ color: 'var(--category-accent)' }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--category-accent)', boxShadow: '0 0 8px 2px var(--category-tint-20)' }} />
                 Live now
               </span>
             </div>
@@ -856,7 +913,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div className="space-y-3">
               {nearbySalons.length === 0 && isRestoringLocation && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center">
-                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin text-cyan-300" />
+                  <LoaderCircle className="mx-auto h-6 w-6 animate-spin" style={{ color: 'var(--category-accent)' }} />
                   <p className="mt-3 text-xs leading-5 text-slate-400">Refreshing businesses near {locationLabel || 'you'}…</p>
                 </div>
               )}
@@ -866,13 +923,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <MapPin className="mx-auto h-6 w-6 text-slate-500" />
                   <h3 className="mt-3 text-sm font-bold text-white">No businesses available in your area yet.</h3>
                   <p className="mt-1 text-xs leading-5 text-slate-400">Try another city or area as we onboard more partners.</p>
-                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold text-cyan-300">Change location</button>
+                  <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold" style={{ color: 'var(--category-accent)' }}>Change location</button>
                 </div>
               )}
 
               {nearbySalons.length > 0 && salonSearch.trim() !== '' && categoryFilteredSalons.length === 0 && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center space-y-2">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06] text-cyan-300">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06]" style={{ color: 'var(--category-accent)' }}>
                     <Search className="h-6 w-6" />
                   </div>
                   <h3 className="text-sm font-bold text-white">No matching {activeCategoryObj.name} listings found</h3>
@@ -882,7 +939,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <button
                     type="button"
                     onClick={() => setSalonSearch('')}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-xs font-bold text-cyan-200 hover:bg-white/[0.14] transition"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-xs font-bold hover:bg-white/[0.14] transition"
+                    style={{ color: 'var(--category-accent)' }}
                   >
                     Clear search
                   </button>

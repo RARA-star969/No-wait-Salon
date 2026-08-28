@@ -20,6 +20,23 @@ body {
   margin: 0;
 }
 
+/* Category theme layer — the active Customer App category (Salon, Gym, Shop,
+   Moto, Pets…) is the single source of truth for these, written onto
+   :root by CustomerApp whenever the active/authoritative category changes.
+   Defaults below (Salon teal) only cover first paint before that effect runs. */
+:root {
+  --category-primary: #22D3EE;
+  --category-accent: #2DD4BF;
+  --category-glow: rgba(34, 211, 238, 0.4);
+  --category-border: rgba(34, 211, 238, 0.25);
+  --category-soft: rgba(45, 212, 191, 0.7);
+  --category-surface: #050B0C;
+  --category-tint-10: rgba(34, 211, 238, 0.1);
+  --category-tint-20: rgba(34, 211, 238, 0.2);
+  --category-primary-dark: #0B4A44;
+  --category-primary-light: #5EEAD4;
+}
+
 /* Customer Home's signature category controller. The stage itself never
    scrolls horizontally: pointer intent drives transform-only depth motion,
    while touch-action: pan-y leaves vertical gestures native to CustomerApp. */
@@ -117,6 +134,18 @@ body {
   filter: blur(5px);
   transform: rotate(-28deg);
   pointer-events: none;
+}
+
+/* Rear-card material for the floating category deck (Task 6 polish): a
+   translucent wash + soft mirror blur that thickens with distance from the
+   active card, so cards behind it read as recognizable colored glass
+   silhouettes instead of competing with the front card's text/icons. */
+.floating-glass-frost {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  transition: background-color 520ms cubic-bezier(.2, .9, .18, 1.18), backdrop-filter 520ms cubic-bezier(.2, .9, .18, 1.18);
 }
 
 .category-content-transition {

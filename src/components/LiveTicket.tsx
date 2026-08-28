@@ -179,14 +179,14 @@ export const LiveTicket: React.FC<Props> = ({
   return (
     <div className="lt-root w-full">
       <style>{`
-        .lt-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;perspective:1200px;touch-action:pan-y;padding:10px 0 16px 0;filter:drop-shadow(0 28px 40px rgba(4,38,35,.46)) drop-shadow(0 10px 18px rgba(15,118,110,.25));}
+        .lt-stage{position:relative;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;perspective:1200px;touch-action:pan-y;padding:10px 0 16px 0;filter:drop-shadow(0 28px 40px rgba(4,38,35,.46)) drop-shadow(0 10px 18px var(--category-glow));}
         .lt-ticket{position:relative;width:290px;height:172px;transform-style:preserve-3d;cursor:grab;will-change:transform;}
         .lt-ticket.lt-entry-spin{animation:lt-entry 1.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;}
         .lt-ticket.lt-floating{animation:lt-float 4.5s ease-in-out infinite;}
         .lt-ticket:active{cursor:grabbing;}
         @keyframes lt-entry{0%{transform:scale(0.55) rotateY(-720deg) rotateZ(-14deg) translateY(-32px);opacity:0;}45%{transform:scale(1.06) rotateY(-180deg) rotateZ(5deg) translateY(-10px);opacity:1;}75%{transform:scale(0.98) rotateY(15deg) rotateZ(-2deg) translateY(3px);}100%{transform:scale(1) rotateY(0deg) rotateZ(0deg) translateY(0);opacity:1;}}
         @keyframes lt-float{0%,100%{transform:translateY(0) rotateZ(-0.6deg);}50%{transform:translateY(-9px) rotateZ(0.6deg);}}
-        .lt-ground-glow{position:absolute;bottom:0;width:210px;height:16px;border-radius:50%;background:radial-gradient(ellipse at center, rgba(15,118,110,.36) 0%, rgba(11,74,68,.16) 55%, transparent 75%);filter:blur(7px);pointer-events:none;transition:opacity .4s ease;}
+        .lt-ground-glow{position:absolute;bottom:0;width:210px;height:16px;border-radius:50%;background:radial-gradient(ellipse at center, var(--category-glow) 0%, rgba(11,74,68,.16) 55%, transparent 75%);filter:blur(7px);pointer-events:none;transition:opacity .4s ease;}
         .lt-ground-glow.lt-floating-glow{animation:lt-glow-float 4.5s ease-in-out infinite;}
         @keyframes lt-glow-float{0%,100%{transform:scale(1);opacity:.65;}50%{transform:scale(0.82);opacity:.32;}}
         .lt-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;transform-style:preserve-3d;}
@@ -194,7 +194,7 @@ export const LiveTicket: React.FC<Props> = ({
         .lt-face.lt-back{transform:rotateY(180deg);}
         .lt-clipped{position:absolute;inset:0;clip-path:url(#liveTicketClip);}
         .lt-face.lt-back .lt-clipped{clip-path:url(#liveTicketClipBack);}
-        .lt-mirror{position:absolute;inset:0;background:radial-gradient(120px 90px at 82% -10%, rgba(94,224,180,.35), transparent 60%),radial-gradient(140px 100px at -10% 115%, rgba(15,107,98,.4), transparent 60%),linear-gradient(135deg,#0B4A44 0%,#0F6B62 55%,#0F766E 100%);}
+        .lt-mirror{position:absolute;inset:0;background:radial-gradient(120px 90px at 82% -10%, var(--category-primary-light), transparent 60%),radial-gradient(140px 100px at -10% 115%, var(--category-glow), transparent 60%),linear-gradient(135deg,var(--category-primary-dark) 0%,var(--category-primary) 55%,var(--category-primary-dark) 100%);}
         .lt-noise{position:absolute;inset:0;opacity:.05;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
         .lt-rim-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
         .lt-content{position:relative;height:100%;display:flex;}
@@ -227,7 +227,7 @@ export const LiveTicket: React.FC<Props> = ({
           <linearGradient id="liveTicketRimGrad" x1="0" y1="0" x2="290" y2="172" gradientUnits="userSpaceOnUse">
             <stop stopColor="#FFFFFF" stopOpacity="0.65" />
             <stop offset="0.45" stopColor="#FFFFFF" stopOpacity="0.2" />
-            <stop offset="1" stopColor="#2DD4BF" stopOpacity="0.4" />
+            <stop offset="1" style={{ stopColor: 'var(--category-accent)' }} stopOpacity="0.4" />
           </linearGradient>
         </defs>
       </svg>
@@ -256,7 +256,7 @@ export const LiveTicket: React.FC<Props> = ({
                       <>
                         <div>
                           <div className="lt-stat-l">Status</div>
-                          <div className="lt-stat-v text-[#5EE0B4]">In Chair</div>
+                          <div className="lt-stat-v text-[var(--category-primary-light)]">In Chair</div>
                         </div>
                         <div>
                           <div className="lt-stat-l">Bill Total</div>
@@ -267,7 +267,7 @@ export const LiveTicket: React.FC<Props> = ({
                       <>
                         <div>
                           <div className="lt-stat-l">Called At</div>
-                          <div className="lt-stat-v text-[#5EE0B4]">{calledAtTimeLabel || 'Just now'}</div>
+                          <div className="lt-stat-v text-[var(--category-primary-light)]">{calledAtTimeLabel || 'Just now'}</div>
                         </div>
                         <div>
                           <div className="lt-stat-l">Time Left</div>
@@ -327,24 +327,24 @@ export const LiveTicket: React.FC<Props> = ({
             <div key={step.key} role="listitem" className="relative flex flex-1 flex-col items-center gap-1">
               {index > 0 && (
                 <span
-                  className={`absolute left-[-50%] top-[5px] h-0.5 w-full ${done || active ? 'bg-[#0F766E]' : 'bg-[#E1E7E6]'}`}
+                  className={`absolute left-[-50%] top-[5px] h-0.5 w-full ${done || active ? 'bg-[var(--category-primary-dark)]' : 'bg-[#E1E7E6]'}`}
                   aria-hidden="true"
                 />
               )}
               <span
                 className={`relative z-[1] flex items-center justify-center rounded-full border-2 border-white transition-all ${
                   active
-                    ? 'h-[13px] w-[13px] bg-[#0F766E] shadow-[0_0_0_4px_rgba(15,118,110,0.28)] animate-pulse'
+                    ? 'h-[13px] w-[13px] bg-[var(--category-primary-dark)] shadow-[0_0_0_4px_var(--category-glow)] animate-pulse'
                     : done
-                      ? 'h-[11px] w-[11px] bg-[#0F766E] shadow-[0_0_0_1px_#0F766E]'
+                      ? 'h-[11px] w-[11px] bg-[var(--category-primary-dark)] shadow-[0_0_0_1px_var(--category-primary-dark)]'
                       : 'h-[11px] w-[11px] bg-[#E1E7E6] shadow-[0_0_0_1px_#E1E7E6]'
                 }`}
               />
-              <span className={`text-center text-[9px] font-bold uppercase tracking-wide ${active ? 'text-[#17201F]' : done ? 'text-[#0F766E]' : 'text-[#6F7C7A]'}`}>
+              <span className={`text-center text-[9px] font-bold uppercase tracking-wide ${active ? 'text-[#17201F]' : done ? 'text-[var(--category-primary-dark)]' : 'text-[#6F7C7A]'}`}>
                 {step.label}
               </span>
               {step.key === 'joined' && joinedAtTimeLabel && (
-                <span className="text-[9px] font-semibold text-[#0F766E]/90">{joinedAtTimeLabel}</span>
+                <span className="text-[9px] font-semibold text-[var(--category-primary-dark)]/90">{joinedAtTimeLabel}</span>
               )}
             </div>
           );
@@ -375,18 +375,18 @@ export const LiveTicket: React.FC<Props> = ({
           )}
         </div>
       ) : isUpcomingState ? (
-        <div className="mt-5 flex w-full flex-col items-center rounded-[18px] border border-[#0F766E]/20 bg-gradient-to-b from-[#0F766E]/10 via-[#0F766E]/5 to-white p-4 shadow-[0_12px_28px_-10px_rgba(15,118,110,0.15)]">
-          <div className="flex items-center gap-2 text-[#0F766E]">
+        <div className="mt-5 flex w-full flex-col items-center rounded-[18px] border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-[var(--category-primary-dark)]/10 via-[var(--category-primary-dark)]/5 to-white p-4 shadow-[0_12px_28px_-10px_var(--category-glow)]">
+          <div className="flex items-center gap-2 text-[var(--category-primary-dark)]">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-400 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#0F766E]" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--category-accent)] opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--category-primary-dark)]" />
             </span>
             <span className="text-[11px] font-black uppercase tracking-wider">You&rsquo;re Almost Up</span>
           </div>
           <p className="mt-1 text-center text-xs font-bold text-[#17201F]">
             {upcomingPeopleAhead <= 1 ? 'Next in line' : `${upcomingPeopleAhead} people ahead`} &middot; Approx. {upcomingApproxTimeLabel}
           </p>
-          <div className="mt-2.5 rounded-xl bg-white/80 px-3 py-2 text-center text-[11px] font-semibold text-[#0B4A44] shadow-sm backdrop-blur-sm">
+          <div className="mt-2.5 rounded-xl bg-white/80 px-3 py-2 text-center text-[11px] font-semibold text-[var(--category-primary-dark)] shadow-sm backdrop-blur-sm">
             Get ready to head over. Your turn is approaching. Stay nearby.
           </div>
         </div>
@@ -396,8 +396,8 @@ export const LiveTicket: React.FC<Props> = ({
       {!isServingState && (
         <div className="mt-5 flex w-full flex-col gap-2.5">
           {isAcknowledged ? (
-            <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-[#0F766E]/30 bg-[#0F766E]/10 text-[12.5px] font-bold text-[#0F766E] shadow-sm">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-white">✓</span>
+            <div className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] border border-[var(--category-primary-dark)]/30 bg-[var(--category-primary-dark)]/10 text-[12.5px] font-bold text-[var(--category-primary-dark)] shadow-sm">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--category-primary-dark)] text-white">✓</span>
               Salon notified &mdash; you&rsquo;re on your way
             </div>
           ) : (
@@ -409,7 +409,7 @@ export const LiveTicket: React.FC<Props> = ({
               aria-disabled={!acknowledgeEnabled}
               className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-all ${
                 acknowledgeEnabled
-                  ? 'bg-[#0F766E] text-white shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] cursor-pointer'
+                  ? 'bg-[var(--category-primary-dark)] text-white shadow-[0_14px_26px_-10px_var(--category-glow)] active:scale-[0.98] cursor-pointer'
                   : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55 cursor-not-allowed'
               }`}
             >
@@ -430,16 +430,16 @@ export const LiveTicket: React.FC<Props> = ({
 
       {/* Service & Billing Module OR People Around You */}
       {isServingState ? (
-        <div id="service-billing-module" className="mt-6 w-full space-y-3 rounded-[20px] border border-[#0F766E]/20 bg-gradient-to-b from-[#0F766E]/10 via-white to-white p-4 shadow-[0_14px_30px_-10px_rgba(15,118,110,0.22)]">
+        <div id="service-billing-module" className="mt-6 w-full space-y-3 rounded-[20px] border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-[var(--category-primary-dark)]/10 via-white to-white p-4 shadow-[0_14px_30px_-10px_var(--category-glow)]">
           <div className="flex items-center justify-between border-b border-[#E1E7E6] pb-2.5">
-            <div className="flex items-center gap-2 text-[#0F766E]">
+            <div className="flex items-center gap-2 text-[var(--category-primary-dark)]">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600" />
               </span>
               <span className="text-[11px] font-black uppercase tracking-wider">Service &amp; Billing</span>
             </div>
-            <span className="text-[10px] font-bold text-[#0B4A44] bg-[#0F766E]/10 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold text-[var(--category-primary-dark)] bg-[var(--category-primary-dark)]/10 px-2 py-0.5 rounded-full">
               In Chair
             </span>
           </div>
@@ -458,7 +458,7 @@ export const LiveTicket: React.FC<Props> = ({
             )}
             <div className="flex items-center justify-between pt-2 border-t border-[#E1E7E6]">
               <span className="font-bold text-[#17201F]">Total Payable</span>
-              <span className="text-xl font-black text-[#0B4A44] font-mono">₹{totalPriceInr}</span>
+              <span className="text-xl font-black text-[var(--category-primary-dark)] font-mono">₹{totalPriceInr}</span>
             </div>
           </div>
 
@@ -483,7 +483,7 @@ export const LiveTicket: React.FC<Props> = ({
                   id="pay-online-btn"
                   type="button"
                   onClick={onPayOnline}
-                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] bg-[#0F766E] text-white text-[12.5px] font-bold shadow-[0_14px_26px_-10px_rgba(15,118,110,0.55)] active:scale-[0.98] transition cursor-pointer"
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-[13px] bg-[var(--category-primary-dark)] text-white text-[12.5px] font-bold shadow-[0_14px_26px_-10px_var(--category-glow)] active:scale-[0.98] transition cursor-pointer"
                 >
                   Pay Bill (₹{totalPriceInr})
                 </button>
@@ -509,11 +509,11 @@ export const LiveTicket: React.FC<Props> = ({
                   key={person.id}
                   className={`flex flex-col items-center justify-center rounded-[16px] p-2.5 transition-all ${
                     person.isMe
-                      ? 'min-w-[88px] border-2 border-[#0F766E] bg-gradient-to-b from-[#0F766E]/15 via-white to-white shadow-[0_10px_22px_-8px_rgba(15,118,110,0.35)] scale-105 z-[2]'
+                      ? 'min-w-[88px] border-2 border-[var(--category-primary-dark)] bg-gradient-to-b from-[var(--category-primary-dark)]/15 via-white to-white shadow-[0_10px_22px_-8px_var(--category-glow)] scale-105 z-[2]'
                       : 'min-w-[72px] border border-[#E1E7E6] bg-white/90 shadow-sm'
                   }`}
                 >
-                  <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[#0F766E]' : 'text-[#8A9694]'}`}>
+                  <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[var(--category-primary-dark)]' : 'text-[#8A9694]'}`}>
                     {person.positionNumber ? `#${person.positionNumber}` : ''}
                   </span>
                   <div className="my-1.5 flex items-center justify-center">
@@ -521,13 +521,13 @@ export const LiveTicket: React.FC<Props> = ({
                       <img
                         src={person.photoUrl}
                         alt=""
-                        className={`rounded-full border-2 border-white object-cover ${person.isMe ? 'h-[44px] w-[44px] shadow-[0_0_0_2px_#0F766E]' : 'h-[34px] w-[34px]'}`}
+                        className={`rounded-full border-2 border-white object-cover ${person.isMe ? 'h-[44px] w-[44px] shadow-[0_0_0_2px_var(--category-primary-dark)]' : 'h-[34px] w-[34px]'}`}
                       />
                     ) : (
                       <span
                         className={`flex items-center justify-center rounded-full font-bold ${
                           person.isMe
-                            ? 'h-[44px] w-[44px] bg-[#0F766E] text-sm text-white shadow-[0_4px_12px_rgba(15,118,110,0.4)]'
+                            ? 'h-[44px] w-[44px] bg-[var(--category-primary-dark)] text-sm text-white shadow-[0_4px_12px_var(--category-glow)]'
                             : 'h-[34px] w-[34px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
                         }`}
                       >
@@ -535,7 +535,7 @@ export const LiveTicket: React.FC<Props> = ({
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[#0F766E]' : 'text-[#17201F]'}`}>
+                  <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[var(--category-primary-dark)]' : 'text-[#17201F]'}`}>
                     {person.isMe ? 'YOU' : person.label}
                   </span>
                   <span className="text-[8px] font-bold text-[#6F7C7A]">

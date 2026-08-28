@@ -469,7 +469,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           behind it at customer mobile width. */}
       {/* Toast Notification Banner */}
       {bookingSuccessMessage && (
-        <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between rounded-xl border border-[#0F766E]/40 bg-[#0F766E] px-4 py-3 text-xs font-bold text-white shadow-lg animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between rounded-xl border border-[var(--category-primary-dark)]/40 bg-[var(--category-primary-dark)] px-4 py-3 text-xs font-bold text-white shadow-lg animate-in fade-in slide-in-from-top-2">
           <span className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-[#14B8A6]" />
             {bookingSuccessMessage}
@@ -508,7 +508,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <button
                 onClick={() => setSaved((value) => !value)}
                 aria-label={saved ? 'Remove saved gym' : 'Save gym'}
-                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[#0F766E]' : 'bg-black/40 text-white'}`}
+                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
               >
                 <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
               </button>
@@ -617,10 +617,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         {/* MEMBERSHIP & ATTENDANCE — real, server-backed identity for this gym. */}
         <div id="gym-membership-section" className="space-y-3">
           {membership ? (
-            <div className="rounded-2xl border border-[#0F766E]/20 bg-white p-4 shadow-sm">
+            <div className="rounded-2xl border border-[var(--category-primary-dark)]/20 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <BadgeCheck className="h-4 w-4 text-[#0F766E]" />
+                  <BadgeCheck className="h-4 w-4 text-[var(--category-primary-dark)]" />
                   <h2 className="text-xs font-extrabold text-[#17201F]">{membership.planName}</h2>
                 </div>
                 <span
@@ -629,7 +629,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                       ? 'bg-rose-50 text-rose-700'
                       : membership.displayStatus === 'expires_today' || membership.displayStatus === 'expiring_soon'
                       ? 'bg-amber-50 text-amber-800'
-                      : 'bg-[#E7F5F2] text-[#0F766E]'
+                      : 'bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'
                   }`}
                 >
                   {membership.displayStatus === 'expired'
@@ -658,7 +658,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     <div className="text-[9px] font-semibold text-[#6F7C7A]">Avg/week</div>
                   </div>
                   <div className="rounded-xl bg-[#F8FAFA] p-2">
-                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[#0F766E]">
+                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[var(--category-primary-dark)]">
                       <Flame className="h-3.5 w-3.5" />
                       {myMembership.attendance.currentStreak}
                     </div>
@@ -666,7 +666,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   </div>
                   <div className="rounded-xl bg-[#F8FAFA] p-2">
                     <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[#17201F]">
-                      <TrendingUp className="h-3.5 w-3.5 text-[#0F766E]" />
+                      <TrendingUp className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
                       {myMembership.attendance.bestStreak}
                     </div>
                     <div className="text-[9px] font-semibold text-[#6F7C7A]">Best</div>
@@ -686,7 +686,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </div>
               <button
                 onClick={() => requireReady('claim', () => setClaimModalOpen(true))}
-                className="shrink-0 rounded-xl border border-[#0F766E]/30 bg-[#F4F7F6] px-3.5 py-2 text-[11px] font-bold text-[#0F766E] transition active:scale-95"
+                className="shrink-0 rounded-xl border border-[var(--category-primary-dark)]/30 bg-[#F4F7F6] px-3.5 py-2 text-[11px] font-bold text-[var(--category-primary-dark)] transition active:scale-95"
               >
                 I'm Already a Member
               </button>
@@ -701,7 +701,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <h2 className="text-sm font-bold text-[#17201F]">Today's Scheduled Classes</h2>
               <p className="text-[11px] text-[#6F7C7A]">Book group workout sessions</p>
             </div>
-            <span className="text-[11px] font-bold text-[#0F766E]">
+            <span className="text-[11px] font-bold text-[var(--category-primary-dark)]">
               {(overview?.classesToday || []).length} Available Today
             </span>
           </div>
@@ -715,13 +715,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     <h3 className="text-xs font-extrabold text-[#17201F]">{c.title}</h3>
                     <div className="mt-1 flex items-center gap-2 text-[11px] text-[#6F7C7A]">
                       <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-[#0F766E]" />
+                        <Clock className="h-3 w-3 text-[var(--category-primary-dark)]" />
                         {c.time}
                       </span>
                       <span>·</span>
                       <span>{c.trainer}</span>
                     </div>
-                    <div className="mt-1 text-[10px] font-bold text-[#0F766E]">
+                    <div className="mt-1 text-[10px] font-bold text-[var(--category-primary-dark)]">
                       {seatsLeft > 0 ? `${seatsLeft} seats left (${c.enrolled}/${c.maxCapacity} enrolled)` : 'Full'}
                     </div>
                   </div>
@@ -729,7 +729,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   <button
                     onClick={() => setClassBookingModalOpen(c)}
                     disabled={seatsLeft <= 0}
-                    className="rounded-xl bg-[#0F766E] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition active:scale-95 disabled:opacity-40"
+                    className="rounded-xl bg-[var(--category-primary-dark)] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition active:scale-95 disabled:opacity-40"
                   >
                     Book Class
                   </button>
@@ -757,10 +757,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-xs font-extrabold text-[#17201F]">{t.name}</h3>
-                    <p className="text-[11px] font-semibold text-[#0F766E]">{t.role}</p>
+                    <p className="text-[11px] font-semibold text-[var(--category-primary-dark)]">{t.role}</p>
                   </div>
                   <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold ${
-                    t.status === 'Available' ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-amber-50 text-amber-800'
+                    t.status === 'Available' ? 'bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]' : 'bg-amber-50 text-amber-800'
                   }`}>
                     {t.status}
                   </span>
@@ -778,7 +778,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     setSelectedTrainer(t);
                     setPtBookingModalOpen(true);
                   }}
-                  className="mt-3 w-full rounded-xl border border-[#0F766E]/30 bg-[#F4F7F6] py-2 text-xs font-bold text-[#0F766E] transition hover:bg-[#E7F5F2] active:scale-98"
+                  className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/30 bg-[#F4F7F6] py-2 text-xs font-bold text-[var(--category-primary-dark)] transition hover:bg-[var(--category-tint-10)] active:scale-98"
                 >
                   Book 1-on-1 PT
                 </button>
@@ -812,16 +812,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 key={offering.id}
                 className={`rounded-2xl border bg-white p-4 transition ${
                   isActivePass
-                    ? 'border-[#0F766E] shadow-[0_10px_28px_-18px_rgba(15,118,110,0.55)]'
+                    ? 'border-[var(--category-primary-dark)] shadow-[0_10px_28px_-18px_var(--category-glow)]'
                     : isSelected
-                    ? 'border-[#0F766E]/60 shadow-[0_8px_22px_-16px_rgba(15,118,110,0.5)]'
+                    ? 'border-[var(--category-primary-dark)]/60 shadow-[0_8px_22px_-16px_var(--category-glow)]'
                     : 'border-[#DDE5E3]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass ? 'bg-[#0F766E] text-white' : 'bg-[#E7F5F2] text-[#0F766E]'}`}>
+                      <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'}`}>
                         {isActivePass ? 'Visit pass · Active' : offering.type.replace('_', ' ')}
                       </span>
                       <h3 className="text-xs font-extrabold text-[#17201F]">{offering.name}</h3>
@@ -838,14 +838,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   </div>
                 </div>
                 {isActivePass ? (
-                  <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[#0F766E]/30 bg-[#E7F5F2] py-2 text-xs font-extrabold text-[#0F766E]">
+                  <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--category-primary-dark)]/30 bg-[var(--category-tint-10)] py-2 text-xs font-extrabold text-[var(--category-primary-dark)]">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     ✓ ACTIVE VISIT · {activeDurationLabel}
                   </div>
                 ) : passLocked ? (
                   <button
                     onClick={() => openAccessSheet(true)}
-                    className="mt-3 w-full rounded-xl border border-[#0F766E]/35 bg-[#F4F7F6] py-2 text-xs font-bold text-[#0F766E] transition active:scale-95"
+                    className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/35 bg-[#F4F7F6] py-2 text-xs font-bold text-[var(--category-primary-dark)] transition active:scale-95"
                   >
                     Upgrade
                   </button>
@@ -857,8 +857,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                         setPurchaseError('');
                       })
                     }
-                    className={`group relative mt-3 flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-xl py-2.5 text-xs font-extrabold shadow-[0_10px_20px_-12px_rgba(15,118,110,0.65)] transition active:scale-[0.98] ${
-                      isSelected ? 'bg-[#0B4A44] text-white' : 'bg-[#0F766E] text-white'
+                    className={`group relative mt-3 flex w-full items-center justify-center gap-1.5 overflow-hidden rounded-xl py-2.5 text-xs font-extrabold shadow-[0_10px_20px_-12px_var(--category-glow)] transition active:scale-[0.98] ${
+                      isSelected ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-primary-dark)] text-white'
                     }`}
                   >
                     <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
@@ -883,7 +883,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               'Strength Zone', 'Cardio Deck', 'Sauna & Recovery Spa', 'Locker Room', 'Shower', 'Parking', 'Wi-Fi'
             ]).map((amenity) => (
               <span key={amenity} className="flex items-center gap-1.5 rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-3 py-1.5 text-xs font-semibold text-[#17201F]">
-                <Check className="h-3.5 w-3.5 text-[#0F766E]" />
+                <Check className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
                 {amenity}
               </span>
             ))}
@@ -892,10 +892,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
         {/* 8. OFFERS & COUPONS */}
         {salon.offers && salon.offers.length > 0 && (
-          <div className="rounded-2xl border border-[#0F766E]/20 bg-[#E7F5F2] p-4">
+          <div className="rounded-2xl border border-[var(--category-primary-dark)]/20 bg-[var(--category-tint-10)] p-4">
             <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-[#0F766E]" />
-              <h2 className="text-xs font-extrabold text-[#0F766E]">Active Gym Offers & Coupons</h2>
+              <Tag className="h-4 w-4 text-[var(--category-primary-dark)]" />
+              <h2 className="text-xs font-extrabold text-[var(--category-primary-dark)]">Active Gym Offers & Coupons</h2>
             </div>
             <div className="mt-2.5 space-y-2">
               {salon.offers.map((offer) => (
@@ -908,7 +908,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     <button
                       onClick={() => onApplyOffer(offer.id)}
                       className={`rounded-lg px-2.5 py-1 text-[10px] font-bold ${
-                        appliedOfferId === offer.id ? 'bg-[#0F766E] text-white' : 'border border-[#0F766E] text-[#0F766E]'
+                        appliedOfferId === offer.id ? 'bg-[var(--category-primary-dark)] text-white' : 'border border-[var(--category-primary-dark)] text-[var(--category-primary-dark)]'
                       }`}
                     >
                       {appliedOfferId === offer.id ? 'Applied' : 'Apply'}
@@ -936,7 +936,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-[#6F7C7A]">Capacity</span>
-                <span className="font-bold text-[#0F766E]">{classBookingModalOpen.enrolled}/{classBookingModalOpen.maxCapacity} Enrolled</span>
+                <span className="font-bold text-[var(--category-primary-dark)]">{classBookingModalOpen.enrolled}/{classBookingModalOpen.maxCapacity} Enrolled</span>
               </div>
             </div>
             <div className="mt-5 flex gap-2">
@@ -948,7 +948,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </button>
               <button
                 onClick={() => handleBookClass(classBookingModalOpen)}
-                className="flex-1 rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm"
+                className="flex-1 rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm"
               >
                 Confirm Booking
               </button>
@@ -968,7 +968,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             <div className="mt-4 rounded-xl bg-[#F8FAFA] p-3 text-xs space-y-2">
               <div className="flex justify-between">
                 <span className="text-[#6F7C7A]">Next Slot</span>
-                <span className="font-bold text-[#0F766E]">{selectedTrainer.nextSlot || 'Today 04:00 PM'}</span>
+                <span className="font-bold text-[var(--category-primary-dark)]">{selectedTrainer.nextSlot || 'Today 04:00 PM'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[#6F7C7A]">Fee</span>
@@ -984,7 +984,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </button>
               <button
                 onClick={handleBookPT}
-                className="flex-1 rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm"
+                className="flex-1 rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm"
               >
                 Confirm Session
               </button>
@@ -1058,7 +1058,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <button
                 type="button"
                 onClick={() => openAccessSheet(true)}
-                className="shrink-0 rounded-lg border border-[#0F766E]/40 bg-white/70 px-3 py-1.5 text-[10px] font-extrabold text-[#0F766E]"
+                className="shrink-0 rounded-lg border border-[var(--category-primary-dark)]/40 bg-white/70 px-3 py-1.5 text-[10px] font-extrabold text-[var(--category-primary-dark)]"
               >
                 Upgrade
               </button>
@@ -1115,8 +1115,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className={`relative flex min-h-13 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-5 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] disabled:opacity-70 ${
-            bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[#0F766E]'
+          className={`relative flex min-h-13 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-5 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:opacity-70 ${
+            bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[var(--category-primary-dark)]'
           }`}
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
@@ -1177,13 +1177,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 value={claimName}
                 onChange={(e) => setClaimName(e.target.value)}
                 placeholder="Full name"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
               />
               <input
                 value={claimMobile}
                 onChange={(e) => setClaimMobile(e.target.value)}
                 placeholder="Mobile number"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
               />
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
@@ -1192,7 +1192,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     type="date"
                     value={claimJoinDate}
                     onChange={(e) => setClaimJoinDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
                 <div>
@@ -1201,7 +1201,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     type="date"
                     value={claimExpiryDate}
                     onChange={(e) => setClaimExpiryDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
               </div>
@@ -1209,7 +1209,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 value={claimPlanText}
                 onChange={(e) => setClaimPlanText(e.target.value)}
                 placeholder="Plan name (optional)"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[#0F766E]"
+                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
               />
               {claimError && <p className="text-[11px] font-semibold text-rose-600">{claimError}</p>}
             </div>
@@ -1220,7 +1220,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <button
                 onClick={submitClaim}
                 disabled={claimBusy}
-                className="flex-1 rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
+                className="flex-1 rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
               >
                 {claimBusy ? 'Submitting…' : 'Submit for Approval'}
               </button>
@@ -1286,7 +1286,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <div className="mt-4 max-h-[55vh] space-y-4 overflow-y-auto">
                 {sections.recommended.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#0F766E]">Recommended for you</p>
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--category-primary-dark)]">Recommended for you</p>
                     {sections.recommended.map((offering) => <Card key={offering.id} offering={offering} />)}
                   </div>
                 )}
@@ -1344,14 +1344,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 <span className="font-bold text-[#17201F]">₹{paymentSubtotalInr}</span>
               </div>
               {discountInr > 0 && paymentOffer && (
-                <div className="flex justify-between text-[#0F766E]">
+                <div className="flex justify-between text-[var(--category-primary-dark)]">
                   <span className="flex items-center gap-1 font-semibold"><Tag className="h-3 w-3" />{paymentOffer.title}</span>
                   <span className="font-bold">− ₹{discountInr}</span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t border-[#E4ECEA] pt-2">
                 <span className="font-bold text-[#17201F]">Final amount</span>
-                <span className="text-sm font-extrabold text-[#0F766E]">₹{finalAmountInr}</span>
+                <span className="text-sm font-extrabold text-[var(--category-primary-dark)]">₹{finalAmountInr}</span>
               </div>
             </div>
 
@@ -1367,7 +1367,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     onClick={() => setPaymentMethod(method)}
                     className={`rounded-xl border px-3 py-2.5 text-[11px] font-bold transition disabled:opacity-40 ${
                       paymentMethod === method
-                        ? 'border-[#0F766E] bg-[#E7F5F2] text-[#0F766E]'
+                        ? 'border-[var(--category-primary-dark)] bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'
                         : 'border-[#DDE5E3] bg-white text-[#17201F]'
                     }`}
                   >
@@ -1389,7 +1389,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               id="gym-pay-btn"
               onClick={() => submitPurchase(paymentMethod)}
               disabled={purchaseBusy}
-              className="mt-4 w-full rounded-xl bg-[#0F766E] py-3 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_rgba(15,118,110,0.6)] transition active:scale-[0.98] disabled:opacity-60"
+              className="mt-4 w-full rounded-xl bg-[var(--category-primary-dark)] py-3 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:opacity-60"
             >
               {purchaseBusy
                 ? 'Reserving…'
@@ -1404,11 +1404,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {purchaseResultMsg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-[#0F766E]" />
+            <CheckCircle2 className="mx-auto h-10 w-10 text-[var(--category-primary-dark)]" />
             <p className="mt-3 text-sm font-semibold text-[#17201F]">{purchaseResultMsg}</p>
             <button
               onClick={() => setPurchaseResultMsg(null)}
-              className="mt-5 w-full rounded-xl bg-[#0F766E] py-2.5 text-xs font-bold text-white shadow-sm"
+              className="mt-5 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm"
             >
               Got it
             </button>

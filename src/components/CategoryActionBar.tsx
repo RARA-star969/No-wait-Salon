@@ -42,7 +42,7 @@ export const CategoryActionBar: React.FC<{
       className={`relative mx-auto max-w-xl overflow-hidden rounded-[22px] p-2.5 transition-all duration-300 ${
         expanded
           ? 'border border-white/75 bg-gradient-to-b from-white/78 via-white/58 to-white/72 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.95),inset_0_0_24px_rgba(255,255,255,0.35),0_-14px_32px_-12px_rgba(15,70,65,0.25),0_12px_36px_-10px_rgba(10,35,32,0.22)] backdrop-blur-2xl backdrop-saturate-[2.2] backdrop-brightness-[1.06]'
-          : 'border border-white/35 bg-gradient-to-br from-white/16 via-white/[0.06] to-[#0F766E]/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06),0_-14px_30px_-16px_rgba(10,30,27,0.35),0_8px_24px_-10px_rgba(10,30,27,0.22)] backdrop-blur-2xl backdrop-saturate-[1.8]'
+          : 'border border-white/35 bg-gradient-to-br from-white/16 via-white/[0.06] to-[var(--category-primary-dark)]/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),inset_0_0_0_1px_rgba(255,255,255,0.06),0_-14px_30px_-16px_rgba(10,30,27,0.35),0_8px_24px_-10px_rgba(10,30,27,0.22)] backdrop-blur-2xl backdrop-saturate-[1.8]'
       } ${bounce ? 'dock-bounce' : ''}`}
     >
       {expanded && (
@@ -52,7 +52,7 @@ export const CategoryActionBar: React.FC<{
             className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
             style={{
               background:
-                'linear-gradient(125deg, rgba(255,255,255,0.95), rgba(15,118,110,0.22) 35%, rgba(255,255,255,0.35) 55%, rgba(231,198,115,0.24) 75%, rgba(255,255,255,0.85))',
+                'linear-gradient(125deg, rgba(255,255,255,0.95), var(--category-glow) 35%, rgba(255,255,255,0.35) 55%, rgba(231,198,115,0.24) 75%, rgba(255,255,255,0.85))',
               WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
               WebkitMaskComposite: 'xor',
               maskComposite: 'exclude',

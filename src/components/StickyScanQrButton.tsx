@@ -77,18 +77,24 @@ export const StickyScanQrButton: React.FC<Props> = ({ scrollRef, onScan }) => {
         {/* Neon glow halo behind the capsule */}
         <div
           aria-hidden="true"
-          className={`pointer-events-none absolute inset-0 -m-2 rounded-full bg-cyan-400/40 blur-xl transition-opacity duration-300 ${
+          className={`pointer-events-none absolute inset-0 -m-2 rounded-full blur-xl transition-opacity duration-300 ${
             expanded ? 'opacity-100' : 'opacity-70'
           }`}
+          style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.4))' }}
         />
         <button
           type="button"
           onClick={onScan}
           aria-label="Scan QR"
           aria-expanded={expanded}
-          className={`pointer-events-auto relative flex h-14 items-center justify-center gap-2.5 overflow-hidden rounded-full border border-white/25 bg-gradient-to-br from-cyan-400 via-teal-500 to-cyan-600 text-slate-950 shadow-[0_12px_32px_-6px_rgba(34,211,238,0.65)] ring-2 ring-cyan-300/30 transition-[width,padding] duration-300 ease-out active:scale-95 ${
+          className={`pointer-events-auto relative flex h-14 items-center justify-center gap-2.5 overflow-hidden rounded-full border border-white/25 text-slate-950 ring-2 transition-[width,padding] duration-300 ease-out active:scale-95 ${
             expanded ? 'w-[11rem] px-5' : 'w-14 px-0'
           }`}
+          style={{
+            backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
+            boxShadow: `0 12px 32px -6px var(--category-glow, rgba(34,211,238,0.65))`,
+            ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.3))',
+          }}
         >
           <span className="pointer-events-none absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/40 blur-[2px]" />
           <QrCode className="relative h-[22px] w-[22px] shrink-0 drop-shadow-sm" />

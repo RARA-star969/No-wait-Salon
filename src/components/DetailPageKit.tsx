@@ -20,7 +20,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
   >
     <span
       className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
-        active ? 'bg-[#5EE0B4] text-[#0B3A34]' : 'bg-white text-[#0F766E]'
+        active ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]' : 'bg-white text-[var(--category-primary-dark)]'
       }`}
     >
       {icon}
@@ -36,7 +36,7 @@ export const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?
       <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#73827F]">{eyebrow}</p>
       <h2 className="mt-0.5 text-lg font-bold tracking-[-0.025em]">{title}</h2>
     </div>
-    {secondary && <span className="text-[10px] font-semibold text-[#0F766E]">{secondary}</span>}
+    {secondary && <span className="text-[10px] font-semibold text-[var(--category-primary-dark)]">{secondary}</span>}
   </div>
 );
 
@@ -47,9 +47,9 @@ export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow
       <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E7F5F2] text-[#0F766E]">{icon}</span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]">{icon}</span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">{eyebrow}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--category-primary-dark)]">{eyebrow}</p>
             <h2 className="truncate text-lg font-bold text-[#17201F]">{title}</h2>
           </div>
         </div>
@@ -63,15 +63,15 @@ export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow
 /** Business address + reach-out actions — real UI, dummy CTA wiring for now. */
 export const AddressSheet: React.FC<{ name: string; address: string; locationLabel: string; phoneNumber?: string; directionsUrl: string; eyebrow?: string; onClose: () => void }> = ({ name, address, locationLabel, phoneNumber, directionsUrl, eyebrow = 'Store location', onClose }) => (
   <QuickActionSheetShell icon={<MapPin className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
-    <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-[#0F766E]"><MapPin className="h-3.5 w-3.5 shrink-0" />{locationLabel}</p>
+    <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--category-primary-dark)]"><MapPin className="h-3.5 w-3.5 shrink-0" />{locationLabel}</p>
     <p className="mt-2 rounded-2xl border border-[#E1E7E6] bg-white p-4 text-xs leading-5 text-[#4C5A58] shadow-[0_2px_10px_-6px_rgba(15,40,37,0.15)] [overflow-wrap:anywhere]">{address}</p>
     <div className="mt-4 grid grid-cols-2 gap-2.5">
       {phoneNumber ? (
-        <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] bg-white text-xs font-bold text-[#17201F]"><PhoneCall className="h-4 w-4 text-[#0F766E]" />Call</a>
+        <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] bg-white text-xs font-bold text-[#17201F]"><PhoneCall className="h-4 w-4 text-[var(--category-primary-dark)]" />Call</a>
       ) : (
         <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-[#F1F4F3] text-xs font-semibold text-[#9AA6A3]"><PhoneCall className="h-4 w-4" />No number listed</span>
       )}
-      <a href={directionsUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Directions</a>
+      <a href={directionsUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Directions</a>
     </div>
   </QuickActionSheetShell>
 );
@@ -81,7 +81,7 @@ export const OpenHoursSheet: React.FC<{ name: string; isOpen: boolean; openingHo
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return (
     <QuickActionSheetShell icon={<Clock3 className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
-      <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-[#BFE0DC] bg-[#EDF8F6] text-[#0F766E]' : 'border-[#F0D6D1] bg-[#FFF7F5] text-[#8A3E35]'}`}>
+      <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-[#BFE0DC] bg-[#EDF8F6] text-[var(--category-primary-dark)]' : 'border-[#F0D6D1] bg-[#FFF7F5] text-[#8A3E35]'}`}>
         <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-[#14B8A6]' : 'bg-[#E58C82]'}`} />
         {isOpen ? 'Open right now' : 'Closed right now'} · {openingHours}
       </div>
@@ -102,7 +102,7 @@ export const OpenHoursSheet: React.FC<{ name: string; isOpen: boolean; openingHo
 export const DirectionsSheet: React.FC<{ name: string; address: string; directionsUrl: string; onClose: () => void }> = ({ name, address, directionsUrl, onClose }) => (
   <QuickActionSheetShell icon={<Navigation className="h-4 w-4" />} eyebrow="Get there" title={`Directions to ${name}`} onClose={onClose}>
     <p className="mt-4 text-xs leading-5 text-[#657471] [overflow-wrap:anywhere]">{address}</p>
-    <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Open in Maps<ExternalLink className="h-3 w-3" /></a>
+    <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Open in Maps<ExternalLink className="h-3 w-3" /></a>
     <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[#9AA6A3]"><Info className="mt-0.5 h-3 w-3 shrink-0" />In-app turn-by-turn guidance isn't available yet — this opens your device's maps app instead.</p>
   </QuickActionSheetShell>
 );
@@ -131,7 +131,7 @@ export const BeenHereSheet: React.FC<{ visited: boolean; subjectLabel?: string; 
     <button
       type="button"
       onClick={onToggle}
-      className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${visited ? 'bg-[#F1F4F3] text-[#4C5A58]' : 'bg-[#0F766E] text-white'}`}
+      className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${visited ? 'bg-[#F1F4F3] text-[#4C5A58]' : 'bg-[var(--category-primary-dark)] text-white'}`}
     >
       <CheckCircle2 className="h-4 w-4" />
       {visited ? 'Marked as visited' : 'Mark as visited'}

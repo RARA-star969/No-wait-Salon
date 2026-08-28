@@ -226,7 +226,15 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     const depth = -Math.min(190, distance * 62);
     const rotate = clamp(relative * -4.5, -12, 12);
     const opacity = clamp(1 - Math.max(0, distance - 2.4) * 0.24, 0.32, 1);
-    return { relative, distance, x, scale, depth, rotate, opacity };
+    // Rear-card material only — geometry above (x/scale/depth/rotate/opacity)
+    // is the approved deck and stays untouched. These three purely control how
+    // "readable" a card behind the active one looks: a denser frosted wash,
+    // a soft mirror blur on the glass itself, and dimmer inner content so text
+    // stops competing with the front card while the shape stays recognizable.
+    const frost = clamp(distance * 0.16, 0, 0.6);
+    const frostBlur = clamp(distance * 1.4, 0, 5);
+    const contentOpacity = clamp(1 - distance * 0.24, 0.32, 1);
+    return { relative, distance, x, scale, depth, rotate, opacity, frost, frostBlur, contentOpacity };
   }), [activeIndex, cardStep, categories, dragProgress]);
 
   return (
@@ -279,7 +287,26 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
             >
               <span className="floating-glass-reflection" aria-hidden />
               <span className="floating-glass-caustic" aria-hidden />
-              <span className="relative z-10 flex h-full flex-col justify-between p-4 text-left text-white">
+              {transform.frost > 0 && (
+                <span
+                  className="floating-glass-frost"
+                  aria-hidden
+                  style={{
+                    backgroundColor: `rgba(8, 14, 20, ${transform.frost})`,
+                    backdropFilter: `blur(${transform.frostBlur}px) saturate(${clamp(1 - transform.distance * 0.12, 0.7, 1)})`,
+                    WebkitBackdropFilter: `blur(${transform.frostBlur}px) saturate(${clamp(1 - transform.distance * 0.12, 0.7, 1)})`,
+                  }}
+                />
+              )}
+              <span
+                className="relative z-10 flex h-full flex-col justify-between p-4 text-left text-white"
+                style={{
+                  opacity: transform.contentOpacity,
+                  transitionProperty: 'opacity',
+                  transitionDuration: dragging || reducedMotion ? '0ms' : '520ms',
+                  transitionTimingFunction: 'cubic-bezier(.2, .9, .18, 1.18)',
+                }}
+              >
                 <span className="flex items-start justify-between gap-3">
                   <span className="grid h-12 w-12 place-items-center rounded-[18px] border border-white/35 bg-white/16 shadow-[inset_0_1px_0_rgba(255,255,255,.55),0_8px_18px_-10px_rgba(0,0,0,.8)] backdrop-blur-md">
                     <Icon className="h-6 w-6 drop-shadow-md" />
