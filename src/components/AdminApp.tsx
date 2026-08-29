@@ -1384,6 +1384,7 @@ function ModerationPanel({ businessId, businessName }: { businessId: string; bus
   const [heldBy, setHeldBy] = useState<string | null>(null);
   const [pendingFields, setPendingFields] = useState<Record<string, unknown> | null>(null);
   const [submittedAt, setSubmittedAt] = useState<number | null>(null);
+  const [socialLinks, setSocialLinks] = useState<AnyRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -1395,8 +1396,23 @@ function ModerationPanel({ businessId, businessName }: { businessId: string; bus
         setHeldBy(b.heldBy || null);
         setPendingFields(b.pendingFields);
         setSubmittedAt(b.submittedAt || null);
+        setSocialLinks(b.socialLinks || []);
       })
       .finally(() => setLoading(false));
+  };
+
+  const toggleSocialLink = async (platform: string, enabled: boolean) => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/salons/${businessId}/social-links/${platform}`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+      setMessage(`${platform} link ${enabled ? 'enabled' : 'disabled'}.`);
+      load();
+    } catch (e: any) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
   };
 
   useEffect(() => { load(); }, [businessId]);
@@ -1494,6 +1510,27 @@ function ModerationPanel({ businessId, businessName }: { businessId: string; bus
             </div>
           </div>
         )}
+      </Section>
+
+      <Section title="Social & Links">
+        <p className="mb-3 text-xs text-slate-500">The same persisted links the owner's Manage Profile editor works with — inspect and disable directly, independent of moderation hold.</p>
+        <div className="grid gap-2">
+          {socialLinks.map((link) => (
+            <div key={link.platform} className={`flex items-center justify-between rounded-xl border border-slate-200 p-3 ${!link.enabled ? 'opacity-50' : ''}`}>
+              <div>
+                <p className="text-sm font-semibold capitalize text-slate-800">{link.platform === 'twitter' ? 'X / Twitter' : link.platform}</p>
+                <p className="text-xs text-slate-500 break-all">{link.value || 'Not configured'}</p>
+              </div>
+              <button
+                onClick={() => toggleSocialLink(link.platform, !link.enabled)}
+                disabled={busy}
+                className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+              >
+                {link.enabled ? <><EyeOff size={13} /> Disable</> : <><Eye size={13} /> Enable</>}
+              </button>
+            </div>
+          ))}
+        </div>
       </Section>
     </div>
   );

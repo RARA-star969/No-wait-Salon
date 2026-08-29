@@ -236,6 +236,12 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS business_review_business_idx ON business_review(business_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS business_review_rating_idx ON business_review(business_id,rating);
   `
+}, {
+  version: 14,
+  name: 'gym_social_links',
+  sql: `
+    ALTER TABLE salon ADD COLUMN IF NOT EXISTS social_links_json TEXT NOT NULL DEFAULT '[]';
+  `
 }];
 
 export async function runMigrations(db:Database){

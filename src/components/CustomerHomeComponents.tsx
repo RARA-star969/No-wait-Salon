@@ -555,16 +555,36 @@ export interface LiveFloorMeterData {
   color: SignalColor;
 }
 
-/** How much of the capsule a side needs before its count can sit inside it
- *  without crowding the rounded cap — below this the number moves just
- *  outside that side instead of clipping or overlapping the other label. */
-const LIVE_FLOOR_LABEL_FIT_THRESHOLD = 16;
+/** Below this share of the (now compact, fixed-width) bar, even a bare
+ *  number would crowd the rounded cap — the count moves just outside that
+ *  side instead of clipping or overlapping the other label. */
+const LIVE_FLOOR_NUMBER_FIT_THRESHOLD = 20;
+/** Above this share, there's room for the full word ("inside"/"free");
+ *  between the number-only and full thresholds, the concise form fits
+ *  ("in" instead of "inside" — "free" has no shorter form and is used at
+ *  both this tier and the full tier). */
+const LIVE_FLOOR_CONCISE_FIT_THRESHOLD = 26;
+const LIVE_FLOOR_FULL_FIT_THRESHOLD = 46;
+
+type LiveFloorLabelTier = 'full' | 'concise' | 'number';
+
+function liveFloorLabelTier(sharePercentage: number): LiveFloorLabelTier {
+  if (sharePercentage >= LIVE_FLOOR_FULL_FIT_THRESHOLD) return 'full';
+  if (sharePercentage >= LIVE_FLOOR_CONCISE_FIT_THRESHOLD) return 'concise';
+  return 'number';
+}
 
 /**
- * Premium glass/mirror occupancy capsule for a Gym listing card. Filled
- * portion shows the occupied count, unfilled (smoked) portion shows the
- * available count; the fill color comes from the same resolver-driven
- * signal color as the crowd chip, never a competing formula.
+ * Compact premium glass/mirror occupancy capsule for a Gym listing card —
+ * short and fixed-width so it never dominates the row the crowd-status chip
+ * shares it with. Filled portion shows the occupied count, unfilled
+ * (smoked) portion shows the available count, each labeled in plain
+ * language ("20 inside" / "60 free") whenever the bar is wide enough for
+ * that side to read clearly, falling back to a shorter word and finally to
+ * a bare number so nothing ever clips — the full meaning always stays in
+ * the aria-label regardless of which tier renders. The fill color comes
+ * from the same resolver-driven signal color as the crowd chip, never a
+ * competing formula.
  */
 const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
   const capacity = Math.max(1, data.maxCapacity);
@@ -572,16 +592,20 @@ const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
   const available = Math.max(0, capacity - occupancy);
   const percentage = Math.min(100, Math.max(0, (occupancy / capacity) * 100));
   const fillHex = SIGNAL_STYLES[data.color].bar;
-  const occupiedFits = percentage >= LIVE_FLOOR_LABEL_FIT_THRESHOLD;
-  const availableFits = 100 - percentage >= LIVE_FLOOR_LABEL_FIT_THRESHOLD;
+  const occupiedTier = liveFloorLabelTier(percentage);
+  const availableTier = liveFloorLabelTier(100 - percentage);
+  const occupiedFits = occupiedTier !== 'number';
+  const availableFits = availableTier !== 'number';
+  const occupiedLabel = occupiedTier === 'full' ? `${occupancy} inside` : occupiedTier === 'concise' ? `${occupancy} in` : String(occupancy);
+  const availableLabel = availableTier === 'number' ? String(available) : `${available} free`;
 
   return (
-    <div className="min-w-0 flex-1">
+    <div className="min-w-0 shrink-0">
       <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Live Floor</p>
       <div
         role="img"
-        aria-label={`${occupancy} of ${capacity} occupied, ${available} spaces available`}
-        className="relative mt-1 h-[22px] w-full overflow-hidden rounded-full bg-[#0A0F0E] ring-1 ring-white/[0.07] shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]"
+        aria-label={`${occupancy} of ${capacity} inside, ${available} spaces free`}
+        className="relative mt-1 h-5 w-[120px] overflow-hidden rounded-full bg-[#0A0F0E] ring-1 ring-white/[0.07] shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]"
       >
         {/* smoked translucent unfilled side */}
         <div className="absolute inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-black/30" />
@@ -595,16 +619,16 @@ const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
           <div className="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-3px_5px_rgba(0,0,0,0.3)]" />
         </div>
         <span
-          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-bold tabular-nums transition-all duration-700 ease-out ${occupiedFits ? 'text-white' : 'text-slate-300'}`}
-          style={occupiedFits ? { left: 8 } : { left: `calc(${percentage}% + 6px)` }}
+          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold tabular-nums transition-all duration-700 ease-out ${occupiedFits ? 'text-white' : 'text-slate-300'}`}
+          style={occupiedFits ? { left: 6 } : { left: `calc(${percentage}% + 5px)` }}
         >
-          {occupancy}
+          {occupiedLabel}
         </span>
         <span
-          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-bold tabular-nums transition-all duration-700 ease-out ${availableFits ? 'text-slate-300' : 'text-white'}`}
-          style={availableFits ? { right: 8 } : { right: `calc(${100 - percentage}% + 6px)` }}
+          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold tabular-nums transition-all duration-700 ease-out ${availableFits ? 'text-slate-300' : 'text-white'}`}
+          style={availableFits ? { right: 6 } : { right: `calc(${100 - percentage}% + 5px)` }}
         >
-          {available}
+          {availableLabel}
         </span>
       </div>
     </div>

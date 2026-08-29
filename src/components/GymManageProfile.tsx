@@ -1,13 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Star, ChevronUp, ChevronDown, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react';
-import type { GymAmenity, GymQuickAction, Salon } from '../types';
+import { ArrowLeft, Plus, Trash2, Star, ChevronUp, ChevronDown, Eye, EyeOff, Loader2, AlertTriangle, Instagram, Facebook, Youtube, Twitter, Globe } from 'lucide-react';
+import type { GymAmenity, GymQuickAction, GymSocialLinkInput, Salon, SocialPlatform } from '../types';
 import { fetchSalonProfile } from '../services/salonDiscoveryService';
 import { gymProfileCmsService, type GalleryMediaRow } from '../services/gymProfileCmsService';
 import { GYM_ICON_LIBRARY, gymProfileIcon } from './gymProfileIcons';
 import { defaultQuickActions } from '../shared/gymProfileCms';
 
-const SECTIONS = ['Basic Info', 'Gallery', 'Amenities', 'Quick Actions'] as const;
+const SECTIONS = ['Basic Info', 'Gallery', 'Amenities', 'Quick Actions', 'Social & Links'] as const;
 type Section = (typeof SECTIONS)[number];
+
+const SOCIAL_PLATFORM_ICON: Record<SocialPlatform, React.FC<{ className?: string }>> = {
+  instagram: Instagram, facebook: Facebook, youtube: Youtube, twitter: Twitter, website: Globe,
+};
+const SOCIAL_PLATFORM_LABEL: Record<SocialPlatform, string> = {
+  instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', twitter: 'X / Twitter', website: 'Website',
+};
+const SOCIAL_PLATFORM_PLACEHOLDER: Record<SocialPlatform, string> = {
+  instagram: '@ironhousegym or full URL', facebook: '@ironhousegym or full URL', youtube: '@ironhousegym or full URL',
+  twitter: '@ironhousegym or full URL', website: '',
+};
 
 const BASIC_INFO_FIELDS = [
   'name', 'shortDescription', 'description', 'phoneNumber', 'email', 'websiteUrl', 'address', 'area', 'city', 'openingHours',
@@ -41,14 +52,16 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
   const [amenities, setAmenities] = useState<GymAmenity[]>([]);
   const [newAmenityName, setNewAmenityName] = useState('');
   const [quickActions, setQuickActions] = useState<GymQuickAction[]>([]);
+  const [socialLinks, setSocialLinks] = useState<GymSocialLinkInput[]>([]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [profile, galleryRes, moderation] = await Promise.all([
+      const [profile, galleryRes, moderation, socialLinksRes] = await Promise.all([
         fetchSalonProfile(gymId),
         gymProfileCmsService.gallery.list(),
         gymProfileCmsService.moderationStatus(),
+        gymProfileCmsService.socialLinks.list(),
       ]);
       if (profile) {
         setSalon(profile);
@@ -63,6 +76,7 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
       setGallery(galleryRes.gallery);
       setHold(moderation.hold);
       setPendingFields(moderation.pendingFields);
+      setSocialLinks(socialLinksRes.socialLinks);
     } catch {
       setNotice('Could not load your profile. Please retry.');
     } finally {
@@ -169,8 +183,23 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
     }
   };
 
+  const saveSocialLinks = async (next: GymSocialLinkInput[]) => {
+    setSocialLinks(next);
+    setSaving(true);
+    try {
+      const result = await gymProfileCmsService.socialLinks.save(next);
+      flash(result.pending ? 'Saved — pending Admin review.' : 'Social & Links saved.');
+      await load();
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not save Social & Links.');
+      await load();
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#F4F7F6]">
+    <div className="flex flex-col rounded-2xl bg-[#F4F7F6]">
       <header className="flex items-center gap-3 border-b border-[#E1E7E6] bg-white px-4 py-3">
         <button onClick={onClose} aria-label="Close Manage Profile" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F0F5F4] text-[#17201F]">
           <ArrowLeft className="h-4 w-4" />
@@ -206,7 +235,7 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
         ))}
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 px-4 py-4">
         {loading ? (
           <div className="flex h-40 items-center justify-center text-[#5C6E6B]"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : (
@@ -390,6 +419,43 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
                           </button>
                         ))}
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {section === 'Social & Links' && (
+              <div className="space-y-2">
+                <p className="text-[11px] leading-4 text-[#8A9997]">
+                  Only enabled links with a valid handle or URL show on your public Gym Detail page — never on the Home listing card. Website reuses the Basic Info field above; toggle it here to show/hide it.
+                </p>
+                {socialLinks.map((link) => {
+                  const Icon = SOCIAL_PLATFORM_ICON[link.platform];
+                  return (
+                    <div key={link.id} className={`flex items-center gap-2 rounded-xl border border-[#DDE5E3] bg-white p-2.5 ${!link.enabled ? 'opacity-50' : ''}`}>
+                      <Icon className="h-4 w-4 shrink-0 text-[#0F766E]" />
+                      <span className="w-20 shrink-0 text-[10px] font-bold uppercase text-[#8A9997]">{SOCIAL_PLATFORM_LABEL[link.platform]}</span>
+                      {link.platform === 'website' ? (
+                        <span className="min-w-0 flex-1 truncate rounded-lg bg-[#F8FAFA] px-2 py-1 text-xs text-[#5C6E6B]">
+                          {link.value || 'Set the Website field in Basic Info'}
+                        </span>
+                      ) : (
+                        <input
+                          value={link.value}
+                          placeholder={SOCIAL_PLATFORM_PLACEHOLDER[link.platform]}
+                          onChange={(e) => setSocialLinks((prev) => prev.map((l) => (l.id === link.id ? { ...l, value: e.target.value } : l)))}
+                          onBlur={() => saveSocialLinks(socialLinks)}
+                          className="min-w-0 flex-1 rounded-lg border border-transparent bg-[#F8FAFA] px-2 py-1 text-xs font-semibold text-[#17201F] focus:border-[#DDE5E3]"
+                        />
+                      )}
+                      <button
+                        onClick={() => saveSocialLinks(socialLinks.map((l) => (l.id === link.id ? { ...l, enabled: !l.enabled } : l)))}
+                        aria-label={link.enabled ? 'Disable' : 'Enable'}
+                        className="rounded-full p-1 text-[#5C6E6B]"
+                      >
+                        {link.enabled ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                      </button>
                     </div>
                   );
                 })}

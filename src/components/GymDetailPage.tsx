@@ -24,13 +24,14 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { NearbySalon, Salon, SalonOffer, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
+import { fetchSalonProfile } from '../services/salonDiscoveryService';
 import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer, GymOffering, GymMyMembershipResponse } from '../services/gymCustomerService';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { GymLiveCard } from './GymLiveCard';
 import { GymHeroGallery } from './GymHeroGallery';
-import { gymProfileIcon } from './gymProfileIcons';
+import { gymProfileIcon, socialPlatformIcon } from './gymProfileIcons';
 import { defaultQuickActions } from '../shared/gymProfileCms';
 import { GymFloatingCapsule } from './GymFloatingCapsule';
 import { AccountOnboarding } from './AccountOnboarding';
@@ -54,7 +55,7 @@ interface GymDetailPageProps {
 }
 
 export const GymDetailPage: React.FC<GymDetailPageProps> = ({
-  salon,
+  salon: salonProp,
   nearbySalons = [],
   onBack,
   onApplyOffer,
@@ -65,6 +66,41 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   onIdentityVerified,
   onProfileSaved,
 }) => {
+  // Mirrors the real /api/salons/:id/profile source (the same one the
+  // initial `salon` prop came from) on a short cadence while this page is
+  // open, so an owner's Manage Profile save (description, address, gallery,
+  // amenities, quick actions, social links) reaches the customer within a
+  // few seconds — never a full page reload, and never a second/fake data
+  // source: this endpoint already only ever reflects the live, Admin-
+  // approved row, so a moderation hold keeps the customer on the last
+  // approved state automatically, with no extra logic needed here.
+  const [salon, setSalon] = useState<Salon>(salonProp);
+  useEffect(() => { setSalon(salonProp); }, [salonProp]);
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+    const refreshProfile = async () => {
+      if (inFlight || cancelled) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      inFlight = true;
+      try {
+        const fresh = await fetchSalonProfile(salonProp.id);
+        if (!cancelled && fresh) setSalon(fresh);
+      } catch {
+        // Keep showing the last known profile; the next tick retries.
+      } finally {
+        inFlight = false;
+      }
+    };
+    const intervalId = setInterval(refreshProfile, 3000);
+    const onVisibilityChange = () => { if (!document.hidden) void refreshProfile(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [salonProp.id]);
   const [overview, setOverview] = useState<GymPublicOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPass, setSelectedPass] = useState<ServiceItem | null>(null);
@@ -910,6 +946,31 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             })}
           </div>
         </div>
+
+        {/* 7b. SOCIAL & LINKS — Detail page only, never the Home listing card.
+            Only owner-enabled, resolvable links ever appear here. */}
+        {salon.socialLinks && salon.socialLinks.length > 0 && (
+          <div className="rounded-2xl border border-[#DDE5E3] bg-white p-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#5C6E6B]">Social & Links</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {salon.socialLinks.map((link) => {
+                const SocialIcon = socialPlatformIcon(link.platform);
+                return (
+                  <a
+                    key={link.id}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-3 py-1.5 text-xs font-semibold text-[#17201F] transition active:scale-[0.97]"
+                  >
+                    <SocialIcon className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
+                    {link.label}
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 8. OFFERS & COUPONS */}
         {salon.offers && salon.offers.length > 0 && (

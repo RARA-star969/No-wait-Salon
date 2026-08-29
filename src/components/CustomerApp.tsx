@@ -229,6 +229,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // never one membership lookup per card. Only a genuinely 'active' status
   // counts as a MEMBER; expired/cancelled memberships never do, even though
   // the same endpoint also returns those for the Profile "Gym Activity" view.
+  //
+  // Refetches on every auth change AND on the same short cadence/visibility
+  // pattern the nearby-salons live poll above uses, but scoped to just this
+  // one summary call — so a membership purchased/claimed on the Gym Detail
+  // page (or by staff) flips Last-viewed -> Member on Home within a few
+  // seconds, never requiring a full reload, without turning into a
+  // per-card poll.
   const [gymMemberBusinessIds, setGymMemberBusinessIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!customerAuth?.token) {
@@ -236,17 +243,39 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       return;
     }
     let cancelled = false;
-    gymCustomerService.getMyGymMemberships()
-      .then((data) => {
+    let inFlight = false;
+
+    const refreshMembership = async () => {
+      if (inFlight || cancelled) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      inFlight = true;
+      try {
+        const data = await gymCustomerService.getMyGymMemberships();
         if (cancelled) return;
         const activeGymIds = data.memberships
           .filter((entry) => entry.membership.status === 'active')
           .map((entry) => entry.gymId);
         setGymMemberBusinessIds(new Set(activeGymIds));
-      })
-      .catch(() => { if (!cancelled) setGymMemberBusinessIds(new Set()); });
-    return () => { cancelled = true; };
-  }, [customerAuth?.token]);
+      } catch {
+        // Keep showing the last known membership set; the next tick retries.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void refreshMembership();
+    if (currentScreen !== 'home') return () => { cancelled = true; };
+
+    const intervalId = setInterval(refreshMembership, 3000);
+    const onVisibilityChange = () => { if (!document.hidden) void refreshMembership(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [customerAuth?.token, currentScreen]);
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);

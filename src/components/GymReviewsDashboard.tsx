@@ -48,7 +48,7 @@ export const GymReviewsDashboard: React.FC<{ gymId: string; gymName: string; onC
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-[#F4F7F6]">
+    <div className="flex flex-col rounded-2xl bg-[#F4F7F6]">
       <header className="flex items-center gap-3 border-b border-[#E1E7E6] bg-white px-4 py-3">
         <button onClick={onClose} aria-label="Close Reviews" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F0F5F4] text-[#17201F]">
           <ArrowLeft className="h-4 w-4" />
@@ -59,7 +59,7 @@ export const GymReviewsDashboard: React.FC<{ gymId: string; gymName: string; onC
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 px-4 py-4">
         {loading ? (
           <div className="flex h-40 items-center justify-center text-[#5C6E6B]"><Loader2 className="h-5 w-5 animate-spin" /></div>
         ) : (

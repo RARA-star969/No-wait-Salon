@@ -16,6 +16,7 @@ import { currentMembershipFor, reconcileExpiredMemberships, reconcileUnclaimedMe
 import { normalizePhone } from '../src/shared/phone.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 import { normalizeAmenities, sanitizeAmenitiesInput, normalizeQuickActions, sanitizeQuickActionsInput } from '../src/shared/gymProfileCms.ts';
+import { normalizeSocialLinks, sanitizeSocialLinksInput, socialLinksForEditor } from '../src/shared/gymSocialLinks.ts';
 
 
 
@@ -127,6 +128,7 @@ const additiveSalonColumns: Record<string, string> = {
   business_code: "TEXT",
   profile_completed_at: "INTEGER",
   quick_actions_json: "TEXT NOT NULL DEFAULT '[]'",
+  social_links_json: "TEXT NOT NULL DEFAULT '[]'",
 };
 for (const [column, definition] of Object.entries(additiveSalonColumns)) {
   if (!salonColumns.has(column)) db.exec(`ALTER TABLE salon ADD COLUMN ${column} ${definition}`);
@@ -295,6 +297,7 @@ type SalonRow = {
   short_description: string; email: string; website_url: string; area: string; city: string; state: string;
   pin_code: string; promotional_banner_url: string; platform_status: string; updated_at: number; onboarded: number; created_at: number;
   quick_actions_json?: string;
+  social_links_json?: string;
 };
 
 db.exec(`
@@ -542,6 +545,7 @@ function rowToSalon(row: SalonRow): Salon {
     amenities: amenityNames,
     amenityDetails,
     quickActions: normalizeQuickActions(JSON.parse(row.quick_actions_json || '[]')),
+    socialLinks: normalizeSocialLinks(JSON.parse(row.social_links_json || '[]'), row.website_url),
     offers: offers.length ? offers : JSON.parse(row.offers_json || '[]'),
     gallery: gallery.length ? gallery : JSON.parse(row.gallery_json || '[]'),
     brandKey: row.brand_key,
@@ -1926,6 +1930,42 @@ app.put('/api/staff/business/quick-actions', (request, response) => {
   response.json({ ok: true, pending: false, quickActions: sanitized });
 });
 
+/** Owner-only Social & Links save. Instagram/Facebook/YouTube/X are stored
+ *  here; the 'website' entry never carries its own URL — that always stays
+ *  sourced from salon.website_url (edited via the existing Basic Info
+ *  field), so this endpoint only ever persists its enabled/order for that
+ *  entry, never a duplicate value. */
+/** Owner-facing Social & Links editor read: every controlled platform,
+ *  including disabled/unconfigured ones, with the website row's value
+ *  always mirrored live from salon.website_url. */
+app.get('/api/staff/business/social-links', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  const row = db.prepare('SELECT social_links_json, website_url FROM salon WHERE id = ?').get(session.businessId) as { social_links_json: string; website_url: string } | undefined;
+  if (!row) return response.status(404).json({ error: 'Business not found.' });
+  response.json({ socialLinks: socialLinksForEditor(JSON.parse(row.social_links_json || '[]'), row.website_url) });
+});
+
+app.put('/api/staff/business/social-links', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  let sanitized;
+  try {
+    sanitized = sanitizeSocialLinksInput(request.body?.socialLinks);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid social links.' });
+  }
+  const now = Date.now();
+  const businessId = session.businessId;
+  if (isBusinessOnHold(businessId)) {
+    saveProfileDraft(businessId, { social_links_json: JSON.stringify(sanitized) }, session.staffId, now);
+    return response.json({ ok: true, pending: true });
+  }
+  db.prepare('UPDATE salon SET social_links_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(sanitized), now, businessId);
+  response.json({ ok: true, pending: false });
+});
+
 /** Owner-only Gallery CRUD (Phase 4B) — reuses the existing salon_media
  *  table (already the Admin editor's gallery/media store) rather than a
  *  second image database. Gallery operations are never gated by moderation
@@ -2612,7 +2652,7 @@ app.delete('/api/admin/reviews/:id', requireAdmin, async (request, response) => 
 // account/activation endpoints — this only ever touches profile content. ---
 
 app.get('/api/admin/salons/:id/moderation', requireAdmin, (request, response) => {
-  const salon = db.prepare('SELECT id FROM salon WHERE id = ?').get(request.params.id);
+  const salon = db.prepare('SELECT id, social_links_json, website_url FROM salon WHERE id = ?').get(request.params.id) as { id: string; social_links_json: string; website_url: string } | undefined;
   if (!salon) return response.status(404).json({ error: 'Business not found.' });
   const hold = db.prepare('SELECT * FROM business_profile_moderation WHERE business_id = ?').get(request.params.id) as { hold: number; held_by: string | null; held_at: number | null } | undefined;
   const draft = currentProfileDraft(request.params.id);
@@ -2622,7 +2662,33 @@ app.get('/api/admin/salons/:id/moderation', requireAdmin, (request, response) =>
     heldAt: hold?.held_at || null,
     pendingFields: draft?.fields || null,
     submittedAt: draft?.submittedAt || null,
+    // The SAME persisted social links the owner's Manage Profile editor
+    // reads/writes — Admin inspects/moderates this exact data, never a copy.
+    socialLinks: socialLinksForEditor(JSON.parse(salon.social_links_json || '[]'), salon.website_url),
   });
+});
+
+/** Admin can directly enable/disable one platform's social link — a
+ *  moderation override that always applies immediately (unlike an owner
+ *  save, this is never itself gated by hold; Admin governance can always
+ *  act). Used to inspect/edit/disable the exact same persisted data the
+ *  owner's Manage Profile -> Social & Links editor works with. */
+app.patch('/api/admin/salons/:id/social-links/:platform', requireAdmin, async (request, response) => {
+  const salon = db.prepare('SELECT id, social_links_json, website_url FROM salon WHERE id = ?').get(request.params.id) as { id: string; social_links_json: string; website_url: string } | undefined;
+  if (!salon) return response.status(404).json({ error: 'Business not found.' });
+  const current = socialLinksForEditor(JSON.parse(salon.social_links_json || '[]'), salon.website_url);
+  const target = current.find((link) => link.platform === request.params.platform);
+  if (!target) return response.status(404).json({ error: 'Unknown platform.' });
+  const enabled = Boolean(request.body?.enabled);
+  let sanitized;
+  try {
+    sanitized = sanitizeSocialLinksInput(current.map((link) => (link.platform === target.platform ? { ...link, enabled } : link)));
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid social links.' });
+  }
+  db.prepare('UPDATE salon SET social_links_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(sanitized), Date.now(), request.params.id);
+  await postgresPersistence?.flushNow(['salon']);
+  response.json({ ok: true, socialLinks: socialLinksForEditor(sanitized, salon.website_url) });
 });
 
 app.put('/api/admin/salons/:id/moderation/hold', requireAdmin, async (request: AdminRequest, response) => {

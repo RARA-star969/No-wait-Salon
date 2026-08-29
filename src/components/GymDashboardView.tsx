@@ -1150,6 +1150,12 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           )}
         </header>
         <main className="gym-main">
+          {showManageProfile ? (
+            <GymManageProfile gymId={gymId} gymName={gymName} onClose={() => setShowManageProfile(false)} />
+          ) : showReviews ? (
+            <GymReviewsDashboard gymId={gymId} gymName={gymName} onClose={() => setShowReviews(false)} />
+          ) : (
+          <>
           <div className="gym-page-heading">
             <div>
               <p className="gym-eyebrow">YOUR GYM, IN FOCUS</p>
@@ -2170,12 +2176,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
               )}
             </>
           )}
-          {showManageProfile && (
-            <GymManageProfile gymId={gymId} gymName={gymName} onClose={() => setShowManageProfile(false)} />
-          )}
-          {showReviews && (
-            <GymReviewsDashboard gymId={gymId} gymName={gymName} onClose={() => setShowReviews(false)} />
-          )}
           <footer className="gym-page-footer">
             <span>NOQ BUSINESS · GYM OPERATIONS</span>
             <span>
@@ -2184,6 +2184,8 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                 : "Waiting for connection"}
             </span>
           </footer>
+          </>
+          )}
         </main>
       </div>
       {form && <FormDialog spec={form} close={() => setForm(null)} />}

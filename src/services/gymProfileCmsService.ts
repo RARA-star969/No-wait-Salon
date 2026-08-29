@@ -1,4 +1,4 @@
-import type { GymAmenity, GymQuickAction } from '../types';
+import type { GymAmenity, GymQuickAction, GymSocialLinkInput } from '../types';
 
 const getBaseUrl = () => (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 function authHeaders(): Record<string, string> {
@@ -52,6 +52,11 @@ export const gymProfileCmsService = {
     request<{ ok: boolean; pending: boolean; quickActions: GymQuickAction[] }>('/api/staff/business/quick-actions', { method: 'PUT', body: JSON.stringify({ quickActions }) }),
   moderationStatus: () =>
     request<{ hold: boolean; pendingFields: string[]; submittedAt: number | null }>('/api/staff/business/moderation'),
+  socialLinks: {
+    list: () => request<{ socialLinks: GymSocialLinkInput[] }>('/api/staff/business/social-links'),
+    save: (socialLinks: GymSocialLinkInput[]) =>
+      request<{ ok: boolean; pending: boolean }>('/api/staff/business/social-links', { method: 'PUT', body: JSON.stringify({ socialLinks }) }),
+  },
 
   gallery: {
     list: () => request<{ gallery: GalleryMediaRow[] }>('/api/staff/business/gallery'),

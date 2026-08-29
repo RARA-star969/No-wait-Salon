@@ -261,3 +261,90 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
     assert.equal(res.status, 400);
   });
 });
+
+test('Social & Links — owner save, customer read, admin moderation', async (t) => {
+  await t.test('owner editor read returns a row for every controlled platform', async () => {
+    const res = await api('GET', '/api/staff/business/social-links', undefined, owner);
+    assert.equal(res.status, 200);
+    assert.equal(res.data.socialLinks.length, 5);
+    assert.ok(res.data.socialLinks.some((l: any) => l.platform === 'website'));
+  });
+
+  await t.test('owner can save Instagram and it resolves to a real profile URL on the public detail page', async () => {
+    const save = await api('PUT', '/api/staff/business/social-links', {
+      socialLinks: [
+        { platform: 'instagram', value: '@ironhousegym', enabled: true, order: 0 },
+        { platform: 'website', enabled: true, order: 1 },
+      ],
+    }, owner);
+    assert.equal(save.status, 200);
+    assert.equal(save.data.pending, false);
+
+    const detail = await api('GET', `/api/salons/${gymId}/profile`);
+    const instagram = detail.data.salon.socialLinks.find((l: any) => l.platform === 'instagram');
+    assert.equal(instagram.url, 'https://instagram.com/ironhousegym');
+  });
+
+  await t.test('owner save rejects an unsupported platform', async () => {
+    const res = await api('PUT', '/api/staff/business/social-links', { socialLinks: [{ platform: 'tiktok', value: '@x' }] }, owner);
+    assert.equal(res.status, 400);
+  });
+
+  await t.test('disabling a link on the owner side removes it from the customer detail page', async () => {
+    await api('PUT', '/api/staff/business/social-links', {
+      socialLinks: [
+        { platform: 'instagram', value: '@ironhousegym', enabled: false, order: 0 },
+        { platform: 'website', enabled: true, order: 1 },
+      ],
+    }, owner);
+    const detail = await api('GET', `/api/salons/${gymId}/profile`);
+    assert.equal(detail.data.salon.socialLinks.find((l: any) => l.platform === 'instagram'), undefined);
+  });
+
+  await t.test('a non-owner/manager cannot save social links', async () => {
+    const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
+    const now = Date.now();
+    db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)')
+      .run('staff_trainer_social', gymId, 'social-trainer@nowaitsalon.test', '', 'Trainer', 'trainer', now, now);
+    db.close();
+    const trainerLogin = await api('POST', '/api/staff/test-login', { businessId: gymId, role: 'trainer' });
+    const res = await api('PUT', '/api/staff/business/social-links', { socialLinks: [{ platform: 'instagram', value: '@x', enabled: true }] }, trainerLogin.data.token);
+    assert.equal(res.status, 403);
+  });
+
+  await t.test('admin sees the same persisted social links via the moderation endpoint', async () => {
+    await api('PUT', '/api/staff/business/social-links', {
+      socialLinks: [
+        { platform: 'instagram', value: '@ironhousegym', enabled: true, order: 0 },
+        { platform: 'website', enabled: true, order: 1 },
+      ],
+    }, owner);
+    const moderation = await api('GET', `/api/admin/salons/${gymId}/moderation`, undefined, adminToken);
+    const instagram = moderation.data.socialLinks.find((l: any) => l.platform === 'instagram');
+    assert.equal(instagram.value, '@ironhousegym');
+    assert.equal(instagram.enabled, true);
+  });
+
+  await t.test('admin can disable a link directly, independent of moderation hold', async () => {
+    const disable = await api('PATCH', `/api/admin/salons/${gymId}/social-links/instagram`, { enabled: false }, adminToken);
+    assert.equal(disable.status, 200);
+    const detail = await api('GET', `/api/salons/${gymId}/profile`);
+    assert.equal(detail.data.salon.socialLinks.find((l: any) => l.platform === 'instagram'), undefined);
+  });
+
+  await t.test('a moderation hold does not block Admin\'s direct social-link toggle', async () => {
+    await api('PUT', `/api/admin/salons/${gymId}/moderation/hold`, { hold: true }, adminToken);
+    const enable = await api('PATCH', `/api/admin/salons/${gymId}/social-links/instagram`, { enabled: true }, adminToken);
+    assert.equal(enable.status, 200);
+    const detail = await api('GET', `/api/salons/${gymId}/profile`);
+    assert.ok(detail.data.salon.socialLinks.find((l: any) => l.platform === 'instagram'));
+    await api('PUT', `/api/admin/salons/${gymId}/moderation/hold`, { hold: false }, adminToken);
+  });
+
+  await t.test('website link reuses website_url — saving it through Basic Info updates the same link, no duplicate field', async () => {
+    await api('PUT', '/api/staff/business/profile', { website_url: 'https://ironhousegym.example' }, owner);
+    const detail = await api('GET', `/api/salons/${gymId}/profile`);
+    const website = detail.data.salon.socialLinks.find((l: any) => l.platform === 'website');
+    assert.equal(website.url, 'https://ironhousegym.example');
+  });
+});

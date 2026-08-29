@@ -210,6 +210,12 @@ export interface Salon {
    *  on the Gym Detail page. Empty/absent falls back to the trusted
    *  built-in default set. */
   quickActions?: GymQuickAction[];
+  /** Owner-configured social/external links (Instagram, Facebook, YouTube,
+   *  X/Twitter, Website) for the Gym public Detail page only — never shown
+   *  on the Home listing card. Only enabled, resolvable links appear here;
+   *  'website' always reflects the existing `websiteUrl` column, never a
+   *  duplicated stored value. */
+  socialLinks?: GymSocialLink[];
   offers?: SalonOffer[];
   gallery?: SalonGalleryItem[];
   brandKey?: string;
@@ -282,6 +288,36 @@ export interface GymQuickAction {
   label: string;
   iconKey: GymAmenityIconKey;
   visible: boolean;
+  order: number;
+}
+
+/** Controlled platform list for Manage Profile's Social & Links — a new
+ *  platform is added here, never invented client-side. 'website' is a
+ *  special case that always reuses the existing Salon.websiteUrl field for
+ *  its URL instead of duplicating that value into a second store. */
+export type SocialPlatform = 'instagram' | 'facebook' | 'youtube' | 'twitter' | 'website';
+
+/** What actually renders on the customer Gym Detail page: always a real
+ *  https:// URL, never a bare handle, and only for enabled/configured
+ *  platforms. */
+export interface GymSocialLink {
+  id: string;
+  platform: SocialPlatform;
+  label: string;
+  url: string;
+  order: number;
+}
+
+/** Owner-editor shape (Manage Profile -> Social & Links) — includes every
+ *  controlled platform, even disabled/unconfigured ones, so the UI can
+ *  render one consistent row per platform. */
+export interface GymSocialLinkInput {
+  id: string;
+  platform: SocialPlatform;
+  /** Full URL or bare handle as the owner typed it — ignored for
+   *  platform: 'website', whose value always mirrors websiteUrl. */
+  value: string;
+  enabled: boolean;
   order: number;
 }
 
