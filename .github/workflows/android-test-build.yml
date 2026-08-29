@@ -1,12 +1,12 @@
-name: Android customer test build
+name: NOQ Business Android build
 
-# Produces an unsigned/debug-signed Customer APK for physical device testing.
-# This never touches the release signing keystore, so it needs no repository
-# secrets. Release builds stay in android-release.yml.
+# Produces a debug-signed universal NOQ Business APK for physical testing.
+# Credentials remain server-side; this APK contains no business-specific login data.
 
 on:
   push:
     branches:
+      - main
       - 'fix/**'
       - 'feat/**'
   workflow_dispatch:
@@ -24,10 +24,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  customer-debug-apk:
+  noq-business-debug-apk:
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://no-wait-salon-api.onrender.com' }}
+      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
 
     steps:
       - name: Check out source
@@ -60,25 +60,26 @@ jobs:
       - name: Run tests
         run: pnpm test
 
-      - name: Build customer debug APK
+      - name: Build NOQ Business debug APK
         env:
-          APP_VERSION_NAME: 0.1.4-qrfix.${{ github.run_number }}
+          APP_VERSION_NAME: 0.2.0-business.${{ github.run_number }}
           APP_VERSION_CODE: ${{ github.run_number }}
-        run: pnpm android:apk:customer
+        run: pnpm android:apk:staff
 
       - name: Stage APK
         shell: bash
         run: |
-          mkdir -p test-artifacts
-          cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
-            "test-artifacts/No-Wait-Salon-Customer-test-0.1.4-qrfix.${{ github.run_number }}.apk"
-          sha256sum test-artifacts/*.apk > test-artifacts/SHA256SUMS.txt
-          ls -la test-artifacts
+          if [ "${GITHUB_REF}" = "refs/heads/main" ]; then CHANNEL=main; else CHANNEL=test; fi
+          mkdir -p android-artifacts
+          cp android-staff/app/build/outputs/apk/debug/app-debug.apk \
+            "android-artifacts/NOQ-Business-${CHANNEL}-0.2.0.${{ github.run_number }}.apk"
+          sha256sum android-artifacts/*.apk > android-artifacts/SHA256SUMS.txt
+          ls -la android-artifacts
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: customer-test-apk-${{ github.run_number }}
-          path: test-artifacts/
+          name: ${{ github.ref_name == 'main' && 'noq-business-main-apk' || 'noq-business-test-apk' }}-${{ github.run_number }}
+          path: android-artifacts/
           retention-days: 14
           if-no-files-found: error

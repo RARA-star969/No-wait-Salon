@@ -27,6 +27,7 @@ interface StaffAppShellProps {
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
   onSaveOffers: (offers: SalonOffer[]) => void;
+  onBusinessResolved?: (business: StaffSession['business']) => void;
 }
 
 export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
@@ -77,6 +78,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       if (res.ok) {
         const data = await res.json();
         setSession(data);
+        props.onBusinessResolved?.(data.business);
         setSetupForm(prev => ({ ...prev, name: data.business.name }));
       } else {
         setSession(null);
@@ -353,6 +355,13 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   const isGym = session!.business.mainCategoryId === 'gym';
   if (isGym) return <GymDashboardView key={session!.business.id} gymId={session!.business.id} gymName={session!.business.name} role={session!.staff.role as any} staffName={session!.staff.name} activeModule={gymModule} onModuleSelect={setGymModule} onSignOut={handleLogout} onSetup={() => setShowSetup(true)} profileIncomplete={isProfileIncomplete} embedded={props.embedded} />;
 
+  const activeBusinessSalon: Salon = {
+    ...props.salon,
+    id: session!.business.id,
+    name: session!.business.name,
+    mainCategoryId: session!.business.mainCategoryId,
+  };
+
   return (
     <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">
       {isProfileIncomplete && (
@@ -380,7 +389,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       {/* Dynamic Category Render */}
       <main className="flex-1 overflow-y-auto">
           <StaffDashboard 
-            salon={props.salon}
+            salon={activeBusinessSalon}
             queue={props.queue}
             barbers={props.barbers}
             completedList={props.completedList}

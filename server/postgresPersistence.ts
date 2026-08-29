@@ -21,6 +21,8 @@ const tables:Record<string,string[]>={
   customer_booking:['id','queue_entry_id','customer_id','salon_id','service','status','reserved_for','source','created_at','updated_at','outcome','first_called_at','call_attempts','acknowledged_at','grace_expires_at','no_show_at','service_started_at','service_completed_at','cancelled_by','cancel_reason_code','cancel_reason_text','cancelled_at','services_json','total_price_inr'],
   admin_user:['id','email','password_hash','created_at','updated_at'],
   admin_session:['token_hash','admin_id','expires_at','created_at'],
+  staff_account:['id','business_id','email','password_hash','name','role','active','created_at','updated_at'],
+  staff_session:['token_hash','staff_id','business_id','expires_at','created_at'],
   salon_state:['salon_id','version','state_json','updated_at'],
   business_qr:['id','business_id','business_type','public_token','status','version','created_at','updated_at','revoked_at'],
   web_qr_attribution:['id','business_id','qr_token_id','customer_id','acquisition_source','first_visit_at','joined_at','app_cta_shown','app_cta_clicked','created_at','updated_at'],
@@ -38,12 +40,29 @@ function includeReferencedTables(selected:string[]){
 const placeholders=(count:number)=>Array.from({length:count},()=>'?').join(',');
 const sqliteRows=(db:DatabaseSync,table:string)=>db.prepare(`SELECT * FROM ${table}`).all() as Record<string,unknown>[];
 
+const conflictKeys:Record<string,string[]>={
+  main_category:['id'],salon:['id'],salon_hours:['salon_id','day_of_week'],salon_service:['id'],salon_staff:['id'],salon_offer:['id'],salon_media:['id'],
+  otp_challenge:['id'],customer_account:['id'],customer_profile:['customer_id'],customer_session:['token_hash'],customer_booking:['id'],
+  admin_user:['id'],admin_session:['token_hash'],staff_account:['id'],staff_session:['token_hash'],salon_state:['salon_id'],business_qr:['id'],web_qr_attribution:['id'],
+};
+
 async function replacePostgres(sqlite:DatabaseSync,postgres:Database,selected=insertOrder){
   selected=includeReferencedTables(selected);
   const counts:Record<string,number>={};
+  const isFullReplace=selected.length===insertOrder.length;
   await postgres.transaction(async tx=>{
-    for(const table of deleteOrder.filter(table=>selected.includes(table)))await tx.run(`DELETE FROM ${table}`);
-    for(const table of insertOrder.filter(table=>selected.includes(table))){const columns=tables[table];const rows=sqliteRows(sqlite,table);counts[table]=rows.length;for(const row of rows)await tx.run(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders(columns.length)})`,columns.map(column=>row[column]??null))}
+    if(isFullReplace){
+      for(const table of deleteOrder)await tx.run(`DELETE FROM ${table}`);
+    }else if(selected.includes('staff_session')){
+      await tx.run('DELETE FROM staff_session');
+    }
+    for(const table of insertOrder.filter(table=>selected.includes(table))){
+      const columns=tables[table];const rows=sqliteRows(sqlite,table);counts[table]=rows.length;
+      const keys=conflictKeys[table];
+      const mutable=columns.filter(column=>!keys.includes(column));
+      const conflict=isFullReplace?'':` ON CONFLICT (${keys.join(',')}) DO UPDATE SET ${mutable.map(column=>`${column}=EXCLUDED.${column}`).join(',')}`;
+      for(const row of rows)await tx.run(`INSERT INTO ${table} (${columns.join(',')}) VALUES (${placeholders(columns.length)})${conflict}`,columns.map(column=>row[column]??null));
+    }
   });
   return counts;
 }

@@ -8,7 +8,6 @@ import { PublicSalonPage } from './components/PublicSalonPage';
 import { salonDiscoveryService, type SalonDirectoryEntry } from './services/salonDiscoveryService';
 
 const STAFF_SALON_KEY = 'no_wait_salon_staff_salon_id';
-import { StaffDashboard } from './components/StaffDashboard';
 import { StaffAppShell } from './components/StaffAppShell';
 import { OtpModal } from './components/OtpModal';
 import { PushNotificationToast } from './components/PushNotificationToast';
@@ -665,6 +664,35 @@ export default function App() {
     }
   };
 
+  // The packaged NOQ Business APK always starts at the universal Business ID
+  // login gate. The authenticated session then selects the correct business,
+  // category dashboard, and role permissions from the server.
+  if (PACKAGED_MODE === 'staff') {
+    return (
+      <StaffAppShell
+        salon={selectedSalon}
+        queue={queue}
+        barbers={barbers}
+        completedList={completedList}
+        onBarberToggle={handleBarberToggle}
+        onAddWalkin={handleAddWalkin}
+        onQueueAction={handleQueueAction}
+        queueAlert={queueAlert}
+        onSaveStaff={handleSaveStaff}
+        onSaveOffers={handleSaveOffers}
+        onBusinessResolved={(business) => {
+          try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
+          setSelectedSalon((current) => ({
+            ...current,
+            id: business.id,
+            name: business.name,
+            mainCategoryId: business.mainCategoryId,
+          }));
+        }}
+      />
+    );
+  }
+
   // Scanned with a plain phone camera: render the standalone public salon page
   // instead of the full app shell, so no install or onboarding is required.
   if (publicQrToken) {
@@ -840,7 +868,7 @@ export default function App() {
                 <div className="flex items-center gap-2.5">
                   <span className="h-2 w-2 rounded-full bg-[#14B8A6]"></span>
                   <h2 className="font-sans text-sm font-bold text-[#17201F] tracking-tight">
-                    {gymStaffSelected ? 'Gym Staff Dashboard' : 'Salon Staff Dashboard'}
+                    {gymStaffSelected ? 'Gym Staff Dashboard' : 'Business Staff Dashboard'}
                   </h2>
                 </div>
                 <div className="flex items-center gap-2">
@@ -870,7 +898,9 @@ export default function App() {
               {/* Staff Body — the hosted TEST wrapper keeps the Gym business
                   dashboard inside this same preview panel (real authenticated
                   StaffAppShell -> GymDashboardView, rendered in its compact
-                  embedded layout) instead of taking over the browser viewport. */}
+                  embedded layout) instead of taking over the browser viewport.
+                  Non-gym businesses use the same universal authenticated
+                  StaffAppShell login flow as the real NOQ Business surface. */}
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {gymStaffSelected ? (
                   <StaffAppShell
@@ -890,7 +920,7 @@ export default function App() {
                     onSaveOffers={handleSaveOffers}
                   />
                 ) : (
-                  <StaffDashboard
+                  <StaffAppShell
                     salon={selectedSalon}
                     queue={queue}
                     barbers={barbers}
@@ -901,6 +931,15 @@ export default function App() {
                     queueAlert={queueAlert}
                     onSaveStaff={handleSaveStaff}
                     onSaveOffers={handleSaveOffers}
+                    onBusinessResolved={(business) => {
+                      try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
+                      setSelectedSalon((current) => ({
+                        ...current,
+                        id: business.id,
+                        name: business.name,
+                        mainCategoryId: business.mainCategoryId,
+                      }));
+                    }}
                   />
                 )}
               </div>

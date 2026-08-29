@@ -1711,7 +1711,8 @@ app.post('/api/staff/login', (request, response) => {
   const email = cleanText(request.body?.email, 200).toLowerCase();
   const password = String(request.body?.password || '');
   const account = db.prepare(`
-    SELECT sa.*, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id
+    SELECT sa.*, s.name as business_name, COALESCE(s.main_category_id, 'salon') as main_category_id,
+           s.business_code, s.profile_completed_at, s.onboarded
     FROM staff_account sa
     JOIN salon s ON sa.business_id = s.id
     WHERE sa.email = ? AND sa.active = 1
@@ -1729,7 +1730,14 @@ app.post('/api/staff/login', (request, response) => {
   response.json({
     token,
     staff: { id: account.id, email: account.email, name: account.name, role: account.role },
-    business: { id: account.business_id, name: account.business_name, mainCategoryId: account.main_category_id },
+    business: {
+      id: account.business_id,
+      name: account.business_name,
+      mainCategoryId: account.main_category_id,
+      onboarded: Boolean(account.onboarded),
+      businessCode: account.business_code,
+      profileCompletedAt: account.profile_completed_at,
+    },
   });
 });
 
@@ -2535,9 +2543,81 @@ app.post('/api/customer/address-requests', requireCustomer, (request: Authentica
 
 
 app.get('/api/admin/check-business-id/:code', requireAdmin, (request, response) => {
-  let code; try { code = validateBusinessCode(request.params.code); } catch (e) { return response.status(400).json({ error: e.message }); }
-  const row = db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
+  let code: string;
+  try {
+    code = validateBusinessCode(request.params.code);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid Business ID.' });
+  }
+  const excludeBusinessId = cleanText(request.query.excludeBusinessId, 100);
+  const row = excludeBusinessId
+    ? db.prepare('SELECT id FROM salon WHERE business_code = ? AND id <> ?').get(code, excludeBusinessId)
+    : db.prepare('SELECT id FROM salon WHERE business_code = ?').get(code);
   response.json({ available: !row, code });
+});
+
+app.patch('/api/admin/salons/:id/business-id', requireAdmin, async (request, response) => {
+  const business = db.prepare('SELECT id, business_code FROM salon WHERE id = ?').get(request.params.id) as { id: string; business_code?: string | null } | undefined;
+  if (!business) return response.status(404).json({ error: 'Business not found.' });
+
+  let businessCode: string;
+  try {
+    businessCode = validateBusinessCode(request.body?.business_code);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid Business ID.' });
+  }
+
+  const duplicate = db.prepare('SELECT id FROM salon WHERE business_code = ? AND id <> ?').get(businessCode, business.id);
+  if (duplicate) return response.status(409).json({ error: 'This Business ID is already in use.' });
+
+  const previousBusinessCode = business.business_code || null;
+  db.prepare('UPDATE salon SET business_code = ?, updated_at = ? WHERE id = ?').run(businessCode, Date.now(), business.id);
+  await postgresPersistence?.flushNow(['salon']);
+
+  // Business QR deliberately remains untouched: printed customer QR codes resolve
+  // through the stable internal business id and public token, not this staff code.
+  response.json({
+    ok: true,
+    businessId: business.id,
+    businessCode,
+    previousBusinessCode,
+    qrUnchanged: true,
+    salon: adminSalonDetail(business.id),
+  });
+});
+
+app.put('/api/admin/salons/:id/owner-account', requireAdmin, async (request, response) => {
+  const business = db.prepare('SELECT id, name, business_code FROM salon WHERE id = ?').get(request.params.id) as { id: string; name: string; business_code?: string | null } | undefined;
+  if (!business) return response.status(404).json({ error: 'Business not found.' });
+  if (!business.business_code) return response.status(409).json({ error: 'Assign a Business ID before creating owner credentials.' });
+
+  const email = cleanText(request.body?.email, 200).trim().toLowerCase();
+  const password = String(request.body?.password || '');
+  const name = cleanText(request.body?.name, 150) || `${business.name} Owner`;
+  if (!email || !email.includes('@')) return response.status(400).json({ error: 'Enter a valid owner email.' });
+  if (password.length < 8) return response.status(400).json({ error: 'Temporary password must be at least 8 characters.' });
+
+  const conflicting = db.prepare("SELECT id, business_id FROM staff_account WHERE email = ?").get(email) as { id: string; business_id: string } | undefined;
+  if (conflicting && conflicting.business_id !== business.id) {
+    return response.status(409).json({ error: 'This email already belongs to another business.' });
+  }
+
+  const now = Date.now();
+  const existingOwner = db.prepare("SELECT id FROM staff_account WHERE business_id = ? AND role = 'owner' ORDER BY created_at ASC LIMIT 1").get(business.id) as { id: string } | undefined;
+  const hashedPassword = passwordHash(password);
+  let staffId: string;
+  if (existingOwner) {
+    staffId = existingOwner.id;
+    db.prepare("UPDATE staff_account SET email = ?, password_hash = ?, name = ?, active = 1, updated_at = ? WHERE id = ?")
+      .run(email, hashedPassword, name, now, staffId);
+  } else {
+    staffId = `staff_${randomUUID()}`;
+    db.prepare("INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'owner', 1, ?, ?)")
+      .run(staffId, business.id, email, hashedPassword, name, now, now);
+  }
+  db.prepare('DELETE FROM staff_session WHERE business_id = ? AND staff_id = ?').run(business.id, staffId);
+  await postgresPersistence?.flushNow(['staff_account', 'staff_session']);
+  response.json({ ok: true, account: { id: staffId, businessId: business.id, businessCode: business.business_code, email, name, role: 'owner', active: true } });
 });
 
 app.get('/api/admin/salons', requireAdmin, (_request, response) => {
