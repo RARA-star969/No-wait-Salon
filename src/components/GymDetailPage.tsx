@@ -534,11 +534,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         </div>
       )}
 
-      {/* 1. GYM HERO / BUSINESS INFO — same header pattern as SalonDetailPage:
-          back/bookmark/share over the cover image, an open/closed status
-          dot, name + category/distance/hours, and a tappable address row
-          that opens the shared AddressSheet. One NOQ header language for
-          every category. */}
+      {/* 1. GYM HERO / BUSINESS INFO — premium profile hero matching the NOQ
+          reference: gallery cover, floating glass controls, a large business
+          logo overlapping the cover/identity seam, then the
+          open-now/name/category/rating identity block and address, merging
+          straight into the page instead of a disconnected banner slab. */}
       <div className="relative bg-[#120B1D] text-white">
         <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
         <div className="pointer-events-none absolute inset-0">
@@ -548,7 +548,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               onClick={onBack}
               id="gym-back-btn"
               aria-label="Back to nearby gyms"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -556,14 +556,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               <button
                 onClick={() => setSaved((value) => !value)}
                 aria-label={saved ? 'Remove saved gym' : 'Save gym'}
-                className={`flex h-9 w-9 items-center justify-center rounded-full backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
+                className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/15 backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
               >
                 <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
               </button>
               <button
                 onClick={shareGym}
                 aria-label="Share gym"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition active:scale-95"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
               >
                 <Share2 className="h-4 w-4" />
               </button>
@@ -571,21 +571,32 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           </div>
         </div>
 
-        <div className="px-5 pt-3 pb-5">
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
+        {/* Identity panel: the same dark surface the gallery's own bottom
+            scrim fades into, so the logo/name block reads as one continuous
+            profile instead of a seam — the large logo overlaps upward into
+            the cover, exactly like the reference. */}
+        <div className="relative px-5 pb-5 pt-0">
+          <div className="flex items-end gap-3">
+            <div className="-mt-11 flex h-[92px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-[26px] border-[3px] border-[#120B1D] bg-[#241536] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
+              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
+            </div>
+            <div className="min-w-0 flex-1 pb-0.5">
+              <div className="flex items-center gap-2">
+                <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
+              </div>
+
+              <AnimatedSalonName name={salon.name} className="mt-1 text-[22px] font-bold leading-tight tracking-[-0.03em] text-white [overflow-wrap:anywhere]" />
+
+              <p className="mt-0.5 text-xs font-medium text-[var(--category-accent,#C084FC)]">
+                Fitness & Strength Center · {salon.distanceKm} km away
+              </p>
+
+              <div className="mt-1">
+                <RatingSummaryBadge businessId={salon.id} tone="dark" />
+              </div>
+            </div>
           </div>
-
-          <AnimatedSalonName name={salon.name} className="mt-1 text-2xl font-bold leading-tight tracking-[-0.03em] text-white [overflow-wrap:anywhere]" />
-
-          <div className="mt-1">
-            <RatingSummaryBadge businessId={salon.id} tone="dark" />
-          </div>
-
-          <p className="mt-1 text-xs font-medium text-[var(--category-accent,#C084FC)]">
-            Fitness & Strength Center · {salon.distanceKm} km away
-          </p>
 
           <button
             type="button"

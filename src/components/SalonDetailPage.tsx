@@ -19,7 +19,6 @@ import { LockedCalendarIcon } from './LockedCalendarIcon';
 import { HairCare3DIcon, Beard3DIcon, MassageSpa3DIcon, HairColour3DIcon, Facial3DIcon } from './ExploreService3DIcons';
 import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
 import { CategoryActionBar } from './CategoryActionBar';
-import { GymHeroGallery } from './GymHeroGallery';
 
 /**
  * Recovered to match APK build #45's source (commit 434289e, workflow run
@@ -215,42 +214,33 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         </div>
       </div>
 
-      {/* Premium business-profile hero, matching the NOQ reference
-          architecture: a real photo/gallery cover, floating glass controls,
-          a large business logo overlapping the cover/identity seam, then the
-          open-now/name/category/rating identity block and address — merging
-          straight into the page instead of a disconnected banner slab. */}
-      <div className="relative bg-[#12302C] text-white">
-        <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
-        <div className="pointer-events-none absolute inset-0">
-          <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between" style={{ paddingTop: 'max(0px, env(safe-area-inset-top))' }}>
-            <button onClick={onBack} id="back-to-salons-btn" aria-label="Back to nearby salons" className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"><ArrowLeft className="h-4 w-4" /></button>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setSaved((value) => !value)} aria-label={saved ? 'Remove saved salon' : 'Save salon'} className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/15 backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}><Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} /></button>
-              <button onClick={shareSalon} aria-label="Share salon" className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"><Share2 className="h-4 w-4" /></button>
-            </div>
+      <section className="relative min-h-[270px] overflow-hidden bg-[#173B38] text-white">
+        {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#4A7C76_0,transparent_38%),linear-gradient(145deg,#102B28,#224C47_58%,#C3A66A)]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-[#102725]/95" />
+        <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
+          <button onClick={onBack} id="back-to-salons-btn" aria-label="Back to nearby salons" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><ArrowLeft className="h-5 w-5" /></button>
+          <div className="flex gap-2">
+            <button onClick={() => setSaved((value) => !value)} aria-label={saved ? 'Remove saved salon' : 'Save salon'} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/35 text-white'}`}><Bookmark className={`h-[18px] w-[18px] ${saved ? 'fill-current' : ''}`} /></button>
+            <button onClick={shareSalon} aria-label="Share salon" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><Share2 className="h-[18px] w-[18px]" /></button>
           </div>
         </div>
-
-        {/* Identity panel: the same dark surface as the gallery's own bottom
-            scrim, so the logo/name block reads as one continuous profile
-            instead of a seam — the large logo overlaps upward into the
-            cover, exactly like the reference. */}
-        <div className="relative px-4 pb-5 pt-0">
+        <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-5">
           <div className="flex items-end gap-3">
-            <div className="-mt-11 flex h-[92px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-[26px] border-[3px] border-[#12302C] bg-[#E3F1EF] text-[var(--category-primary-dark)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
-              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-8 w-8" />}
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#E3F1EF] text-[var(--category-primary-dark)] shadow-lg">
+              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
               <div className="flex items-center gap-2">
                 <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
                 <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
               </div>
-              <AnimatedSalonName name={salon.name} className="mt-1 text-[22px] font-bold leading-tight tracking-[-0.03em] [overflow-wrap:anywhere]" />
-              <p className="mt-0.5 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
+              <AnimatedSalonName name={salon.name} className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]" />
               <div className="mt-1">
                 <RatingSummaryBadge businessId={salon.id} tone="dark" />
               </div>
+              <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
             </div>
           </div>
           <button
@@ -264,7 +254,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
           </button>
         </div>
-      </div>
+      </section>
 
       <div className="space-y-5 px-4 py-4">
         <section className="grid grid-cols-4 gap-2.5">
