@@ -48,9 +48,36 @@ export type CategoryTheme = {
   cardBg: string;
   /** Muted supporting-text tint that stays legible on the dark card. */
   softText: string;
+  // --- Added for the shared-architecture pass: premium glass surfaces
+  // (Payment/success sheets, member cards, selected-state cards) all read
+  // these instead of a component keeping its own copy of "what Gym purple
+  // looks like." Every category gets real values (never just Salon/Gym) so
+  // this stays one map, not a second one that only covers some categories.
+  /** Deep, near-opaque surface for full-screen dark panels/quick-action
+   *  tiles (raw hex, not a Tailwind class — consumed via inline style). */
+  darkSurface: string;
+  /** Translucent glass fill for premium blurred-mirror sheets. */
+  glassSurface: string;
+  /** Translucent rim/border highlight for the same glass sheets. */
+  glassBorder: string;
+  /** CTA/button gradient (raw `linear-gradient(...)` string). */
+  ctaGradient: string;
+  /** Glow color behind a selected/active card or confirmed state. */
+  selectedGlow: string;
+  /** Tint wash for modal/success-sheet accents. */
+  modalTint: string;
+  /** Light, low-saturation accent for subtle highlights on a dark surface. */
+  subtleAccent: string;
 };
 
-export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
+/** Fields every category authors by hand; the glass/CTA/glow tokens on
+ *  CategoryTheme are filled in below by `deriveTokensInPlace()` instead. */
+type CategoryThemeBase = Omit<
+  CategoryTheme,
+  'darkSurface' | 'glassSurface' | 'glassBorder' | 'ctaGradient' | 'selectedGlow' | 'modalTint' | 'subtleAccent'
+>;
+
+export const CATEGORY_THEME_MAP = {
   salon: {
     key: 'salon',
     primary: '#22D3EE',
@@ -163,7 +190,10 @@ export const CATEGORY_THEME_MAP: Record<string, CategoryTheme> = {
     cardBg: 'from-[#360F17] to-[#1E0A0F]',
     softText: 'text-rose-100/70',
   },
-};
+} satisfies Record<string, CategoryThemeBase> as unknown as Record<string, CategoryTheme>;
+// The cast above is safe only because the derivation loop immediately below
+// fills in every field CategoryTheme adds beyond CategoryThemeBase,
+// synchronously, before any importer can observe the map.
 
 /**
  * Semantic CSS custom properties that carry the active category's identity
@@ -185,6 +215,31 @@ function shadeHex(hex: string, percent: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
+// Fills the glass/CTA/glow tokens for every category from its own
+// primary/accent — one formula, run for all 7, so none of them is a
+// second hand-authored palette. Gym's real values (below) then override
+// the formula with the exact, already-shipped hex constants pulled out of
+// GymFloatingCapsule/GymLiveCard/GymDetailPage's quick-action tile, so
+// consolidating the source changes nothing about how Gym already looks.
+for (const theme of Object.values(CATEGORY_THEME_MAP)) {
+  theme.darkSurface = shadeHex(theme.primary, -0.55);
+  theme.glassSurface = `${theme.primary}14`;
+  theme.glassBorder = `${theme.accent}29`;
+  theme.ctaGradient = `linear-gradient(160deg, ${shadeHex(theme.primary, -0.15)} 0%, ${shadeHex(theme.primary, -0.7)} 75%)`;
+  theme.selectedGlow = theme.primary;
+  theme.modalTint = `linear-gradient(180deg, ${theme.primary}1F 0%, ${shadeHex(theme.primary, -0.55)}F2 60%)`;
+  theme.subtleAccent = shadeHex(theme.accent, 0.35);
+}
+Object.assign(CATEGORY_THEME_MAP.gym, {
+  darkSurface: '#241539',
+  glassSurface: 'rgba(46,27,74,0.88)',
+  glassBorder: 'rgba(192,132,252,0.16)',
+  ctaGradient: 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)',
+  selectedGlow: '#8B5CF6',
+  modalTint: 'linear-gradient(160deg,#180F28 0%,#241539 55%,#2E1B4A 100%)',
+  subtleAccent: '#E9D5FF',
+} satisfies Partial<CategoryTheme>);
+
 export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
   const surfaceMatch = theme.joinedBg.match(/#[0-9A-Fa-f]{3,8}/);
   return {
@@ -201,6 +256,13 @@ export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
     '--category-tint-20': `${theme.primary}24`,
     '--category-primary-dark': shadeHex(theme.primary, -0.35),
     '--category-primary-light': shadeHex(theme.primary, 0.3),
+    '--category-dark-surface': theme.darkSurface,
+    '--category-glass-surface': theme.glassSurface,
+    '--category-glass-border': theme.glassBorder,
+    '--category-cta-gradient': theme.ctaGradient,
+    '--category-selected-glow': theme.selectedGlow,
+    '--category-modal-tint': theme.modalTint,
+    '--category-subtle-accent': theme.subtleAccent,
   };
 }
 

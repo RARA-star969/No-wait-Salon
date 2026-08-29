@@ -252,6 +252,11 @@ export interface SalonOffer {
   active?: boolean;
   /** Service ids this offer applies to. Empty/absent means every service. */
   eligibleServiceIds?: string[];
+  /** Gym offering ids (Day Pass / Monthly / Quarterly / any owner-defined
+   *  offering) this offer applies to. Empty/absent means every Gym Access
+   *  product. Salon's eligibleServiceIds and this are never both meaningful
+   *  on the same offer — a business is either a Salon or a Gym. */
+  eligibleOfferingIds?: string[];
 }
 
 export interface SalonGalleryItem {
@@ -344,7 +349,8 @@ export type CustomerScreen =
   | 'edit-profile'
   | 'location-select'
   | 'add-address'
-  | 'request-address';
+  | 'request-address'
+  | 'gym-activity';
 
 export interface OtpAction {
   type: 'slot' | 'profile';

@@ -15,7 +15,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function evaluateCoupon(
   offer: SalonOffer,
-  params: { subtotalInr: number; serviceIds: string[]; now?: number },
+  params: { subtotalInr: number; serviceIds: string[]; offeringId?: string; now?: number },
 ): CouponEligibility {
   const now = params.now ?? Date.now();
   if (offer.active === false) return { eligible: false, reason: 'This offer is no longer active.' };
@@ -37,6 +37,14 @@ export function evaluateCoupon(
   if (offer.eligibleServiceIds?.length && params.serviceIds.length > 0) {
     const matches = params.serviceIds.some((id) => offer.eligibleServiceIds!.includes(id));
     if (!matches) return { eligible: false, reason: 'Not valid for the selected services.' };
+  }
+  // Gym's equivalent restriction: an offer scoped to specific offerings
+  // (Day Pass / Monthly / Quarterly / ...) only applies when the caller
+  // passes the offeringId it was scoped for.
+  if (offer.eligibleOfferingIds?.length && params.offeringId) {
+    if (!offer.eligibleOfferingIds.includes(params.offeringId)) {
+      return { eligible: false, reason: 'Not valid for the selected plan.' };
+    }
   }
   const raw = offer.discountType === 'percent'
     ? Math.round((params.subtotalInr * Math.min(100, Math.max(0, offer.discountValue))) / 100)

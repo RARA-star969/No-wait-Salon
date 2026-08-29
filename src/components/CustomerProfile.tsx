@@ -1,11 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BadgeCheck, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
-import { gymCustomerService, GymMembershipView, type GymVisitActivity } from '../services/gymCustomerService';
-import { formatGymClock, formatGymTimeWithDay, gymVisitDurationLabel } from '../shared/gymTime';
-import { activeAccessHeading } from '../shared/gymLiveFloor';
-import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
 type Props = {
   mode: 'profile' | 'edit';
@@ -18,10 +14,9 @@ type Props = {
   onLogin: () => void;
   onSaved: (profile: CustomerProfile) => void;
   onLogout: () => void;
-  /** Opens a gym's page (used by the Gym Activity "Upgrade" button, which
-   * deliberately routes to the real access sheet rather than duplicating it
-   * inside Profile). Optional — the button is hidden when unwired. */
-  onOpenGym?: (gymId: string) => void;
+  /** Navigates to the dedicated in-app Gym Activity screen — memberships
+   * and gym activity are no longer an inline dropdown here. */
+  onOpenGymActivity: () => void;
 };
 
 const fieldsComplete = (profile: CustomerProfile | null) => profile
@@ -47,73 +42,28 @@ const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; on
   );
 };
 
-export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout, onOpenGym }) => {
+export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout, onOpenGymActivity }) => {
   const [form, setForm] = useState({ name: '', email: '', dateOfBirth: '', gender: '', anniversary: '', city: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const [gymMemberships, setGymMemberships] = useState<{ gymId: string; gymName: string; membership: GymMembershipView }[] | null>(null);
-  const [gymMembershipsOpen, setGymMembershipsOpen] = useState(false);
-  const [gymMembershipsLoading, setGymMembershipsLoading] = useState(false);
-  const [workoutPlanTarget, setWorkoutPlanTarget] = useState<{ gymId: string; gymName: string } | null>(null);
-  // Gym Activity. These are the same GymVisit rows the owner's Live Floor
-  // reads; the duration below is derived from their server checkedInAt /
-  // checkedOutAt through the shared helper, so Profile, the Gym page and Live
-  // Floor can never disagree — and nothing here is a second timer.
-  const [gymActive, setGymActive] = useState<GymVisitActivity[]>([]);
-  const [gymRecent, setGymRecent] = useState<GymVisitActivity[]>([]);
-  const [gymCheckoutBusy, setGymCheckoutBusy] = useState('');
-  const [nowTick, setNowTick] = useState(Date.now());
-
-  const loadGymActivity = async () => {
-    try {
-      const data = await gymCustomerService.getMyGymMemberships();
-      setGymMemberships(data.memberships);
-      setGymActive(data.activeVisits || []);
-      setGymRecent(data.recentVisits || []);
-    } catch {
-      setGymMemberships([]);
-      setGymActive([]);
-      setGymRecent([]);
-    }
-  };
-
-  // One lightweight poll while the section is open — reusing the existing
-  // request/polling approach rather than introducing a second realtime
-  // channel. An owner checkout therefore clears this card on the next tick.
+  // The fixed Save bar's real height (button text can wrap at narrow
+  // widths, changing it) — measured, not guessed, so the last field's
+  // bottom padding always clears it exactly instead of a hardcoded rem
+  // value that can undershoot.
+  const saveBarRef = useRef<HTMLDivElement>(null);
+  const [saveBarHeight, setSaveBarHeight] = useState(88);
   useEffect(() => {
-    if (!gymMembershipsOpen) return;
-    const timer = setInterval(() => {
-      setNowTick(Date.now());
-      void loadGymActivity();
-    }, 15000);
-    const tick = setInterval(() => setNowTick(Date.now()), 30000);
-    return () => { clearInterval(timer); clearInterval(tick); };
-  }, [gymMembershipsOpen]);
-
-  const checkOutOfGym = async (entry: GymVisitActivity) => {
-    if (gymCheckoutBusy) return;
-    if (!window.confirm(`Are you leaving ${entry.gymName}?`)) return;
-    setGymCheckoutBusy(entry.visit.id);
-    try {
-      await gymCustomerService.selfCheckout(entry.gymId, entry.visit.id);
-      await loadGymActivity();
-    } catch {
-      /* the next poll re-reads the real server state */
-    } finally {
-      setGymCheckoutBusy('');
-    }
-  };
-
-  const toggleGymMemberships = async () => {
-    if (gymMembershipsOpen) { setGymMembershipsOpen(false); return; }
-    setGymMembershipsOpen(true);
-    if (gymMemberships) return;
-    setGymMembershipsLoading(true);
-    await loadGymActivity();
-    setGymMembershipsLoading(false);
-  };
+    const node = saveBarRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => setSaveBarHeight(entry.target.getBoundingClientRect().height));
+    observer.observe(node);
+    return () => observer.disconnect();
+    // Re-run when `mode` flips to 'edit': the bar's ref is null until that
+    // branch actually renders, and a mount-only effect would otherwise
+    // never retry once it does.
+  }, [mode]);
 
   useEffect(() => {
     if (!profile) return;
@@ -168,7 +118,11 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   if (loading || !profile) return <div className="flex min-h-full items-center justify-center bg-[#F8FAFA]"><LoaderCircle className="h-6 w-6 animate-spin text-[var(--category-primary-dark)]" /></div>;
 
   if (mode === 'edit') return (
-    <form id="customer-edit-profile-screen" onSubmit={submit} className="min-h-full bg-[#F8FAFA] pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+    <form
+      id="customer-edit-profile-screen"
+      onSubmit={submit}
+      className="min-h-full bg-[#F8FAFA]"
+    >
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E2E8E7] bg-white/95 px-4 py-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur">
         <button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3]" aria-label="Back to profile"><ArrowLeft className="h-4 w-4" /></button>
         <div><h1 className="text-lg font-bold">Edit profile</h1><p className="text-[10px] text-[#71807E]">Keep your details up to date</p></div>
@@ -195,8 +149,12 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
           <ProfileInput label="City or area (optional)" value={form.city} onChange={(value) => setForm({ ...form, city: value })} placeholder="Indiranagar, Bengaluru" icon={<MapPin />} autoComplete="address-level2" />
         </div>
         {(formError || error) && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{formError || error}</div>}
+        {/* Real layout space, not a padding guess: the fixed Save bar's
+            height can change (its text wraps at narrow widths), so this
+            spacer is measured via ResizeObserver rather than assumed. */}
+        <div aria-hidden style={{ height: `calc(${saveBarHeight}px + env(safe-area-inset-bottom))` }} />
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[#E0E7E6] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div ref={saveBarRef} className="fixed inset-x-0 bottom-0 z-20 border-t border-[#E0E7E6] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <button disabled={saving || photoUploading} className="mx-auto flex h-12 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-sm font-bold text-white disabled:opacity-60">
           {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{saving ? 'Saving…' : 'Save profile'}
         </button>
@@ -222,110 +180,11 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
           <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Linked to your verified account" />
-          <ProfileRow icon={<Dumbbell />} label="My Memberships & Gym Activity" secondary="Gym plans and visits linked to your account" onClick={toggleGymMemberships} />
+          <ProfileRow icon={<Dumbbell />} label="My Memberships & Gym Activity" secondary="Gym plans and visits linked to your account" onClick={onOpenGymActivity} />
         </div>
-        {/* Gym Activity lives inside this one collapsible section so the rest
-            of Profile stays uncluttered. It is only ever populated from real
-            GymVisit rows — an empty account simply says so. */}
-        {gymMembershipsOpen && (gymActive.length > 0 || gymRecent.length > 0) && (
-          <div className="space-y-2 rounded-2xl border border-[#E0E7E6] bg-white p-4">
-            <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6F7C7A]">Gym activity</p>
-            {gymActive.map((entry) => (
-              <div key={entry.visit.id} className="rounded-xl border border-[var(--category-primary-dark)]/35 bg-[#F2FAF8] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
-                  <span className="rounded-md bg-[var(--category-primary-dark)] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
-                    {activeAccessHeading(entry.visit)}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] font-semibold text-[var(--category-primary-dark)]">
-                  Currently inside · Since {formatGymClock(entry.visit.checkedInAt)} · {gymVisitDurationLabel(entry.visit, nowTick)}
-                </p>
-                <p className="mt-0.5 text-[11px] text-[#71807E]">{entry.accessName || 'Gym access'}</p>
-                <div className="mt-2.5 flex gap-2">
-                  <button
-                    onClick={() => checkOutOfGym(entry)}
-                    disabled={gymCheckoutBusy === entry.visit.id}
-                    className="flex-1 rounded-lg bg-[var(--category-primary-dark)] py-2 text-[11px] font-bold text-white disabled:opacity-60"
-                  >
-                    {gymCheckoutBusy === entry.visit.id ? 'Checking out…' : 'Check Out'}
-                  </button>
-                  {onOpenGym && (
-                    <button
-                      onClick={() => onOpenGym(entry.gymId)}
-                      className="flex-1 rounded-lg border border-[var(--category-primary-dark)]/40 bg-white py-2 text-[11px] font-bold text-[var(--category-primary-dark)]"
-                    >
-                      Upgrade
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-            {gymRecent.slice(0, 5).map((entry) => (
-              <div key={entry.visit.id} className="rounded-xl border border-[#E7EDEC] bg-[#FBFCFC] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#4C5F68]">{entry.gymName}</span>
-                  <span className="text-[9px] font-extrabold uppercase tracking-wide text-[#8B9997]">Past visit</span>
-                </div>
-                <p className="mt-1 text-[11px] text-[#71807E]">
-                  {entry.accessName || 'Gym access'} · {formatGymTimeWithDay(entry.visit.checkedInAt, nowTick)} → {formatGymTimeWithDay(entry.visit.checkedOutAt, nowTick)}
-                </p>
-                <p className="mt-0.5 text-[11px] font-semibold text-[#4C5F68]">
-                  Total duration: {gymVisitDurationLabel(entry.visit, nowTick)}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-        {gymMembershipsOpen && (
-          <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
-            {gymMembershipsLoading ? (
-              <div className="flex items-center justify-center py-4"><LoaderCircle className="h-5 w-5 animate-spin text-[var(--category-primary-dark)]" /></div>
-            ) : !gymMemberships || gymMemberships.length === 0 ? (
-              <p className="text-xs text-[#71807E]">No gym memberships linked to this account yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {gymMemberships.map((entry) => (
-                  <div key={entry.gymId} className="rounded-xl border border-[#E0E7E6] p-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <BadgeCheck className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
-                        <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
-                      </div>
-                      <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
-                        entry.membership.displayStatus === 'expired' ? 'bg-rose-50 text-rose-700'
-                        : entry.membership.displayStatus === 'expires_today' || entry.membership.displayStatus === 'expiring_soon' ? 'bg-amber-50 text-amber-800'
-                        : 'bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'
-                      }`}>
-                        {entry.membership.displayStatus === 'expired' ? 'Expired' : entry.membership.displayStatus === 'expires_today' ? 'Expires today' : entry.membership.displayStatus === 'expiring_soon' ? 'Expiring soon' : 'Active'}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-[#71807E]">{entry.membership.planName} · Joined {new Date(entry.membership.joinedDate).toLocaleDateString()}</p>
-                    <p className="mt-0.5 text-[11px] font-semibold text-[#17201F]">
-                      {entry.membership.displayStatus === 'expired'
-                        ? `Expired on ${new Date(entry.membership.expiryDate).toLocaleDateString()}`
-                        : `${entry.membership.daysRemaining} day${entry.membership.daysRemaining === 1 ? '' : 's'} left · valid till ${new Date(entry.membership.expiryDate).toLocaleDateString()}`}
-                    </p>
-                    {entry.membership.displayStatus !== 'expired' && (
-                      <button
-                        onClick={() => setWorkoutPlanTarget({ gymId: entry.gymId, gymName: entry.gymName })}
-                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--category-primary-dark)]/30 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[var(--category-primary-dark)]"
-                      >
-                        <ClipboardList className="h-3.5 w-3.5" /> Workout plan for {entry.gymName}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
         {error && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{error}</div>}
         <button onClick={onLogout} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#E7D6D3] bg-white text-sm font-bold text-[#934A40]"><LogOut className="h-4 w-4" />Log out</button>
       </div>
-      {workoutPlanTarget && (
-        <WorkoutPlanEditor gymId={workoutPlanTarget.gymId} gymName={workoutPlanTarget.gymName} onClose={() => setWorkoutPlanTarget(null)} />
-      )}
     </div>
   );
 };

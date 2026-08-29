@@ -84,8 +84,8 @@ export const GymHeroGallery: React.FC<{ gallery?: SalonGalleryItem[]; coverImage
       {/* Light scrims only where needed for legibility — the header icons up
           top and the indicator dots at the bottom — never a flat dark wash
           over the whole photo. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#120B1D]/90 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#120B1D]/55 to-transparent" />
       {images.length > 1 && (
         <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
           {images.map((image, index) => (

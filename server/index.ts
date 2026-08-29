@@ -369,6 +369,12 @@ const additiveSalonOfferColumns: Record<string, string> = {
   discount_type: "TEXT NOT NULL DEFAULT 'percent'",
   discount_value: 'INTEGER NOT NULL DEFAULT 0',
   eligible_service_ids_json: "TEXT NOT NULL DEFAULT '[]'",
+  // Gym's equivalent of eligible_service_ids_json: targets specific
+  // GymOffering ids (Day Pass / Monthly / Quarterly / any owner-defined
+  // offering) instead of salon_service ids. Empty array means "all Gym
+  // Access products" for a gym business — same convention as the Salon
+  // column already uses for "no restriction".
+  eligible_offering_ids_json: "TEXT NOT NULL DEFAULT '[]'",
 };
 for (const [column, definition] of Object.entries(additiveSalonOfferColumns)) {
   if (!salonOfferColumns.has(column)) db.exec(`ALTER TABLE salon_offer ADD COLUMN ${column} ${definition}`);
@@ -515,6 +521,7 @@ function rowToSalon(row: SalonRow): Salon {
     endDate: String(offer.end_date || '') || undefined,
     active: true,
     eligibleServiceIds: offer.eligible_service_ids_json ? (JSON.parse(String(offer.eligible_service_ids_json)) as string[]) : undefined,
+    eligibleOfferingIds: offer.eligible_offering_ids_json ? (JSON.parse(String(offer.eligible_offering_ids_json)) as string[]) : undefined,
   }));
   // Featured image always sorts first for the customer hero gallery, even
   // though sort_order (owner reorder) governs everything after it.
@@ -1640,12 +1647,13 @@ function saveOfferList(salonId: string, rows: unknown[], now: number) {
     const discountValue = Number(row.discount_value ?? 0);
     if (!Number.isFinite(discountValue) || discountValue < 0) throw new Error(`Discount value for ${title} cannot be negative.`);
     if (discountType === 'percent' && discountValue > 100) throw new Error(`Percentage discount for ${title} cannot exceed 100.`);
-    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, code, discount_type, discount_value, eligible_service_ids_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    db.prepare(`INSERT INTO salon_offer (id, salon_id, title, discount_text, description, minimum_bill, start_date, end_date, terms, image_url, active, sort_order, code, discount_type, discount_value, eligible_service_ids_json, eligible_offering_ids_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         cleanText(row.id, 100) || randomUUID(), salonId, title, cleanText(row.discount_text, 120), cleanText(row.description, 1000), minimum,
         cleanText(row.start_date, 10), cleanText(row.end_date, 10), cleanText(row.terms, 2000), cleanText(row.image_url, 1000), asBoolean(row.active) ? 1 : 0, index,
-        cleanText(row.code, 40), discountType, discountValue, JSON.stringify(Array.isArray(row.eligible_service_ids) ? row.eligible_service_ids : []), now, now,
+        cleanText(row.code, 40), discountType, discountValue, JSON.stringify(Array.isArray(row.eligible_service_ids) ? row.eligible_service_ids : []),
+        JSON.stringify(Array.isArray(row.eligible_offering_ids) ? row.eligible_offering_ids : []), now, now,
       );
   });
 }
@@ -2444,6 +2452,42 @@ app.post('/api/gym/:gymId/purchase-intent', requireCustomer, async (request: Aut
       code: 'PAYMENT_ALREADY_PENDING',
     });
   }
+  // The applied offer/coupon is only ever a client HINT (an offerId or a
+  // code the customer typed) — the actual discount, like Salon's `join`
+  // command, is always recomputed here from the live salon_offer row
+  // scoped to THIS gym + THIS offering. The client never gets to decide
+  // the final amount charged.
+  let amountInr = offering.priceInr;
+  let appliedOfferId: string | undefined;
+  let discountInr: number | undefined;
+  const requestedOfferId = cleanText(request.body?.offerId, 100);
+  const requestedCode = cleanText(request.body?.offerCode, 40).trim().toLowerCase();
+  if (requestedOfferId || requestedCode) {
+    const offerRow = (requestedOfferId
+      ? db.prepare('SELECT * FROM salon_offer WHERE id = ? AND salon_id = ? AND active = 1').get(requestedOfferId, gymId)
+      : db.prepare('SELECT * FROM salon_offer WHERE salon_id = ? AND active = 1 AND lower(code) = ?').get(gymId, requestedCode)
+    ) as Record<string, string | number> | undefined;
+    if (offerRow) {
+      const offer: SalonOffer = {
+        id: String(offerRow.id),
+        title: String(offerRow.title),
+        discount: String(offerRow.discount_text),
+        discountType: offerRow.discount_type === 'fixed' ? 'fixed' : 'percent',
+        discountValue: Number(offerRow.discount_value) || 0,
+        minimumBillInr: Number(offerRow.minimum_bill) || undefined,
+        startDate: String(offerRow.start_date || '') || undefined,
+        endDate: String(offerRow.end_date || '') || undefined,
+        active: true,
+        eligibleOfferingIds: offerRow.eligible_offering_ids_json ? (JSON.parse(String(offerRow.eligible_offering_ids_json)) as string[]) : undefined,
+      };
+      const result = evaluateCoupon(offer, { subtotalInr: offering.priceInr, serviceIds: [], offeringId: offering.id });
+      if (result.eligible) {
+        appliedOfferId = offer.id;
+        discountInr = result.discountInr;
+        amountInr = Math.max(0, offering.priceInr - result.discountInr);
+      }
+    }
+  }
   const profile = readCustomerProfile(request.customerId!);
   const payment = {
     id: randomUUID(),
@@ -2452,7 +2496,10 @@ app.post('/api/gym/:gymId/purchase-intent', requireCustomer, async (request: Aut
     customerMobile: cleanText(profile?.phone_number, 20),
     offeringId: offering.id,
     offeringName: offering.name,
-    amountInr: offering.priceInr,
+    amountInr,
+    originalAmountInr: discountInr ? offering.priceInr : undefined,
+    discountInr,
+    appliedOfferId,
     method: method as 'online' | 'cash',
     status: 'pending' as const,
     createdAt: Date.now(),

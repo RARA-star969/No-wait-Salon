@@ -48,7 +48,16 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
     name: '', shortDescription: '', description: '', phoneNumber: '', email: '', websiteUrl: '',
     address: '', area: '', city: '', openingHours: '',
   });
-  const [logoUrl, setLogoUrl] = useState('');
+  // Live = the last value actually published to customers (what the public
+  // Gym profile / Home listing show right now). Draft = a staged local
+  // change from Upload/Replace/Remove that has NOT been sent anywhere yet.
+  // The preview always shows the draft when one exists, but nothing goes
+  // out over the network until "Save changes" is pressed.
+  const [liveLogoUrl, setLiveLogoUrl] = useState('');
+  const [draftLogoUrl, setDraftLogoUrl] = useState<string | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const logoUrl = draftLogoUrl !== null ? draftLogoUrl : logoRemoved ? '' : liveLogoUrl;
+  const logoDirty = draftLogoUrl !== null || logoRemoved;
   const [logoBusy, setLogoBusy] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [gallery, setGallery] = useState<GalleryMediaRow[]>([]);
@@ -69,7 +78,9 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
       ]);
       if (profile) {
         setSalon(profile);
-        setLogoUrl(profile.logoImageUrl || '');
+        setLiveLogoUrl(profile.logoImageUrl || '');
+        setDraftLogoUrl(null);
+        setLogoRemoved(false);
         setForm({
           name: profile.name || '', shortDescription: profile.shortDescription || '', description: profile.description || '',
           phoneNumber: profile.phoneNumber || '', email: profile.email || '', websiteUrl: profile.websiteUrl || '',
@@ -93,15 +104,27 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
 
   const flash = (message: string) => { setNotice(message); setTimeout(() => setNotice(''), 3000); };
 
+  // Upload / Replace / Remove only ever touch local draft state below — the
+  // customer-facing Gym profile / Home listing must not change until this
+  // one handler runs, and only when it's actually pressed.
   const saveBasicInfo = async () => {
     setSaving(true);
     try {
+      // Publish the staged logo first: if it fails, Basic Info is left
+      // untouched so nothing reports "saved" while the logo silently didn't
+      // go out, and the customer's edits stay in the form for a retry.
+      let logoPending = false;
+      if (logoDirty) {
+        const result = await gymProfileCmsService.saveLogo(logoRemoved ? '' : draftLogoUrl || '');
+        logoPending = result.pending;
+      }
       const result = await gymProfileCmsService.saveProfile({
         name: form.name, short_description: form.shortDescription, description: form.description,
         phone_number: form.phoneNumber, email: form.email, website_url: form.websiteUrl,
         address: form.address, area: form.area, city: form.city, opening_hours: form.openingHours,
       });
-      flash(result.pending ? 'Saved — pending Admin review.' : 'Profile saved.');
+      const pending = result.pending || logoPending;
+      flash(pending ? 'Saved — pending Admin review.' : 'Profile saved.');
       await load();
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Save failed.');
@@ -121,30 +144,20 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
     setLogoBusy(true);
     try {
       const dataUrl = await resizeImageFileToSquareDataUrl(file);
-      setLogoUrl(dataUrl);
-      const result = await gymProfileCmsService.saveLogo(dataUrl);
-      setLogoUrl(result.logoImageUrl);
-      flash(result.pending ? 'Logo saved — pending Admin review.' : 'Logo saved.');
+      setDraftLogoUrl(dataUrl);
+      setLogoRemoved(false);
+      flash('Logo preview updated — press Save changes to publish it.');
     } catch (error) {
-      flash(error instanceof Error ? error.message : 'Could not save the logo.');
-      await load();
+      flash(error instanceof Error ? error.message : 'Could not read that image.');
     } finally {
       setLogoBusy(false);
     }
   };
 
-  const removeLogo = async () => {
-    setLogoBusy(true);
-    try {
-      const result = await gymProfileCmsService.saveLogo('');
-      setLogoUrl(result.logoImageUrl);
-      flash(result.pending ? 'Logo removed — pending Admin review.' : 'Logo removed.');
-    } catch (error) {
-      flash(error instanceof Error ? error.message : 'Could not remove the logo.');
-      await load();
-    } finally {
-      setLogoBusy(false);
-    }
+  const removeLogo = () => {
+    setDraftLogoUrl(null);
+    setLogoRemoved(true);
+    flash('Logo removal staged — press Save changes to publish it.');
   };
 
   const addGalleryImage = async () => {
@@ -285,13 +298,24 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
             {section === 'Basic Info' && (
               <div className="space-y-3">
                 <div>
-                  <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#5C6E6B]">Business logo</span>
+                  <span className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#5C6E6B]">
+                    Business logo
+                    {logoDirty && (
+                      <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-extrabold normal-case tracking-normal text-amber-700">
+                        Unsaved preview
+                      </span>
+                    )}
+                  </span>
                   <div className="flex flex-col gap-4 rounded-xl border border-[#DDE5E3] bg-white p-4 sm:flex-row sm:items-center">
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center self-start overflow-hidden rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6] sm:h-24 sm:w-24">
                       {logoUrl ? <img src={logoUrl} alt="Business logo preview" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7 text-[#8A9997]" />}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                      <p className="text-[11px] leading-4 text-[#8A9997]">Shown on your public profile header and the Home listing card. PNG, JPEG or WebP, up to 2&nbsp;MB.</p>
+                      <p className="text-[11px] leading-4 text-[#8A9997]">
+                        {logoDirty
+                          ? 'Preview only — customers still see your current logo until you press Save changes.'
+                          : 'Shown on your public profile header and the Home listing card. PNG, JPEG or WebP, up to 2 MB.'}
+                      </p>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"

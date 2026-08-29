@@ -255,10 +255,13 @@ export const gymCustomerService = {
       { method: 'POST', body: JSON.stringify(payload) },
     ),
 
-  createPurchaseIntent: (gymId: string, offeringId: string, method: 'online' | 'cash') =>
-    authedRequest<{ ok: boolean; payment: { id: string; status: string; method: string } }>(
+  // offerId/offerCode are only ever a HINT — the server reloads the live
+  // offer and offering and recomputes the trusted final amount itself; see
+  // the server-side comment on /purchase-intent.
+  createPurchaseIntent: (gymId: string, offeringId: string, method: 'online' | 'cash', applied?: { offerId?: string; offerCode?: string }) =>
+    authedRequest<{ ok: boolean; payment: { id: string; status: string; method: string; amountInr: number; originalAmountInr?: number; discountInr?: number } }>(
       `/api/gym/${encodeURIComponent(gymId)}/purchase-intent`,
-      { method: 'POST', body: JSON.stringify({ offeringId, method }) },
+      { method: 'POST', body: JSON.stringify({ offeringId, method, offerId: applied?.offerId, offerCode: applied?.offerCode }) },
     ),
 
   checkinScan: (gymId: string, qrToken: string) =>

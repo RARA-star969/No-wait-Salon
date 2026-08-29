@@ -28,7 +28,8 @@ import { NearbySalon, Salon, SalonOffer, ServiceItem, CustomerAuthSession, Custo
 import { fetchSalonProfile } from '../services/salonDiscoveryService';
 import { gymCustomerService, GymPublicOverview, GymClass, GymTrainer, GymOffering, GymMyMembershipResponse } from '../services/gymCustomerService';
 import { businessQrService, type QrBusiness } from '../services/businessQrService';
-import { evaluateCoupon } from '../shared/couponPricing';
+import { evaluateCoupon, offerDiscountLabel } from '../shared/couponPricing';
+import { CategoryGlassSheet } from './CategoryGlassSheet';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { GymLiveCard } from './GymLiveCard';
 import { GymHeroGallery } from './GymHeroGallery';
@@ -50,9 +51,11 @@ import { AttendanceCalendarSheet } from './AttendanceCalendarSheet';
 import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
 // Gym's own violet/purple quick-action tile surface — QuickAction is shared
-// with Salon (which keeps its default teal), so Gym passes its own gradient
-// instead of a copy of the component.
-const GYM_QUICK_ACTION_MEMBER_GRADIENT = 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)';
+// with Salon (which keeps its default teal), so Gym passes its own gradient.
+// Sourced from CATEGORY_THEME_MAP.gym.ctaGradient (the single canonical
+// source for Gym's CTA gradient) via the --category-cta-gradient custom
+// property, rather than a second hardcoded copy of the same two hex stops.
+const GYM_QUICK_ACTION_MEMBER_GRADIENT = 'var(--category-cta-gradient)';
 
 interface GymDetailPageProps {
   salon: Salon;
@@ -71,8 +74,6 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   salon: salonProp,
   nearbySalons = [],
   onBack,
-  onApplyOffer,
-  appliedOfferId,
   customerAuth = null,
   customerProfile = null,
   profileLoading = false,
@@ -152,11 +153,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [claimPlanText, setClaimPlanText] = useState('');
   const [claimBusy, setClaimBusy] = useState(false);
   const [claimError, setClaimError] = useState('');
+  const [claimPrefilled, setClaimPrefilled] = useState(false);
   const [offeringPickerOpen, setOfferingPickerOpen] = useState(false);
   const [selectedOffering, setSelectedOffering] = useState<GymOffering | null>(null);
   const [purchaseBusy, setPurchaseBusy] = useState(false);
   const [purchaseError, setPurchaseError] = useState('');
-  const [purchaseResultMsg, setPurchaseResultMsg] = useState<string | null>(null);
+  const [purchaseResult, setPurchaseResult] = useState<{ offeringName: string; isMembership: boolean; amountInr: number; method: 'online' | 'cash' } | null>(null);
   const [qrScannerOpen, setQrScannerOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
@@ -170,6 +172,18 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const [paymentSheetOpen, setPaymentSheetOpen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'cash'>('cash');
   const [upgradeMode, setUpgradeMode] = useState(false);
+  // Deliberately NOT the same appliedOfferId/onApplyOffer prop the page also
+  // receives from the parent (that one is shared cross-page state) — a Gym
+  // coupon must never leak into another Gym's or a Salon's payment sheet.
+  // Reset below whenever the gym or the selected offering changes.
+  const [gymCouponInput, setGymCouponInput] = useState('');
+  const [appliedGymOfferId, setAppliedGymOfferId] = useState<string | null>(null);
+  const [gymCouponError, setGymCouponError] = useState('');
+  useEffect(() => {
+    setGymCouponInput('');
+    setAppliedGymOfferId(null);
+    setGymCouponError('');
+  }, [salon.id, selectedOffering?.id]);
   // Ticks the live "inside for Xm" label between membership polls. It only
   // moves "now" forward — the duration itself is always recomputed from the
   // visit's server checkedInAt, so a reload never resets it.
@@ -315,6 +329,18 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     }
   };
 
+  // Autofill from the verified customer profile the moment the claim form
+  // opens, but only once per open — if the customer edits a field afterward
+  // (because the gym has them registered under different details) their
+  // edit must never be silently overwritten.
+  useEffect(() => {
+    if (!claimModalOpen) { setClaimPrefilled(false); return; }
+    if (claimPrefilled) return;
+    setClaimName((current) => current || customerProfile?.name?.trim() || '');
+    setClaimMobile((current) => current || customerAuth?.phoneNumber?.trim() || '');
+    setClaimPrefilled(true);
+  }, [claimModalOpen, claimPrefilled, customerProfile, customerAuth]);
+
   const submitClaim = async () => {
     if (!claimName.trim() || !claimMobile.trim() || !claimJoinDate || !claimExpiryDate) {
       setClaimError('Please fill in your name, mobile number, joining date and expiry date.');
@@ -356,12 +382,17 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       }
       // Creates a real pending GymPayment only. It does NOT create a visit and
       // does NOT increment Inside Now — the gym still has to accept it.
-      await gymCustomerService.createPurchaseIntent(salon.id, selectedOffering.id, method);
+      const { payment } = await gymCustomerService.createPurchaseIntent(salon.id, selectedOffering.id, method, {
+        offerId: appliedGymOfferId || undefined,
+      });
       setPaymentSheetOpen(false);
       setOfferingPickerOpen(false);
-      setPurchaseResultMsg(
-        `"${selectedOffering.name}" is reserved for you. Pay \u20b9${finalAmountInr} in cash at the front desk \u2014 your visit starts when the gym accepts it and checks you in.`,
-      );
+      setPurchaseResult({
+        offeringName: selectedOffering.name,
+        isMembership: selectedOffering.type === 'membership',
+        amountInr: payment.amountInr,
+        method,
+      });
       await refreshMine();
     } catch (err: any) {
       setPurchaseError(err.message || 'Unable to start this purchase.');
@@ -430,9 +461,6 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     : '';
   const activeHeading = activeVisit ? activeAccessHeading(activeVisit) : 'ACTIVE VISIT';
   const activeDurationLabel = activeVisit ? gymVisitDurationLabel(activeVisit, nowTick) : '';
-  // A visitor pass that is already being used cannot be bought again; the same
-  // rule is enforced on the server, so hiding it here is presentation only.
-  const passLocked = isCheckedIn;
 
   type BottomCtaState =
     | 'checked_in'
@@ -471,16 +499,40 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
   // Coupon breakdown for the Payment sheet. This reuses the SAME
   // evaluateCoupon engine the Salon price breakdown and the server use \u2014 no
-  // second discount implementation. `eligibleServiceIds` is a salon-services
-  // concept that gym offerings have no ids in, so an offer restricted to
-  // specific services simply will not apply here; nothing is invented.
-  const paymentOffer = (salon.offers || []).find((offer) => offer.id === appliedOfferId);
+  // second discount implementation. Gym targets offerings via
+  // eligibleOfferingIds (the Salon equivalent, eligibleServiceIds, doesn't
+  // apply here \u2014 gym offerings aren't salon services).
   const paymentSubtotalInr = selectedOffering?.priceInr ?? 0;
-  const paymentCoupon = paymentOffer
-    ? evaluateCoupon(paymentOffer, { subtotalInr: paymentSubtotalInr, serviceIds: [] })
+  const gymOffers = salon.offers || [];
+  const paymentOffer = gymOffers.find((offer) => offer.id === appliedGymOfferId);
+  const paymentCoupon = paymentOffer && selectedOffering
+    ? evaluateCoupon(paymentOffer, { subtotalInr: paymentSubtotalInr, serviceIds: [], offeringId: selectedOffering.id })
     : undefined;
   const discountInr = paymentCoupon?.eligible ? paymentCoupon.discountInr : 0;
   const finalAmountInr = Math.max(0, paymentSubtotalInr - discountInr);
+
+  // "Offers for you" \u2014 every active offer scoped to this business AND this
+  // offering (or unscoped, i.e. all Gym Access products), each carrying its
+  // own live eligibility so an ineligible one can show a clear reason
+  // instead of silently disappearing.
+  const offersForSelectedOffering = selectedOffering
+    ? gymOffers
+        .filter((offer) => offer.active !== false)
+        .filter((offer) => !offer.eligibleOfferingIds?.length || offer.eligibleOfferingIds.includes(selectedOffering.id))
+        .map((offer) => ({ offer, result: evaluateCoupon(offer, { subtotalInr: paymentSubtotalInr, serviceIds: [], offeringId: selectedOffering.id }) }))
+    : [];
+
+  const applyGymCouponCode = () => {
+    const code = gymCouponInput.trim();
+    if (!code) return;
+    const match = gymOffers.find((offer) => (offer.code || '').trim().toLowerCase() === code.toLowerCase());
+    if (!match) { setGymCouponError('No offer found for this code.'); return; }
+    if (!selectedOffering) { setGymCouponError('This code is not valid right now.'); return; }
+    const result = evaluateCoupon(match, { subtotalInr: paymentSubtotalInr, serviceIds: [], offeringId: selectedOffering.id });
+    if (result.eligible === false) { setGymCouponError(result.reason); return; }
+    setAppliedGymOfferId(match.id);
+    setGymCouponError('');
+  };
 
   const handleSelfCheckout = async () => {
     if (!myMembership?.activeVisit || checkoutBusy) return;
@@ -508,6 +560,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       setUpgradeMode(upgrade);
       setPurchaseError('');
       setOfferingPickerOpen(true);
+    });
+
+  // Upgrade from a SPECIFIC offering card must never re-ask "which plan" —
+  // the customer already told us by tapping that card's Upgrade button, so
+  // this selects it and opens its Payment sheet directly, skipping the
+  // generic "Move up to a bigger plan" picker entirely.
+  const openDirectUpgradePayment = (target: GymOffering) =>
+    requireReady('offering', () => {
+      setSelectedOffering(target);
+      setUpgradeMode(true);
+      setPurchaseError('');
+      setPaymentMethod(target.paymentOptions.includes('cash') ? 'cash' : 'online');
+      setPaymentSheetOpen(true);
     });
 
   const handleBottomCta = () => {
@@ -571,10 +636,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       <div className="relative bg-[#120B1D] text-white">
         <div className="relative">
           <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
-          {/* Localized scrim: transparent through most of the photo, only
-              darkening in its final third so the logo/name have contrast to
-              land on — the cover itself is never globally dimmed. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#120B1D] via-[#120B1D]/55 to-transparent" />
+          {/* Tiny seam only, just enough for the logo to land on where it
+              overlaps the photo — the cover photo itself must stay clearly
+              visible at its natural brightness across ~90%+ of its height. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#120B1D]/70 to-transparent" />
           {/* Top Bar Navigation */}
           <div className="pointer-events-none absolute inset-0">
             <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
@@ -613,7 +678,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             itself. */}
         <div className="relative px-5 pb-5 pt-0">
           <div className="flex items-end gap-3">
-            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[#120B1D] bg-[#241536] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
+            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[#120B1D] bg-[var(--category-dark-surface,#241536)] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
@@ -719,8 +784,15 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         {/* MEMBERSHIP & ATTENDANCE — real, server-backed identity for this gym. */}
         <div id="gym-membership-section" className="space-y-3">
           {isActiveMember && membership ? (
-            <div className="relative overflow-hidden rounded-2xl border border-[#8B5CF6]/25 bg-[linear-gradient(160deg,#241539_0%,#170F24_75%)] p-4 shadow-[0_14px_28px_-18px_rgba(0,0,0,0.7)]">
-              <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-[#8B5CF6]/14 blur-3xl" aria-hidden="true" />
+            <div
+              className="relative overflow-hidden rounded-2xl border p-4 shadow-[0_14px_28px_-18px_rgba(0,0,0,0.7)]"
+              style={{ borderColor: 'color-mix(in srgb, var(--category-selected-glow) 25%, transparent)', background: 'linear-gradient(160deg, var(--category-dark-surface) 0%, #170F24 75%)' }}
+            >
+              <div
+                className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-3xl"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--category-selected-glow) 14%, transparent)' }}
+                aria-hidden="true"
+              />
               <div className="relative flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#F3D584]">
                   <Crown className="h-3.5 w-3.5 fill-[#F3D584] stroke-[1.75] text-[#8A6316]" />
@@ -919,12 +991,29 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               // server refuses it independently, this is not a UI-only guard.
               const isActivePass =
                 isCheckedIn && !!activeVisit && activeVisit.offeringId === offering.id;
+              // The offering backing this customer's CURRENT confirmed access
+              // (membership or paid pass), independent of whether they are
+              // physically checked in right now. Access state and physical
+              // visit state are deliberately separate (Requirement #13):
+              // this only ever reflects a real membership/payment record,
+              // never an inferred "must be inside" guess.
+              const isMine = Boolean(
+                hasValidAccess &&
+                  !isActivePass &&
+                  ((membership && membership.offeringId === offering.id) ||
+                    (myMembership?.paidPass && myMembership.paidPass.offeringId === offering.id)),
+              );
+              // Any other offering while the customer already has a live
+              // visit OR a confirmed access elsewhere gets an "Upgrade" path
+              // instead of "Choose Access" — buying a second concurrent
+              // access is not the flow; moving to a bigger plan is.
+              const showUpgrade = !isActivePass && !isMine && hasValidAccess;
               const isSelected = selectedOffering?.id === offering.id;
               return (
               <div
                 key={offering.id}
                 className={`rounded-2xl border bg-white/[0.04] p-4 transition ${
-                  isActivePass
+                  isActivePass || isMine
                     ? 'border-[var(--category-primary-dark)] shadow-[0_10px_28px_-18px_var(--category-glow)]'
                     : isSelected
                     ? 'border-[var(--category-primary-dark)]/60 shadow-[0_8px_22px_-16px_var(--category-glow)]'
@@ -934,14 +1023,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-tint-10)] text-[var(--category-accent)]'}`}>
-                        {isActivePass ? 'Visit pass · Active' : offering.type.replace('_', ' ')}
+                      <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass || isMine ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-tint-10)] text-[var(--category-accent)]'}`}>
+                        {isActivePass ? 'Checked in' : isMine ? 'Activated' : offering.type.replace('_', ' ')}
                       </span>
                       <h3 className="text-xs font-extrabold text-white">{offering.name}</h3>
                     </div>
                     <p className="mt-1 text-[11px] text-white/50">
                       {isActivePass
                         ? `Inside · ${activeDurationLabel}`
+                        : isMine
+                        ? 'Your active access at this gym'
                         : offering.description || 'Full equipment and facility access included.'}
                     </p>
                   </div>
@@ -953,11 +1044,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 {isActivePass ? (
                   <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--category-primary-dark)]/30 bg-[var(--category-tint-10)] py-2 text-xs font-extrabold text-[var(--category-accent)]">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    ✓ ACTIVE VISIT · {activeDurationLabel}
+                    Inside · {activeDurationLabel}
                   </div>
-                ) : passLocked ? (
+                ) : isMine ? (
+                  <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--category-primary-dark)]/30 bg-[var(--category-tint-10)] py-2 text-xs font-extrabold text-[var(--category-accent)] shadow-[0_0_20px_-6px_var(--category-glow)]">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    ✓ ACTIVATED
+                  </div>
+                ) : showUpgrade ? (
                   <button
-                    onClick={() => openAccessSheet(true)}
+                    onClick={() => openDirectUpgradePayment(offering)}
                     className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/35 bg-white/[0.06] py-2 text-xs font-bold text-[var(--category-accent)] transition active:scale-95"
                   >
                     Upgrade
@@ -1051,35 +1147,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           </div>
         )}
 
-        {/* 8. OFFERS & COUPONS */}
-        {salon.offers && salon.offers.length > 0 && (
-          <div className="rounded-2xl border border-[var(--category-primary-dark)]/20 bg-[var(--category-tint-10)] p-4">
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-[var(--category-accent)]" />
-              <h2 className="text-xs font-extrabold text-[var(--category-accent)]">Active Gym Offers & Coupons</h2>
-            </div>
-            <div className="mt-2.5 space-y-2">
-              {salon.offers.map((offer) => (
-                <div key={offer.id} className="flex items-center justify-between rounded-xl bg-black/20 p-3 text-xs">
-                  <div>
-                    <div className="font-bold text-white">{offer.title}</div>
-                    <div className="text-[10px] text-white/50">{offer.discount} · Code: {offer.code || 'GYM20'}</div>
-                  </div>
-                  {onApplyOffer && (
-                    <button
-                      onClick={() => onApplyOffer(offer.id)}
-                      className={`rounded-lg px-2.5 py-1 text-[10px] font-bold ${
-                        appliedOfferId === offer.id ? 'bg-[var(--category-primary-dark)] text-white' : 'border border-[var(--category-primary-dark)] text-[var(--category-primary-dark)]'
-                      }`}
-                    >
-                      {appliedOfferId === offer.id ? 'Applied' : 'Apply'}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* 8. OFFERS & COUPONS — moved into the Payment sheet itself
+            ("Apply coupon" + "Offers for you", scoped to the selected
+            offering) so an offer is always applied in the context of a
+            real purchase, never floating disconnected from one plan. */}
 
         {/* 9. REVIEWS — real ratings/reviews shared with Owner Dashboard and
             Admin; average/count always computed from the same rows. */}
@@ -1324,8 +1395,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               onProfileSaved={(profile) => {
                 onProfileSaved?.(profile);
                 setGateOpen(false);
+                // Package/offering selection deliberately does NOT auto-resume
+                // here: verification returns the customer to this same Gym
+                // page with nothing auto-opened, so they choose the package
+                // again on purpose. Claim and scan still resume, since those
+                // are single deliberate taps with no second "which one" choice
+                // to re-confirm.
                 if (gatePendingAction === 'claim') setClaimModalOpen(true);
-                else if (gatePendingAction === 'offering') setOfferingPickerOpen(true);
                 else if (gatePendingAction === 'scan') setQrScannerOpen(true);
                 setGatePendingAction(null);
               }}
@@ -1344,55 +1420,85 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           self-declared verified membership. The gym staff approves it. */}
       {claimModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-            <div className="flex items-center justify-between">
+          <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
               <h3 className="text-base font-bold text-[#17201F]">I'm Already a Member</h3>
-              <button onClick={() => setClaimModalOpen(false)} aria-label="Close">
+              <button onClick={() => setClaimModalOpen(false)} aria-label="Close" className="shrink-0">
                 <X className="h-4 w-4 text-[#6F7C7A]" />
               </button>
             </div>
-            <p className="mt-1 text-xs text-[#6F7C7A]">Tell us your existing membership details. The gym will verify and approve it.</p>
-            <div className="mt-4 space-y-2.5">
-              <input
-                value={claimName}
-                onChange={(e) => setClaimName(e.target.value)}
-                placeholder="Full name"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
-              />
-              <input
-                value={claimMobile}
-                onChange={(e) => setClaimMobile(e.target.value)}
-                placeholder="Mobile number"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
-              />
+            <p className="mt-1 text-xs font-semibold text-[#3B4644]">Claim your existing membership at {salon.name}.</p>
+            <p className="mt-1.5 text-[11px] text-[#6F7C7A]">Enter the details registered with this gym. Staff will verify them.</p>
+
+            <div className="mt-4 space-y-3.5">
+              <div>
+                <label className="text-[11px] font-bold text-[#17201F]">
+                  Full name <span className="text-rose-500">*</span>
+                </label>
+                <p className="mt-0.5 text-[10px] text-[#8A9694]">Name registered at the gym</p>
+                <input
+                  value={claimName}
+                  onChange={(e) => setClaimName(e.target.value)}
+                  placeholder="e.g. Rohit Sharma"
+                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#17201F]">
+                  Registered mobile number <span className="text-rose-500">*</span>
+                </label>
+                <p className="mt-0.5 text-[10px] text-[#8A9694]">Mobile number given to the gym</p>
+                <input
+                  value={claimMobile}
+                  onChange={(e) => setClaimMobile(e.target.value)}
+                  placeholder="e.g. 98765 43210"
+                  inputMode="tel"
+                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-[#6F7C7A]">Joining date</label>
+                  <label className="text-[11px] font-bold text-[#17201F]">
+                    Membership started <span className="text-rose-500">*</span>
+                  </label>
+                  <p className="mt-0.5 text-[10px] text-[#8A9694]">Joining date</p>
                   <input
                     type="date"
                     value={claimJoinDate}
                     onChange={(e) => setClaimJoinDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
+                    className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold uppercase text-[#6F7C7A]">Expiry date</label>
+                  <label className="text-[11px] font-bold text-[#17201F]">
+                    Membership valid until <span className="text-rose-500">*</span>
+                  </label>
+                  <p className="mt-0.5 text-[10px] text-[#8A9694]">Expiry date</p>
                   <input
                     type="date"
                     value={claimExpiryDate}
                     onChange={(e) => setClaimExpiryDate(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
+                    className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
               </div>
-              <input
-                value={claimPlanText}
-                onChange={(e) => setClaimPlanText(e.target.value)}
-                placeholder="Plan name (optional)"
-                className="w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs outline-none focus:border-[var(--category-primary-dark)]"
-              />
+
+              <div>
+                <label className="text-[11px] font-bold text-[#17201F]">Membership plan</label>
+                <p className="mt-0.5 text-[10px] text-[#8A9694]">Optional · e.g. Monthly, Quarterly, 6 Months, Annual</p>
+                <input
+                  value={claimPlanText}
+                  onChange={(e) => setClaimPlanText(e.target.value)}
+                  placeholder="e.g. Quarterly"
+                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                />
+              </div>
+
               {claimError && <p className="text-[11px] font-semibold text-rose-600">{claimError}</p>}
             </div>
+
             <div className="mt-5 flex gap-2">
               <button onClick={() => setClaimModalOpen(false)} className="flex-1 rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F]">
                 Cancel
@@ -1402,7 +1508,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 disabled={claimBusy}
                 className="flex-1 rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm disabled:opacity-60"
               >
-                {claimBusy ? 'Submitting…' : 'Submit for Approval'}
+                {claimBusy ? 'Sending…' : 'Send for Verification'}
               </button>
             </div>
           </div>
@@ -1491,109 +1597,167 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         );
       })()}
 
-      {/* Payment sheet — the same price/coupon breakdown language the Salon
-          flow uses, on real numbers. Nothing here settles money by itself:
-          "Cash at gym" creates a real pending payment the gym must accept,
-          and the online path is honestly disabled until a real gateway is
-          integrated rather than faking a successful capture. */}
+      {/* Payment sheet — premium blurred-glass mirror language, matching the
+          Gym access dock. Nothing here settles money by itself: "Cash at
+          gym" creates a real pending payment the gym must accept, and the
+          online path is honestly disabled until a real gateway is
+          integrated rather than faking a successful capture. The applied
+          offer/coupon is only ever a hint — the server recomputes the
+          trusted final amount from scratch. */}
       {paymentSheetOpen && selectedOffering && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-t-[28px] bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom duration-300">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#D4DEDC]" />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">Payment</p>
-                <h3 className="text-base font-extrabold text-[#17201F]">{selectedOffering.name}</h3>
+        <CategoryGlassSheet onClose={() => setPaymentSheetOpen(false)} variant="sheet">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Payment</p>
+              <h3 className="text-base font-extrabold text-white">{selectedOffering.name}</h3>
+            </div>
+            <button onClick={() => setPaymentSheetOpen(false)} aria-label="Close">
+              <X className="h-4 w-4 text-white/60" />
+            </button>
+          </div>
+
+          <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs">
+            <div className="flex justify-between">
+              <span className="text-white/60">Selected access</span>
+              <span className="font-bold text-white">{selectedOffering.name}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Validity</span>
+              <span className="font-bold text-white">{durationText(selectedOffering)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Original price</span>
+              <span className="font-bold text-white">₹{paymentSubtotalInr}</span>
+            </div>
+            {discountInr > 0 && paymentOffer && (
+              <div className="flex justify-between text-[var(--category-accent)]">
+                <span className="flex items-center gap-1 font-semibold">
+                  <Tag className="h-3 w-3" />{paymentOffer.title}{paymentOffer.code ? ` · ${paymentOffer.code}` : ''}
+                </span>
+                <button onClick={() => setAppliedGymOfferId(null)} className="flex items-center gap-1 font-bold underline decoration-dotted">
+                  − ₹{discountInr}
+                </button>
               </div>
-              <button onClick={() => setPaymentSheetOpen(false)} aria-label="Close">
-                <X className="h-4 w-4 text-[#6F7C7A]" />
+            )}
+            <div className="mt-1 flex justify-between border-t border-white/10 pt-2">
+              <span className="font-bold text-white">Final amount</span>
+              <span className="text-sm font-extrabold text-[var(--category-accent)]">₹{finalAmountInr}</span>
+            </div>
+          </div>
+
+          {/* Apply coupon + auto-fetched owner offers, scoped to THIS
+              business + THIS selected offering. */}
+          <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Apply coupon</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={gymCouponInput}
+                onChange={(e) => { setGymCouponInput(e.target.value); setGymCouponError(''); }}
+                placeholder="Enter code"
+                className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs text-white outline-none placeholder:text-white/30 focus:border-[var(--category-primary-dark)]"
+              />
+              <button
+                onClick={applyGymCouponCode}
+                className="shrink-0 rounded-xl bg-[var(--category-primary-dark)] px-4 py-2 text-xs font-bold text-white"
+              >
+                Apply
               </button>
             </div>
+            {gymCouponError && <p className="mt-2 text-[11px] font-semibold text-rose-300">{gymCouponError}</p>}
 
-            <div className="mt-4 space-y-2 rounded-2xl bg-[#F8FAFA] p-4 text-xs">
-              <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Selected access</span>
-                <span className="font-bold text-[#17201F]">{selectedOffering.name}</span>
+            {offersForSelectedOffering.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Offers for you</p>
+                {offersForSelectedOffering.map(({ offer, result }) => {
+                  const isApplied = appliedGymOfferId === offer.id;
+                  return (
+                    <div key={offer.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-bold text-white">{offer.title}</p>
+                          <p className="mt-0.5 text-[11px] text-[var(--category-accent)]">
+                            {offerDiscountLabel(offer)}{offer.code ? ` · ${offer.code}` : ''}
+                          </p>
+                          {result.eligible === false && <p className="mt-1 text-[10px] text-white/40">{result.reason}</p>}
+                        </div>
+                        <button
+                          disabled={result.eligible === false}
+                          onClick={() => { setAppliedGymOfferId(offer.id); setGymCouponError(''); }}
+                          className={`shrink-0 rounded-lg px-2.5 py-1.5 text-[10px] font-bold disabled:opacity-40 ${
+                            isApplied ? 'bg-[var(--category-primary-dark)] text-white' : 'border border-[var(--category-primary-dark)] text-[var(--category-accent)]'
+                          }`}
+                        >
+                          {isApplied ? 'Applied' : 'Apply'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Validity</span>
-                <span className="font-bold text-[#17201F]">{durationText(selectedOffering)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Price</span>
-                <span className="font-bold text-[#17201F]">₹{paymentSubtotalInr}</span>
-              </div>
-              {discountInr > 0 && paymentOffer && (
-                <div className="flex justify-between text-[var(--category-primary-dark)]">
-                  <span className="flex items-center gap-1 font-semibold"><Tag className="h-3 w-3" />{paymentOffer.title}</span>
-                  <span className="font-bold">− ₹{discountInr}</span>
-                </div>
-              )}
-              <div className="mt-1 flex justify-between border-t border-[#E4ECEA] pt-2">
-                <span className="font-bold text-[#17201F]">Final amount</span>
-                <span className="text-sm font-extrabold text-[var(--category-primary-dark)]">₹{finalAmountInr}</span>
-              </div>
-            </div>
-
-            <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">Payment method</p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {(['online', 'cash'] as const).map((method) => {
-                const offered = selectedOffering.paymentOptions.includes(method);
-                return (
-                  <button
-                    key={method}
-                    type="button"
-                    disabled={!offered}
-                    onClick={() => setPaymentMethod(method)}
-                    className={`rounded-xl border px-3 py-2.5 text-[11px] font-bold transition disabled:opacity-40 ${
-                      paymentMethod === method
-                        ? 'border-[var(--category-primary-dark)] bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]'
-                        : 'border-[#DDE5E3] bg-white text-[#17201F]'
-                    }`}
-                  >
-                    {method === 'online' ? 'ONLINE' : 'CASH AT GYM'}
-                  </button>
-                );
-              })}
-            </div>
-            {paymentMethod === 'online' && (
-              <p className="mt-2 rounded-xl bg-[#FFF7ED] px-3 py-2 text-[10px] font-semibold text-[#9A5B12]">
-                Online payment is not live at this gym yet — no card or UPI gateway is connected, so we won't pretend a payment went through. Choose “Cash at gym”.
-              </p>
             )}
-            <p className="mt-3 text-[10px] leading-4 text-[#6F7C7A]">
-              Paying reserves your access. It does not check you in — your visit starts, and the gym's Inside count changes, only once the front desk confirms you're here.
-            </p>
-            {purchaseError && <p className="mt-3 text-[11px] font-semibold text-rose-600">{purchaseError}</p>}
-            <button
-              id="gym-pay-btn"
-              onClick={() => submitPurchase(paymentMethod)}
-              disabled={purchaseBusy}
-              className="mt-4 w-full rounded-xl bg-[var(--category-primary-dark)] py-3 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:opacity-60"
-            >
-              {purchaseBusy
-                ? 'Reserving…'
-                : paymentMethod === 'cash'
-                ? `Reserve & pay ₹${finalAmountInr} at gym`
-                : `Pay ₹${finalAmountInr} online`}
-            </button>
           </div>
-        </div>
+
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-white/50">Payment method</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(['online', 'cash'] as const).map((method) => {
+              const offered = selectedOffering.paymentOptions.includes(method);
+              return (
+                <button
+                  key={method}
+                  type="button"
+                  disabled={!offered}
+                  onClick={() => setPaymentMethod(method)}
+                  className={`rounded-xl border px-3 py-2.5 text-[11px] font-bold transition disabled:opacity-40 ${
+                    paymentMethod === method
+                      ? 'border-[var(--category-primary-dark)] bg-[var(--category-tint-10)] text-[var(--category-accent)]'
+                      : 'border-white/15 bg-white/[0.04] text-white'
+                  }`}
+                >
+                  {method === 'online' ? 'ONLINE' : 'CASH AT GYM'}
+                </button>
+              );
+            })}
+          </div>
+          {paymentMethod === 'online' && (
+            <p className="mt-2 rounded-xl bg-amber-500/10 px-3 py-2 text-[10px] font-semibold text-amber-200">
+              Online payment is not live at this gym yet — no card or UPI gateway is connected, so we won't pretend a payment went through. Choose "Cash at gym".
+            </p>
+          )}
+          <p className="mt-3 text-[10px] leading-4 text-white/40">
+            Paying reserves your access. It does not check you in — your visit starts, and the gym's Inside count changes, only once the front desk confirms you're here.
+          </p>
+          {purchaseError && <p className="mt-3 text-[11px] font-semibold text-rose-300">{purchaseError}</p>}
+          <button
+            id="gym-pay-btn"
+            onClick={() => submitPurchase(paymentMethod)}
+            disabled={purchaseBusy}
+            className="mt-4 w-full rounded-xl bg-[var(--category-primary-dark)] py-3 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {purchaseBusy
+              ? 'Reserving…'
+              : paymentMethod === 'cash'
+              ? `Reserve & pay ₹${finalAmountInr} at gym`
+              : `Pay ₹${finalAmountInr} online`}
+          </button>
+        </CategoryGlassSheet>
       )}
 
-      {purchaseResultMsg && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 text-center shadow-2xl">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-[var(--category-primary-dark)]" />
-            <p className="mt-3 text-sm font-semibold text-[#17201F]">{purchaseResultMsg}</p>
-            <button
-              onClick={() => setPurchaseResultMsg(null)}
-              className="mt-5 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+      {purchaseResult && (
+        <CategoryGlassSheet onClose={() => setPurchaseResult(null)} variant="modal">
+          <CheckCircle2 className="mx-auto h-9 w-9 text-[var(--category-accent)]" />
+          <p className="mt-3 text-sm font-extrabold text-white">{purchaseResult.offeringName} reserved</p>
+          <p className="mt-2 text-xs leading-5 text-white/70">
+            {purchaseResult.method === 'cash' ? `Pay ₹${purchaseResult.amountInr} at the front desk.` : `₹${purchaseResult.amountInr} paid online.`}
+            <br />
+            {purchaseResult.isMembership ? 'Membership' : 'Access'} activates after gym confirmation.
+          </p>
+          <button
+            onClick={() => setPurchaseResult(null)}
+            className="mt-5 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white shadow-sm"
+          >
+            Got it
+          </button>
+        </CategoryGlassSheet>
       )}
 
       {/* Scan to Check In — the mandatory QR gate. Server validates gym

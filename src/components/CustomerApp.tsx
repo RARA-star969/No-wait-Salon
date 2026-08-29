@@ -40,6 +40,8 @@ import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { FloatingCategoryDeck } from './FloatingCategoryDeck';
 import { CustomerProfileScreen } from './CustomerProfile';
+import { GymActivityScreen } from './GymActivityScreen';
+import { GymMemberHub } from './GymMemberHub';
 import { SalonDetailPage } from './SalonDetailPage';
 import { GymDetailPage } from './GymDetailPage';
 import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
@@ -138,6 +140,19 @@ interface CustomerAppProps {
    *  bottom nav's "Alerts" destination. */
   onOpenNotifications?: () => void;
 }
+
+// Every non-home screen (Profile, Edit Profile, location/address screens, and
+// any future screen added the same way) must own real vertical scroll, not
+// just inherit `overflow-hidden` from CustomerApp's shell. Screens below only
+// ever set `min-h-full` on their own root — by design they expect an
+// ancestor like this to be the actual scroll container. Defined at module
+// scope (not inside CustomerApp) so it never remounts — and loses scroll
+// position — on an unrelated re-render.
+const ScreenScroll: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
+    {children}
+  </div>
+);
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({
   currentScreen,
@@ -351,6 +366,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       .catch(() => {});
   }, []);
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  // Per-gym Member Hub overlay (Profile → Gym Activity → this gym) and its
+  // nested Workout Plan editor — both lifted here, alongside the other
+  // overlay booleans, so Android hardware back can close the deepest one
+  // first without a second, disconnected back-handling mechanism.
+  const [memberHubTarget, setMemberHubTarget] = useState<{ gymId: string; gymName: string } | null>(null);
+  const [memberHubWorkoutPlanOpen, setMemberHubWorkoutPlanOpen] = useState(false);
   const [selectedReservationDay, setSelectedReservationDay] = useState<'today' | 'tomorrow' | 'day3' | 'day4'>('today');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
@@ -769,6 +790,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     if (cancelSheetOpen) { setCancelSheetOpen(false); return true; }
     if (isCallModalOpen) { setIsCallModalOpen(false); return true; }
     if (showLoginGate) { setShowLoginGate(false); return true; }
+    // Deepest-first: Workout Plan (inside the Hub) closes before the Hub
+    // itself, which closes before falling through to screen-level back —
+    // mirrors Profile → Gym Activity → Member Hub → Workout Plan exactly.
+    if (memberHubWorkoutPlanOpen) { setMemberHubWorkoutPlanOpen(false); return true; }
+    if (memberHubTarget) { setMemberHubTarget(null); return true; }
 
     const atLandingRoot = stage === 'landing' || showLandingOverride;
     if (atLandingRoot) return false;
@@ -778,6 +804,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
     if (currentScreen === 'edit-profile') { setScreen('profile'); return true; }
     if (currentScreen === 'slots') { setScreen('salon'); return true; }
+    if (currentScreen === 'gym-activity') { setScreen('profile'); return true; }
     if (currentScreen === 'profile' || currentScreen === 'salon' || currentScreen === 'tracking' || currentScreen === 'complete') {
       setScreen('home');
       return true;
@@ -787,6 +814,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     return true;
   }, [
     isQrScannerOpen, isChangingLocation, cancelSheetOpen, isCallModalOpen, showLoginGate,
+    memberHubWorkoutPlanOpen, memberHubTarget,
     stage, showLandingOverride, backToLanding, currentScreen, setScreen,
   ]);
 
@@ -852,6 +880,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   if (currentScreen === 'profile' || currentScreen === 'edit-profile') {
     return (
+      <ScreenScroll>
       <CustomerProfileScreen
         mode={currentScreen === 'edit-profile' ? 'edit' : 'profile'}
         auth={customerAuth}
@@ -863,6 +892,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         onLogin={onProfileLogin}
         onSaved={(profile) => { onProfileSaved(profile); setScreen('profile'); }}
         onLogout={onProfileLogout}
+        onOpenGymActivity={() => setScreen('gym-activity')}
+      />
+      </ScreenScroll>
+    );
+  }
+
+  if (currentScreen === 'gym-activity') {
+    return (
+      <>
+      <ScreenScroll>
+      <GymActivityScreen
+        onBack={() => setScreen('profile')}
+        onOpenMemberHub={(gymId, gymName) => setMemberHubTarget({ gymId, gymName })}
         // Gym Activity's "Upgrade" opens the gym's own page, where the real
         // access/upgrade sheet lives — Profile never duplicates that flow.
         onOpenGym={(gymId) => {
@@ -873,11 +915,24 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           setScreen('salon');
         }}
       />
+      </ScreenScroll>
+      {memberHubTarget && (
+        <GymMemberHub
+          gymId={memberHubTarget.gymId}
+          gymName={memberHubTarget.gymName}
+          onClose={() => setMemberHubTarget(null)}
+          workoutPlanOpen={memberHubWorkoutPlanOpen}
+          onOpenWorkoutPlan={() => setMemberHubWorkoutPlanOpen(true)}
+          onCloseWorkoutPlan={() => setMemberHubWorkoutPlanOpen(false)}
+        />
+      )}
+      </>
     );
   }
 
   if (currentScreen === 'location-select') {
     return (
+      <ScreenScroll>
       <LocationSelectScreen
         onBack={() => setScreen('home')}
         currentLabel={selectedAddressLabel}
@@ -892,11 +947,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         onNavigateRequestAddress={() => setScreen('request-address')}
         onEditAddress={(addr) => { setEditingAddress(addr); setScreen('add-address'); }}
       />
+      </ScreenScroll>
     );
   }
 
   if (currentScreen === 'add-address') {
     return (
+      <ScreenScroll>
       <AddAddressScreen
         onBack={() => setScreen('location-select')}
         userToken={customerAuth?.token}
@@ -906,11 +963,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           if (addr.fullAddress || addr.area) setLocationLabel(addr.fullAddress || `${addr.area}, ${addr.city}`);
         }}
       />
+      </ScreenScroll>
     );
   }
 
   if (currentScreen === 'request-address') {
     return (
+      <ScreenScroll>
       <RequestAddressScreen
         onBack={() => setScreen('location-select')}
         userToken={customerAuth?.token}
@@ -919,6 +978,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           setTimeout(() => setVoiceFeedback(null), 4000);
         }}
       />
+      </ScreenScroll>
     );
   }
 
@@ -1263,8 +1323,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             salon={selectedSalon}
             nearbySalons={nearbySalons}
             onBack={() => setScreen('home')}
-            onApplyOffer={onApplyOffer}
-            appliedOfferId={appliedOfferId}
             customerAuth={customerAuth}
             customerProfile={customerProfile}
             profileLoading={profileLoading}

@@ -82,3 +82,28 @@ test('offerDiscountLabel prefers the structured discount over free text', () => 
 test('offerDiscountLabel falls back to the free-text discount when no structured value exists', () => {
   assert.equal(offerDiscountLabel({ id: 'x', title: 'Old style', discount: 'Flat 10% off' }), 'Flat 10% off');
 });
+
+test('eligible-offering restriction rejects a Gym offering that is not targeted', () => {
+  const offer: SalonOffer = { ...baseOffer, eligibleOfferingIds: ['off-monthly'] };
+  const result = evaluateCoupon(offer, { subtotalInr: 500, serviceIds: [], offeringId: 'off-day-pass' });
+  assert.equal(result.eligible, false);
+  if (!result.eligible) assert.match(result.reason, /not valid for the selected plan/i);
+});
+
+test('eligible-offering restriction allows the targeted Gym offering', () => {
+  const offer: SalonOffer = { ...baseOffer, eligibleOfferingIds: ['off-monthly', 'off-quarterly'] };
+  const result = evaluateCoupon(offer, { subtotalInr: 500, serviceIds: [], offeringId: 'off-monthly' });
+  assert.equal(result.eligible, true);
+});
+
+test('an offer with no eligibleOfferingIds applies to every Gym offering ("All Gym Access")', () => {
+  const offer: SalonOffer = { ...baseOffer, eligibleOfferingIds: [] };
+  const result = evaluateCoupon(offer, { subtotalInr: 500, serviceIds: [], offeringId: 'off-anything' });
+  assert.equal(result.eligible, true);
+});
+
+test('no offeringId passed (Salon call sites) skips eligible-offering enforcement entirely', () => {
+  const offer: SalonOffer = { ...baseOffer, eligibleOfferingIds: ['off-monthly'] };
+  const result = evaluateCoupon(offer, { subtotalInr: 500, serviceIds: [] });
+  assert.equal(result.eligible, true);
+});

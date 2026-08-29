@@ -169,7 +169,13 @@ export type GymPayment = {
   customerMobile: string;
   offeringId: string;
   offeringName: string;
+  // amountInr is always the trusted, server-recomputed final amount actually
+  // charged — a coupon/offer applied client-side is only ever a hint; these
+  // two fields are additive audit trail for when a discount was applied.
   amountInr: number;
+  originalAmountInr?: number;
+  discountInr?: number;
+  appliedOfferId?: string;
   method: GymPaymentMethod;
   status: GymPaymentStatus;
   visitId?: string;

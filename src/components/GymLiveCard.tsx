@@ -1,17 +1,23 @@
 import React from 'react';
 import { resolveGymCrowdLevel } from '../shared/gymCrowdResolver';
 import { CategoryLiveCard, type CategoryLiveCardPalette } from './CategoryLiveCard';
+import { CATEGORY_THEME_MAP } from './CustomerHomeComponents';
 
-// Gym's own restrained near-black/deep-violet glass palette — darker and
-// quieter than the old flat purple/fuchsia gradient, so the numbers (not
-// the card surface) carry the visual weight. Content/data/behavior below
-// is unchanged; this is a color/surface-only override.
+// Gym's own restrained near-black/deep-violet glass palette — sourced from
+// the canonical Gym theme (CATEGORY_THEME_MAP.gym) instead of a locally
+// hardcoded copy, so Live Floor, the floating capsule and this card can
+// never quietly drift apart. Darker and quieter than a flat purple/fuchsia
+// gradient, so the numbers (not the card surface) carry the visual weight.
+const gymTheme = CATEGORY_THEME_MAP.gym;
 const GYM_LIVE_CARD_PALETTE: CategoryLiveCardPalette = {
-  gradient: 'linear-gradient(160deg,#180F28 0%,#241539 55%,#2E1B4A 100%)',
-  rim: 'linear-gradient(120deg, rgba(255,255,255,0.14), rgba(192,132,252,0.16) 35%, rgba(255,255,255,0.04) 58%, rgba(168,85,247,0.14) 82%, rgba(255,255,255,0.12))',
-  glowColorA: '#8B5CF6',
+  gradient: gymTheme.modalTint,
+  rim: `linear-gradient(120deg, rgba(255,255,255,0.14), ${gymTheme.glassBorder} 35%, rgba(255,255,255,0.04) 58%, ${gymTheme.primary}24 82%, rgba(255,255,255,0.12))`,
+  glowColorA: gymTheme.selectedGlow,
+  // Matches gymTheme.ctaGradient's opening stop by design (same deep
+  // purple), kept as its own value here since this card blends two glow
+  // colors rather than painting a gradient.
   glowColorB: '#5B21B6',
-  flashColor: '#E9D5FF',
+  flashColor: gymTheme.subtleAccent,
 };
 
 export interface GymLiveCardProps {
