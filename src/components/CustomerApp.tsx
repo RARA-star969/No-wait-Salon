@@ -25,6 +25,7 @@ import {
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
 import { smoothScrollTo } from '../shared/smoothScroll';
+import { isGymCategory } from '../shared/businessCategory';
 import { AddressManagementModal } from './AddressManagementModal';
 import { LocationSelectScreen } from './LocationSelectScreen';
 import { AddAddressScreen } from './AddAddressScreen';
@@ -1253,7 +1254,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               Back to Home
             </button>
           </div>
-        ) : (selectedSalon.mainCategoryId || 'salon').toLowerCase() === 'gym' ? (
+        ) : isGymCategory(selectedSalon.mainCategoryId) ? (
           <GymDetailPage
             salon={selectedSalon}
             nearbySalons={nearbySalons}

@@ -13,7 +13,7 @@ async function fetchNearby(query: string): Promise<NearbyResponse> {
   return body as NearbyResponse;
 }
 
-export type SalonDirectoryEntry = { id: string; name: string; address: string };
+export type SalonDirectoryEntry = { id: string; name: string; address: string; mainCategoryId: string };
 
 export const salonDiscoveryService = {
   directory: async (): Promise<SalonDirectoryEntry[]> => {

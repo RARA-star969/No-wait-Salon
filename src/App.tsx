@@ -87,7 +87,7 @@ export default function App() {
       let savedId: string | null = null;
       try { savedId = localStorage.getItem(STAFF_SALON_KEY); } catch { savedId = null; }
       const chosen = entries.find((entry) => entry.id === savedId) || entries[0];
-      setSelectedSalon((current) => (current.id === chosen.id ? current : { ...current, id: chosen.id, name: chosen.name }));
+      setSelectedSalon((current) => (current.id === chosen.id ? current : { ...current, id: chosen.id, name: chosen.name, mainCategoryId: chosen.mainCategoryId }));
     });
     return () => { cancelled = true; };
   }, [isStaffSurface]);
@@ -882,7 +882,7 @@ export default function App() {
                         const entry = salonDirectory.find((item) => item.id === event.target.value);
                         if (!entry) return;
                         try { localStorage.setItem(STAFF_SALON_KEY, entry.id); } catch { /* keep in memory */ }
-                        setSelectedSalon((current) => ({ ...current, id: entry.id, name: entry.name }));
+                        setSelectedSalon((current) => ({ ...current, id: entry.id, name: entry.name, mainCategoryId: entry.mainCategoryId }));
                       }}
                       className="rounded-lg border border-[#DDE7E5] bg-white px-2 py-1 text-[11px] font-semibold text-[#17201F]"
                     >

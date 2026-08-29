@@ -10,13 +10,13 @@ import type { NearbySalon } from '../types';
  * One NOQ product, one set of components.
  */
 
-export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean }> = ({ icon, label, secondary, onClick, active, disabled }) => (
+export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)' }) => (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
     className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06] transition ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
-    style={{ background: 'linear-gradient(160deg, #234742 0%, #16302C 75%)' }}
+    style={{ background: surfaceGradient }}
   >
     <span
       className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${

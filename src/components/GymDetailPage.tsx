@@ -42,6 +42,13 @@ import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsShee
 import { CategoryActionBar } from './CategoryActionBar';
 import { formatGymClock, gymVisitDurationLabel } from '../shared/gymTime';
 import { activeAccessHeading, splitRecommendedOfferings } from '../shared/gymLiveFloor';
+import { RatingSummaryBadge } from './RatingSummaryBadge';
+
+// Gym's own violet/purple quick-action tile surface — QuickAction is shared
+// with Salon (which keeps its default teal), so Gym passes its own gradient
+// instead of a copy of the component.
+const GYM_QUICK_ACTION_GRADIENT = 'linear-gradient(160deg, #2E1B4A 0%, #170F29 75%)';
+const GYM_QUICK_ACTION_MEMBER_GRADIENT = 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)';
 
 interface GymDetailPageProps {
   salon: Salon;
@@ -500,8 +507,15 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     openAccessSheet(false);
   };
 
+  // The dock's expanded state sits on an opaque white "lens" (dark text
+  // reads fine there, same as Salon's light page); its collapsed state is a
+  // much more translucent glass that lets this page's own dark background
+  // bleed through, so the same dark text goes unreadable — collapsed rows
+  // switch to light text instead.
+  const dockExpanded = bottomCtaState === 'selected' || bottomCtaState === 'checked_in' || bottomCtaState === 'awaiting_payment';
+
   return (
-    <div id="gym-detail-page" className="min-h-full bg-[#050B0C] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-white">
+    <div id="gym-detail-page" className="min-h-full bg-[#0A0714] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-white">
       {/* Bottom padding matches the Salon page: enough clearance for the
           shared sticky dock at its tallest (expanded summary + action row)
           plus the device safe area, so the last section is never hidden
@@ -510,7 +524,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {bookingSuccessMessage && (
         <div className="fixed top-4 left-4 right-4 z-50 flex items-center justify-between rounded-xl border border-[var(--category-primary-dark)]/40 bg-[var(--category-primary-dark)] px-4 py-3 text-xs font-bold text-white shadow-lg animate-in fade-in slide-in-from-top-2">
           <span className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-[#14B8A6]" />
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
             {bookingSuccessMessage}
           </span>
           <button onClick={() => setBookingSuccessMessage(null)}>
@@ -524,7 +538,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           dot, name + category/distance/hours, and a tappable address row
           that opens the shared AddressSheet. One NOQ header language for
           every category. */}
-      <div className="relative bg-[#0D2422] text-white">
+      <div className="relative bg-[#120B1D] text-white">
         <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
         <div className="pointer-events-none absolute inset-0">
           {/* Top Bar Navigation */}
@@ -564,7 +578,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
           <AnimatedSalonName name={salon.name} className="mt-1 text-2xl font-bold leading-tight tracking-[-0.03em] text-white [overflow-wrap:anywhere]" />
 
-          <p className="mt-1 text-xs font-medium text-[var(--category-accent,#A3C7C2)]">
+          <div className="mt-1">
+            <RatingSummaryBadge businessId={salon.id} tone="dark" />
+          </div>
+
+          <p className="mt-1 text-xs font-medium text-[var(--category-accent,#C084FC)]">
             Fitness & Strength Center · {salon.distanceKm} km away
           </p>
 
@@ -592,13 +610,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               // repoint Directions/Been-here at an arbitrary URL.
               const Icon = gymProfileIcon(action.iconKey);
               if (action.type === 'schedule') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
               }
               if (action.type === 'directions') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
               }
               if (action.type === 'branches') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
               }
               // been_here — a valid membership is trusted system state that
               // always outranks the owner's cosmetic label/icon for this slot.
@@ -611,10 +629,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     active
                     secondary={`${membership.daysRemaining} DAYS LEFT`}
                     onClick={() => setBeenHereSheetOpen(true)}
+                    surfaceGradient={GYM_QUICK_ACTION_MEMBER_GRADIENT}
                   />
                 );
               }
-              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} />;
+              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
             })}
         </div>
       </div>
@@ -1123,7 +1142,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           moment there is something real to read. */}
       <CategoryActionBar
         id="gym-action-bar"
-        expanded={bottomCtaState === 'selected' || bottomCtaState === 'checked_in' || bottomCtaState === 'awaiting_payment'}
+        expanded={dockExpanded}
         summary={
           bottomCtaState === 'selected' && selectedOffering ? (
             <div className="flex items-center justify-between gap-3 rounded-xl px-2 py-1">
@@ -1167,7 +1186,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         }
       >
         <div className="flex min-w-0 flex-col justify-center pl-1">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-[#4A5D5A]">
+          <div className={`text-[10px] font-bold uppercase tracking-wider ${dockExpanded ? 'text-[#4A5D5A]' : 'text-white/60'}`}>
             {bottomCtaState === 'checked_in'
               ? activeHeading
               : bottomCtaState === 'queued'
@@ -1176,7 +1195,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               ? 'Payment pending'
               : 'Gym access'}
           </div>
-          <div className="truncate text-xs font-extrabold text-[#12332E]">
+          <div className={`truncate text-xs font-extrabold ${dockExpanded ? 'text-[#12332E]' : 'text-white'}`}>
             {bottomCtaState === 'checked_in'
               ? `Inside · ${activeDurationLabel}`
               : bottomCtaState === 'queued'

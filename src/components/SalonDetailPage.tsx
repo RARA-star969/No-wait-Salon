@@ -5,6 +5,7 @@ import { toSalonProfile } from '../shared/salonProfile';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { AccountOnboarding } from './AccountOnboarding';
 import { PublicReviewsSection } from './PublicReviewsSection';
+import { RatingSummaryBadge } from './RatingSummaryBadge';
 import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { LiveQueueCard } from './LiveQueueCard';
@@ -236,6 +237,9 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
               </div>
               <AnimatedSalonName name={salon.name} className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]" />
+              <div className="mt-1">
+                <RatingSummaryBadge businessId={salon.id} tone="dark" />
+              </div>
               <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
             </div>
           </div>

@@ -23,6 +23,7 @@ import { customerAccountService, loadCustomerAuth, saveCustomerAuth } from '../s
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { toSalonProfile, waitLabel } from '../shared/salonProfile';
+import { isGymCategory } from '../shared/businessCategory';
 import { LiveQueueCard, type QueueTrend } from './LiveQueueCard';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { missingProfileFields, resolveAppReadiness } from '../shared/profileReadiness';
@@ -129,7 +130,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   // Live queue for this salon only over existing SSE stream
   useEffect(() => {
-    if (!business || (business.mainCategoryId || 'salon').toLowerCase() === 'gym') return;
+    if (!business || isGymCategory(business.mainCategoryId)) return;
     const apply = (state: { queue: QueueItem[]; barbers?: Barber[]; completedList?: QueueItem[] }) => {
       setQueue(state.queue);
       setCompletedList(state.completedList || []);
@@ -528,7 +529,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       )}
 
       {/* ---------------- STEP 1: SALON / GYM DETAIL VIEW ---------------- */}
-      {step === 'salon' && (business.mainCategoryId || 'salon').toLowerCase() === 'gym' && (
+      {step === 'salon' && isGymCategory(business.mainCategoryId) && (
         <GymDetailPage
           salon={business}
           onBack={openApp}
@@ -536,7 +537,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           appliedOfferId={appliedOfferId}
         />
       )}
-      {step === 'salon' && (business.mainCategoryId || 'salon').toLowerCase() !== 'gym' && (
+      {step === 'salon' && !isGymCategory(business.mainCategoryId) && (
         <SalonDetailPage
           salon={salonProfile}
           nearbySalons={[]}

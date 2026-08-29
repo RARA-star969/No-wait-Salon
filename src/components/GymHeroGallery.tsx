@@ -61,7 +61,7 @@ export const GymHeroGallery: React.FC<{ gallery?: SalonGalleryItem[]; coverImage
   };
 
   return (
-    <div className="relative h-48 w-full overflow-hidden bg-[#0D2422]">
+    <div className="relative h-48 w-full overflow-hidden bg-[#120B1D]">
       <div
         ref={trackRef}
         onScroll={handleScroll}
@@ -85,7 +85,7 @@ export const GymHeroGallery: React.FC<{ gallery?: SalonGalleryItem[]; coverImage
           top and the indicator dots at the bottom — never a flat dark wash
           over the whole photo. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#0D2422]/90 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[#120B1D]/90 to-transparent" />
       {images.length > 1 && (
         <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 items-center gap-1.5">
           {images.map((image, index) => (

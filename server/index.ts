@@ -3361,7 +3361,7 @@ const distanceBetweenKm = (latitude: number, longitude: number, salonLatitude: n
 // Lightweight directory so the Staff app can bind itself to a salon. Read-only
 // and public: it exposes only the id and name of onboarded, active salons.
 app.get('/api/salons/directory', (_request, response) => {
-  const salons = readOnboardedSalons().map((salon) => ({ id: salon.id, name: salon.name, address: salon.address }));
+  const salons = readOnboardedSalons().map((salon) => ({ id: salon.id, name: salon.name, address: salon.address, mainCategoryId: salon.mainCategoryId }));
   response.json({ salons });
 });
 
