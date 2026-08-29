@@ -201,6 +201,15 @@ export interface Salon {
   coverImageUrl?: string;
   logoImageUrl?: string;
   amenities?: string[];
+  /** Structured, icon-carrying amenities for Gym's Manage Profile / Gym
+   *  Detail page. Always derived from the same amenities_json column as
+   *  `amenities` (which stays the legacy plain-name list other categories
+   *  and the Admin editor read) — never a second stored list. */
+  amenityDetails?: GymAmenity[];
+  /** Owner-configurable customer quick actions (Schedule/Directions/etc.)
+   *  on the Gym Detail page. Empty/absent falls back to the trusted
+   *  built-in default set. */
+  quickActions?: GymQuickAction[];
   offers?: SalonOffer[];
   gallery?: SalonGalleryItem[];
   brandKey?: string;
@@ -244,6 +253,36 @@ export interface SalonGalleryItem {
   imageUrl: string;
   type?: 'image' | 'video';
   label?: string;
+  featured?: boolean;
+}
+
+/** Controlled icon key — rendered through the shared amenity icon library,
+ *  never a free-form icon name, so an amenity can never reference an icon
+ *  the customer surfaces don't know how to draw. */
+export type GymAmenityIconKey =
+  | 'Dumbbell' | 'HeartPulse' | 'Flame' | 'Users' | 'ShowerHead' | 'ParkingCircle'
+  | 'Wifi' | 'Wind' | 'Music' | 'Droplet' | 'ShieldCheck' | 'Clock' | 'Locker' | 'Check';
+
+export interface GymAmenity {
+  id: string;
+  name: string;
+  iconKey: GymAmenityIconKey;
+  active: boolean;
+  order: number;
+}
+
+/** Controlled action type — a custom/future quick action can only ever be
+ *  one of these, so a "Directions"/"Been here" slot can never be quietly
+ *  swapped for an arbitrary owner-supplied URL. */
+export type GymQuickActionType = 'schedule' | 'directions' | 'branches' | 'been_here';
+
+export interface GymQuickAction {
+  id: string;
+  type: GymQuickActionType;
+  label: string;
+  iconKey: GymAmenityIconKey;
+  visible: boolean;
+  order: number;
 }
 
 export interface NearbySalon extends Salon {

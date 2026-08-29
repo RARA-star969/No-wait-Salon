@@ -196,6 +196,46 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS staff_account_business_idx ON staff_account(business_id,role);
     CREATE INDEX IF NOT EXISTS staff_session_business_idx ON staff_session(business_id,expires_at);
   `
+}, {
+  version: 13,
+  name: 'public_profile_cms_moderation_and_reviews',
+  sql: `
+    ALTER TABLE salon ADD COLUMN IF NOT EXISTS quick_actions_json TEXT NOT NULL DEFAULT '[]';
+    CREATE TABLE IF NOT EXISTS business_profile_moderation (
+      business_id TEXT PRIMARY KEY REFERENCES salon(id),
+      hold INTEGER NOT NULL DEFAULT 0,
+      held_by TEXT,
+      held_at BIGINT,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS business_profile_draft (
+      business_id TEXT PRIMARY KEY REFERENCES salon(id),
+      draft_json TEXT NOT NULL,
+      submitted_by TEXT,
+      submitted_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS business_review (
+      id TEXT PRIMARY KEY,
+      business_id TEXT NOT NULL REFERENCES salon(id),
+      customer_id TEXT REFERENCES customer_account(id),
+      reviewer_name TEXT NOT NULL DEFAULT 'NOQ Customer',
+      rating INTEGER NOT NULL,
+      review_text TEXT NOT NULL DEFAULT '',
+      original_review_text TEXT,
+      feedback_tags_json TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL DEFAULT 'visit',
+      verified_visit INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'visible',
+      owner_reply_text TEXT,
+      owner_reply_at BIGINT,
+      edited_by_admin_id TEXT,
+      edited_at BIGINT,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS business_review_business_idx ON business_review(business_id,created_at DESC);
+    CREATE INDEX IF NOT EXISTS business_review_rating_idx ON business_review(business_id,rating);
+  `
 }];
 
 export async function runMigrations(db:Database){

@@ -8,7 +8,7 @@ import {runMigrations} from './migrations.ts';
 const tables:Record<string,string[]>={
   gym_state:['gym_id','state_json','updated_at'],
   main_category:['id','name','icon_name','label','description','display_order','active','is_default','theme_key','primary_color','accent_color','banner_image_url','banner_headline','banner_subheadline','banner_cta_text','created_at','updated_at'],
-  salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at','business_code','profile_completed_at'],
+  salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at','business_code','profile_completed_at','quick_actions_json'],
   salon_hours:['salon_id','day_of_week','open_time','close_time','closed'],
   salon_service:['id','salon_id','name','category','price_inr','duration_min','description','image_url','active','sort_order','created_at','updated_at'],
   salon_staff:['id','salon_id','name','photo_url','role','service_ids_json','working_status','active','sort_order','created_at','updated_at'],
@@ -26,6 +26,9 @@ const tables:Record<string,string[]>={
   salon_state:['salon_id','version','state_json','updated_at'],
   business_qr:['id','business_id','business_type','public_token','status','version','created_at','updated_at','revoked_at'],
   web_qr_attribution:['id','business_id','qr_token_id','customer_id','acquisition_source','first_visit_at','joined_at','app_cta_shown','app_cta_clicked','created_at','updated_at'],
+  business_profile_moderation:['business_id','hold','held_by','held_at','updated_at'],
+  business_profile_draft:['business_id','draft_json','submitted_by','submitted_at'],
+  business_review:['id','business_id','customer_id','reviewer_name','rating','review_text','original_review_text','feedback_tags_json','source','verified_visit','status','owner_reply_text','owner_reply_at','edited_by_admin_id','edited_at','created_at','updated_at'],
 };
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();
@@ -44,6 +47,7 @@ const conflictKeys:Record<string,string[]>={
   main_category:['id'],salon:['id'],salon_hours:['salon_id','day_of_week'],salon_service:['id'],salon_staff:['id'],salon_offer:['id'],salon_media:['id'],
   otp_challenge:['id'],customer_account:['id'],customer_profile:['customer_id'],customer_session:['token_hash'],customer_booking:['id'],
   admin_user:['id'],admin_session:['token_hash'],staff_account:['id'],staff_session:['token_hash'],salon_state:['salon_id'],business_qr:['id'],web_qr_attribution:['id'],
+  business_profile_moderation:['business_id'],business_profile_draft:['business_id'],business_review:['id'],
 };
 
 async function replacePostgres(sqlite:DatabaseSync,postgres:Database,selected=insertOrder){
@@ -95,7 +99,7 @@ function buildMissingSeedBackfills(sqlite:DatabaseSync):SeedBackfill[]{
       cover_image_url:source.coverImageUrl||'',logo_image_url:source.logoImageUrl||'',amenities_json:JSON.stringify(source.amenities||[]),offers_json:JSON.stringify(source.offers||[]),
       gallery_json:JSON.stringify(source.gallery||[]),brand_key:source.brandKey||'',short_description:source.shortDescription||'',email:source.email||'',website_url:source.websiteUrl||'',
       area:source.area||'',city:source.city||'',state:source.state||'',pin_code:source.pinCode||'',promotional_banner_url:source.promotionalBannerUrl||'',platform_status:'active',
-      main_category_id:source.mainCategoryId||'salon',updated_at:now,
+      main_category_id:source.mainCategoryId||'salon',updated_at:now,quick_actions_json:'[]',
     };
     insertSalon.run(...tables.salon.map(column=>salon[column]??null) as any[]);
     const services=(source.services||[]).map((service:any,index:number)=>({

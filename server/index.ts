@@ -15,6 +15,7 @@ import { mountGymOperations, normalizeGymState, publicGymState, gymEvent, recomp
 import { currentMembershipFor, reconcileExpiredMemberships, reconcileUnclaimedMembershipsForPhone, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek } from '../src/shared/gymBusiness.ts';
 import { normalizePhone } from '../src/shared/phone.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
+import { normalizeAmenities, sanitizeAmenitiesInput, normalizeQuickActions, sanitizeQuickActionsInput } from '../src/shared/gymProfileCms.ts';
 
 
 
@@ -125,6 +126,7 @@ const additiveSalonColumns: Record<string, string> = {
   updated_at: "INTEGER NOT NULL DEFAULT 0",
   business_code: "TEXT",
   profile_completed_at: "INTEGER",
+  quick_actions_json: "TEXT NOT NULL DEFAULT '[]'",
 };
 for (const [column, definition] of Object.entries(additiveSalonColumns)) {
   if (!salonColumns.has(column)) db.exec(`ALTER TABLE salon ADD COLUMN ${column} ${definition}`);
@@ -292,6 +294,7 @@ type SalonRow = {
   amenities_json: string; offers_json: string; gallery_json: string; brand_key: string;
   short_description: string; email: string; website_url: string; area: string; city: string; state: string;
   pin_code: string; promotional_banner_url: string; platform_status: string; updated_at: number; onboarded: number; created_at: number;
+  quick_actions_json?: string;
 };
 
 db.exec(`
@@ -337,6 +340,23 @@ db.exec(`
     token_hash TEXT PRIMARY KEY, staff_id TEXT NOT NULL, business_id TEXT NOT NULL, expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL,
     FOREIGN KEY(staff_id) REFERENCES staff_account(id)
   );
+  CREATE TABLE IF NOT EXISTS business_profile_moderation (
+    business_id TEXT PRIMARY KEY, hold INTEGER NOT NULL DEFAULT 0, held_by TEXT, held_at INTEGER, updated_at INTEGER NOT NULL,
+    FOREIGN KEY(business_id) REFERENCES salon(id)
+  );
+  CREATE TABLE IF NOT EXISTS business_profile_draft (
+    business_id TEXT PRIMARY KEY, draft_json TEXT NOT NULL, submitted_by TEXT, submitted_at INTEGER NOT NULL,
+    FOREIGN KEY(business_id) REFERENCES salon(id)
+  );
+  CREATE TABLE IF NOT EXISTS business_review (
+    id TEXT PRIMARY KEY, business_id TEXT NOT NULL, customer_id TEXT, reviewer_name TEXT NOT NULL DEFAULT 'NOQ Customer',
+    rating INTEGER NOT NULL, review_text TEXT NOT NULL DEFAULT '', original_review_text TEXT, feedback_tags_json TEXT NOT NULL DEFAULT '[]',
+    source TEXT NOT NULL DEFAULT 'visit', verified_visit INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'visible',
+    owner_reply_text TEXT, owner_reply_at INTEGER, edited_by_admin_id TEXT, edited_at INTEGER,
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+    FOREIGN KEY(business_id) REFERENCES salon(id)
+  );
+  CREATE INDEX IF NOT EXISTS business_review_business_idx ON business_review(business_id, created_at DESC);
 `);
 
 // Additive columns on existing tables
@@ -493,7 +513,13 @@ function rowToSalon(row: SalonRow): Salon {
     active: true,
     eligibleServiceIds: offer.eligible_service_ids_json ? (JSON.parse(String(offer.eligible_service_ids_json)) as string[]) : undefined,
   }));
-  const gallery = mediaRows.filter((media) => media.media_type === 'gallery').map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name) }));
+  // Featured image always sorts first for the customer hero gallery, even
+  // though sort_order (owner reorder) governs everything after it.
+  const galleryRows = mediaRows.filter((media) => media.media_type === 'gallery');
+  const gallery = [...galleryRows]
+    .sort((a, b) => Number(b.featured) - Number(a.featured))
+    .map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name), featured: Number(media.featured) === 1 }));
+  const { names: amenityNames, details: amenityDetails } = normalizeAmenities(JSON.parse(row.amenities_json || '[]'));
   return {
     id: row.id,
     name: row.name,
@@ -513,7 +539,9 @@ function rowToSalon(row: SalonRow): Salon {
     description: row.description,
     coverImageUrl: row.cover_image_url,
     logoImageUrl: row.logo_image_url,
-    amenities: JSON.parse(row.amenities_json || '[]'),
+    amenities: amenityNames,
+    amenityDetails,
+    quickActions: normalizeQuickActions(JSON.parse(row.quick_actions_json || '[]')),
     offers: offers.length ? offers : JSON.parse(row.offers_json || '[]'),
     gallery: gallery.length ? gallery : JSON.parse(row.gallery_json || '[]'),
     brandKey: row.brand_key,
@@ -1515,6 +1543,37 @@ function adminSalonDetail(id: string) {
 }
 
 /**
+ * Admin Public Profile governance (Phase 6): while a business is on
+ * moderation hold, owner edits to the public-facing profile fields land in
+ * a pending draft instead of the live salon row, so customers keep seeing
+ * the last approved/published state until Admin approves or rejects it.
+ * Gallery/media operations and everything outside this field set (Business
+ * ID, category, account security, activation) are never gated by hold —
+ * only the content an owner edits through Manage Profile is.
+ */
+function isBusinessOnHold(businessId: string): boolean {
+  const row = db.prepare('SELECT hold FROM business_profile_moderation WHERE business_id = ?').get(businessId) as { hold: number } | undefined;
+  return Boolean(row?.hold);
+}
+
+function currentProfileDraft(businessId: string): { fields: Record<string, unknown>; submittedBy: string | null; submittedAt: number } | null {
+  const row = db.prepare('SELECT * FROM business_profile_draft WHERE business_id = ?').get(businessId) as { draft_json: string; submitted_by: string | null; submitted_at: number } | undefined;
+  if (!row) return null;
+  return { fields: JSON.parse(row.draft_json || '{}'), submittedBy: row.submitted_by, submittedAt: row.submitted_at };
+}
+
+/** Merges new field values into the pending draft (creating it if absent),
+ *  so a held business can accumulate several owner saves before Admin acts. */
+function saveProfileDraft(businessId: string, patch: Record<string, unknown>, submittedBy: string, now: number) {
+  const existing = currentProfileDraft(businessId);
+  const merged = { ...(existing?.fields || {}), ...patch };
+  db.prepare(`
+    INSERT INTO business_profile_draft (business_id, draft_json, submitted_by, submitted_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(business_id) DO UPDATE SET draft_json = excluded.draft_json, submitted_by = excluded.submitted_by, submitted_at = excluded.submitted_at
+  `).run(businessId, JSON.stringify(merged), submittedBy, now);
+}
+
+/**
  * Bulk-replaces a salon's staff roster in salon_staff — the single write
  * path for staff profiles, shared by Admin's salon editor and Staff
  * Dashboard's Manage Staff so neither can drift into a second staff model.
@@ -1768,33 +1827,179 @@ app.put('/api/staff/business/profile', (request, response) => {
   const session = resolveStaffSession(request);
   if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
   if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
-  
+
   const body = request.body || {};
   const businessId = session.businessId;
   const now = Date.now();
-  
-  // Update allowed public fields. Do NOT update admin/platform fields.
-  const fields = [];
-  const values = [];
-  
-  if (body.name !== undefined) { fields.push('name = ?'); values.push(cleanText(body.name, 150)); }
-  if (body.description !== undefined) { fields.push('description = ?'); values.push(cleanText(body.description, 3000)); }
-  if (body.address !== undefined) { fields.push('address = ?'); values.push(cleanText(body.address, 500)); }
-  if (body.phone_number !== undefined) { fields.push('phone_number = ?'); values.push(cleanText(body.phone_number, 30)); }
-  if (body.logo_image_url !== undefined) { fields.push('logo_image_url = ?'); values.push(cleanText(body.logo_image_url, 1000)); }
-  if (body.cover_image_url !== undefined) { fields.push('cover_image_url = ?'); values.push(cleanText(body.cover_image_url, 1000)); }
-  if (body.opening_hours !== undefined) { fields.push('opening_hours = ?'); values.push(cleanText(body.opening_hours, 100)); }
-  if (body.amenities !== undefined && Array.isArray(body.amenities)) { fields.push('amenities_json = ?'); values.push(JSON.stringify(body.amenities)); }
-  
-  // If no fields to update, just mark as onboarded if needed.
-  if (body.markComplete) { fields.push('profile_completed_at = ?'); values.push(now); }
-  fields.push('updated_at = ?');
-  values.push(now);
-  values.push(businessId);
-  
-  db.prepare(`UPDATE salon SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-  
+
+  // The owner-editable public profile surface (Phase 4A/6). Platform-owned
+  // fields — Business ID, category, account security, activation, QR — are
+  // never accepted here regardless of what a client sends.
+  const patch: Record<string, unknown> = {};
+  if (body.name !== undefined) patch.name = cleanText(body.name, 150);
+  if (body.description !== undefined) patch.description = cleanText(body.description, 3000);
+  if (body.short_description !== undefined) patch.short_description = cleanText(body.short_description, 300);
+  if (body.address !== undefined) patch.address = cleanText(body.address, 500);
+  if (body.area !== undefined) patch.area = cleanText(body.area, 100);
+  if (body.city !== undefined) patch.city = cleanText(body.city, 100);
+  if (body.state !== undefined) patch.state = cleanText(body.state, 100);
+  if (body.pin_code !== undefined) patch.pin_code = cleanText(body.pin_code, 10);
+  if (body.phone_number !== undefined) patch.phone_number = cleanText(body.phone_number, 30);
+  if (body.email !== undefined) patch.email = cleanText(body.email, 200);
+  if (body.website_url !== undefined) patch.website_url = cleanText(body.website_url, 1000);
+  if (body.logo_image_url !== undefined) patch.logo_image_url = cleanText(body.logo_image_url, 1000);
+  if (body.cover_image_url !== undefined) patch.cover_image_url = cleanText(body.cover_image_url, 1000);
+  if (body.opening_hours !== undefined) patch.opening_hours = cleanText(body.opening_hours, 100);
+  if (body.amenities !== undefined && Array.isArray(body.amenities)) {
+    // Accepts either the legacy plain-string list or the structured shape —
+    // normalizeAmenities upgrades either into the same durable structured
+    // form, never throwing on old-shaped callers.
+    patch.amenities_json = JSON.stringify(normalizeAmenities(body.amenities).details);
+  }
+
+  let pending = false;
+  try {
+    if (isBusinessOnHold(businessId)) {
+      if (Object.keys(patch).length) saveProfileDraft(businessId, patch, session.staffId, now);
+      pending = true;
+    } else if (Object.keys(patch).length) {
+      const fields = Object.keys(patch).map((column) => `${column} = ?`);
+      const values: (string | number)[] = Object.values(patch) as (string | number)[];
+      fields.push('updated_at = ?'); values.push(now);
+      values.push(businessId);
+      db.prepare(`UPDATE salon SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    }
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Could not save profile.' });
+  }
+
+  // markComplete/onboarding never waits on moderation hold — it carries no
+  // customer-visible content of its own.
+  if (body.markComplete) {
+    db.prepare('UPDATE salon SET profile_completed_at = ? WHERE id = ?').run(now, businessId);
+  }
+
+  response.json({ ok: true, pending });
+});
+
+/** Owner-only structured amenities save (Phase 4C) — a strict sibling of the
+ *  legacy-tolerant `amenities` field on /profile, used by the real Manage
+ *  Profile icon-library editor, which only ever sends valid icon keys. */
+app.put('/api/staff/business/amenities', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  let sanitized;
+  try {
+    sanitized = sanitizeAmenitiesInput(request.body?.amenities);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid amenities.' });
+  }
+  const now = Date.now();
+  const businessId = session.businessId;
+  if (isBusinessOnHold(businessId)) {
+    saveProfileDraft(businessId, { amenities_json: JSON.stringify(sanitized) }, session.staffId, now);
+    return response.json({ ok: true, pending: true, amenities: sanitized });
+  }
+  db.prepare('UPDATE salon SET amenities_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(sanitized), now, businessId);
+  response.json({ ok: true, pending: false, amenities: sanitized });
+});
+
+/** Owner-only Quick Actions Manager save (Phase 4E). */
+app.put('/api/staff/business/quick-actions', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  let sanitized;
+  try {
+    sanitized = sanitizeQuickActionsInput(request.body?.quickActions);
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Invalid quick actions.' });
+  }
+  const now = Date.now();
+  const businessId = session.businessId;
+  if (isBusinessOnHold(businessId)) {
+    saveProfileDraft(businessId, { quick_actions_json: JSON.stringify(sanitized) }, session.staffId, now);
+    return response.json({ ok: true, pending: true, quickActions: sanitized });
+  }
+  db.prepare('UPDATE salon SET quick_actions_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(sanitized), now, businessId);
+  response.json({ ok: true, pending: false, quickActions: sanitized });
+});
+
+/** Owner-only Gallery CRUD (Phase 4B) — reuses the existing salon_media
+ *  table (already the Admin editor's gallery/media store) rather than a
+ *  second image database. Gallery operations are never gated by moderation
+ *  hold; only the salon-row profile content is. */
+app.get('/api/staff/business/gallery', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  const rows = db.prepare("SELECT * FROM salon_media WHERE salon_id = ? AND media_type = 'gallery' ORDER BY sort_order, created_at").all(session.businessId);
+  response.json({ gallery: rows });
+});
+
+app.post('/api/staff/business/gallery', async (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  const url = cleanText(request.body?.url, 1000);
+  if (!url) return response.status(400).json({ error: 'An image URL is required.' });
+  const now = Date.now();
+  const id = `media_${randomUUID()}`;
+  const maxOrder = (db.prepare("SELECT COALESCE(MAX(sort_order), -1) as m FROM salon_media WHERE salon_id = ? AND media_type = 'gallery'").get(session.businessId) as { m: number }).m;
+  db.prepare(`INSERT INTO salon_media (id, salon_id, media_type, url, caption, featured, sort_order, created_at, updated_at) VALUES (?, ?, 'gallery', ?, ?, 0, ?, ?, ?)`)
+    .run(id, session.businessId, url, cleanText(request.body?.caption, 200), maxOrder + 1, now, now);
+  await postgresPersistence?.flushNow(['salon_media']);
+  response.status(201).json({ ok: true, id });
+});
+
+app.delete('/api/staff/business/gallery/:mediaId', async (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  const owned = db.prepare('SELECT id FROM salon_media WHERE id = ? AND salon_id = ?').get(request.params.mediaId, session.businessId);
+  if (!owned) return response.status(404).json({ error: 'Image not found.' });
+  db.prepare('DELETE FROM salon_media WHERE id = ? AND salon_id = ?').run(request.params.mediaId, session.businessId);
+  await postgresPersistence?.flushNow(['salon_media']);
   response.json({ ok: true });
+});
+
+app.put('/api/staff/business/gallery/order', async (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  const orderedIds = Array.isArray(request.body?.orderedIds) ? request.body.orderedIds as string[] : [];
+  const owned = new Set((db.prepare("SELECT id FROM salon_media WHERE salon_id = ? AND media_type = 'gallery'").all(session.businessId) as { id: string }[]).map((r) => r.id));
+  if (!orderedIds.length || orderedIds.some((id) => !owned.has(id))) return response.status(400).json({ error: 'Invalid gallery order.' });
+  const now = Date.now();
+  orderedIds.forEach((id, index) => {
+    db.prepare('UPDATE salon_media SET sort_order = ?, updated_at = ? WHERE id = ? AND salon_id = ?').run(index, now, id, session.businessId);
+  });
+  await postgresPersistence?.flushNow(['salon_media']);
+  response.json({ ok: true });
+});
+
+app.put('/api/staff/business/gallery/:mediaId/featured', async (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  const owned = db.prepare("SELECT id FROM salon_media WHERE id = ? AND salon_id = ? AND media_type = 'gallery'").get(request.params.mediaId, session.businessId);
+  if (!owned) return response.status(404).json({ error: 'Image not found.' });
+  const now = Date.now();
+  db.prepare("UPDATE salon_media SET featured = 0, updated_at = ? WHERE salon_id = ? AND media_type = 'gallery'").run(now, session.businessId);
+  db.prepare('UPDATE salon_media SET featured = 1, updated_at = ? WHERE id = ?').run(now, request.params.mediaId);
+  await postgresPersistence?.flushNow(['salon_media']);
+  response.json({ ok: true });
+});
+
+/** Owner-facing moderation status (Phase 6) — lets Manage Profile show a
+ *  "your last edit is pending Admin review" banner instead of silently
+ *  swallowing a save while on hold. */
+app.get('/api/staff/business/moderation', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  const hold = isBusinessOnHold(session.businessId);
+  const draft = currentProfileDraft(session.businessId);
+  response.json({ hold, pendingFields: draft ? Object.keys(draft.fields) : [], submittedAt: draft?.submittedAt || null });
 });
 
 app.post('/api/staff/test-switch', (request, response) => {
@@ -2253,6 +2458,206 @@ app.get('/api/gym/:gymId/customer-lookup', (request, response) => {
     'SELECT a.id as customer_id, p.name FROM customer_account a JOIN customer_profile p ON p.customer_id = a.id WHERE a.phone_number = ?'
   ).get(phone) as { customer_id: string; name: string } | undefined;
   response.json({ found: Boolean(account), customerId: account?.customer_id || null, name: account?.name || null });
+});
+
+// --- Reviews (Phase 5/7): a normalized, durable review model shared by the
+// Owner and Admin dashboards — never a fabricated count, always backed by
+// business_review rows. "Verified visit" is only ever set from a real
+// GymVisit or membership record for that exact business, never trusted from
+// the client. ---
+
+function isVerifiedGymVisitor(gymId: string, customerId: string): boolean {
+  const state = getGymState(gymId);
+  const hasVisit = state.visits.some((visit: any) => visit.customerId === customerId);
+  const hasMembership = currentMembershipFor(state.memberships, customerId) !== undefined;
+  return hasVisit || hasMembership;
+}
+
+function reviewRowToView(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    businessId: String(row.business_id),
+    reviewerName: String(row.reviewer_name),
+    rating: Number(row.rating),
+    reviewText: String(row.review_text || ''),
+    feedbackTags: JSON.parse(String(row.feedback_tags_json || '[]')),
+    verifiedVisit: Number(row.verified_visit) === 1,
+    status: String(row.status),
+    ownerReplyText: row.owner_reply_text ? String(row.owner_reply_text) : null,
+    ownerReplyAt: row.owner_reply_at ? Number(row.owner_reply_at) : null,
+    editedByAdmin: Boolean(row.edited_by_admin_id),
+    editedAt: row.edited_at ? Number(row.edited_at) : null,
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+app.get('/api/gym/:gymId/reviews', (request, response) => {
+  const rows = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND status = 'visible' ORDER BY created_at DESC LIMIT 100").all(request.params.gymId) as Record<string, unknown>[];
+  response.json({ reviews: rows.map(reviewRowToView) });
+});
+
+app.post('/api/gym/:gymId/reviews', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const salon = db.prepare('SELECT id FROM salon WHERE id = ?').get(gymId);
+  if (!salon) return response.status(404).json({ error: 'Business not found.' });
+  const ratingInput = Number(request.body?.rating);
+  if (!Number.isFinite(ratingInput) || ratingInput < 1 || ratingInput > 5) {
+    return response.status(400).json({ error: 'A rating from 1 to 5 is required.' });
+  }
+  const rating = Math.round(ratingInput);
+  const reviewText = cleanText(request.body?.reviewText, 2000);
+  const feedbackTags = Array.isArray(request.body?.feedbackTags) ? request.body.feedbackTags.slice(0, 12).map((tag: unknown) => cleanText(tag, 60)) : [];
+  const profile = db.prepare('SELECT name FROM customer_profile WHERE customer_id = ?').get(request.customerId) as { name: string } | undefined;
+  const now = Date.now();
+  const id = `review_${randomUUID()}`;
+  const verified = isVerifiedGymVisitor(gymId, request.customerId!);
+  db.prepare(`
+    INSERT INTO business_review (id, business_id, customer_id, reviewer_name, rating, review_text, feedback_tags_json, source, verified_visit, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'visit', ?, 'visible', ?, ?)
+  `).run(id, gymId, request.customerId, profile?.name || 'NOQ Customer', rating, reviewText, JSON.stringify(feedbackTags), verified ? 1 : 0, now, now);
+  postgresPersistence?.flushNow(['business_review']);
+  response.status(201).json({ ok: true, review: reviewRowToView(db.prepare('SELECT * FROM business_review WHERE id = ?').get(id) as Record<string, unknown>) });
+});
+
+/** Owner Reviews dashboard (Phase 5): overall rating, total, distribution,
+ *  and the full sorted list — every number computed from real rows, never
+ *  a stored/fabricated count. */
+app.get('/api/staff/business/reviews', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  const sort = cleanText(request.query.sort, 20) || 'newest';
+  const orderSql = sort === 'highest' ? 'rating DESC, created_at DESC' : sort === 'lowest' ? 'rating ASC, created_at DESC' : 'created_at DESC';
+  const rows = db.prepare(`SELECT * FROM business_review WHERE business_id = ? AND status != 'deleted' ORDER BY ${orderSql}`).all(session.businessId) as Record<string, unknown>[];
+  const visible = rows.filter((row) => row.status !== 'hidden');
+  const totalReviews = visible.length;
+  const overallRating = totalReviews ? Math.round((visible.reduce((sum, row) => sum + Number(row.rating), 0) / totalReviews) * 10) / 10 : 0;
+  const distribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  visible.forEach((row) => { distribution[Number(row.rating)] = (distribution[Number(row.rating)] || 0) + 1; });
+  response.json({ overallRating, totalReviews, distribution, reviews: rows.map(reviewRowToView) });
+});
+
+app.put('/api/staff/business/reviews/:id/reply', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can reply to reviews.' });
+  const owned = db.prepare('SELECT id FROM business_review WHERE id = ? AND business_id = ?').get(request.params.id, session.businessId);
+  if (!owned) return response.status(404).json({ error: 'Review not found.' });
+  const replyText = cleanText(request.body?.replyText, 1000);
+  const now = Date.now();
+  db.prepare('UPDATE business_review SET owner_reply_text = ?, owner_reply_at = ?, updated_at = ? WHERE id = ?').run(replyText || null, replyText ? now : null, now, request.params.id);
+  postgresPersistence?.flushNow(['business_review']);
+  response.json({ ok: true });
+});
+
+/** Admin Reviews management (Phase 7): view/filter/search everything, edit
+ *  review text directly (no customer approval needed — this is an explicit
+ *  product requirement), hide/unhide, and remove. Original text and edit
+ *  metadata are kept for audit without exposing that complexity to
+ *  customers. */
+app.get('/api/admin/reviews', requireAdmin, (request, response) => {
+  const businessId = cleanText(request.query.businessId, 100);
+  const status = cleanText(request.query.status, 20);
+  const ratingFilter = request.query.rating ? Number(request.query.rating) : undefined;
+  const search = cleanText(request.query.search, 200).toLowerCase();
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+  if (businessId) { clauses.push('business_id = ?'); params.push(businessId); }
+  if (status) { clauses.push('status = ?'); params.push(status); }
+  else clauses.push("status != 'deleted'");
+  if (ratingFilter) { clauses.push('rating = ?'); params.push(ratingFilter); }
+  const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+  let rows = db.prepare(`SELECT r.*, s.name as business_name FROM business_review r JOIN salon s ON s.id = r.business_id ${where} ORDER BY r.created_at DESC LIMIT 500`).all(...params) as Array<Record<string, unknown>>;
+  if (search) rows = rows.filter((row) => String(row.review_text || '').toLowerCase().includes(search) || String(row.reviewer_name || '').toLowerCase().includes(search));
+  response.json({
+    reviews: rows.map((row) => ({ ...reviewRowToView(row), businessName: String(row.business_name), originalReviewText: row.original_review_text ? String(row.original_review_text) : null })),
+  });
+});
+
+app.put('/api/admin/reviews/:id', requireAdmin, async (request: AdminRequest, response) => {
+  const existing = db.prepare('SELECT * FROM business_review WHERE id = ?').get(request.params.id) as Record<string, unknown> | undefined;
+  if (!existing) return response.status(404).json({ error: 'Review not found.' });
+  const reviewText = cleanText(request.body?.reviewText, 2000);
+  const now = Date.now();
+  // Keep the very first original text only, so repeated Admin edits don't
+  // overwrite the audit trail with an already-edited version.
+  const originalToKeep = existing.original_review_text ? String(existing.original_review_text) : String(existing.review_text || '');
+  db.prepare('UPDATE business_review SET review_text = ?, original_review_text = ?, edited_by_admin_id = ?, edited_at = ?, updated_at = ? WHERE id = ?')
+    .run(reviewText, originalToKeep, request.adminId || 'admin', now, now, request.params.id);
+  await postgresPersistence?.flushNow(['business_review']);
+  response.json({ ok: true, review: reviewRowToView(db.prepare('SELECT * FROM business_review WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
+});
+
+app.patch('/api/admin/reviews/:id/status', requireAdmin, async (request, response) => {
+  const status = cleanText(request.body?.status, 20);
+  if (!['visible', 'hidden'].includes(status)) return response.status(400).json({ error: "Status must be 'visible' or 'hidden'." });
+  const existing = db.prepare('SELECT id FROM business_review WHERE id = ?').get(request.params.id);
+  if (!existing) return response.status(404).json({ error: 'Review not found.' });
+  db.prepare('UPDATE business_review SET status = ?, updated_at = ? WHERE id = ?').run(status, Date.now(), request.params.id);
+  await postgresPersistence?.flushNow(['business_review']);
+  response.json({ ok: true });
+});
+
+app.delete('/api/admin/reviews/:id', requireAdmin, async (request, response) => {
+  const existing = db.prepare('SELECT id FROM business_review WHERE id = ?').get(request.params.id);
+  if (!existing) return response.status(404).json({ error: 'Review not found.' });
+  db.prepare("UPDATE business_review SET status = 'deleted', updated_at = ? WHERE id = ?").run(Date.now(), request.params.id);
+  await postgresPersistence?.flushNow(['business_review']);
+  response.json({ ok: true });
+});
+
+// --- Admin Public Profile governance (Phase 6): moderation hold + draft
+// approve/reject. Business ID, category, account security, activation and
+// QR authority stay exclusively on the existing Admin business-id/owner-
+// account/activation endpoints — this only ever touches profile content. ---
+
+app.get('/api/admin/salons/:id/moderation', requireAdmin, (request, response) => {
+  const salon = db.prepare('SELECT id FROM salon WHERE id = ?').get(request.params.id);
+  if (!salon) return response.status(404).json({ error: 'Business not found.' });
+  const hold = db.prepare('SELECT * FROM business_profile_moderation WHERE business_id = ?').get(request.params.id) as { hold: number; held_by: string | null; held_at: number | null } | undefined;
+  const draft = currentProfileDraft(request.params.id);
+  response.json({
+    hold: Boolean(hold?.hold),
+    heldBy: hold?.held_by || null,
+    heldAt: hold?.held_at || null,
+    pendingFields: draft?.fields || null,
+    submittedAt: draft?.submittedAt || null,
+  });
+});
+
+app.put('/api/admin/salons/:id/moderation/hold', requireAdmin, async (request: AdminRequest, response) => {
+  const salon = db.prepare('SELECT id FROM salon WHERE id = ?').get(request.params.id);
+  if (!salon) return response.status(404).json({ error: 'Business not found.' });
+  const hold = Boolean(request.body?.hold);
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO business_profile_moderation (business_id, hold, held_by, held_at, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(business_id) DO UPDATE SET hold = excluded.hold, held_by = excluded.held_by, held_at = excluded.held_at, updated_at = excluded.updated_at
+  `).run(request.params.id, hold ? 1 : 0, hold ? (request.adminId || 'admin') : null, hold ? now : null, now);
+  await postgresPersistence?.flushNow(['business_profile_moderation']);
+  response.json({ ok: true, hold });
+});
+
+app.post('/api/admin/salons/:id/profile-draft/approve', requireAdmin, async (request, response) => {
+  const draft = currentProfileDraft(request.params.id);
+  if (!draft || !Object.keys(draft.fields).length) return response.status(404).json({ error: 'No pending changes to approve.' });
+  const now = Date.now();
+  const fields = Object.keys(draft.fields).map((column) => `${column} = ?`);
+  const values: (string | number)[] = Object.values(draft.fields) as (string | number)[];
+  fields.push('updated_at = ?'); values.push(now);
+  values.push(request.params.id);
+  db.prepare(`UPDATE salon SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  db.prepare('DELETE FROM business_profile_draft WHERE business_id = ?').run(request.params.id);
+  await postgresPersistence?.flushNow(['salon', 'business_profile_draft']);
+  response.json({ ok: true, salon: adminSalonDetail(request.params.id) });
+});
+
+app.post('/api/admin/salons/:id/profile-draft/reject', requireAdmin, async (request, response) => {
+  const draft = currentProfileDraft(request.params.id);
+  if (!draft) return response.status(404).json({ error: 'No pending changes to reject.' });
+  db.prepare('DELETE FROM business_profile_draft WHERE business_id = ?').run(request.params.id);
+  await postgresPersistence?.flushNow(['business_profile_draft']);
+  response.json({ ok: true });
 });
 
 app.post('/api/admin/login', (request, response) => {
