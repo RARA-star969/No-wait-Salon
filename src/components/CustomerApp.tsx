@@ -54,6 +54,8 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { lastViewedBusinessPreference, type LastViewedByCategory } from '../services/recentBusinessPreferenceService';
+import { gymCustomerService } from '../services/gymCustomerService';
+import type { SignalColor } from '../shared/signalColor';
 import { resolveSalonQueueSignal } from '../shared/salonQueueLevel';
 import { deriveLocalityLabel } from '../shared/localityLabel';
 import { mergeLiveOperationalFields } from '../shared/nearbySalonsSync';
@@ -223,6 +225,28 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       return next;
     });
   }, []);
+  // One authenticated summary call covers every Gym card on the listing —
+  // never one membership lookup per card. Only a genuinely 'active' status
+  // counts as a MEMBER; expired/cancelled memberships never do, even though
+  // the same endpoint also returns those for the Profile "Gym Activity" view.
+  const [gymMemberBusinessIds, setGymMemberBusinessIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!customerAuth?.token) {
+      setGymMemberBusinessIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    gymCustomerService.getMyGymMemberships()
+      .then((data) => {
+        if (cancelled) return;
+        const activeGymIds = data.memberships
+          .filter((entry) => entry.membership.status === 'active')
+          .map((entry) => entry.gymId);
+        setGymMemberBusinessIds(new Set(activeGymIds));
+      })
+      .catch(() => { if (!cancelled) setGymMemberBusinessIds(new Set()); });
+    return () => { cancelled = true; };
+  }, [customerAuth?.token]);
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -1113,7 +1137,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               {categoryFilteredSalons.map((salon) => {
                 const catId = (salon.mainCategoryId || 'salon').toLowerCase();
                 const isGym = catId === 'gym';
-                const isSelected = lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
+                const isMember = isGym && gymMemberBusinessIds.has(salon.id);
+                // MEMBER outranks Last viewed — an active member never also
+                // shows the last-viewed badge for that same Gym.
+                const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
                 const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
 
                 let liveLine1: string;
@@ -1121,14 +1148,16 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
                 let signalLabel: string;
                 let positionLabel: string | null = null;
+                let liveFloorMeter: { occupancy: number; maxCapacity: number; color: SignalColor } | undefined;
 
                 if (isGym) {
                   const currentOccupancy = salon.currentOccupancy ?? 0;
                   const maxCapacity = salon.maxCapacity ?? 0;
                   const crowd = resolveGymCrowdLevel(currentOccupancy, maxCapacity);
                   const signal = gymListingSignal(crowd.level);
-                  liveLine1 = `Live Floor: ${currentOccupancy} / ${maxCapacity}`;
-                  liveLine2 = `${crowd.availableSlots} ${crowd.availableSlots === 1 ? 'space' : 'spaces'} available`;
+                  liveLine1 = '';
+                  liveLine2 = '';
+                  liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
                   signalColor = signal.color;
                   signalLabel = signal.label;
                 } else {
@@ -1152,7 +1181,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       theme={theme}
                       icon={getCategoryIcon(activeCategoryObj.iconName)}
                       isSelected={isSelected}
+                      isMember={isMember}
                       localityLabel={deriveLocalityLabel(salon)}
+                      liveFloorMeter={liveFloorMeter}
                       liveLine1={liveLine1}
                       liveLine2={liveLine2}
                       signalColor={signalColor}

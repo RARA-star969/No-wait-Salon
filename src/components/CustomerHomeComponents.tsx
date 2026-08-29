@@ -546,6 +546,71 @@ export const SignalStatusChip: React.FC<{ color: SignalColor; label: string }> =
   );
 };
 
+/** Occupied/available counts for the Gym listing's Live Floor capsule —
+ *  always derived from the same real currentOccupancy/maxCapacity and the
+ *  one shared crowd-color resolver, never a second/local computation. */
+export interface LiveFloorMeterData {
+  occupancy: number;
+  maxCapacity: number;
+  color: SignalColor;
+}
+
+/** How much of the capsule a side needs before its count can sit inside it
+ *  without crowding the rounded cap — below this the number moves just
+ *  outside that side instead of clipping or overlapping the other label. */
+const LIVE_FLOOR_LABEL_FIT_THRESHOLD = 16;
+
+/**
+ * Premium glass/mirror occupancy capsule for a Gym listing card. Filled
+ * portion shows the occupied count, unfilled (smoked) portion shows the
+ * available count; the fill color comes from the same resolver-driven
+ * signal color as the crowd chip, never a competing formula.
+ */
+const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
+  const capacity = Math.max(1, data.maxCapacity);
+  const occupancy = Math.min(capacity, Math.max(0, data.occupancy));
+  const available = Math.max(0, capacity - occupancy);
+  const percentage = Math.min(100, Math.max(0, (occupancy / capacity) * 100));
+  const fillHex = SIGNAL_STYLES[data.color].bar;
+  const occupiedFits = percentage >= LIVE_FLOOR_LABEL_FIT_THRESHOLD;
+  const availableFits = 100 - percentage >= LIVE_FLOOR_LABEL_FIT_THRESHOLD;
+
+  return (
+    <div className="min-w-0 flex-1">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Live Floor</p>
+      <div
+        role="img"
+        aria-label={`${occupancy} of ${capacity} occupied, ${available} spaces available`}
+        className="relative mt-1 h-[22px] w-full overflow-hidden rounded-full bg-[#0A0F0E] ring-1 ring-white/[0.07] shadow-[inset_0_1px_3px_rgba(0,0,0,0.6)]"
+      >
+        {/* smoked translucent unfilled side */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.04] via-transparent to-black/30" />
+        {/* filled glass/mirror capsule */}
+        <div
+          className="absolute inset-y-0 left-0 overflow-hidden rounded-full transition-[width] duration-700 ease-out"
+          style={{ width: `${percentage}%`, background: `linear-gradient(180deg, ${fillHex}E6 0%, ${fillHex}B3 55%, ${fillHex}80 100%)` }}
+        >
+          {/* reflective highlight + inner gloss depth */}
+          <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/45 to-transparent" />
+          <div className="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-3px_5px_rgba(0,0,0,0.3)]" />
+        </div>
+        <span
+          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-bold tabular-nums transition-all duration-700 ease-out ${occupiedFits ? 'text-white' : 'text-slate-300'}`}
+          style={occupiedFits ? { left: 8 } : { left: `calc(${percentage}% + 6px)` }}
+        >
+          {occupancy}
+        </span>
+        <span
+          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-bold tabular-nums transition-all duration-700 ease-out ${availableFits ? 'text-slate-300' : 'text-white'}`}
+          style={availableFits ? { right: 8 } : { right: `calc(${100 - percentage}% + 6px)` }}
+        >
+          {available}
+        </span>
+      </div>
+    </div>
+  );
+};
+
 /**
  * Premium dark listing card for a nearby business. Renders only real data
  * already carried on `NearbySalon` (plus values passed in that were derived
@@ -556,19 +621,25 @@ export const PremiumBusinessCard: React.FC<{
   theme: CategoryTheme;
   icon: React.FC<{ className?: string }>;
   isSelected: boolean;
+  /** Gold MEMBER badge outranks "Last viewed" for an authenticated customer
+   *  with a current, valid Gym membership — never shown together. */
+  isMember?: boolean;
   /** Compact "Locality · 0.4 km" — no full street address on the listing;
    *  the full address stays on the Detail page. */
   localityLabel: string;
-  /** Primary live-data line, e.g. "1 ahead" or "Live Floor: 42 / 80". */
+  /** Primary live-data line, e.g. "1 ahead" (unused for Gym — see liveFloorMeter). */
   liveLine1: string;
-  /** Secondary live-data line, e.g. "~8 min wait" or "38 spaces available". */
+  /** Secondary live-data line, e.g. "~8 min wait" (unused for Gym). */
   liveLine2: string;
+  /** Gym-only: renders the "Live Floor" heading + occupancy capsule in place
+   *  of liveLine1/liveLine2. */
+  liveFloorMeter?: LiveFloorMeterData;
   signalColor: SignalColor;
   signalLabel: string;
   /** "You'd be #3" — salon only, and only while there's an actual wait. */
   positionLabel?: string | null;
   onClick: () => void;
-}> = ({ salon, theme, icon: IconComponent, isSelected, localityLabel, liveLine1, liveLine2, signalColor, signalLabel, positionLabel, onClick }) => {
+}> = ({ salon, theme, icon: IconComponent, isSelected, isMember, localityLabel, liveLine1, liveLine2, liveFloorMeter, signalColor, signalLabel, positionLabel, onClick }) => {
   return (
     <button
       type="button"
@@ -604,7 +675,12 @@ export const PremiumBusinessCard: React.FC<{
             <b className="min-w-0 flex-1 truncate text-[15px] font-bold text-white">
               {salon.name}
             </b>
-            {isSelected && (
+            {isMember ? (
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-bold uppercase tracking-wider text-[#3B2A0A] shadow-[0_1px_2px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.6)]" style={{ background: 'linear-gradient(135deg, #FDE7A8 0%, #E8B84B 32%, #B8842A 62%, #F3D584 100%)' }}>
+                <Star className="h-2.5 w-2.5 fill-[#5C3E0C] text-[#5C3E0C]" />
+                Member
+              </span>
+            ) : isSelected && (
               <span className={`shrink-0 text-[9px] font-semibold uppercase tracking-wider ${theme.softText}`}>
                 Last viewed
               </span>
@@ -626,13 +702,17 @@ export const PremiumBusinessCard: React.FC<{
           row: live queue/floor numbers on the left, a traffic-light signal
           (icon + text, never color alone) on the right. */}
       <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] bg-black/20 px-4 py-3">
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 truncate text-[13px] font-bold text-white">
-            <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: theme.accent }} />
-            {liveLine1}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-400">{liveLine2}</p>
-        </div>
+        {liveFloorMeter ? (
+          <LiveFloorMeter data={liveFloorMeter} />
+        ) : (
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 truncate text-[13px] font-bold text-white">
+              <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: theme.accent }} />
+              {liveLine1}
+            </p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-400">{liveLine2}</p>
+          </div>
+        )}
         <div className="flex shrink-0 flex-col items-end gap-1">
           <SignalStatusChip color={signalColor} label={signalLabel} />
           {positionLabel && (
