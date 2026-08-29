@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
-import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem } from '../types';
+import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
+import { resolveAppReadiness } from '../shared/profileReadiness';
+import { AccountOnboarding } from './AccountOnboarding';
+import { PublicReviewsSection } from './PublicReviewsSection';
 import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { LiveQueueCard } from './LiveQueueCard';
@@ -50,6 +53,11 @@ type Props = {
   onReserve: () => void;
   userEntry: QueueItem | null;
   isJoinSheetOpen?: boolean;
+  customerAuth?: CustomerAuthSession | null;
+  customerProfile?: CustomerProfile | null;
+  profileLoading?: boolean;
+  onIdentityVerified?: (auth: CustomerAuthSession) => void;
+  onProfileSaved?: (profile: CustomerProfile) => void;
 };
 
 const serviceCategory = (name: string) => {
@@ -71,7 +79,9 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   'Facial': <Facial3DIcon className="h-7 w-7" />,
 };
 
-export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen }) => {
+export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen, customerAuth = null, customerProfile = null, profileLoading = false, onIdentityVerified, onProfileSaved }) => {
+  const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+  const [reviewGateOpen, setReviewGateOpen] = useState(false);
   const [saved, setSaved] = useState(false);
   const [visited, setVisited] = useState(false);
   const [aboutExpanded, setAboutExpanded] = useState(false);
@@ -347,7 +357,34 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[var(--category-primary-dark)]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
         {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
+
+        <PublicReviewsSection
+          businessId={salon.id}
+          ready={readiness.kind === 'ready'}
+          onRequireReady={() => setReviewGateOpen(true)}
+          tone="light"
+        />
       </div>
+
+      {reviewGateOpen && (() => {
+        const gate = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
+        if (gate.kind !== 'onboarding_required') return null;
+        return (
+          <div className="fixed inset-0 z-[95] bg-[#F8FAFA]">
+            <AccountOnboarding
+              gate={gate}
+              onVerified={(auth) => onIdentityVerified?.(auth)}
+              onProfileSaved={(profile) => { onProfileSaved?.(profile); setReviewGateOpen(false); }}
+              onCancel={() => setReviewGateOpen(false)}
+              intro={{
+                eyebrow: 'Verify to continue',
+                title: 'One quick check before you review.',
+                description: 'Verify your mobile number, then add your name and gender so your review can carry your identity.',
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* Premium sticky action dock. The glass material, proportions, radius,
           safe-area handling, micro-bounce and the grid-rows expand of the

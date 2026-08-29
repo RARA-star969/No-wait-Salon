@@ -2513,6 +2513,15 @@ function isVerifiedGymVisitor(gymId: string, customerId: string): boolean {
   return hasVisit || hasMembership;
 }
 
+/** A "verified visit" badge is only ever set from a real record for that
+ *  exact business, never trusted from the client — branches by category
+ *  since Gym and Salon each carry their own real visit history. */
+function isVerifiedVisitor(businessId: string, customerId: string, mainCategoryId: string): boolean {
+  if (mainCategoryId === 'gym') return isVerifiedGymVisitor(businessId, customerId);
+  const completed = db.prepare("SELECT 1 FROM customer_booking WHERE salon_id = ? AND customer_id = ? AND status = 'Completed' LIMIT 1").get(businessId, customerId);
+  return Boolean(completed);
+}
+
 function reviewRowToView(row: Record<string, unknown>) {
   return {
     id: String(row.id),
@@ -2532,14 +2541,16 @@ function reviewRowToView(row: Record<string, unknown>) {
   };
 }
 
-app.get('/api/gym/:gymId/reviews', (request, response) => {
-  const rows = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND status = 'visible' ORDER BY created_at DESC LIMIT 100").all(request.params.gymId) as Record<string, unknown>[];
-  response.json({ reviews: rows.map(reviewRowToView) });
+app.get('/api/business/:businessId/reviews', (request, response) => {
+  const rows = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND status = 'visible' ORDER BY created_at DESC LIMIT 100").all(request.params.businessId) as Record<string, unknown>[];
+  const totalReviews = rows.length;
+  const overallRating = totalReviews ? Math.round((rows.reduce((sum, row) => sum + Number(row.rating), 0) / totalReviews) * 10) / 10 : 0;
+  response.json({ reviews: rows.map(reviewRowToView), overallRating, totalReviews });
 });
 
-app.post('/api/gym/:gymId/reviews', requireCustomer, (request: AuthenticatedRequest, response) => {
-  const gymId = request.params.gymId;
-  const salon = db.prepare('SELECT id FROM salon WHERE id = ?').get(gymId);
+app.post('/api/business/:businessId/reviews', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const businessId = request.params.businessId;
+  const salon = db.prepare("SELECT id, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE id = ?").get(businessId) as { id: string; main_category_id: string } | undefined;
   if (!salon) return response.status(404).json({ error: 'Business not found.' });
   const ratingInput = Number(request.body?.rating);
   if (!Number.isFinite(ratingInput) || ratingInput < 1 || ratingInput > 5) {
@@ -2551,11 +2562,11 @@ app.post('/api/gym/:gymId/reviews', requireCustomer, (request: AuthenticatedRequ
   const profile = db.prepare('SELECT name FROM customer_profile WHERE customer_id = ?').get(request.customerId) as { name: string } | undefined;
   const now = Date.now();
   const id = `review_${randomUUID()}`;
-  const verified = isVerifiedGymVisitor(gymId, request.customerId!);
+  const verified = isVerifiedVisitor(businessId, request.customerId!, salon.main_category_id);
   db.prepare(`
     INSERT INTO business_review (id, business_id, customer_id, reviewer_name, rating, review_text, feedback_tags_json, source, verified_visit, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'visit', ?, 'visible', ?, ?)
-  `).run(id, gymId, request.customerId, profile?.name || 'NOQ Customer', rating, reviewText, JSON.stringify(feedbackTags), verified ? 1 : 0, now, now);
+  `).run(id, businessId, request.customerId, profile?.name || 'NOQ Customer', rating, reviewText, JSON.stringify(feedbackTags), verified ? 1 : 0, now, now);
   postgresPersistence?.flushNow(['business_review']);
   response.status(201).json({ ok: true, review: reviewRowToView(db.prepare('SELECT * FROM business_review WHERE id = ?').get(id) as Record<string, unknown>) });
 });

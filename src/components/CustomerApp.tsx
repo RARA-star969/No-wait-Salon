@@ -1284,6 +1284,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             onReserve={() => setScreen('slots')}
             userEntry={userEntry}
             isJoinSheetOpen={isJoinSheetOpen}
+            customerAuth={customerAuth}
+            customerProfile={customerProfile}
+            profileLoading={profileLoading}
+            onIdentityVerified={onIdentityVerified}
+            onProfileSaved={onProfileSaved}
           />
         )}
         </div>

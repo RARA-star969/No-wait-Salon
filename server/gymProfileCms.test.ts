@@ -190,7 +190,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
   let reviewId = '';
 
   await t.test('a customer with no gym history can still leave a review, unverified', async () => {
-    const res = await api('POST', `/api/gym/${gymId}/reviews`, { rating: 4, reviewText: 'Great equipment.' }, customerToken);
+    const res = await api('POST', `/api/business/${gymId}/reviews`, { rating: 4, reviewText: 'Great equipment.' }, customerToken);
     assert.equal(res.status, 201);
     assert.equal(res.data.review.verifiedVisit, false);
     reviewId = res.data.review.id;
@@ -204,7 +204,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
       name: 'Verified Visitor', offeringId: 'custom_entry', customerId,
     }, owner);
     assert.equal(checkin.status, 200);
-    const res = await api('POST', `/api/gym/${gymId}/reviews`, { rating: 5, reviewText: 'Actually trained there.' }, customerToken);
+    const res = await api('POST', `/api/business/${gymId}/reviews`, { rating: 5, reviewText: 'Actually trained there.' }, customerToken);
     assert.equal(res.status, 201);
     assert.equal(res.data.review.verifiedVisit, true);
   });
@@ -235,7 +235,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
     const mine = relist.data.reviews.find((r: any) => r.id === reviewId);
     assert.equal(mine.reviewText, 'Edited by admin for policy compliance.');
     assert.equal(mine.originalReviewText, 'Great equipment.');
-    const publicList = await api('GET', `/api/gym/${gymId}/reviews`);
+    const publicList = await api('GET', `/api/business/${gymId}/reviews`);
     const minePublic = publicList.data.reviews.find((r: any) => r.id === reviewId);
     assert.equal(minePublic.reviewText, 'Edited by admin for policy compliance.');
   });
@@ -243,7 +243,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
   await t.test('admin can hide a review and it disappears from the public list', async () => {
     const hide = await api('PATCH', `/api/admin/reviews/${reviewId}/status`, { status: 'hidden' }, adminToken);
     assert.equal(hide.status, 200);
-    const publicList = await api('GET', `/api/gym/${gymId}/reviews`);
+    const publicList = await api('GET', `/api/business/${gymId}/reviews`);
     assert.equal(publicList.data.reviews.find((r: any) => r.id === reviewId), undefined);
     assert.equal(publicList.data.reviews.length, 1);
   });
@@ -257,7 +257,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
   });
 
   await t.test('rejects a review with no rating', async () => {
-    const res = await api('POST', `/api/gym/${gymId}/reviews`, { reviewText: 'No rating given' }, customerToken);
+    const res = await api('POST', `/api/business/${gymId}/reviews`, { reviewText: 'No rating given' }, customerToken);
     assert.equal(res.status, 400);
   });
 });

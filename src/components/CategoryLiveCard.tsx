@@ -9,6 +9,16 @@ export interface CategoryMetric {
   dense?: boolean;
 }
 
+/** Color-only override, layout/content untouched. Defaults reproduce the
+ *  existing Salon teal exactly, so LiveQueueCard gets zero behavior change. */
+export interface CategoryLiveCardPalette {
+  gradient?: string;
+  rim?: string;
+  glowColorA?: string;
+  glowColorB?: string;
+  flashColor?: string;
+}
+
 export interface CategoryLiveCardProps {
   id?: string;
   live?: boolean;
@@ -16,12 +26,14 @@ export interface CategoryLiveCardProps {
   topRightLabel?: React.ReactNode;
   metrics: CategoryMetric[];
   className?: string;
+  palette?: CategoryLiveCardPalette;
 }
 
-const CategoryStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; dense?: boolean }> = ({
+const CategoryStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; dense?: boolean; flashColor: string }> = ({
   label,
   value,
   dense,
+  flashColor,
 }) => {
   const flashing = useMetricFlash(value);
   return (
@@ -29,7 +41,8 @@ const CategoryStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; d
       <p
         className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
           dense ? 'text-[15px]' : 'text-[22px]'
-        } ${flashing ? 'scale-[1.12] text-[#7DEFC6]' : ''}`}
+        } ${flashing ? 'scale-[1.12]' : ''}`}
+        style={flashing ? { color: flashColor } : undefined}
       >
         {value}
       </p>
@@ -47,26 +60,32 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
   topRightLabel,
   metrics,
   className = '',
+  palette,
 }) => {
+  const gradient = palette?.gradient ?? LIVE_QUEUE_GRADIENT;
+  const rim = palette?.rim ?? LIVE_QUEUE_RIM_FULL;
+  const glowColorA = palette?.glowColorA ?? '#5EE0B4';
+  const glowColorB = palette?.glowColorB ?? '#0AA88C';
+  const flashColor = palette?.flashColor ?? '#7DEFC6';
   return (
     <section
       id={id}
       className={`relative overflow-hidden rounded-[22px] px-4 py-2.5 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_0_20px_rgba(94,224,180,0.06),0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
-      style={{ background: LIVE_QUEUE_GRADIENT }}
+      style={{ background: gradient }}
     >
       {/* Luminous edge — softened, low-alpha masked gradient rim */}
       <div
         className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
         style={{
-          background: LIVE_QUEUE_RIM_FULL,
+          background: rim,
           WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
           WebkitMaskComposite: 'xor',
           maskComposite: 'exclude',
         }}
         aria-hidden="true"
       />
-      <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#5EE0B4]/16 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[#0AA88C]/14 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full blur-3xl" style={{ backgroundColor: `${glowColorA}29` }} aria-hidden="true" />
+      <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full blur-3xl" style={{ backgroundColor: `${glowColorB}24` }} aria-hidden="true" />
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[46%] bg-gradient-to-b from-white/[0.09] to-transparent" aria-hidden="true" />
 
       {/* Periodic bulb-glow sweep */}
@@ -112,7 +131,7 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
       {/* 3 Metrics Row */}
       <div className="relative mt-2.5 grid grid-cols-3 gap-3">
         {metrics.map((m) => (
-          <CategoryStat key={m.key} label={m.label} value={m.value} dense={m.dense} />
+          <CategoryStat key={m.key} label={m.label} value={m.value} dense={m.dense} flashColor={flashColor} />
         ))}
       </div>
     </section>
