@@ -71,6 +71,8 @@ import {
   gymVisitDurationLabel,
 } from "../shared/gymTime";
 import { GymCustomerAvatar } from "./GymCustomerAvatar";
+import { GymManageProfile } from "./GymManageProfile";
+import { GymReviewsDashboard } from "./GymReviewsDashboard";
 import {
   GymMembersPanel,
   type GymMembersFilter,
@@ -408,6 +410,8 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     "inside" | "waiting" | "payments"
   >("inside");
   const [declinePayment, setDeclinePayment] = useState<GymPayment | null>(null);
+  const [showManageProfile, setShowManageProfile] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
@@ -2135,10 +2139,42 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   </p>
                 </Panel>
               )}
+              {active === "settings" && manager && (
+                <Panel title="Public Profile">
+                  <button
+                    type="button"
+                    onClick={() => setShowManageProfile(true)}
+                    className="flex w-full items-center justify-between rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-bold text-[#17201F]">Manage Profile</span>
+                      <span className="block text-xs text-[#5C6E6B]">Control how {gymName} appears to customers</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#5C6E6B]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReviews(true)}
+                    className="mt-2 flex w-full items-center justify-between rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-left"
+                  >
+                    <span>
+                      <span className="block text-sm font-bold text-[#17201F]">Reviews</span>
+                      <span className="block text-xs text-[#5C6E6B]">Monitor customer ratings and feedback</span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#5C6E6B]" />
+                  </button>
+                </Panel>
+              )}
               {active === "settings" && (
                 <EntryQrPanel gymId={gymId} gymName={gymName} />
               )}
             </>
+          )}
+          {showManageProfile && (
+            <GymManageProfile gymId={gymId} gymName={gymName} onClose={() => setShowManageProfile(false)} />
+          )}
+          {showReviews && (
+            <GymReviewsDashboard gymId={gymId} gymName={gymName} onClose={() => setShowReviews(false)} />
           )}
           <footer className="gym-page-footer">
             <span>NOQ BUSINESS · GYM OPERATIONS</span>

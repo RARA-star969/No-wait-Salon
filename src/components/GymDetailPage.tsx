@@ -6,9 +6,7 @@ import {
   Star,
   MapPin,
   Clock,
-  Navigation,
   Users,
-  CalendarDays,
   UserCheck,
   Dumbbell,
   CheckCircle2,
@@ -20,7 +18,6 @@ import {
   Tag,
   Check,
   ChevronRight,
-  Store,
   X,
   QrCode,
   BadgeCheck,
@@ -32,6 +29,9 @@ import { businessQrService, type QrBusiness } from '../services/businessQrServic
 import { evaluateCoupon } from '../shared/couponPricing';
 import { resolveAppReadiness } from '../shared/profileReadiness';
 import { GymLiveCard } from './GymLiveCard';
+import { GymHeroGallery } from './GymHeroGallery';
+import { gymProfileIcon } from './gymProfileIcons';
+import { defaultQuickActions } from '../shared/gymProfileCms';
 import { GymFloatingCapsule } from './GymFloatingCapsule';
 import { AccountOnboarding } from './AccountOnboarding';
 import { QrScannerModal } from './QrScannerModal';
@@ -486,16 +486,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           that opens the shared AddressSheet. One NOQ header language for
           every category. */}
       <div className="relative bg-[#0D2422] text-white">
-        <div className="relative h-48 w-full overflow-hidden bg-[#133330]">
-          <img
-            src={salon.coverImageUrl || 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=1000&auto=format&fit=crop'}
-            alt={salon.name}
-            className="h-full w-full object-cover opacity-60"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0D2422] via-transparent to-black/40" />
-
+        <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
+        <div className="pointer-events-none absolute inset-0">
           {/* Top Bar Navigation */}
-          <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+          <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
             <button
               onClick={onBack}
               id="gym-back-btn"
@@ -573,20 +567,38 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {/* Premium action tiles — same interaction pattern as the salon detail page. */}
       <div className="px-5 pt-4">
         <div className="grid grid-cols-4 gap-2.5">
-          <QuickAction icon={<CalendarDays />} label="Schedule" onClick={() => setOpenHoursSheetOpen(true)} />
-          <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
-          <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
-          {membership && membership.displayStatus !== 'expired' ? (
-            <QuickAction
-              icon={<BadgeCheck />}
-              label="✓ MEMBER"
-              active
-              secondary={`${membership.daysRemaining} DAYS LEFT`}
-              onClick={() => setBeenHereSheetOpen(true)}
-            />
-          ) : (
-            <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} active={visited} onClick={() => setBeenHereSheetOpen(true)} />
-          )}
+          {(salon.quickActions && salon.quickActions.length ? salon.quickActions : defaultQuickActions())
+            .filter((action) => action.visible)
+            .map((action) => {
+              // Every action's real behavior is fixed by its trusted `type`
+              // — an owner can restyle/relabel/hide/reorder a slot, never
+              // repoint Directions/Been-here at an arbitrary URL.
+              const Icon = gymProfileIcon(action.iconKey);
+              if (action.type === 'schedule') {
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} />;
+              }
+              if (action.type === 'directions') {
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} />;
+              }
+              if (action.type === 'branches') {
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />;
+              }
+              // been_here — a valid membership is trusted system state that
+              // always outranks the owner's cosmetic label/icon for this slot.
+              if (membership && membership.displayStatus !== 'expired') {
+                return (
+                  <QuickAction
+                    key={action.id}
+                    icon={<BadgeCheck />}
+                    label="✓ MEMBER"
+                    active
+                    secondary={`${membership.daysRemaining} DAYS LEFT`}
+                    onClick={() => setBeenHereSheetOpen(true)}
+                  />
+                );
+              }
+              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} />;
+            })}
         </div>
       </div>
 
@@ -879,14 +891,23 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         <div className="rounded-2xl border border-[#DDE5E3] bg-white p-4 shadow-sm">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[#5C6E6B]">Gym Facilities & Amenities</h2>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(salon.amenities && salon.amenities.length ? salon.amenities : [
-              'Strength Zone', 'Cardio Deck', 'Sauna & Recovery Spa', 'Locker Room', 'Shower', 'Parking', 'Wi-Fi'
-            ]).map((amenity) => (
-              <span key={amenity} className="flex items-center gap-1.5 rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-3 py-1.5 text-xs font-semibold text-[#17201F]">
-                <Check className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
-                {amenity}
-              </span>
-            ))}
+            {(salon.amenityDetails && salon.amenityDetails.length ? salon.amenityDetails.filter((a) => a.active) : [
+              { id: 'd1', name: 'Strength Zone', iconKey: 'Dumbbell' as const },
+              { id: 'd2', name: 'Cardio Deck', iconKey: 'HeartPulse' as const },
+              { id: 'd3', name: 'Sauna & Recovery Spa', iconKey: 'Flame' as const },
+              { id: 'd4', name: 'Locker Room', iconKey: 'Locker' as const },
+              { id: 'd5', name: 'Shower', iconKey: 'ShowerHead' as const },
+              { id: 'd6', name: 'Parking', iconKey: 'ParkingCircle' as const },
+              { id: 'd7', name: 'Wi-Fi', iconKey: 'Wifi' as const },
+            ]).map((amenity) => {
+              const AmenityIcon = gymProfileIcon(amenity.iconKey);
+              return (
+                <span key={amenity.id} className="flex items-center gap-1.5 rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-3 py-1.5 text-xs font-semibold text-[#17201F]">
+                  <AmenityIcon className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />
+                  {amenity.name}
+                </span>
+              );
+            })}
           </div>
         </div>
 
