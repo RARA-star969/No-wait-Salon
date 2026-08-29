@@ -705,7 +705,9 @@ export default function App() {
 
   const gymStaffSelected = selectedSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
   const gymTestSwitcher = import.meta.env.DEV || ['localhost', '127.0.0.1', 'no-wait-salon-web-test.onrender.com'].includes(window.location.hostname);
-  const isRealBusinessSurface = PACKAGED_MODE === 'staff' || window.location.pathname === '/business';
+  // PACKAGED_MODE === 'staff' already returned above via the universal
+  // StaffAppShell login gate; this only covers the web '/business' route.
+  const isRealBusinessSurface = window.location.pathname === '/business';
   // Outside the hosted TEST wrapper, selecting a Gym business still gets its
   // own real full-screen NOQ Business surface, matching production/Android.
   // Only the TEST wrapper (gymTestSwitcher) keeps it inside the compact
