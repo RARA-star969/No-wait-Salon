@@ -22,7 +22,7 @@ import {
   QrCode,
   BadgeCheck,
   Crown,
-  TrendingUp,
+  CalendarDays,
 } from 'lucide-react';
 import { NearbySalon, Salon, SalonOffer, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
 import { fetchSalonProfile } from '../services/salonDiscoveryService';
@@ -44,11 +44,14 @@ import { CategoryActionBar } from './CategoryActionBar';
 import { formatGymClock, gymVisitDurationLabel } from '../shared/gymTime';
 import { activeAccessHeading, splitRecommendedOfferings } from '../shared/gymLiveFloor';
 import { RatingSummaryBadge } from './RatingSummaryBadge';
+import { workoutPlanService, todaysWorkoutDay, nextWorkoutDay, workoutDayLabel, type WorkoutPlan, type WorkoutDay } from '../services/workoutPlanService';
+import { TodaysWorkoutSheet } from './TodaysWorkoutSheet';
+import { AttendanceCalendarSheet } from './AttendanceCalendarSheet';
+import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
 // Gym's own violet/purple quick-action tile surface — QuickAction is shared
 // with Salon (which keeps its default teal), so Gym passes its own gradient
 // instead of a copy of the component.
-const GYM_QUICK_ACTION_GRADIENT = 'linear-gradient(160deg, #2E1B4A 0%, #170F29 75%)';
 const GYM_QUICK_ACTION_MEMBER_GRADIENT = 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)';
 
 interface GymDetailPageProps {
@@ -130,6 +133,15 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
   // --- Membership, payment & check-in state ---
   const [myMembership, setMyMembership] = useState<GymMyMembershipResponse | null>(null);
+  // Customer-owned workout plan (see workoutPlanService) — loaded only once
+  // there's a real active membership, since the Member card is the only
+  // place it's read from here. Setup itself lives in Customer Profile /
+  // the empty-state button below, never in this Owner-facing surface.
+  const [workoutPlan, setWorkoutPlan] = useState<WorkoutPlan | null>(null);
+  const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
+  const [workoutSheetDay, setWorkoutSheetDay] = useState<WorkoutDay | null>(null);
+  const [attendanceSheetOpen, setAttendanceSheetOpen] = useState(false);
+  const [workoutPlanEditorOpen, setWorkoutPlanEditorOpen] = useState(false);
   const [gateOpen, setGateOpen] = useState(false);
   const [gatePendingAction, setGatePendingAction] = useState<null | 'claim' | 'offering' | 'scan' | 'review'>(null);
   const [claimModalOpen, setClaimModalOpen] = useState(false);
@@ -382,6 +394,21 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   };
 
   const membership = myMembership?.membership || null;
+  const isActiveMember = Boolean(membership && membership.displayStatus !== 'expired');
+
+  // Loaded once there's a real active membership — never fetched (and
+  // never shown) for a non-member, so nothing here can imply membership
+  // that doesn't exist.
+  useEffect(() => {
+    if (!isActiveMember) { setWorkoutPlan(null); setWorkoutPlanLoaded(false); return; }
+    let cancelled = false;
+    workoutPlanService.get(salon.id).then(({ plan }) => { if (!cancelled) { setWorkoutPlan(plan); setWorkoutPlanLoaded(true); } }).catch(() => { if (!cancelled) setWorkoutPlanLoaded(true); });
+    return () => { cancelled = true; };
+  }, [isActiveMember, salon.id]);
+
+  const todaysDay = todaysWorkoutDay(workoutPlan);
+  const upcomingDay = todaysDay?.isRest ? nextWorkoutDay(workoutPlan) : null;
+
   const activeVisit = myMembership?.activeVisit || null;
   const isCheckedIn = Boolean(activeVisit);
   const isQueued = Boolean(myMembership?.queued);
@@ -537,47 +564,56 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {/* 1. GYM HERO / BUSINESS INFO — premium profile hero matching the NOQ
           reference: gallery cover, floating glass controls, a large business
           logo overlapping the cover/identity seam, then the
-          open-now/name/category/rating identity block and address, merging
-          straight into the page instead of a disconnected banner slab. */}
+          open-now/name/category/rating identity block and address. The
+          photo stays the visually dominant element — only a short gradient
+          right behind the logo/name seam darkens for legibility, never a
+          flat opaque rectangle across the whole identity area. */}
       <div className="relative bg-[#120B1D] text-white">
-        <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
-        <div className="pointer-events-none absolute inset-0">
+        <div className="relative">
+          <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
+          {/* Localized scrim: transparent through most of the photo, only
+              darkening in its final third so the logo/name have contrast to
+              land on — the cover itself is never globally dimmed. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#120B1D] via-[#120B1D]/55 to-transparent" />
           {/* Top Bar Navigation */}
-          <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
-            <button
-              onClick={onBack}
-              id="gym-back-btn"
-              aria-label="Back to nearby gyms"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div className="flex items-center gap-2">
+          <div className="pointer-events-none absolute inset-0">
+            <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
               <button
-                onClick={() => setSaved((value) => !value)}
-                aria-label={saved ? 'Remove saved gym' : 'Save gym'}
-                className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/15 backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
-              >
-                <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
-              </button>
-              <button
-                onClick={shareGym}
-                aria-label="Share gym"
+                onClick={onBack}
+                id="gym-back-btn"
+                aria-label="Back to nearby gyms"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
               >
-                <Share2 className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
               </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSaved((value) => !value)}
+                  aria-label={saved ? 'Remove saved gym' : 'Save gym'}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/15 backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
+                >
+                  <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
+                </button>
+                <button
+                  onClick={shareGym}
+                  aria-label="Share gym"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
+                >
+                  <Share2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Identity panel: the same dark surface the gallery's own bottom
-            scrim fades into, so the logo/name block reads as one continuous
-            profile instead of a seam — the large logo overlaps upward into
-            the cover, exactly like the reference. */}
+        {/* Identity panel: only the logo overlaps upward into the photo's
+            own gradient; the name/category/rating/address text sits on the
+            solid base color immediately below the photo, so it's always
+            fully legible without needing a large dark overlay on the image
+            itself. */}
         <div className="relative px-5 pb-5 pt-0">
           <div className="flex items-end gap-3">
-            <div className="-mt-11 flex h-[92px] w-[92px] shrink-0 items-center justify-center overflow-hidden rounded-[26px] border-[3px] border-[#120B1D] bg-[#241536] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
+            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[#120B1D] bg-[#241536] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
@@ -622,13 +658,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               // repoint Directions/Been-here at an arbitrary URL.
               const Icon = gymProfileIcon(action.iconKey);
               if (action.type === 'schedule') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} tone="gymGlass" />;
               }
               if (action.type === 'directions') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} tone="gymGlass" />;
               }
               if (action.type === 'branches') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
+                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} tone="gymGlass" />;
               }
               // been_here — a valid membership is trusted system state that
               // always outranks the owner's cosmetic label/icon for this slot.
@@ -646,22 +682,27 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   />
                 );
               }
-              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} surfaceGradient={GYM_QUICK_ACTION_GRADIENT} />;
+              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} tone="gymGlass" />;
             })}
         </div>
       </div>
 
-      {/* Floating Gym Live Capsule when main card is scrolled out of view */}
+      {/* Floating Gym Live Capsule when main card is scrolled out of view.
+          Same safe-area-aware, flex-centered wrapper pattern as Salon's own
+          floating scoreboard, so it always sits fully inside the viewport
+          with breathing room from the top edge on notched devices. */}
       {!isCardVisible && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[95] capsule-melt-in">
-          <GymFloatingCapsule
-            currentOccupancy={currentOcc}
-            maxCapacity={maxCap}
-            availableTrainersCount={overview?.availableTrainersCount ?? 0}
-            onTap={() => {
-              document.getElementById('gym-live-card')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          />
+        <div className="fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)+0.6rem))]">
+          <div className="capsule-melt-in">
+            <GymFloatingCapsule
+              currentOccupancy={currentOcc}
+              maxCapacity={maxCap}
+              availableTrainersCount={overview?.availableTrainersCount ?? 0}
+              onTap={() => {
+                document.getElementById('gym-live-card')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -677,63 +718,74 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
         {/* MEMBERSHIP & ATTENDANCE — real, server-backed identity for this gym. */}
         <div id="gym-membership-section" className="space-y-3">
-          {membership ? (
-            <div className="rounded-2xl border border-[var(--category-primary-dark)]/20 bg-white/[0.04] p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <BadgeCheck className="h-4 w-4 text-[var(--category-accent)]" />
-                  <h2 className="text-xs font-extrabold text-white">{membership.planName}</h2>
-                </div>
-                <span
-                  className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
-                    membership.displayStatus === 'expired'
-                      ? 'bg-rose-500/15 text-rose-300'
-                      : membership.displayStatus === 'expires_today' || membership.displayStatus === 'expiring_soon'
-                      ? 'bg-amber-500/15 text-amber-300'
-                      : 'bg-[var(--category-tint-10)] text-[var(--category-accent)]'
-                  }`}
-                >
-                  {membership.displayStatus === 'expired'
-                    ? 'Expired'
-                    : membership.displayStatus === 'expires_today'
-                    ? 'Expires today'
-                    : membership.displayStatus === 'expiring_soon'
-                    ? 'Expiring soon'
-                    : 'Active'}
+          {isActiveMember && membership ? (
+            <div className="relative overflow-hidden rounded-2xl border border-[#8B5CF6]/25 bg-[linear-gradient(160deg,#241539_0%,#170F24_75%)] p-4 shadow-[0_14px_28px_-18px_rgba(0,0,0,0.7)]">
+              <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-[#8B5CF6]/14 blur-3xl" aria-hidden="true" />
+              <div className="relative flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#F3D584]">
+                  <Crown className="h-3.5 w-3.5 fill-[#F3D584] stroke-[1.75] text-[#8A6316]" />
+                  Active member
                 </span>
+                <button
+                  onClick={() => setAttendanceSheetOpen(true)}
+                  aria-label="View membership and attendance calendar"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition active:scale-95"
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <p className="mt-1 text-[11px] text-white/50">
-                {membership.displayStatus === 'expired'
-                  ? `Expired on ${new Date(membership.expiryDate).toLocaleDateString()}`
-                  : `${membership.daysRemaining} day${membership.daysRemaining === 1 ? '' : 's'} left · valid till ${new Date(membership.expiryDate).toLocaleDateString()}`}
-              </p>
 
-              {myMembership?.attendance && (
-                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-                  <div className="rounded-xl bg-black/20 p-2">
-                    <div className="text-sm font-extrabold text-white">{myMembership.attendance.visitsThisMonth}</div>
-                    <div className="text-[9px] font-semibold text-white/50">This month</div>
-                  </div>
-                  <div className="rounded-xl bg-black/20 p-2">
-                    <div className="text-sm font-extrabold text-white">{myMembership.attendance.avgVisitsPerWeek.toFixed(1)}</div>
-                    <div className="text-[9px] font-semibold text-white/50">Avg/week</div>
-                  </div>
-                  <div className="rounded-xl bg-black/20 p-2">
-                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[var(--category-accent)]">
-                      <Flame className="h-3.5 w-3.5" />
-                      {myMembership.attendance.currentStreak}
-                    </div>
-                    <div className="text-[9px] font-semibold text-white/50">Streak</div>
-                  </div>
-                  <div className="rounded-xl bg-black/20 p-2">
-                    <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-white">
-                      <TrendingUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
-                      {myMembership.attendance.bestStreak}
-                    </div>
-                    <div className="text-[9px] font-semibold text-white/50">Best</div>
-                  </div>
-                </div>
-              )}
+              <div className="relative mt-3">
+                {!workoutPlanLoaded ? (
+                  <div className="h-14 animate-pulse rounded-xl bg-white/[0.04]" />
+                ) : todaysDay ? (
+                  <button
+                    type="button"
+                    onClick={() => setWorkoutSheetDay(todaysDay)}
+                    className="block w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition active:scale-[0.99]"
+                  >
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#C89CFA]">
+                      {todaysDay.isRest ? 'Today · Recovery day' : `Today · ${todaysDay.label}`}
+                    </p>
+                    {todaysDay.isRest ? (
+                      <p className="mt-0.5 text-xs text-white/60">
+                        {upcomingDay ? `Next: ${upcomingDay.day.label} · ${upcomingDay.inDays === 1 ? 'Tomorrow' : `in ${upcomingDay.inDays} days`}` : 'Rest and recover.'}
+                      </p>
+                    ) : (
+                      <>
+                        <p className="mt-0.5 text-sm font-extrabold text-white">{todaysDay.label}</p>
+                        <p className="mt-0.5 text-[11px] text-white/50">{todaysDay.exercises.length} exercise{todaysDay.exercises.length === 1 ? '' : 's'}</p>
+                      </>
+                    )}
+                    {!todaysDay.isRest && (
+                      <span className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[#6B21A8] px-2.5 py-1.5 text-[10px] font-bold text-white">
+                        View Workout
+                      </span>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setWorkoutPlanEditorOpen(true)}
+                    className="block w-full rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center text-xs font-bold text-white/60 transition active:scale-[0.99]"
+                  >
+                    Set up your workout plan
+                  </button>
+                )}
+              </div>
+
+              <p className="relative mt-3 text-[11px] text-white/45">
+                Member since {new Date(membership.joinedDate).toLocaleDateString()} · Valid till {new Date(membership.expiryDate).toLocaleDateString()}
+              </p>
+            </div>
+          ) : membership ? (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4">
+              <div className="flex items-center gap-2">
+                <BadgeCheck className="h-4 w-4 text-rose-300" />
+                <h2 className="text-xs font-extrabold text-white">{membership.planName}</h2>
+                <span className="rounded-md bg-rose-500/15 px-2 py-0.5 text-[9px] font-extrabold uppercase text-rose-300">Expired</span>
+              </div>
+              <p className="mt-1 text-[11px] text-white/50">Expired on {new Date(membership.expiryDate).toLocaleDateString()}. Renew to unlock check-in again.</p>
             </div>
           ) : myMembership?.pendingClaim ? (
             <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-xs font-semibold text-amber-200">
@@ -1138,6 +1190,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           onToggle={() => { setVisited((value) => !value); setBeenHereSheetOpen(false); }}
           onClose={() => setBeenHereSheetOpen(false)}
         />
+      )}
+
+      {workoutSheetDay && (
+        <TodaysWorkoutSheet day={workoutSheetDay} onClose={() => setWorkoutSheetDay(null)} />
+      )}
+      {attendanceSheetOpen && (
+        <AttendanceCalendarSheet gymId={salon.id} onClose={() => setAttendanceSheetOpen(false)} />
+      )}
+      {workoutPlanEditorOpen && (
+        <WorkoutPlanEditor gymId={salon.id} gymName={salon.name} onClose={() => setWorkoutPlanEditorOpen(false)} onSaved={(plan) => setWorkoutPlan(plan)} />
       )}
 
       {/* The one Gym CTA state machine, riding the shared premium

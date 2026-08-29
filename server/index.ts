@@ -12,7 +12,7 @@ import {ensureBusinessQr,findActiveBusinessQr,type BusinessQrRow} from './busine
 import {canCancel,graceMinutes,graceWindowMs,normaliseCancelReason,shouldStartNewCall} from '../src/shared/queueTiming.ts';
 import {evaluateCoupon} from '../src/shared/couponPricing.ts';
 import { mountGymOperations, normalizeGymState, publicGymState, gymEvent, recomputeOccupancy } from './gymOperations.ts';
-import { currentMembershipFor, reconcileExpiredMemberships, reconcileUnclaimedMembershipsForPhone, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek } from '../src/shared/gymBusiness.ts';
+import { currentMembershipFor, reconcileExpiredMemberships, reconcileUnclaimedMembershipsForPhone, membershipDisplayStatus, daysRemaining, attendanceStreaks, monthlyAttendance, visitsInMonth, averageVisitsPerWeek, attendedDays } from '../src/shared/gymBusiness.ts';
 import { normalizePhone } from '../src/shared/phone.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 import { normalizeAmenities, sanitizeAmenitiesInput, normalizeQuickActions, sanitizeQuickActionsInput } from '../src/shared/gymProfileCms.ts';
@@ -662,6 +662,15 @@ db.exec(`
     customer_id TEXT NOT NULL,
     expires_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
+    FOREIGN KEY(customer_id) REFERENCES customer_account(id)
+  );
+  CREATE TABLE IF NOT EXISTS customer_workout_plan (
+    customer_id TEXT NOT NULL,
+    business_id TEXT NOT NULL,
+    plan_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (customer_id, business_id),
     FOREIGN KEY(customer_id) REFERENCES customer_account(id)
   );
   CREATE TABLE IF NOT EXISTS customer_booking (
@@ -2302,6 +2311,26 @@ app.get('/api/gym/:gymId/my-membership', requireCustomer, (request: Authenticate
   });
 });
 
+// Attendance calendar for the Member card's Calendar sheet — real check-in
+// days for one month, plus the same membership/streak figures the summary
+// card already computes. `month` defaults to the current month; no fake
+// data — a month with no visits simply returns an empty attendedDays list.
+app.get('/api/gym/:gymId/my-attendance', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const gymId = request.params.gymId;
+  const state = getGymState(gymId);
+  const month = /^\d{4}-\d{2}$/.test(String(request.query.month || '')) ? String(request.query.month) : new Date().toISOString().slice(0, 7);
+  const membership = currentMembershipFor(state.memberships, request.customerId!);
+  const streaks = attendanceStreaks(state.visits, request.customerId!);
+  response.set('Cache-Control', 'no-store').json({
+    membership: membership ? { ...membership, displayStatus: membershipDisplayStatus(membership), daysRemaining: daysRemaining(membership.expiryDate) } : null,
+    month,
+    attendedDays: attendedDays(state.visits, request.customerId!).filter((day) => day.startsWith(month)),
+    visitsThisMonth: visitsInMonth(state.visits, request.customerId!, month),
+    currentStreak: streaks.current,
+    bestStreak: streaks.best,
+  });
+});
+
 app.get('/api/me/gym-memberships', requireCustomer, (request: AuthenticatedRequest, response) => {
   const gyms = db.prepare("SELECT id, name FROM salon WHERE main_category_id='gym' AND onboarded=1").all() as { id: string; name: string }[];
   const results: any[] = [];
@@ -3335,6 +3364,64 @@ app.post('/api/business-qr/:token/visit',async(request,response)=>{
 
 // Marketing consent is explicit and separate from joining a queue. Queue access
 // never depends on it.
+// Customer-owned weekly workout plan (goal + a day entry per day of week,
+// each carrying a structured exercise list). This is deliberately NOT
+// scoped to one gym or owned by any Owner Dashboard surface — it belongs to
+// the customer and follows them, matching "set up once, resolve today's
+// plan automatically" everywhere the Gym Member card reads it.
+type WorkoutExercise = { id: string; name: string; sets: number; reps: number; targetWeight?: string; note?: string };
+type WorkoutDay = { dayOfWeek: number; label: string; isRest: boolean; exercises: WorkoutExercise[] };
+type WorkoutPlan = { goal: string; days: WorkoutDay[] };
+
+function sanitizeWorkoutPlan(body: unknown): WorkoutPlan {
+  const input = (body || {}) as Record<string, unknown>;
+  const goal = cleanText(input.goal, 60);
+  const rawDays = Array.isArray(input.days) ? input.days : [];
+  const days: WorkoutDay[] = [];
+  const seenDow = new Set<number>();
+  for (const rawDay of rawDays.slice(0, 7)) {
+    const d = (rawDay || {}) as Record<string, unknown>;
+    const dayOfWeek = Number(d.dayOfWeek);
+    if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6 || seenDow.has(dayOfWeek)) continue;
+    seenDow.add(dayOfWeek);
+    const isRest = asBoolean(d.isRest);
+    const rawExercises = Array.isArray(d.exercises) ? d.exercises : [];
+    const exercises: WorkoutExercise[] = isRest ? [] : rawExercises.slice(0, 30).map((rawEx) => {
+      const e = (rawEx || {}) as Record<string, unknown>;
+      return {
+        id: cleanText(e.id, 60) || randomUUID(),
+        name: cleanText(e.name, 80),
+        sets: Math.max(0, Math.min(20, Math.round(Number(e.sets) || 0))),
+        reps: Math.max(0, Math.min(200, Math.round(Number(e.reps) || 0))),
+        targetWeight: cleanText(e.targetWeight, 20) || undefined,
+        note: cleanText(e.note, 200) || undefined,
+      };
+    }).filter((e) => e.name.length > 0);
+    days.push({ dayOfWeek, label: cleanText(d.label, 40) || (isRest ? 'Rest' : 'Workout'), isRest, exercises });
+  }
+  return { goal, days };
+}
+
+// Scoped by customerId + businessId (gymId) — a customer's weekly split at
+// one gym is its own plan, never shared with a membership at a different
+// gym. "Today's workout" on a given GymDetailPage only ever reads the plan
+// row for THAT business.
+app.get('/api/gym/:gymId/my-workout-plan', requireCustomer, (request: AuthenticatedRequest, response) => {
+  const row = db.prepare('SELECT plan_json FROM customer_workout_plan WHERE customer_id = ? AND business_id = ?').get(request.customerId, request.params.gymId) as { plan_json: string } | undefined;
+  response.set('Cache-Control', 'no-store').json({ plan: row ? (JSON.parse(row.plan_json) as WorkoutPlan) : null });
+});
+
+app.put('/api/gym/:gymId/my-workout-plan', requireCustomer, async (request: AuthenticatedRequest, response) => {
+  const plan = sanitizeWorkoutPlan(request.body);
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO customer_workout_plan (customer_id, business_id, plan_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(customer_id, business_id) DO UPDATE SET plan_json = excluded.plan_json, updated_at = excluded.updated_at
+  `).run(request.customerId, request.params.gymId, JSON.stringify(plan), now, now);
+  await postgresPersistence?.flushNow(['customer_workout_plan']);
+  response.json({ ok: true, plan });
+});
+
 app.put('/api/me/marketing-consent',requireCustomer,async(request:AuthenticatedRequest,response)=>{
   const consent=asBoolean(request.body?.consent)?1:0;
   db.prepare('UPDATE customer_profile SET marketing_consent=?,updated_at=? WHERE customer_id=?').run(consent,Date.now(),request.customerId);

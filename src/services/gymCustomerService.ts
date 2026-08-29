@@ -234,6 +234,18 @@ export const gymCustomerService = {
       recentVisits: GymVisitActivity[];
     }>('/api/me/gym-memberships'),
 
+  /** Real attendance calendar for one month — the Member card's Calendar
+   *  sheet. `month` is 'YYYY-MM'; omit for the current month. */
+  getMyAttendance: (gymId: string, month?: string) =>
+    authedRequest<{
+      membership: GymMembershipView | null;
+      month: string;
+      attendedDays: string[];
+      visitsThisMonth: number;
+      currentStreak: number;
+      bestStreak: number;
+    }>(`/api/gym/${encodeURIComponent(gymId)}/my-attendance${month ? `?month=${encodeURIComponent(month)}` : ''}`),
+
   submitMembershipClaim: (
     gymId: string,
     payload: { name: string; mobile: string; joiningDate: string; expiryDate: string; planText?: string },

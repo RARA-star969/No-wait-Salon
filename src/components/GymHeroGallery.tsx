@@ -61,7 +61,7 @@ export const GymHeroGallery: React.FC<{ gallery?: SalonGalleryItem[]; coverImage
   };
 
   return (
-    <div className="relative h-48 w-full overflow-hidden bg-[#120B1D]">
+    <div className="relative h-60 w-full overflow-hidden bg-[#120B1D]">
       <div
         ref={trackRef}
         onScroll={handleScroll}

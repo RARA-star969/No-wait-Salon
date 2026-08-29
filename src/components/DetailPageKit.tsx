@@ -10,18 +10,30 @@ import type { NearbySalon } from '../types';
  * One NOQ product, one set of components.
  */
 
-export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)', goldIcon }) => (
+export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean; tone?: 'default' | 'gymGlass' }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)', goldIcon, tone = 'default' }) => {
+  // 'gymGlass' is a Gym-only presentation variant — Salon (and any caller
+  // that doesn't pass `tone`) keeps the exact original tile untouched.
+  const isGymGlass = tone === 'gymGlass';
+  return (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06] transition ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
-    style={{ background: surfaceGradient }}
+    className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center transition ${
+      isGymGlass
+        ? 'border border-white/[0.08] bg-[#170F24]/80 shadow-[0_10px_22px_-16px_rgba(0,0,0,0.75)] backdrop-blur-sm'
+        : 'shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06]'
+    } ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
+    style={isGymGlass ? undefined : { background: surfaceGradient }}
   >
     <span
-      className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
+      className={`flex items-center justify-center shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 ${
+        isGymGlass ? 'h-8 w-8 rounded-xl [&>svg]:h-[15px] [&>svg]:w-[15px] [&>svg]:stroke-[1.6]' : 'h-10 w-10 rounded-full [&>svg]:h-[18px] [&>svg]:w-[18px]'
+      } ${
         goldIcon
           ? 'bg-white [&>svg]:fill-[#F3D584] [&>svg]:text-[#8A6316] [&>svg]:stroke-[1.75]'
+          : isGymGlass
+          ? 'bg-[#2B1B45] text-[#C89CFA]'
           : active
           ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]'
           : 'bg-white text-[var(--category-primary-dark)]'
@@ -29,10 +41,11 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
     >
       {icon}
     </span>
-    <span className="mt-2.5 text-[10px] font-bold leading-tight text-white">{label}</span>
+    <span className={`mt-2.5 text-[10px] font-bold leading-tight ${isGymGlass ? 'text-white/90' : 'text-white'}`}>{label}</span>
     {secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-white/55">{secondary}</span>}
   </button>
-);
+  );
+};
 
 export const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?: string }> = ({ eyebrow, title, secondary }) => (
   <div className="mb-3 flex items-end justify-between gap-3">

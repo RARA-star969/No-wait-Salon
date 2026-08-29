@@ -242,6 +242,19 @@ const migrations=[{
   sql: `
     ALTER TABLE salon ADD COLUMN IF NOT EXISTS social_links_json TEXT NOT NULL DEFAULT '[]';
   `
+}, {
+  version: 15,
+  name: 'customer_workout_plan',
+  sql: `
+    CREATE TABLE IF NOT EXISTS customer_workout_plan (
+      customer_id TEXT NOT NULL REFERENCES customer_account(id),
+      business_id TEXT NOT NULL REFERENCES salon(id),
+      plan_json TEXT NOT NULL,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      PRIMARY KEY (customer_id, business_id)
+    );
+  `
 }];
 
 export async function runMigrations(db:Database){

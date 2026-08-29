@@ -70,7 +70,7 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
   return (
     <section
       id={id}
-      className={`relative overflow-hidden rounded-[22px] px-4 py-2.5 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_0_20px_rgba(94,224,180,0.06),0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
+      className={`relative overflow-hidden rounded-[22px] border border-white/[0.06] px-4 py-2.5 text-white shadow-[0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
       style={{ background: gradient }}
     >
       {/* Luminous edge — softened, low-alpha masked gradient rim */}
@@ -108,21 +108,23 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
         />
       </svg>
 
-      {/* Top Header Row */}
+      {/* Top Header Row — the live badge and secondary label are both
+          intentionally small: they're context, not the content. The three
+          metrics below stay the strongest visual element on the card. */}
       <div className="relative flex items-center justify-between gap-2">
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+          className={`inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-[0.08em] text-white/70 ${
             live ? 'live-chip-pulse' : ''
           }`}
         >
-          <span className="relative flex h-1.5 w-1.5">
-            {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+          <span className="relative flex h-1 w-1">
+            {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/80" />}
+            <span className="relative inline-flex h-1 w-1 rounded-full bg-rose-400" />
           </span>
           {liveLabel}
         </span>
         {topRightLabel && (
-          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">
+          <span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-white/45">
             {topRightLabel}
           </span>
         )}

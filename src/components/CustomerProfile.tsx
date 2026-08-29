@@ -1,10 +1,11 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, BadgeCheck, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, ClipboardList, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
 import { gymCustomerService, GymMembershipView, type GymVisitActivity } from '../services/gymCustomerService';
 import { formatGymClock, formatGymTimeWithDay, gymVisitDurationLabel } from '../shared/gymTime';
 import { activeAccessHeading } from '../shared/gymLiveFloor';
+import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 
 type Props = {
   mode: 'profile' | 'edit';
@@ -55,6 +56,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   const [gymMemberships, setGymMemberships] = useState<{ gymId: string; gymName: string; membership: GymMembershipView }[] | null>(null);
   const [gymMembershipsOpen, setGymMembershipsOpen] = useState(false);
   const [gymMembershipsLoading, setGymMembershipsLoading] = useState(false);
+  const [workoutPlanTarget, setWorkoutPlanTarget] = useState<{ gymId: string; gymName: string } | null>(null);
   // Gym Activity. These are the same GymVisit rows the owner's Live Floor
   // reads; the duration below is derived from their server checkedInAt /
   // checkedOutAt through the shared helper, so Profile, the Gym page and Live
@@ -304,6 +306,14 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
                         ? `Expired on ${new Date(entry.membership.expiryDate).toLocaleDateString()}`
                         : `${entry.membership.daysRemaining} day${entry.membership.daysRemaining === 1 ? '' : 's'} left · valid till ${new Date(entry.membership.expiryDate).toLocaleDateString()}`}
                     </p>
+                    {entry.membership.displayStatus !== 'expired' && (
+                      <button
+                        onClick={() => setWorkoutPlanTarget({ gymId: entry.gymId, gymName: entry.gymName })}
+                        className="mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--category-primary-dark)]/30 bg-white px-2.5 py-1.5 text-[11px] font-bold text-[var(--category-primary-dark)]"
+                      >
+                        <ClipboardList className="h-3.5 w-3.5" /> Workout plan for {entry.gymName}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -313,6 +323,9 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         {error && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{error}</div>}
         <button onClick={onLogout} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#E7D6D3] bg-white text-sm font-bold text-[#934A40]"><LogOut className="h-4 w-4" />Log out</button>
       </div>
+      {workoutPlanTarget && (
+        <WorkoutPlanEditor gymId={workoutPlanTarget.gymId} gymName={workoutPlanTarget.gymName} onClose={() => setWorkoutPlanTarget(null)} />
+      )}
     </div>
   );
 };

@@ -286,18 +286,18 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
               <div className="space-y-3">
                 <div>
                   <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#5C6E6B]">Business logo</span>
-                  <div className="flex items-center gap-3 rounded-xl border border-[#DDE5E3] bg-white p-3">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6]">
-                      {logoUrl ? <img src={logoUrl} alt="Business logo preview" className="h-full w-full object-cover" /> : <ImagePlus className="h-6 w-6 text-[#8A9997]" />}
+                  <div className="flex flex-col gap-4 rounded-xl border border-[#DDE5E3] bg-white p-4 sm:flex-row sm:items-center">
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center self-start overflow-hidden rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6] sm:h-24 sm:w-24">
+                      {logoUrl ? <img src={logoUrl} alt="Business logo preview" className="h-full w-full object-cover" /> : <ImagePlus className="h-7 w-7 text-[#8A9997]" />}
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <p className="text-[11px] leading-4 text-[#8A9997]">Shown on your public profile header and the Home listing card. PNG, JPEG or WebP.</p>
-                      <div className="flex gap-2">
+                    <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+                      <p className="text-[11px] leading-4 text-[#8A9997]">Shown on your public profile header and the Home listing card. PNG, JPEG or WebP, up to 2&nbsp;MB.</p>
+                      <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => logoFileInputRef.current?.click()}
                           disabled={logoBusy}
-                          className="flex items-center gap-1.5 rounded-lg bg-[#0F766E] px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-60"
+                          className="flex items-center gap-1.5 rounded-lg bg-[#0F766E] px-3.5 py-2 text-[11px] font-bold text-white disabled:opacity-60"
                         >
                           {logoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
                           {logoUrl ? 'Replace' : 'Upload'}
@@ -307,14 +307,25 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
                             type="button"
                             onClick={removeLogo}
                             disabled={logoBusy}
-                            className="flex items-center gap-1.5 rounded-lg border border-[#E1B4AC] px-3 py-1.5 text-[11px] font-bold text-[#B4463A] disabled:opacity-60"
+                            className="flex items-center gap-1.5 rounded-lg border border-[#E1B4AC] px-3.5 py-2 text-[11px] font-bold text-[#B4463A] disabled:opacity-60"
                           >
                             <X className="h-3.5 w-3.5" /> Remove
                           </button>
                         )}
                       </div>
                     </div>
-                    <input ref={logoFileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickLogo} />
+                    {/* The real file picker never renders its own UI — it's
+                        triggered only via the Upload/Replace button above.
+                        Hidden two ways (utility class + inline style) so no
+                        native "Choose File" control can ever leak through. */}
+                    <input
+                      ref={logoFileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      style={{ display: 'none' }}
+                      onChange={onPickLogo}
+                    />
                   </div>
                 </div>
                 {BASIC_INFO_FIELDS.map((key) => (

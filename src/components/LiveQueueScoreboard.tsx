@@ -15,10 +15,19 @@ export type ScoreboardMetric = {
   value: React.ReactNode;
 };
 
+/** Color-only override — omitted, this reproduces the existing Salon teal
+ *  capsule exactly, so Salon gets zero behavior/visual change. */
+export type ScoreboardPalette = {
+  fill: string;
+  rim: string;
+  glow: string;
+};
+
 type Props = {
   metrics: ScoreboardMetric[];
   onTap?: () => void;
   className?: string;
+  palette?: ScoreboardPalette;
 };
 
 const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
@@ -39,27 +48,30 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
   );
 };
 
-export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '' }) => {
+export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette }) => {
   const Wrapper = onTap ? 'button' : 'div';
+  const fill = palette?.fill ?? LIVE_QUEUE_FILL_CAPSULE;
+  const rim = palette?.rim ?? LIVE_QUEUE_RIM_CAPSULE;
+  const glow = palette?.glow ?? '#5EE0B4';
   return (
     <Wrapper
       type={onTap ? 'button' : undefined}
       onClick={onTap}
       aria-label={onTap ? 'Return to live queue' : undefined}
       className={`live-scoreboard relative isolate inline-flex w-fit max-w-full items-center gap-2.5 overflow-visible rounded-full px-3 py-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_0_10px_rgba(94,224,180,0.06),0_0_0_1px_rgba(255,255,255,0.1),0_8px_18px_-8px_rgba(6,30,27,0.4)] ${className}`}
-      style={{ background: LIVE_QUEUE_FILL_CAPSULE, backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' }}
+      style={{ background: fill, backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' }}
     >
       <span
         className="pointer-events-none absolute inset-0 rounded-full p-px"
         style={{
-          background: LIVE_QUEUE_RIM_CAPSULE,
+          background: rim,
           WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
           WebkitMaskComposite: 'xor',
           maskComposite: 'exclude',
         }}
         aria-hidden="true"
       />
-      <span className="live-scoreboard-glow pointer-events-none absolute -right-4 -top-5 h-14 w-14 rounded-full bg-[#5EE0B4]/14 blur-2xl" aria-hidden="true" />
+      <span className="live-scoreboard-glow pointer-events-none absolute -right-4 -top-5 h-14 w-14 rounded-full blur-2xl" style={{ backgroundColor: `${glow}24` }} aria-hidden="true" />
       <span className="pointer-events-none absolute inset-x-0 top-0 h-[55%] rounded-t-full bg-gradient-to-b from-white/[0.12] to-transparent" aria-hidden="true" />
 
       <span className="relative flex shrink-0 items-center">

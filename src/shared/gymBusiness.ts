@@ -504,7 +504,7 @@ export type MonthlyAttendance = {
 
 /** One row per calendar day a customer attended this gym, most recent visit
  * of that day only \u2014 the source for monthly counts, streaks and calendars. */
-function attendedDays(visits: GymVisit[], customerId: string): string[] {
+export function attendedDays(visits: GymVisit[], customerId: string): string[] {
   const days = new Set(
     visits
       .filter((v) => v.customerId === customerId)

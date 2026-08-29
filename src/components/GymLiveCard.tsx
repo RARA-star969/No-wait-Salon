@@ -2,13 +2,15 @@ import React from 'react';
 import { resolveGymCrowdLevel } from '../shared/gymCrowdResolver';
 import { CategoryLiveCard, type CategoryLiveCardPalette } from './CategoryLiveCard';
 
-// Gym's own purple/fuchsia palette (matches the Home Gym card and category
-// hierarchy) — color-only override, same card layout/content as Salon's.
+// Gym's own restrained near-black/deep-violet glass palette — darker and
+// quieter than the old flat purple/fuchsia gradient, so the numbers (not
+// the card surface) carry the visual weight. Content/data/behavior below
+// is unchanged; this is a color/surface-only override.
 const GYM_LIVE_CARD_PALETTE: CategoryLiveCardPalette = {
-  gradient: 'linear-gradient(135deg,#3B0764,#6B21A8 55%,#7E22CE)',
-  rim: 'linear-gradient(120deg, rgba(255,255,255,0.5), rgba(192,132,252,0.28) 35%, rgba(255,255,255,0.08) 58%, rgba(168,85,247,0.24) 82%, rgba(255,255,255,0.42))',
-  glowColorA: '#C084FC',
-  glowColorB: '#7E22CE',
+  gradient: 'linear-gradient(160deg,#180F28 0%,#241539 55%,#2E1B4A 100%)',
+  rim: 'linear-gradient(120deg, rgba(255,255,255,0.14), rgba(192,132,252,0.16) 35%, rgba(255,255,255,0.04) 58%, rgba(168,85,247,0.14) 82%, rgba(255,255,255,0.12))',
+  glowColorA: '#8B5CF6',
+  glowColorB: '#5B21B6',
   flashColor: '#E9D5FF',
 };
 
