@@ -49,7 +49,16 @@ const PACKAGED_MODE = import.meta.env.VITE_APP_MODE === 'customer' || import.met
 export default function App() {
   // UI state is local; queue state is hydrated from the salon-scoped real-time service.
   const [salons] = useState<Salon[]>(SALONS);
-  const [selectedSalon, setSelectedSalon] = useState<Salon>(SALONS[0]);
+  // Customer and Staff/Owner each get their OWN selected-business state.
+  // These used to be a single shared `selectedSalon` — which meant the Test
+  // Business Switcher (Staff/Owner side) silently overwrote whatever
+  // business the Customer panel had open (e.g. opening Sharpcut Studio on
+  // Customer, then switching Staff to Iron House Gym, would replace the
+  // Customer panel's Sharpcut view with Iron House Gym). Customer's
+  // business selection must never be driven by Staff/Owner switching, and
+  // vice versa — see the isolation checks around `customerSalon` below.
+  const [customerSalon, setCustomerSalon] = useState<Salon>(SALONS[0]);
+  const [staffSalon, setStaffSalon] = useState<Salon>(SALONS[0]);
   const [selectedService, setSelectedService] = useState<string>('Haircut');
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   // The one applied-offer source of truth: Salon Detail's price breakdown,
@@ -87,7 +96,7 @@ export default function App() {
       let savedId: string | null = null;
       try { savedId = localStorage.getItem(STAFF_SALON_KEY); } catch { savedId = null; }
       const chosen = entries.find((entry) => entry.id === savedId) || entries[0];
-      setSelectedSalon((current) => (current.id === chosen.id ? current : { ...current, id: chosen.id, name: chosen.name, mainCategoryId: chosen.mainCategoryId }));
+      setStaffSalon((current) => (current.id === chosen.id ? current : { ...current, id: chosen.id, name: chosen.name, mainCategoryId: chosen.mainCategoryId }));
     });
     return () => { cancelled = true; };
   }, [isStaffSurface]);
@@ -164,17 +173,19 @@ export default function App() {
     setCompletedList(snapshot.completedList);
     setQueueAlert('');
     if (snapshot.platformStatus) {
-      setSelectedSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
+      setCustomerSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
     }
   };
 
+  // Scoped to the Customer panel's own selected business — never affected
+  // by the Staff/Owner panel switching businesses.
   useEffect(() => {
     let disposed = false;
-    realtimeQueueService.getState(selectedSalon.id)
+    realtimeQueueService.getState(customerSalon.id)
       .then((snapshot) => !disposed && applySnapshot(snapshot))
       .catch((error) => !disposed && setQueueAlert(error instanceof Error ? error.message : 'Unable to load the live queue.'));
     const unsubscribe = realtimeQueueService.subscribe(
-      selectedSalon.id,
+      customerSalon.id,
       (snapshot) => !disposed && applySnapshot(snapshot),
       (connected) => {
         if (!disposed && !connected) setQueueAlert('Live connection interrupted. Reconnecting…');
@@ -184,22 +195,22 @@ export default function App() {
       disposed = true;
       unsubscribe();
     };
-  }, [selectedSalon.id]);
+  }, [customerSalon.id]);
 
   // Keep the selected salon's profile identical to what the public web page
   // would show for it: re-read the server record whenever the salon changes.
   useEffect(() => {
     let disposed = false;
-    fetchSalonProfile(selectedSalon.id)
+    fetchSalonProfile(customerSalon.id)
       .then((fresh) => {
         if (disposed || !fresh) return;
-        setSelectedSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+        setCustomerSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
       })
       .catch(() => undefined);
     return () => {
       disposed = true;
     };
-  }, [selectedSalon.id]);
+  }, [customerSalon.id]);
 
   // Sync notifications to localStorage
   useEffect(() => {
@@ -242,7 +253,7 @@ export default function App() {
     title: string,
     body: string,
     type: PushNotification['type'],
-    salonName = selectedSalon.name
+    salonName = customerSalon.name
   ) => {
     const notif: PushNotification = {
       id: `push-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -287,7 +298,7 @@ export default function App() {
         if (!sentNotificationsRef.current.has(triggerKey)) {
           sentNotificationsRef.current.add(triggerKey);
           triggerPushNotification(
-            `✂️ ${selectedSalon.name}: You're Almost Up!`,
+            `✂️ ${customerSalon.name}: You're Almost Up!`,
             `Only ${peopleAhead === 0 ? '0' : '1'} person ahead (~10–15 mins remaining). Please start heading to the salon entrance.`,
             'approaching'
           );
@@ -301,7 +312,7 @@ export default function App() {
       if (!sentNotificationsRef.current.has(triggerKey)) {
         sentNotificationsRef.current.add(triggerKey);
         triggerPushNotification(
-          `🔔 ${selectedSalon.name}: Barber Ready!`,
+          `🔔 ${customerSalon.name}: Barber Ready!`,
           `Barber ${userEntry.barberName || 'Arjun'} is ready for you at the styling chair. Please step inside now!`,
           'called'
         );
@@ -314,18 +325,18 @@ export default function App() {
       if (!sentNotificationsRef.current.has(triggerKey)) {
         sentNotificationsRef.current.add(triggerKey);
         triggerPushNotification(
-          `⏰ ${selectedSalon.name}: Reserved Slot Approaching`,
+          `⏰ ${customerSalon.name}: Reserved Slot Approaching`,
           `Your reserved slot for ${userEntry.reservedFor} is in 15 minutes! Please head to the salon check-in counter.`,
           'reserved_nearing'
         );
       }
     }
-  }, [queue, userEntry, selectedSalon]);
+  }, [queue, userEntry, customerSalon]);
 
   // --- Handlers ---
   const runCommand = async (command: Parameters<typeof realtimeQueueService.command>[1]) => {
     try {
-      const snapshot = await realtimeQueueService.command(selectedSalon.id, command);
+      const snapshot = await realtimeQueueService.command(customerSalon.id, command);
       applySnapshot(snapshot);
       return snapshot;
     } catch (error) {
@@ -397,8 +408,8 @@ export default function App() {
         eligible_service_ids: offer.eligibleServiceIds ?? [],
       })),
     });
-    const fresh = await fetchSalonProfile(selectedSalon.id);
-    if (fresh) setSelectedSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+    const fresh = await fetchSalonProfile(customerSalon.id);
+    if (fresh) setCustomerSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
   };
 
   // Client-side selection only — App.tsx's `join` command sends this id as a
@@ -445,21 +456,21 @@ export default function App() {
       if (!snapshot || item.sessionId !== customerSessionId.current) return;
       if (action === 'Call') {
         const updated = snapshot.queue.find((entry) => entry.id === item.id);
-        triggerPushNotification(`🔔 ${selectedSalon.name}: Barber ${updated?.barberName || 'Ready'} is Ready!`, 'Your styling station is open. Please step inside to be seated.', 'called');
+        triggerPushNotification(`🔔 ${customerSalon.name}: Barber ${updated?.barberName || 'Ready'} is Ready!`, 'Your styling station is open. Please step inside to be seated.', 'called');
       } else if (action === 'Start') {
-        triggerPushNotification(`✂️ ${selectedSalon.name}: Service In Progress`, 'You are now being served. Enjoy your cut!', 'serving');
+        triggerPushNotification(`✂️ ${customerSalon.name}: Service In Progress`, 'You are now being served. Enjoy your cut!', 'serving');
       } else if (action === 'Complete') {
         setCurrentScreen('complete');
-        triggerPushNotification(`🎉 ${selectedSalon.name}: Service Complete!`, `Your ${item.service} is finished. Thank you for visiting!`, 'general');
+        triggerPushNotification(`🎉 ${customerSalon.name}: Service Complete!`, `Your ${item.service} is finished. Thank you for visiting!`, 'general');
       }
     });
   };
 
   /** Services chosen so far, falling back to the legacy single-select name. */
   const chosenServicesFor = () => {
-    const chosen = selectedSalon.services.filter((item) => selectedServiceIds.includes(item.id));
+    const chosen = customerSalon.services.filter((item) => selectedServiceIds.includes(item.id));
     if (chosen.length) return chosen;
-    const fallback = selectedSalon.services.find((item) => item.name === selectedService);
+    const fallback = customerSalon.services.find((item) => item.name === selectedService);
     return fallback ? [fallback] : [];
   };
 
@@ -501,7 +512,7 @@ export default function App() {
     const totalPrice = chosenServices.reduce((sum, item) => sum + (Number(item.priceInr) || 0), 0) || 250;
 
     if (customerAuth?.token) {
-      const snapshot = await realtimeQueueService.command(selectedSalon.id, {
+      const snapshot = await realtimeQueueService.command(customerSalon.id, {
         type: 'join',
         item: {
           id: '',
@@ -521,7 +532,7 @@ export default function App() {
       if (snapshot) {
         applySnapshot(snapshot);
         triggerPushNotification(
-          `⏰ ${selectedSalon.name}: Slot Reserved (${slot})`,
+          `⏰ ${customerSalon.name}: Slot Reserved (${slot})`,
           `Your reservation for ${serviceString} is locked.`,
           'reserved_nearing'
         );
@@ -549,7 +560,7 @@ export default function App() {
         applySnapshot(result.state);
       } else {
         const serviceNames = chosenServices.map((item) => item.name);
-        const snapshot = await realtimeQueueService.command(selectedSalon.id, {
+        const snapshot = await realtimeQueueService.command(customerSalon.id, {
           type: 'join',
           item: {
             id: '',
@@ -574,7 +585,7 @@ export default function App() {
       setIsJoinSheetOpen(false);
       setAppliedOfferId(null);
       triggerPushNotification(
-        `🎟️ ${selectedSalon.name}: Live Ticket Confirmed`,
+        `🎟️ ${customerSalon.name}: Live Ticket Confirmed`,
         `You've joined the queue for ${chosenServices.map((item) => item.name).join(' + ')}. We'll notify you before your turn!`,
         'confirmed'
       );
@@ -618,7 +629,7 @@ export default function App() {
     if (!snapshot) return;
     setIsOtpOpen(false);
     triggerPushNotification(
-      `⏰ ${selectedSalon.name}: Slot Reserved (${action.slot})`,
+      `⏰ ${customerSalon.name}: Slot Reserved (${action.slot})`,
       `Your reservation for ${action.serviceName} is locked.`,
       'reserved_nearing'
     );
@@ -636,7 +647,7 @@ export default function App() {
     if (!snapshot) return;
     setCurrentScreen('salon');
     triggerPushNotification(
-      `ℹ️ ${selectedSalon.name}: Queue Cancelled`,
+      `ℹ️ ${customerSalon.name}: Queue Cancelled`,
       `Your position in the live queue has been released.`,
       'general'
     );
@@ -645,19 +656,19 @@ export default function App() {
   const handleTestNotification = (type: 'approaching' | 'called' | 'reserved_nearing') => {
     if (type === 'approaching') {
       triggerPushNotification(
-        `✂️ ${selectedSalon.name}: You're Almost Up!`,
+        `✂️ ${customerSalon.name}: You're Almost Up!`,
         `Only 1 person ahead (~10–15 mins remaining). Please start heading over to the salon entrance.`,
         'approaching'
       );
     } else if (type === 'called') {
       triggerPushNotification(
-        `🔔 ${selectedSalon.name}: Barber Arjun is Ready!`,
+        `🔔 ${customerSalon.name}: Barber Arjun is Ready!`,
         `Your counter is ready now! Please step inside the salon within 10 minutes.`,
         'called'
       );
     } else if (type === 'reserved_nearing') {
       triggerPushNotification(
-        `⏰ ${selectedSalon.name}: Reserved Slot Approaching`,
+        `⏰ ${customerSalon.name}: Reserved Slot Approaching`,
         `Your reserved arrival slot (${userEntry?.reservedFor || '4:30 PM'}) is in 15 minutes! Please head to the counter.`,
         'reserved_nearing'
       );
@@ -670,7 +681,7 @@ export default function App() {
   if (PACKAGED_MODE === 'staff') {
     return (
       <StaffAppShell
-        salon={selectedSalon}
+        salon={staffSalon}
         queue={queue}
         barbers={barbers}
         completedList={completedList}
@@ -682,7 +693,7 @@ export default function App() {
         onSaveOffers={handleSaveOffers}
         onBusinessResolved={(business) => {
           try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
-          setSelectedSalon((current) => ({
+          setStaffSalon((current) => ({
             ...current,
             id: business.id,
             name: business.name,
@@ -703,7 +714,7 @@ export default function App() {
     );
   }
 
-  const gymStaffSelected = selectedSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
+  const gymStaffSelected = staffSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
   const gymTestSwitcher = import.meta.env.DEV || ['localhost', '127.0.0.1', 'no-wait-salon-web-test.onrender.com'].includes(window.location.hostname);
   // PACKAGED_MODE === 'staff' already returned above via the universal
   // StaffAppShell login gate; this only covers the web '/business' route.
@@ -720,7 +731,7 @@ export default function App() {
   const testSwitcherBanner = showTestSwitcher && (
     <div className="flex flex-wrap items-center gap-2 border-b border-teal-100 bg-teal-50/80 px-3 py-1.5 text-[11px] text-teal-800">
       <span className="font-semibold uppercase tracking-wide text-teal-700">Testing as</span>
-      <select aria-label="Test Business Switcher" id="test-business-switcher" className="min-h-7 rounded-md border border-teal-200 bg-white px-2 py-0.5 text-[11px] font-medium text-teal-900" value={selectedSalon.id + ':' + gymTestRole} onChange={e => { const [id, role] = e.target.value.split(':'); const found = SALONS.find(s => s.id === id); if (found) { setSelectedSalon(found); setGymTestRole(role); } }}>
+      <select aria-label="Test Business Switcher" id="test-business-switcher" className="min-h-7 rounded-md border border-teal-200 bg-white px-2 py-0.5 text-[11px] font-medium text-teal-900" value={staffSalon.id + ':' + gymTestRole} onChange={e => { const [id, role] = e.target.value.split(':'); const found = SALONS.find(s => s.id === id); if (found) { setStaffSalon(found); setGymTestRole(role); } }}>
         {SALONS.filter(s => ['gym', 'salon'].includes(s.mainCategoryId || 'salon')).map(s => <React.Fragment key={s.id}><option value={s.id + ':owner'}>{s.name} — {s.mainCategoryId === 'gym' ? 'Gym' : 'Salon'} (Owner)</option>{s.mainCategoryId === 'gym' && <option value={s.id + ':trainer'}>{s.name} — Trainer</option>}</React.Fragment>)}
       </select>
       <span className="ml-auto text-teal-600/80">TEST environment only</span>
@@ -728,7 +739,7 @@ export default function App() {
   );
   if (isBusinessSurface) {
     return <div className="min-h-screen bg-[#f6f8fa]">
-      <StaffAppShell key={gymStaffSelected ? selectedSalon.id + ':' + gymTestRole : 'business'} testRole={gymTestRole} salon={selectedSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
+      <StaffAppShell key={gymStaffSelected ? staffSalon.id + ':' + gymTestRole : 'business'} testRole={gymTestRole} salon={staffSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
     </div>;
   }
 
@@ -819,8 +830,8 @@ export default function App() {
                 <CustomerApp
                   currentScreen={currentScreen}
                   setScreen={setCurrentScreen}
-                  selectedSalon={selectedSalon}
-                  setSelectedSalon={setSelectedSalon}
+                  selectedSalon={customerSalon}
+                  setSelectedSalon={setCustomerSalon}
                   selectedService={selectedService}
                   setSelectedService={setSelectedService}
                   selectedServiceIds={selectedServiceIds}
@@ -877,12 +888,12 @@ export default function App() {
                   {isStaffSurface && salonDirectory.length > 0 && (
                     <select
                       aria-label="Select salon"
-                      value={selectedSalon.id}
+                      value={staffSalon.id}
                       onChange={(event) => {
                         const entry = salonDirectory.find((item) => item.id === event.target.value);
                         if (!entry) return;
                         try { localStorage.setItem(STAFF_SALON_KEY, entry.id); } catch { /* keep in memory */ }
-                        setSelectedSalon((current) => ({ ...current, id: entry.id, name: entry.name, mainCategoryId: entry.mainCategoryId }));
+                        setStaffSalon((current) => ({ ...current, id: entry.id, name: entry.name, mainCategoryId: entry.mainCategoryId }));
                       }}
                       className="rounded-lg border border-[#DDE7E5] bg-white px-2 py-1 text-[11px] font-semibold text-[#17201F]"
                     >
@@ -906,11 +917,11 @@ export default function App() {
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                 {gymStaffSelected ? (
                   <StaffAppShell
-                    key={selectedSalon.id + ':' + gymTestRole}
+                    key={staffSalon.id + ':' + gymTestRole}
                     embedded
-                    testBusinessId={selectedSalon.id}
+                    testBusinessId={staffSalon.id}
                     testRole={gymTestRole}
-                    salon={selectedSalon}
+                    salon={staffSalon}
                     queue={queue}
                     barbers={barbers}
                     completedList={completedList}
@@ -923,7 +934,7 @@ export default function App() {
                   />
                 ) : (
                   <StaffAppShell
-                    salon={selectedSalon}
+                    salon={staffSalon}
                     queue={queue}
                     barbers={barbers}
                     completedList={completedList}
@@ -935,7 +946,7 @@ export default function App() {
                     onSaveOffers={handleSaveOffers}
                     onBusinessResolved={(business) => {
                       try { localStorage.setItem(STAFF_SALON_KEY, business.id); } catch { /* keep in memory */ }
-                      setSelectedSalon((current) => ({
+                      setStaffSalon((current) => ({
                         ...current,
                         id: business.id,
                         name: business.name,
@@ -1014,14 +1025,14 @@ export default function App() {
       {/* Queue-join sheet: opens once a customer is verified and ready. */}
       <QueueJoinSheet
         open={isJoinSheetOpen}
-        salon={selectedSalon}
+        salon={customerSalon}
         services={chosenServicesFor()}
         barbers={barbers}
         queue={queue}
         busy={joinSheetBusy}
         error={joinSheetError}
         customerName={customerProfile?.name}
-        offers={selectedSalon.offers || []}
+        offers={customerSalon.offers || []}
         appliedOfferId={appliedOfferId}
         onApplyOffer={handleApplyOffer}
         onRemoveOffer={handleRemoveOffer}

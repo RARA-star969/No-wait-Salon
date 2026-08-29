@@ -55,7 +55,7 @@ import {
   type StoredLocationPreference,
 } from '../services/locationPreferenceService';
 import { lastViewedBusinessPreference, type LastViewedByCategory } from '../services/recentBusinessPreferenceService';
-import { gymCustomerService } from '../services/gymCustomerService';
+import { businessMembershipService } from '../services/businessMembershipService';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveSalonQueueSignal } from '../shared/salonQueueLevel';
 import { deriveLocalityLabel } from '../shared/localityLabel';
@@ -237,10 +237,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // page (or by staff) flips Last-viewed -> Member on Home within a few
   // seconds, never requiring a full reload, without turning into a
   // per-card poll.
-  const [gymMemberBusinessIds, setGymMemberBusinessIds] = useState<Set<string>>(new Set());
+  // Businesses this customer holds a genuinely active membership at, in ANY
+  // category — the same "businessId + active membership" concept the crown
+  // renders everywhere it appears. See businessMembershipService for the
+  // future-safe abstraction boundary (today gym-sourced, never gated on
+  // `isGym` here).
+  const [activeMemberBusinessIds, setActiveMemberBusinessIds] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (!customerAuth?.token) {
-      setGymMemberBusinessIds(new Set());
+      setActiveMemberBusinessIds(new Set());
       return;
     }
     let cancelled = false;
@@ -251,12 +256,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       if (typeof document !== 'undefined' && document.hidden) return;
       inFlight = true;
       try {
-        const data = await gymCustomerService.getMyGymMemberships();
+        const activeIds = await businessMembershipService.getMyActiveMembershipBusinessIds();
         if (cancelled) return;
-        const activeGymIds = data.memberships
-          .filter((entry) => entry.membership.status === 'active')
-          .map((entry) => entry.gymId);
-        setGymMemberBusinessIds(new Set(activeGymIds));
+        setActiveMemberBusinessIds(activeIds);
       } catch {
         // Keep showing the last known membership set; the next tick retries.
       } finally {
@@ -1167,9 +1169,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               {categoryFilteredSalons.map((salon) => {
                 const catId = (salon.mainCategoryId || 'salon').toLowerCase();
                 const isGym = catId === 'gym';
-                const isMember = isGym && gymMemberBusinessIds.has(salon.id);
+                // Category-agnostic: any business with a real active
+                // membership record lights up the crown, not just Gym.
+                const isMember = activeMemberBusinessIds.has(salon.id);
                 // MEMBER outranks Last viewed — an active member never also
-                // shows the last-viewed badge for that same Gym.
+                // shows the last-viewed badge for that same business.
                 const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
                 const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
 

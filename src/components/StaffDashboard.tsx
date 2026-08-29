@@ -36,6 +36,13 @@ import {
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
+// Shared owner Manage Profile surface (business logo, basic info, gallery,
+// amenities, quick actions, social links) — historically Gym-only, now
+// reused here so Salon owners get the same single profile-editing system
+// instead of a second one. It is generic under the hood (the same
+// /api/staff/business/* endpoints, scoped by the caller's own session), so
+// nothing Gym-specific runs when a Salon owner opens it.
+import { GymManageProfile } from './GymManageProfile';
 import {
   resolveCategoryModules,
   resolveCategoryCapabilities,
@@ -94,7 +101,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }, []);
 
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers' | 'profile'>('live');
 
   const mainCategoryId = (salon.mainCategoryId || 'salon').toLowerCase();
   const isGymCategory = mainCategoryId === 'gym';
@@ -310,9 +317,21 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               <Tag className="w-3.5 h-3.5" />
               <span>Offers</span>
             </button>
+            <button
+              id="staff-tab-profile"
+              onClick={() => setActiveTab('profile')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === 'profile'
+                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  : 'text-[#6F7C7A] hover:text-[#17201F]'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Manage Profile</span>
+            </button>
           </div>
 
-          {activeTab !== 'staff' && activeTab !== 'offers' && (
+          {activeTab !== 'staff' && activeTab !== 'offers' && activeTab !== 'profile' && (
             <button
               id="add-walkin-popup-btn"
               onClick={() => setIsWalkinModalOpen(true)}
@@ -537,6 +556,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         )}
         {activeTab === 'offers' && (
           <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+        )}
+        {activeTab === 'profile' && (
+          <GymManageProfile gymId={salon.id} gymName={salon.name} onClose={() => setActiveTab('live')} />
         )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}

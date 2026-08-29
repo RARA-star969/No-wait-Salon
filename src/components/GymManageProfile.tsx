@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Star, ChevronUp, ChevronDown, Eye, EyeOff, Loader2, AlertTriangle, Instagram, Facebook, Youtube, Twitter, Globe } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Plus, Trash2, Star, ChevronUp, ChevronDown, Eye, EyeOff, Loader2, AlertTriangle, Instagram, Facebook, Youtube, Twitter, Globe, ImagePlus, X } from 'lucide-react';
 import type { GymAmenity, GymQuickAction, GymSocialLinkInput, Salon, SocialPlatform } from '../types';
 import { fetchSalonProfile } from '../services/salonDiscoveryService';
 import { gymProfileCmsService, type GalleryMediaRow } from '../services/gymProfileCmsService';
 import { GYM_ICON_LIBRARY, gymProfileIcon } from './gymProfileIcons';
 import { defaultQuickActions } from '../shared/gymProfileCms';
+import { resizeImageFileToSquareDataUrl } from '../shared/imageResize';
 
 const SECTIONS = ['Basic Info', 'Gallery', 'Amenities', 'Quick Actions', 'Social & Links'] as const;
 type Section = (typeof SECTIONS)[number];
@@ -47,6 +48,9 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
     name: '', shortDescription: '', description: '', phoneNumber: '', email: '', websiteUrl: '',
     address: '', area: '', city: '', openingHours: '',
   });
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [gallery, setGallery] = useState<GalleryMediaRow[]>([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [amenities, setAmenities] = useState<GymAmenity[]>([]);
@@ -65,6 +69,7 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
       ]);
       if (profile) {
         setSalon(profile);
+        setLogoUrl(profile.logoImageUrl || '');
         setForm({
           name: profile.name || '', shortDescription: profile.shortDescription || '', description: profile.description || '',
           phoneNumber: profile.phoneNumber || '', email: profile.email || '', websiteUrl: profile.websiteUrl || '',
@@ -102,6 +107,43 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
       flash(error instanceof Error ? error.message : 'Save failed.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onPickLogo = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!/^image\/(png|jpeg|jpg|webp)$/.test(file.type)) {
+      flash('Please choose a PNG, JPEG, or WebP image.');
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const dataUrl = await resizeImageFileToSquareDataUrl(file);
+      setLogoUrl(dataUrl);
+      const result = await gymProfileCmsService.saveLogo(dataUrl);
+      setLogoUrl(result.logoImageUrl);
+      flash(result.pending ? 'Logo saved — pending Admin review.' : 'Logo saved.');
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not save the logo.');
+      await load();
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const removeLogo = async () => {
+    setLogoBusy(true);
+    try {
+      const result = await gymProfileCmsService.saveLogo('');
+      setLogoUrl(result.logoImageUrl);
+      flash(result.pending ? 'Logo removed — pending Admin review.' : 'Logo removed.');
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not remove the logo.');
+      await load();
+    } finally {
+      setLogoBusy(false);
     }
   };
 
@@ -242,6 +284,39 @@ export const GymManageProfile: React.FC<{ gymId: string; gymName: string; onClos
           <>
             {section === 'Basic Info' && (
               <div className="space-y-3">
+                <div>
+                  <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#5C6E6B]">Business logo</span>
+                  <div className="flex items-center gap-3 rounded-xl border border-[#DDE5E3] bg-white p-3">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6]">
+                      {logoUrl ? <img src={logoUrl} alt="Business logo preview" className="h-full w-full object-cover" /> : <ImagePlus className="h-6 w-6 text-[#8A9997]" />}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <p className="text-[11px] leading-4 text-[#8A9997]">Shown on your public profile header and the Home listing card. PNG, JPEG or WebP.</p>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          disabled={logoBusy}
+                          className="flex items-center gap-1.5 rounded-lg bg-[#0F766E] px-3 py-1.5 text-[11px] font-bold text-white disabled:opacity-60"
+                        >
+                          {logoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                          {logoUrl ? 'Replace' : 'Upload'}
+                        </button>
+                        {logoUrl && (
+                          <button
+                            type="button"
+                            onClick={removeLogo}
+                            disabled={logoBusy}
+                            className="flex items-center gap-1.5 rounded-lg border border-[#E1B4AC] px-3 py-1.5 text-[11px] font-bold text-[#B4463A] disabled:opacity-60"
+                          >
+                            <X className="h-3.5 w-3.5" /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <input ref={logoFileInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onPickLogo} />
+                  </div>
+                </div>
                 {BASIC_INFO_FIELDS.map((key) => (
                   <label key={key} className="block">
                     <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-[#5C6E6B]">{FIELD_LABELS[key]}</span>

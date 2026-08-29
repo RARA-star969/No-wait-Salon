@@ -1886,6 +1886,49 @@ app.put('/api/staff/business/profile', (request, response) => {
   response.json({ ok: true, pending });
 });
 
+// Owner logo upload: stores the image directly on the `salon` row's
+// logo_image_url column as a data URL, deliberately NOT written to the
+// local filesystem (`salonMediaDir` / DATA_DIR) the way /api/admin/media
+// still does. That disk path is ephemeral on Render — a redeploy or
+// restart wipes it — while the salon row is mirrored to Postgres whenever
+// DATABASE_URL is configured (see initPostgresPersistence), so it survives
+// restarts and redeploys with zero new infrastructure. The client
+// downsizes the source image to a small square before calling this, so
+// the resulting data URL stays well under the cap below even though the
+// generic /profile endpoint's logo_image_url field is clamped much
+// smaller (that endpoint only ever expects a pasted URL, not raw image
+// bytes).
+const LOGO_DATA_URL_MAX_CHARS = 400_000; // ~300KB decoded — comfortable headroom for a compressed square logo.
+app.put('/api/staff/business/logo', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+
+  const raw = String(request.body?.logo_image_url ?? '');
+  // Empty string is the explicit "remove logo" case.
+  if (raw !== '' && !/^data:image\/(?:png|jpeg|webp);base64,/.test(raw)) {
+    return response.status(400).json({ error: 'Upload a PNG, JPEG, or WebP image.' });
+  }
+  if (raw.length > LOGO_DATA_URL_MAX_CHARS) {
+    return response.status(413).json({ error: 'Logo image is too large. Please use a smaller image.' });
+  }
+
+  const businessId = session.businessId;
+  const now = Date.now();
+  let pending = false;
+  try {
+    if (isBusinessOnHold(businessId)) {
+      saveProfileDraft(businessId, { logo_image_url: raw }, session.staffId, now);
+      pending = true;
+    } else {
+      db.prepare('UPDATE salon SET logo_image_url = ?, updated_at = ? WHERE id = ?').run(raw, now, businessId);
+    }
+  } catch (error) {
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Could not save logo.' });
+  }
+  response.json({ ok: true, pending, logoImageUrl: raw });
+});
+
 /** Owner-only structured amenities save (Phase 4C) — a strict sibling of the
  *  legacy-tolerant `amenities` field on /profile, used by the real Manage
  *  Profile icon-library editor, which only ever sends valid icon keys. */

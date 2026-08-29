@@ -21,6 +21,7 @@ import {
   X,
   QrCode,
   BadgeCheck,
+  Crown,
   TrendingUp,
 } from 'lucide-react';
 import { NearbySalon, Salon, SalonOffer, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
@@ -624,8 +625,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 return (
                   <QuickAction
                     key={action.id}
-                    icon={<BadgeCheck />}
-                    label="✓ MEMBER"
+                    icon={<Crown />}
+                    goldIcon
+                    label="Member"
                     active
                     secondary={`${membership.daysRemaining} DAYS LEFT`}
                     onClick={() => setBeenHereSheetOpen(true)}

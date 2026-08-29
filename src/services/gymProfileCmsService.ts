@@ -46,6 +46,11 @@ export interface ReviewView {
 export const gymProfileCmsService = {
   saveProfile: (fields: Record<string, unknown>) =>
     request<{ ok: boolean; pending: boolean }>('/api/staff/business/profile', { method: 'PUT', body: JSON.stringify(fields) }),
+  /** Durable logo save — a data URL persisted on the salon row itself
+   *  (mirrored to Postgres), never written to the ephemeral local media
+   *  disk. Pass '' to remove the logo. */
+  saveLogo: (logoDataUrl: string) =>
+    request<{ ok: boolean; pending: boolean; logoImageUrl: string }>('/api/staff/business/logo', { method: 'PUT', body: JSON.stringify({ logo_image_url: logoDataUrl }) }),
   saveAmenities: (amenities: GymAmenity[]) =>
     request<{ ok: boolean; pending: boolean; amenities: GymAmenity[] }>('/api/staff/business/amenities', { method: 'PUT', body: JSON.stringify({ amenities }) }),
   saveQuickActions: (quickActions: GymQuickAction[]) =>

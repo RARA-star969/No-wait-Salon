@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock } from 'lucide-react';
+import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 
@@ -651,12 +651,14 @@ export const PremiumBusinessCard: React.FC<{
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       <div className="flex items-start gap-3.5 p-4 pb-3">
-        {/* Thumbnail: real cover photo when the business has one, otherwise
-            the same category-icon tile as before — no placeholder imagery
-            invented for businesses that don't carry a photo. */}
-        {salon.coverImageUrl ? (
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-md">
-            <img src={salon.coverImageUrl} alt="" className="h-full w-full object-cover" />
+        {/* Thumbnail priority: the business's real logo first (its clearest
+            identity signal), then its real cover photo, otherwise the
+            category-icon tile — no placeholder imagery invented for a
+            business that carries neither. object-cover on a fixed square
+            box crops to fit without ever stretching the source image. */}
+        {salon.logoImageUrl || salon.coverImageUrl ? (
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white/5 shadow-md">
+            <img src={salon.logoImageUrl || salon.coverImageUrl} alt="" className="h-full w-full object-cover" />
             <span
               className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-lg text-white"
               style={{ backgroundColor: theme.accent }}
@@ -676,7 +678,7 @@ export const PremiumBusinessCard: React.FC<{
             </b>
             {isMember ? (
               <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-bold uppercase tracking-wider text-[#3B2A0A] shadow-[0_1px_2px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.6)]" style={{ background: 'linear-gradient(135deg, #FDE7A8 0%, #E8B84B 32%, #B8842A 62%, #F3D584 100%)' }}>
-                <Star className="h-2.5 w-2.5 fill-[#5C3E0C] text-[#5C3E0C]" />
+                <Crown className="h-2.5 w-2.5 fill-[#5C3E0C] text-[#5C3E0C]" />
                 Member
               </span>
             ) : isSelected && (

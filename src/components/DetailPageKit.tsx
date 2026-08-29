@@ -10,7 +10,7 @@ import type { NearbySalon } from '../types';
  * One NOQ product, one set of components.
  */
 
-export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)' }) => (
+export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)', goldIcon }) => (
   <button
     type="button"
     onClick={onClick}
@@ -20,7 +20,11 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
   >
     <span
       className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
-        active ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]' : 'bg-white text-[var(--category-primary-dark)]'
+        goldIcon
+          ? 'bg-white [&>svg]:fill-[#F3D584] [&>svg]:text-[#8A6316] [&>svg]:stroke-[1.75]'
+          : active
+          ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]'
+          : 'bg-white text-[var(--category-primary-dark)]'
       }`}
     >
       {icon}
