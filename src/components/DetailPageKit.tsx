@@ -19,8 +19,10 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
     style={{ background: surfaceGradient }}
   >
     <span
-      className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
-        active ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]' : 'bg-white text-[var(--category-primary-dark)]'
+      className={`flex h-10 w-10 items-center justify-center rounded-full shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
+        active
+          ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)] ring-[#F3D584]/60'
+          : 'bg-white text-[var(--category-primary-dark)] ring-black/5'
       }`}
     >
       {icon}

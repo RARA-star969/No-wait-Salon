@@ -1167,7 +1167,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               {categoryFilteredSalons.map((salon) => {
                 const catId = (salon.mainCategoryId || 'salon').toLowerCase();
                 const isGym = catId === 'gym';
-                const isMember = isGym && gymMemberBusinessIds.has(salon.id);
+                // Future-safe: any business with a real, currently-active
+                // membership record shows the crown — never gated to Gym or
+                // to one specific membership/pass product, so a future Salon
+                // (or other category) membership offering picks this up for
+                // free the moment it starts issuing active memberships.
+                const isMember = gymMemberBusinessIds.has(salon.id);
                 // MEMBER outranks Last viewed — an active member never also
                 // shows the last-viewed badge for that same Gym.
                 const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;

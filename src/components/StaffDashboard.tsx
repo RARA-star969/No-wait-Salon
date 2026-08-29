@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { QueueBookingCard } from './QueueBookingCard';
 import {
@@ -32,10 +32,12 @@ import {
   Tag,
   Dumbbell,
   LayoutDashboard,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
+import { gymProfileCmsService } from '../services/gymProfileCmsService';
 import {
   resolveCategoryModules,
   resolveCategoryCapabilities,
@@ -94,7 +96,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }, []);
 
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers' | 'profile'>('live');
 
   const mainCategoryId = (salon.mainCategoryId || 'salon').toLowerCase();
   const isGymCategory = mainCategoryId === 'gym';
@@ -309,6 +311,18 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             >
               <Tag className="w-3.5 h-3.5" />
               <span>Offers</span>
+            </button>
+            <button
+              id="staff-tab-profile"
+              onClick={() => setActiveTab('profile')}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                activeTab === 'profile'
+                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  : 'text-[#6F7C7A] hover:text-[#17201F]'
+              }`}
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              <span>Manage Profile</span>
             </button>
           </div>
 
@@ -537,6 +551,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         )}
         {activeTab === 'offers' && (
           <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+        )}
+        {activeTab === 'profile' && (
+          <ManageBusinessProfile salon={salon} />
         )}
       <CancelBookingSheet
         open={Boolean(cancelTarget)}
@@ -899,6 +916,135 @@ const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[];
         <button id="manage-offers-add-btn" onClick={addOffer} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
           <Plus className="h-3.5 w-3.5" /> Add offer
         </button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Owner-facing business logo upload — real backend persistence via the same
+ * /api/staff/business/profile field (`logo_image_url`) the public profile
+ * header and Home listing card already read from, so there is exactly one
+ * source of truth for the logo across surfaces. Uploaded through the shared
+ * /api/staff/business/media/upload endpoint (same validation the Admin media
+ * uploader uses), never a client-only/fake preview.
+ */
+const ManageBusinessProfile: React.FC<{ salon: Salon }> = ({ salon }) => {
+  const [logoUrl, setLogoUrl] = useState(salon.logoImageUrl || '');
+  const [uploading, setUploading] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setLogoUrl(salon.logoImageUrl || ''); }, [salon.logoImageUrl]);
+
+  const flash = (message: string) => {
+    setNotice(message);
+    setTimeout(() => setNotice(''), 3500);
+  };
+
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const handleFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      flash('Please choose a PNG, JPEG, or WebP image.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      flash('Image must be 2 MB or smaller.');
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const uploaded = await gymProfileCmsService.uploadMedia(dataUrl);
+      const result = await gymProfileCmsService.saveProfile({ logo_image_url: uploaded.url });
+      setLogoUrl(uploaded.url);
+      setPending(result.pending);
+      flash(result.pending ? 'Logo saved — pending Admin review.' : 'Logo updated.');
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not upload logo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setUploading(true);
+    try {
+      const result = await gymProfileCmsService.saveProfile({ logo_image_url: '' });
+      setLogoUrl('');
+      setPending(result.pending);
+      flash(result.pending ? 'Removed — pending Admin review.' : 'Logo removed.');
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Could not remove logo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className={`${ui.card} p-5`}>
+        <span className={ui.eyebrow}>Business identity</span>
+        <h3 className="mt-1 text-base font-bold text-[#17201F]">Business logo</h3>
+        <p className="mt-0.5 text-[11px] text-[#6F7C7A]">
+          Shown on your public profile header and on your Home listing card — one upload, both places.
+        </p>
+        <div className="mt-4 flex items-center gap-4">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6]">
+            {logoUrl ? (
+              <img src={logoUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" />
+            ) : (
+              <Scissors className="h-8 w-8 text-[#0F766E]" />
+            )}
+          </div>
+          <div className="flex flex-col items-start gap-2">
+            <button
+              type="button"
+              id="manage-profile-upload-logo-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className={`${ui.primaryButton} px-3.5 py-2 text-xs disabled:opacity-60`}
+            >
+              {uploading ? 'Uploading…' : logoUrl ? 'Change logo' : 'Upload logo'}
+            </button>
+            {logoUrl && (
+              <button
+                type="button"
+                id="manage-profile-remove-logo-btn"
+                onClick={handleRemove}
+                disabled={uploading}
+                className="text-xs font-bold text-rose-600 disabled:opacity-60"
+              >
+                Remove logo
+              </button>
+            )}
+            <p className="text-[10px] text-[#9AA6A3]">PNG, JPEG, or WebP · up to 2 MB</p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleFileSelected}
+          />
+        </div>
+        {pending && (
+          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+            Admin has this profile on hold — your logo is saved as pending and won't go live until approved.
+          </p>
+        )}
+        {notice && <p className="mt-3 text-[11px] font-bold text-[#0F766E]">{notice}</p>}
       </div>
     </div>
   );

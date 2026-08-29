@@ -1930,6 +1930,23 @@ app.put('/api/staff/business/quick-actions', (request, response) => {
   response.json({ ok: true, pending: false, quickActions: sanitized });
 });
 
+/** Owner-only image upload (logo/cover) — same validation as the admin media
+ *  uploader, scoped to the caller's own business so an owner can attach a
+ *  real hosted image before saving it via /api/staff/business/profile. */
+app.post('/api/staff/business/media/upload', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can edit the business profile.' });
+  const match = String(request.body?.dataUrl || '').match(/^data:(image\/(?:png|jpeg|webp));base64,(.+)$/);
+  if (!match) return response.status(400).json({ error: 'Upload a PNG, JPEG, or WebP image.' });
+  const bytes = Buffer.from(match[2], 'base64');
+  if (bytes.length > 2 * 1024 * 1024) return response.status(413).json({ error: 'Image must be 2 MB or smaller.' });
+  const extension = match[1].split('/')[1].replace('jpeg', 'jpg');
+  const filename = `${randomUUID()}.${extension}`;
+  writeFileSync(path.join(salonMediaDir, filename), bytes);
+  response.status(201).json({ url: `/salon-media/${filename}` });
+});
+
 /** Owner-only Social & Links save. Instagram/Facebook/YouTube/X are stored
  *  here; the 'website' entry never carries its own URL — that always stays
  *  sourced from salon.website_url (edited via the existing Basic Info

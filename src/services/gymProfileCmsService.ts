@@ -46,6 +46,10 @@ export interface ReviewView {
 export const gymProfileCmsService = {
   saveProfile: (fields: Record<string, unknown>) =>
     request<{ ok: boolean; pending: boolean }>('/api/staff/business/profile', { method: 'PUT', body: JSON.stringify(fields) }),
+  /** Uploads a logo/cover image (PNG/JPEG/WebP, <=2MB) and returns its hosted
+   *  URL — pass that URL to saveProfile's logo_image_url/cover_image_url. */
+  uploadMedia: (dataUrl: string) =>
+    request<{ url: string }>('/api/staff/business/media/upload', { method: 'POST', body: JSON.stringify({ dataUrl }) }),
   saveAmenities: (amenities: GymAmenity[]) =>
     request<{ ok: boolean; pending: boolean; amenities: GymAmenity[] }>('/api/staff/business/amenities', { method: 'PUT', body: JSON.stringify({ amenities }) }),
   saveQuickActions: (quickActions: GymQuickAction[]) =>

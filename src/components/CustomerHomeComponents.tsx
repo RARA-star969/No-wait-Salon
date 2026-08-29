@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock } from 'lucide-react';
+import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 
@@ -654,9 +654,12 @@ export const PremiumBusinessCard: React.FC<{
         {/* Thumbnail: real cover photo when the business has one, otherwise
             the same category-icon tile as before — no placeholder imagery
             invented for businesses that don't carry a photo. */}
-        {salon.coverImageUrl ? (
+        {salon.logoImageUrl || salon.coverImageUrl ? (
           <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl shadow-md">
-            <img src={salon.coverImageUrl} alt="" className="h-full w-full object-cover" />
+            {/* Real uploaded business logo takes priority over the cover photo
+                for identity — a logo is who the business is, a cover is a
+                scene. Never a fake/synthesized image when neither exists. */}
+            <img src={salon.logoImageUrl || salon.coverImageUrl} alt="" className={`h-full w-full ${salon.logoImageUrl ? 'object-contain bg-white' : 'object-cover'}`} />
             <span
               className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-tl-lg text-white"
               style={{ backgroundColor: theme.accent }}
@@ -675,8 +678,14 @@ export const PremiumBusinessCard: React.FC<{
               {salon.name}
             </b>
             {isMember ? (
-              <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-bold uppercase tracking-wider text-[#3B2A0A] shadow-[0_1px_2px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.6)]" style={{ background: 'linear-gradient(135deg, #FDE7A8 0%, #E8B84B 32%, #B8842A 62%, #F3D584 100%)' }}>
-                <Star className="h-2.5 w-2.5 fill-[#5C3E0C] text-[#5C3E0C]" />
+              // Full golden crown — the one premium "Member" state, driven
+              // purely by isMember (any real active membership for this
+              // business), never by a specific plan/product id.
+              <span
+                className="shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[9px] font-bold uppercase tracking-wider text-[#3B2A0A] shadow-[0_1px_3px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.7)] ring-1 ring-[#F8DE9A]/70"
+                style={{ background: 'linear-gradient(135deg, #FFF3C4 0%, #FDE7A8 18%, #E8B84B 42%, #B8842A 68%, #F3D584 100%)' }}
+              >
+                <Crown className="h-3 w-3 fill-[#5C3E0C] text-[#5C3E0C]" />
                 Member
               </span>
             ) : isSelected && (
