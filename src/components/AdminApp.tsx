@@ -28,6 +28,9 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Star,
+  EyeOff,
+  Eye,
 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -247,7 +250,7 @@ export function AdminApp() {
 }
 
 function AdminShell({ onLogout }: { onLogout: () => void }) {
-  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers'>('dashboard');
+  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers' | 'reviews'>('dashboard');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const nav = [
@@ -255,6 +258,7 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
     ['categories', 'Main Categories', Layers],
     ['salons', 'Salons & Businesses', Building2],
     ['customers', 'Customers', Users],
+    ['reviews', 'Reviews', Star],
   ] as const;
 
   return (
@@ -314,7 +318,9 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
                     ? 'Main Categories'
                     : page === 'salons'
                       ? 'Business management'
-                      : 'Customers'}
+                      : page === 'reviews'
+                        ? 'Reviews'
+                        : 'Customers'}
             </p>
             <p className="hidden text-xs text-slate-500 sm:block">
               Manage platform categories & business content without rebuilding customer apps.
@@ -333,6 +339,8 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
             <CategoriesList />
           ) : page === 'salons' ? (
             <SalonList onEdit={setEditing} />
+          ) : page === 'reviews' ? (
+            <AdminReviews onOpenBusiness={setEditing} />
           ) : (
             <Customers />
           )}
@@ -1221,7 +1229,7 @@ const [checkingId, setCheckingId] = useState(false);
       {error && <p className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700 border border-red-200">{error}</p>}
 
       <div className="mb-6 flex gap-2 border-b">
-        {['details', 'services', 'staff', 'offers', 'media', 'qr'].map((t) => (
+        {['details', 'services', 'staff', 'offers', 'media', 'qr', 'moderation'].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -1354,6 +1362,139 @@ const [checkingId, setCheckingId] = useState(false);
       {tab === 'qr' && (
         <BusinessQr businessId={id} businessName={form.name || 'Business'} />
       )}
+
+      {tab === 'moderation' && id !== 'new' && (
+        <ModerationPanel businessId={id} businessName={form.name || 'Business'} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Admin Public Profile governance (Phase 6): a normal owner edit publishes
+ * immediately. Placing a HOLD makes further owner saves land as a pending
+ * draft instead of the live row — customers keep seeing the last approved
+ * state until this panel approves or rejects it. Business ID, category,
+ * account security, activation and QR authority live on their own existing
+ * tabs/endpoints and are never touched from here.
+ */
+function ModerationPanel({ businessId, businessName }: { businessId: string; businessName: string }) {
+  const [loading, setLoading] = useState(true);
+  const [hold, setHold] = useState(false);
+  const [heldBy, setHeldBy] = useState<string | null>(null);
+  const [pendingFields, setPendingFields] = useState<Record<string, unknown> | null>(null);
+  const [submittedAt, setSubmittedAt] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    void api(`/api/admin/salons/${businessId}/moderation`)
+      .then((b) => {
+        setHold(Boolean(b.hold));
+        setHeldBy(b.heldBy || null);
+        setPendingFields(b.pendingFields);
+        setSubmittedAt(b.submittedAt || null);
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [businessId]);
+
+  const toggleHold = async (next: boolean) => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/salons/${businessId}/moderation/hold`, { method: 'PUT', body: JSON.stringify({ hold: next }) });
+      setMessage(next ? 'Business placed on moderation hold.' : 'Hold released — owner edits publish immediately again.');
+      load();
+    } catch (e: any) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const approve = async () => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/salons/${businessId}/profile-draft/approve`, { method: 'POST' });
+      setMessage('Pending changes approved and published.');
+      load();
+    } catch (e: any) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  const reject = async () => {
+    setBusy(true);
+    try {
+      await api(`/api/admin/salons/${businessId}/profile-draft/reject`, { method: 'POST' });
+      setMessage('Pending changes discarded.');
+      load();
+    } catch (e: any) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+      setTimeout(() => setMessage(''), 3000);
+    }
+  };
+
+  if (loading) return <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-600" /></div>;
+
+  const hasPending = Boolean(pendingFields && Object.keys(pendingFields).length);
+
+  return (
+    <div className="grid gap-6">
+      {message && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 border border-emerald-200">{message}</p>}
+      <Section title="Moderation hold">
+        <div className="flex items-center justify-between rounded-xl border border-slate-200 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-800">{businessName} is currently {hold ? <span className="text-amber-700">ON HOLD</span> : <span className="text-emerald-700">publishing normally</span>}</p>
+            <p className="text-xs text-slate-500">
+              {hold
+                ? `While held, owner saves to Manage Profile become pending instead of going live${heldBy ? ` (held by ${heldBy})` : ''}.`
+                : 'Owner edits to Manage Profile publish immediately.'}
+            </p>
+          </div>
+          <button
+            onClick={() => toggleHold(!hold)}
+            disabled={busy}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${hold ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-amber-600 text-white hover:bg-amber-700'} disabled:opacity-50`}
+          >
+            {hold ? 'Release hold' : 'Place on hold'}
+          </button>
+        </div>
+      </Section>
+
+      <Section title="Pending owner changes">
+        {!hasPending ? (
+          <p className="text-sm text-slate-500">No pending changes.</p>
+        ) : (
+          <div className="grid gap-3">
+            {submittedAt && <p className="text-xs text-slate-500">Submitted {new Date(submittedAt).toLocaleString()}</p>}
+            <div className="grid gap-2 rounded-xl border border-slate-200 p-4">
+              {Object.entries(pendingFields || {}).map(([field, value]) => (
+                <div key={field} className="grid grid-cols-[140px_1fr] gap-2 text-sm">
+                  <span className="font-semibold capitalize text-slate-600">{field.replace(/_/g, ' ')}</span>
+                  <span className="text-slate-800 break-words">{String(value)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={approve} disabled={busy} className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
+                <CheckCircle2 size={16} /> Approve & publish
+              </button>
+              <button onClick={reject} disabled={busy} className="flex items-center gap-2 rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">
+                <Trash2 size={16} /> Reject
+              </button>
+            </div>
+          </div>
+        )}
+      </Section>
     </div>
   );
 }
@@ -1694,6 +1835,157 @@ function BusinessQr({ businessId, businessName }: { businessId: string | 'new'; 
         </div>
       )}
     </Section>
+  );
+}
+
+/**
+ * Admin Reviews management (Phase 7): search/filter across every real
+ * business_review row, edit review text directly — no customer approval
+ * required, that is an explicit product requirement — hide/unhide, and
+ * remove. The original text and edit metadata stay in the row for audit
+ * without exposing that complexity to customers.
+ */
+function AdminReviews({ onOpenBusiness }: { onOpenBusiness: (id: string) => void }) {
+  const [businesses, setBusinesses] = useState<AnyRow[]>([]);
+  const [businessId, setBusinessId] = useState('');
+  const [ratingFilter, setRatingFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [reviews, setReviews] = useState<AnyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    void api('/api/admin/salons').then((b) => setBusinesses(b.salons || [])).catch(() => {});
+  }, []);
+
+  const load = () => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (businessId) params.set('businessId', businessId);
+    if (ratingFilter) params.set('rating', ratingFilter);
+    if (search) params.set('search', search);
+    void api(`/api/admin/reviews?${params}`)
+      .then((b) => setReviews(b.reviews || []))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, [businessId, ratingFilter, search]);
+
+  const flash = (text: string) => { setMessage(text); setTimeout(() => setMessage(''), 3000); };
+
+  const startEdit = (review: AnyRow) => { setEditingId(review.id); setDraftText(review.reviewText); };
+
+  const saveEdit = async (id: string) => {
+    try {
+      await api(`/api/admin/reviews/${id}`, { method: 'PUT', body: JSON.stringify({ reviewText: draftText }) });
+      setEditingId(null);
+      flash('Review text updated.');
+      load();
+    } catch (e: any) {
+      flash(e.message);
+    }
+  };
+
+  const toggleVisibility = async (review: AnyRow) => {
+    const next = review.status === 'hidden' ? 'visible' : 'hidden';
+    try {
+      await api(`/api/admin/reviews/${review.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: next }) });
+      flash(next === 'hidden' ? 'Review hidden from customers.' : 'Review made visible again.');
+      load();
+    } catch (e: any) {
+      flash(e.message);
+    }
+  };
+
+  const removeReview = async (id: string) => {
+    try {
+      await api(`/api/admin/reviews/${id}`, { method: 'DELETE' });
+      flash('Review removed.');
+      load();
+    } catch (e: any) {
+      flash(e.message);
+    }
+  };
+
+  return (
+    <div className="grid gap-5">
+      {message && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 border border-emerald-200">{message}</p>}
+      <div className="flex flex-wrap items-center gap-3">
+        <select value={businessId} onChange={(e) => setBusinessId(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="">All businesses</option>
+          {businesses.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+        <select value={ratingFilter} onChange={(e) => setRatingFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm">
+          <option value="">Any rating</option>
+          {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} star</option>)}
+        </select>
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search review text or reviewer…"
+            className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-teal-600" /></div>
+      ) : reviews.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">No reviews match these filters.</p>
+      ) : (
+        <div className="grid gap-3">
+          {reviews.map((review) => (
+            <div key={review.id} className={`rounded-2xl border p-4 ${review.status === 'hidden' ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-slate-200 bg-white'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => onOpenBusiness(review.businessId)} className="text-sm font-semibold text-teal-700 hover:underline">{review.businessName}</button>
+                  <span className="text-xs text-slate-400">·</span>
+                  <span className="text-sm font-medium text-slate-700">{review.reviewerName}</span>
+                  {review.verifiedVisit && <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Verified</span>}
+                  {review.editedByAdmin && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">Edited by Admin</span>}
+                  {review.status === 'hidden' && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">Hidden</span>}
+                </div>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((n) => <Star key={n} size={14} className={n <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'} />)}
+                </div>
+              </div>
+
+              {editingId === review.id ? (
+                <div className="mt-2 grid gap-2">
+                  <textarea value={draftText} onChange={(e) => setDraftText(e.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
+                  <div className="flex gap-2">
+                    <button onClick={() => saveEdit(review.id)} className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white">Save</button>
+                    <button onClick={() => setEditingId(null)} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-700">{review.reviewText}</p>
+              )}
+
+              {review.originalReviewText && review.originalReviewText !== review.reviewText && (
+                <p className="mt-1 text-xs italic text-slate-400">Original: “{review.originalReviewText}”</p>
+              )}
+
+              <div className="mt-3 flex gap-2">
+                <button onClick={() => startEdit(review)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
+                  <Pencil size={13} /> Edit text
+                </button>
+                <button onClick={() => toggleVisibility(review)} className="flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">
+                  {review.status === 'hidden' ? <><Eye size={13} /> Unhide</> : <><EyeOff size={13} /> Hide</>}
+                </button>
+                <button onClick={() => removeReview(review.id)} className="flex items-center gap-1 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">
+                  <Trash2 size={13} /> Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
