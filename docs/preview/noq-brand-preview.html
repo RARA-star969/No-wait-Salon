@@ -113,48 +113,59 @@
   }
 
   /* ---------- floating deck ---------- */
-  .deck-zone{position:relative; height:200px; margin:4px 0 2px; flex-shrink:0;}
+  .deck-zone{position:relative; height:212px; margin:4px 0 2px; flex-shrink:0;}
   .deck-glow{
-    position:absolute; inset:-30px -10px auto -10px; height:220px; border-radius:50%;
+    position:absolute; inset:-30px -10px auto -10px; height:230px; border-radius:50%;
     filter:blur(46px); opacity:.5; z-index:0;
   }
   .deck{position:relative; height:100%; z-index:1;}
   .card{
-    position:absolute; top:6px; left:50%; width:172px; height:186px; border-radius:26px;
+    position:absolute; top:8px; left:50%; width:172px; height:186px; border-radius:26px;
     overflow:hidden; border:1px solid var(--border);
   }
   .card .scene-svg{position:absolute; inset:0; width:100%; height:100%; display:block;}
   .card .scrim{position:absolute; inset:0;}
   .card.back-l{
-    transform:translate(-158px,20px) rotate(-11deg) scale(.82);
-    z-index:1; box-shadow:0 20px 34px -18px rgba(0,0,0,.7);
+    transform:translate(-182px,30px) rotate(-13deg) scale(.78);
+    z-index:1; box-shadow:0 18px 30px -16px rgba(0,0,0,.65);
   }
   .card.back-r{
-    transform:translate(50px,20px) rotate(11deg) scale(.82);
-    z-index:1; box-shadow:0 20px 34px -18px rgba(0,0,0,.7);
+    transform:translate(74px,30px) rotate(13deg) scale(.78);
+    z-index:1; box-shadow:0 18px 30px -16px rgba(0,0,0,.65);
   }
-  .card.back-l .scrim, .card.back-r .scrim{background:rgba(6,7,10,.5);}
-  .card.back-l{filter:saturate(.82) brightness(.72);}
-  .card.back-r{filter:saturate(.82) brightness(.72);}
+  .card.back-l .scrim, .card.back-r .scrim{background:rgba(6,7,10,.56);}
+  .card.back-l{filter:saturate(.78) brightness(.66);}
+  .card.back-r{filter:saturate(.78) brightness(.66);}
   .card.front{
     transform:translate(-86px,0) scale(1); z-index:3;
-    box-shadow:0 26px 46px -16px var(--cat-shadow, rgba(138,92,255,.55)), 0 6px 18px -6px rgba(0,0,0,.6);
-    border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 30px 54px -16px var(--cat-shadow, rgba(138,92,255,.55)), 0 8px 22px -6px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.4);
+    border:1px solid rgba(255,255,255,.2);
   }
-  .card.front .scrim{background:linear-gradient(185deg, rgba(6,7,10,0) 34%, rgba(6,7,10,.55) 68%, rgba(4,5,7,.92) 100%);}
+  .card.front .scrim{background:linear-gradient(185deg, rgba(6,7,10,0) 30%, rgba(6,7,10,.5) 64%, rgba(4,5,7,.92) 100%);}
+  .card.front::before{
+    content:''; position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:linear-gradient(128deg, rgba(255,255,255,.4) 0%, rgba(255,255,255,.12) 16%, rgba(255,255,255,0) 34%);
+    mix-blend-mode:screen; opacity:.85;
+  }
+  .card.front::after{
+    content:''; position:absolute; inset:0; z-index:1; pointer-events:none; border-radius:inherit;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.14), inset 0 18px 30px -20px rgba(255,255,255,.5);
+  }
   .card-content{
     position:absolute; left:0; right:0; bottom:0; padding:12px 13px 13px; z-index:2;
   }
   .card-eyebrow{
-    display:inline-flex; align-items:center; gap:4px; font:800 8px var(--font-mono); letter-spacing:.06em; text-transform:uppercase;
-    color:#0B0D12; background:rgba(255,255,255,.92); padding:3px 7px; border-radius:6px;
+    display:inline-flex; align-items:center; gap:5px; font:800 8px var(--font-mono); letter-spacing:.06em; text-transform:uppercase;
+    color:#0B0D12; background:rgba(255,255,255,.92); padding:3px 7px 3px 6px; border-radius:6px;
   }
+  .card-eyebrow .dot{width:5px; height:5px; border-radius:50%; background:var(--cat, var(--brand)); flex-shrink:0;}
   .card-content .cname{font-family:var(--font-display); font-weight:800; font-size:15.5px; color:#fff; margin-top:7px; line-height:1.08;}
   .card-content .ctag{font-size:9px; color:rgba(255,255,255,.72); margin-top:3px; line-height:1.3;}
   .card-content .ccta{
-    display:inline-flex; align-items:center; gap:4px; margin-top:8px;
+    display:inline-flex; align-items:center; gap:5px; margin-top:9px;
     font:700 8.5px var(--font-body); color:#fff; border-bottom:1.5px solid var(--cat, var(--brand)); padding-bottom:1px;
   }
+  .card-content .ccta .arrow{color:var(--cat, var(--brand)); font-weight:800;}
 
   /* ---------- banner ---------- */
   .banner{
@@ -171,8 +182,10 @@
   .banner-copy h4{font-family:var(--font-display); font-size:14px; font-weight:800; color:#fff; line-height:1.15; margin:0;}
   .banner-copy p{font-size:9px; color:var(--text-2); line-height:1.4; margin:0;}
   .banner-copy .cta{
-    align-self:flex-start; margin-top:2px; display:inline-flex; align-items:center; gap:5px;
-    background:var(--brand); color:#fff; font:700 9px var(--font-body); padding:7px 11px; border-radius:9px;
+    align-self:flex-start; margin-top:2px; display:inline-flex; align-items:center; gap:6px;
+    background:linear-gradient(135deg, var(--brand) 55%, var(--cat, var(--brand)) 150%);
+    color:#fff; font:700 9px var(--font-body); padding:7px 11px; border-radius:9px;
+    box-shadow:0 8px 18px -6px color-mix(in srgb, var(--cat, var(--brand)) 60%, transparent), inset 0 1px 0 rgba(255,255,255,.25);
   }
   .banner-art{width:44%; position:relative; overflow:hidden;}
   .banner-art .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
@@ -182,23 +195,35 @@
   .listing-head{display:flex; justify-content:space-between; align-items:baseline; flex-shrink:0;}
   .listing-head span:first-child{font:700 12.5px var(--font-body); color:#fff;}
   .listing-head span:last-child{font:600 10px var(--font-body); color:var(--brand-2);}
-  .listings{display:flex; flex-direction:column; gap:9px; flex:1; min-height:0; overflow:hidden;}
+  .listings{display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; overflow:hidden;}
   .listing-card{
-    display:flex; gap:10px; align-items:center; background:var(--surface); border:1px solid var(--border);
-    border-left:2.5px solid var(--cat, var(--brand)); border-radius:14px; padding:8px; flex-shrink:0;
+    display:flex; gap:11px; align-items:center; background:var(--surface); border:1px solid var(--border);
+    border-left:2.5px solid var(--cat, var(--brand)); border-radius:15px; padding:9px; flex-shrink:0;
   }
   .listing-card .thumb{
-    width:52px; height:52px; border-radius:10px; overflow:hidden; position:relative; flex-shrink:0; background:var(--surface-2);
+    width:62px; height:62px; border-radius:12px; overflow:hidden; position:relative; flex-shrink:0; background:var(--surface-2);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
   }
   .listing-card .thumb .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
-  .listing-info{min-width:0; flex:1; display:flex; flex-direction:column; gap:3px;}
-  .listing-info .lname{font:700 11.5px var(--font-body); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .listing-card .thumb .tscrim{position:absolute; inset:0; background:linear-gradient(195deg, rgba(6,7,10,0) 44%, rgba(6,7,10,.6) 100%);}
+  .listing-card .thumb .tbadge{
+    position:absolute; top:4px; right:4px; width:7px; height:7px; border-radius:50%;
+    background:var(--cat, var(--brand)); box-shadow:0 0 0 2px rgba(6,7,10,.55);
+  }
+  .listing-info{min-width:0; flex:1; display:flex; flex-direction:column; gap:4px;}
+  .listing-info .lname{font:800 12px var(--font-body); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.01em;}
+  .listing-info .ltag{
+    align-self:flex-start; font:700 8px var(--font-mono); letter-spacing:.03em;
+    color:var(--cat, var(--brand-2)); background:color-mix(in srgb, var(--cat, var(--brand)) 16%, transparent);
+    padding:2px 6px; border-radius:5px;
+  }
   .listing-info .lmeta{display:flex; align-items:center; gap:6px; font:600 9px var(--font-body); color:var(--text-2);}
   .listing-info .lmeta .rate{display:flex; align-items:center; gap:3px; color:#FFC94A; font-weight:700;}
   .listing-info .lmeta .sep{width:3px;height:3px;border-radius:50%; background:var(--text-3);}
   .book-pill{
     flex-shrink:0; font:700 8.5px var(--font-body); color:var(--text); background:var(--surface-2);
-    border:1px solid var(--border); padding:6px 10px; border-radius:9px;
+    border:1px solid var(--border); border-bottom:1.5px solid color-mix(in srgb, var(--cat, var(--brand)) 55%, var(--border));
+    padding:7px 11px; border-radius:10px;
   }
 
   .bottom-nav{
@@ -243,9 +268,9 @@
       offerBadge:'25% OFF', offerHead:'Styled to perfection', offerSub:'25% off your first salon visit this week',
       ctaLabel:'Explore Salon', listLabel:'Top rated salons',
       listings:[
-        {n:'Glow Studio', rating:'4.9', reviews:'2.1k', meta:'1.2 km · ₹₹'},
-        {n:'Urban Cuts & Co.', rating:'4.7', reviews:'980', meta:'2.0 km · ₹'},
-        {n:'Bliss Hair Lounge', rating:'4.8', reviews:'1.4k', meta:'0.8 km · ₹₹₹'},
+        {n:'Glow Studio', tag:'Hair & Styling', rating:'4.9', reviews:'2.1k', meta:'1.2 km · ₹₹'},
+        {n:'Urban Cuts & Co.', tag:'Grooming', rating:'4.7', reviews:'980', meta:'2.0 km · ₹'},
+        {n:'Bliss Hair Lounge', tag:'Bridal & Makeover', rating:'4.8', reviews:'1.4k', meta:'0.8 km · ₹₹₹'},
       ],
       scene:(u)=>salonScene(u),
     },
@@ -254,9 +279,9 @@
       offerBadge:'20% OFF', offerHead:'Stronger every day', offerSub:'20% off all gym sessions this month',
       ctaLabel:'Explore Gym', listLabel:'Popular gyms nearby',
       listings:[
-        {n:'NOQ Elite Gym', rating:'4.8', reviews:'3.2k', meta:'0.6 km · ₹₹'},
-        {n:'Iron Forge Fitness', rating:'4.6', reviews:'1.1k', meta:'1.5 km · ₹'},
-        {n:'Fit Nation Studio', rating:'4.7', reviews:'2.0k', meta:'2.4 km · ₹₹'},
+        {n:'NOQ Elite Gym', tag:'Strength Training', rating:'4.8', reviews:'3.2k', meta:'0.6 km · ₹₹'},
+        {n:'Iron Forge Fitness', tag:'Powerlifting', rating:'4.6', reviews:'1.1k', meta:'1.5 km · ₹'},
+        {n:'Fit Nation Studio', tag:'Cardio & HIIT', rating:'4.7', reviews:'2.0k', meta:'2.4 km · ₹₹'},
       ],
       scene:(u)=>gymScene(u),
     },
@@ -265,9 +290,9 @@
       offerBadge:'15% OFF', offerHead:'Deals you will love', offerSub:'15% off selected items, today only',
       ctaLabel:'Shop Now', listLabel:'Recommended for you',
       listings:[
-        {n:'Trend Mart', rating:'4.5', reviews:'860', meta:'1.0 km · ₹₹'},
-        {n:'Style Bazaar', rating:'4.6', reviews:'1.3k', meta:'1.8 km · ₹'},
-        {n:'Urban Basket', rating:'4.4', reviews:'640', meta:'2.2 km · ₹₹'},
+        {n:'Trend Mart', tag:'Fashion & Apparel', rating:'4.5', reviews:'860', meta:'1.0 km · ₹₹'},
+        {n:'Style Bazaar', tag:'Accessories', rating:'4.6', reviews:'1.3k', meta:'1.8 km · ₹'},
+        {n:'Urban Basket', tag:'Home & Living', rating:'4.4', reviews:'640', meta:'2.2 km · ₹₹'},
       ],
       scene:(u)=>shopScene(u),
     },
@@ -365,9 +390,10 @@
     const catStyle = `--cat:${cat.color}`;
     const listings = cat.listings.map(l => `
       <div class="listing-card" style="${catStyle}">
-        <div class="thumb">${cat.scene(nextUid())}</div>
+        <div class="thumb">${cat.scene(nextUid())}<div class="tscrim"></div><div class="tbadge"></div></div>
         <div class="listing-info">
           <div class="lname">${esc(l.n)}</div>
+          <span class="ltag">${esc(l.tag)}</span>
           <div class="lmeta">
             <span class="rate">★ ${esc(l.rating)}</span>
             <span>(${esc(l.reviews)})</span>
@@ -411,9 +437,9 @@
                 ${cat.scene(nextUid())}
                 <div class="scrim"></div>
                 <div class="card-content">
-                  <span class="card-eyebrow">NOQ ${esc(cat.name)}</span>
+                  <span class="card-eyebrow"><span class="dot"></span>NOQ ${esc(cat.name)}</span>
                   <div class="cname">${esc(cat.tagline)}</div>
-                  <div class="ccta">${esc(cat.ctaLabel)} →</div>
+                  <div class="ccta">${esc(cat.ctaLabel)} <span class="arrow">→</span></div>
                 </div>
               </div>
             </div>
