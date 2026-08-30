@@ -19,6 +19,9 @@ name: TEMP - Customer fix APK build (physical test, TEST API)
 #   - Builds only the Customer APK — the reported white-screen regression is
 #     Customer-app-only, and the Staff APK from the prior integration SHA
 #     (3fa1cf87051f3023e56fb8ffe88e4838c146b010) is unaffected by this fix.
+#   - Now pinned to dd894d415cd8acb14a40eb7b6e34683b46fd91eb: the actual
+#     root-cause fix (businessReviewService.ts's wrong API base) on top of
+#     the prior DetailErrorBoundary safety-net commit (139f93f).
 
 on:
   push:
@@ -34,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  FIX_SHA: 139f93fd93c0fba76ad6e78efdc5a765e45521df
+  FIX_SHA: dd894d415cd8acb14a40eb7b6e34683b46fd91eb
   VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
 
 jobs:
