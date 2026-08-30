@@ -1,0 +1,652 @@
+<title>NOQ Brand Worlds</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
+
+  :root{
+    --bg:#0F1116;
+    --surface:#171A22;
+    --surface-2:#1D212B;
+    --surface-3:#242938;
+    --border:rgba(255,255,255,.09);
+    --border-soft:rgba(255,255,255,.06);
+    --text:#FFFFFF;
+    --text-2:#A1A6B2;
+    --text-3:#6C7280;
+    --brand:#8A5CFF;
+    --brand-2:#B79CFF;
+    --brand-soft:rgba(138,92,255,.16);
+    --ok:#25D0A5;
+    --warn:#FFC94A;
+    --font-display:'Sora',ui-sans-serif,system-ui,sans-serif;
+    --font-body:'Inter',ui-sans-serif,system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 12% -8%, rgba(138,92,255,.14), transparent 60%),
+      radial-gradient(900px 520px at 88% 8%, rgba(37,208,165,.08), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:var(--font-display); text-wrap:balance; margin:0;}
+  p{margin:0;}
+  ::selection{background:var(--brand-soft);}
+  .mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+  img,svg{max-width:100%;}
+
+  /* ---------- shell ---------- */
+  .page{max-width:1320px; margin:0 auto; padding:0 28px 120px;}
+
+  .banner-ribbon{
+    position:sticky; top:0; z-index:50;
+    background:linear-gradient(90deg,#3A2A80,#8A5CFF 55%,#3A2A80);
+    color:#fff; text-align:center;
+    padding:9px 16px;
+    font:700 12px/1.4 var(--font-body);
+    letter-spacing:.06em; text-transform:uppercase;
+    box-shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  .banner-ribbon b{font-weight:800;}
+
+  header.hero{
+    padding:64px 0 40px;
+    display:flex; flex-direction:column; gap:22px;
+  }
+  .brand-row{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:40px;height:40px;border-radius:12px;
+    background:linear-gradient(155deg,var(--brand),#5E3FCB);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 20px -6px rgba(138,92,255,.65), inset 0 1px 0 rgba(255,255,255,.25);
+    color:#fff; font-family:var(--font-display); font-weight:800; font-size:20px;
+  }
+  .brand-word{font-family:var(--font-display); font-weight:800; font-size:19px; letter-spacing:.02em;}
+  .tag-pill{
+    font:700 10.5px/1 var(--font-mono); letter-spacing:.08em; text-transform:uppercase;
+    color:var(--brand-2); background:var(--brand-soft); border:1px solid rgba(138,92,255,.35);
+    padding:6px 10px; border-radius:999px;
+  }
+  header.hero h1{font-size:clamp(30px,4.2vw,50px); line-height:1.06; max-width:16ch; font-weight:800;}
+  header.hero h1 em{font-style:normal; color:var(--brand-2);}
+  header.hero .lede{color:var(--text-2); font-size:15.5px; line-height:1.65; max-width:62ch;}
+  .hero-meta{display:flex; flex-wrap:wrap; gap:10px; margin-top:6px;}
+  .meta-chip{
+    display:flex; align-items:center; gap:7px;
+    background:var(--surface); border:1px solid var(--border);
+    padding:8px 13px; border-radius:11px; font-size:12.5px; color:var(--text-2);
+  }
+  .meta-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);}
+
+  section{padding:46px 0;}
+  section + section{border-top:1px solid var(--border-soft);}
+  .section-head{display:flex; flex-direction:column; gap:8px; margin-bottom:28px; max-width:70ch;}
+  .eyebrow{font:700 11px/1 var(--font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--text-3);}
+  .section-head h2{font-size:26px; font-weight:700;}
+  .section-head p{color:var(--text-2); font-size:14.5px; line-height:1.6;}
+
+  /* ---------- category switcher ---------- */
+  .switcher{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:30px;}
+  .switch-btn{
+    display:flex; align-items:center; gap:8px;
+    padding:10px 16px 10px 12px; border-radius:12px;
+    border:1px solid var(--border); background:var(--surface);
+    color:var(--text-2); font:600 13px var(--font-body); cursor:pointer;
+    transition:transform .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .switch-btn .swatch{width:18px;height:18px;border-radius:6px; flex-shrink:0;}
+  .switch-btn:hover{transform:translateY(-1px);}
+  .switch-btn.is-active{color:#fff; border-color:var(--cat,var(--brand)); background:color-mix(in srgb, var(--cat,var(--brand)) 16%, var(--surface));}
+
+  .hero-stage{display:grid; grid-template-columns:340px 1fr; gap:44px; align-items:start;}
+  @media (max-width:880px){.hero-stage{grid-template-columns:1fr;}}
+
+  .stage-notes{display:flex; flex-direction:column; gap:16px; padding-top:6px;}
+  .note-card{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:16px 18px;
+  }
+  .note-card .k{font:700 10.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase; color:var(--text-3); margin-bottom:6px; display:block;}
+  .note-card .v{font-size:14px; color:var(--text); line-height:1.55;}
+  .note-card.fixed{border-left:3px solid var(--brand);}
+  .note-card.dynamic{border-left:3px solid var(--cat,var(--warn));}
+
+  /* ---------- phone ---------- */
+  .phone-wrap{display:flex; flex-direction:column; align-items:center; gap:16px;}
+  .phone{
+    position:relative; width:300px; height:632px;
+    background:linear-gradient(180deg,#050608,#0B0D12);
+    border-radius:46px; padding:12px;
+    box-shadow:0 2px 0 rgba(255,255,255,.06) inset, 0 40px 80px -30px rgba(0,0,0,.75), 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .phone.small{width:216px; height:456px; border-radius:34px; padding:9px;}
+  .phone-screen{
+    position:relative; width:100%; height:100%; border-radius:36px; overflow:hidden;
+    background:var(--bg);
+    display:flex; flex-direction:column;
+  }
+  .phone.small .phone-screen{border-radius:26px;}
+  .notch{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    width:84px; height:20px; border-radius:12px; background:#000; z-index:30;
+  }
+  .phone.small .notch{width:60px; height:14px; top:6px;}
+  .statusbar{display:flex; justify-content:space-between; align-items:center; padding:16px 20px 2px; font:700 11px var(--font-body); color:#fff; flex-shrink:0;}
+  .phone.small .statusbar{padding:11px 14px 0; font-size:9px;}
+  .statusbar .icons{display:flex; gap:4px; align-items:center;}
+
+  .screen-body{flex:1; overflow:hidden; padding:12px 14px 0; display:flex; flex-direction:column; gap:12px;}
+  .phone.small .screen-body{padding:8px 10px 0; gap:8px;}
+
+  .app-header{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .loc{display:flex; flex-direction:column; gap:1px;}
+  .loc .l1{display:flex; align-items:center; gap:4px; font:700 11.5px var(--font-body); color:#fff;}
+  .loc .l2{font:600 9px var(--font-body); color:var(--text-2);}
+  .phone.small .loc .l1{font-size:9px;} .phone.small .loc .l2{font-size:7.5px;}
+  .head-actions{display:flex; align-items:center; gap:6px;}
+  .wallet-chip{
+    display:flex; align-items:center; gap:4px; background:var(--surface-2); border:1px solid var(--border);
+    padding:6px 9px; border-radius:10px; font:700 10px var(--font-mono); color:#fff;
+  }
+  .phone.small .wallet-chip{padding:4px 6px; font-size:8px; border-radius:8px;}
+  .avatar{
+    width:26px;height:26px;border-radius:9px; background:linear-gradient(155deg,var(--brand),#5E3FCB);
+    flex-shrink:0;
+  }
+  .phone.small .avatar{width:19px;height:19px;border-radius:7px;}
+
+  .search-shell{
+    display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:13px; padding:10px 12px; color:var(--text-2); font:600 10.5px var(--font-body);
+  }
+  .phone.small .search-shell{padding:7px 9px; font-size:8px; border-radius:10px; gap:5px;}
+  .search-shell svg{flex-shrink:0;}
+
+  /* floating deck */
+  .deck{position:relative; height:158px; margin:2px 0 4px; flex-shrink:0;}
+  .phone.small .deck{height:112px;}
+  .card{
+    position:absolute; top:0; left:50%; width:150px; height:150px; border-radius:22px;
+    padding:12px; display:flex; flex-direction:column; justify-content:space-between;
+    border:1px solid var(--border); overflow:hidden;
+    transition:background .35s ease, box-shadow .35s ease, border-color .35s ease;
+  }
+  .phone.small .card{width:104px; height:104px; border-radius:16px; padding:8px;}
+  .card.back-l{transform:translate(-124px,10px) rotate(-9deg) scale(.9); z-index:1; opacity:.55; filter:saturate(.7);}
+  .card.back-r{transform:translate(24px,10px) rotate(9deg) scale(.9); z-index:1; opacity:.55; filter:saturate(.7);}
+  .phone.small .card.back-l{transform:translate(-84px,7px) rotate(-9deg) scale(.9);}
+  .phone.small .card.back-r{transform:translate(18px,7px) rotate(9deg) scale(.9);}
+  .card.front{transform:translate(-75px,0) scale(1); z-index:3;}
+  .phone.small .card.front{transform:translate(-52px,0) scale(1);}
+  .card .glyph{align-self:flex-start; opacity:.95;}
+  .card .cname{font-family:var(--font-display); font-weight:800; font-size:14px; color:#fff; line-height:1.1;}
+  .phone.small .card .cname{font-size:10px;}
+  .card .ctag{font-size:8.5px; color:rgba(255,255,255,.75); margin-top:2px; line-height:1.3;}
+  .phone.small .card .ctag{font-size:6.5px;}
+  .card .ccta{
+    align-self:flex-start; font:700 8px var(--font-body); color:#0B0D12; background:#fff;
+    padding:4px 8px; border-radius:8px; display:flex; align-items:center; gap:3px;
+  }
+  .phone.small .card .ccta{font-size:6.5px; padding:3px 6px; border-radius:6px;}
+
+  .banner{
+    position:relative; overflow:hidden; border-radius:16px; background:var(--surface-2);
+    border:1px solid var(--border); padding:12px; flex-shrink:0;
+  }
+  .phone.small .banner{padding:8px; border-radius:12px;}
+  .banner .glow{position:absolute; width:130px; height:130px; border-radius:50%; top:-50px; right:-40px; filter:blur(30px); opacity:.55;}
+  .banner .badge{
+    display:inline-flex; font:800 8px var(--font-mono); letter-spacing:.05em; color:#0B0D12; background:#fff;
+    padding:3px 7px; border-radius:6px; position:relative; z-index:2;
+  }
+  .phone.small .banner .badge{font-size:6.5px;}
+  .banner h4{position:relative; z-index:2; font-family:var(--font-display); font-size:14px; font-weight:700; color:#fff; margin-top:6px; max-width:70%;}
+  .phone.small .banner h4{font-size:10px;}
+  .banner p{position:relative; z-index:2; font-size:9px; color:var(--text-2); margin-top:3px; max-width:66%; line-height:1.4;}
+  .phone.small .banner p{font-size:7px;}
+  .banner .cta{
+    position:relative; z-index:2; display:inline-flex; align-items:center; gap:4px; margin-top:8px;
+    background:var(--brand); color:#fff; font:700 8.5px var(--font-body); padding:6px 10px; border-radius:9px;
+  }
+  .phone.small .banner .cta{font-size:6.5px; padding:4px 7px; margin-top:5px;}
+  .banner .cta i{width:14px; height:2px; background:var(--cat,var(--brand)); border-radius:2px; display:inline-block;}
+
+  .listing-head{display:flex; justify-content:space-between; align-items:baseline; flex-shrink:0;}
+  .listing-head span:first-child{font:700 11px var(--font-body); color:#fff;}
+  .phone.small .listing-head span:first-child{font-size:8px;}
+  .listing-head span:last-child{font:600 9px var(--font-body); color:var(--brand-2);}
+  .phone.small .listing-head span:last-child{font-size:6.5px;}
+  .listings{display:flex; gap:8px; flex:1; min-height:0;}
+  .listing-card{
+    flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+    border-top:2px solid var(--cat,var(--brand)); padding:7px; display:flex; flex-direction:column; gap:5px;
+  }
+  .phone.small .listing-card{padding:5px; border-radius:9px; gap:3px;}
+  .listing-card .thumb{height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center;}
+  .phone.small .listing-card .thumb{height:22px; border-radius:6px;}
+  .listing-card .lname{font:700 8px var(--font-body); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .phone.small .listing-card .lname{font-size:6px;}
+  .listing-card .lmeta{font:600 7px var(--font-body); color:var(--text-3);}
+  .phone.small .listing-card .lmeta{font-size:5.5px;}
+
+  .bottom-nav{
+    margin-top:auto; flex-shrink:0; display:flex; align-items:center; justify-content:space-around;
+    background:var(--surface); border-top:1px solid var(--border); padding:11px 6px 14px;
+  }
+  .phone.small .bottom-nav{padding:7px 4px 10px;}
+  .nav-item{display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-3);}
+  .nav-item.active{color:var(--brand-2);}
+  .nav-item span{font:700 6.5px var(--font-body);}
+  .phone.small .nav-item span{font-size:5px;}
+  .nav-qr{
+    width:34px; height:34px; border-radius:11px; background:linear-gradient(155deg,var(--brand),#5E3FCB);
+    display:flex; align-items:center; justify-content:center; margin-top:-18px;
+    box-shadow:0 8px 18px -4px rgba(138,92,255,.7), 0 0 0 4px var(--bg);
+  }
+  .phone.small .nav-qr{width:24px; height:24px; border-radius:8px; margin-top:-13px; box-shadow:0 6px 14px -4px rgba(138,92,255,.7), 0 0 0 3px var(--bg);}
+  .phone-label{display:flex; align-items:center; gap:7px;}
+  .phone-label .dot{width:8px;height:8px;border-radius:50%;}
+  .phone-label span{font:700 12px var(--font-body); color:var(--text);}
+
+  /* ---------- comparison strip ---------- */
+  .strip{display:flex; gap:26px; overflow-x:auto; padding:6px 4px 18px; scrollbar-width:thin;}
+  .strip::-webkit-scrollbar{height:8px;}
+  .strip::-webkit-scrollbar-thumb{background:var(--surface-3); border-radius:8px;}
+  .strip > div{flex-shrink:0;}
+
+  /* ---------- system board ---------- */
+  .zone-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:760px){.zone-grid{grid-template-columns:1fr;}}
+  .zone-card{border-radius:18px; padding:22px; background:var(--surface); border:1px solid var(--border);}
+  .zone-card.fixed{border-top:3px solid var(--brand);}
+  .zone-card.dynamic{border-top:3px solid var(--warn);}
+  .zone-card h3{font-size:16px; font-weight:700; display:flex; align-items:center; gap:9px;}
+  .zone-card .lock{width:26px;height:26px;border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--surface-2); flex-shrink:0;}
+  .zone-card ul{list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column; gap:11px;}
+  .zone-card li{display:flex; gap:10px; font-size:13.5px; color:var(--text-2); line-height:1.5;}
+  .zone-card li b{color:var(--text); font-weight:600;}
+  .zone-card li:before{content:''; width:5px; height:5px; border-radius:50%; background:var(--text-3); margin-top:7px; flex-shrink:0;}
+  .zone-card.fixed li:before{background:var(--brand);}
+  .zone-card.dynamic li:before{background:var(--warn);}
+
+  .color-rail{display:flex; gap:14px; flex-wrap:wrap; margin-top:8px;}
+  .swatch-card{
+    width:132px; border-radius:14px; overflow:hidden; background:var(--surface); border:1px solid var(--border);
+  }
+  .swatch-card .fill{height:64px;}
+  .swatch-card .meta{padding:10px 12px;}
+  .swatch-card .meta .name{font:700 12px var(--font-body); color:#fff;}
+  .swatch-card .meta .hex{font:600 10.5px var(--font-mono); color:var(--text-3); margin-top:2px;}
+  .swatch-card.brand{outline:1px solid var(--brand); outline-offset:-1px;}
+
+  table.rules{width:100%; border-collapse:collapse; margin-top:6px; font-size:13px;}
+  table.rules th{text-align:left; font:700 10.5px var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); padding:0 14px 10px 0; border-bottom:1px solid var(--border);}
+  table.rules td{padding:13px 14px 13px 0; border-bottom:1px solid var(--border-soft); color:var(--text-2); vertical-align:top;}
+  table.rules td.area{color:var(--text); font-weight:600;}
+  table.rules tr:last-child td{border-bottom:none;}
+  .pill-tag{display:inline-flex; align-items:center; gap:5px; font:700 10.5px var(--font-mono); padding:3px 8px; border-radius:7px;}
+  .pill-tag.locked{background:var(--brand-soft); color:var(--brand-2);}
+  .pill-tag.open{background:rgba(255,201,74,.14); color:var(--warn);}
+  .pill-tag.mixed{background:rgba(255,255,255,.08); color:var(--text-2);}
+
+  .why-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px;}
+  @media (max-width:820px){.why-grid{grid-template-columns:1fr;}}
+  .why-card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px;}
+  .why-card .num{font:700 11px var(--font-mono); color:var(--text-3);}
+  .why-card h4{margin-top:10px; font-size:15px; font-weight:700;}
+  .why-card p{margin-top:8px; font-size:13px; color:var(--text-2); line-height:1.6;}
+
+  .roadmap{display:flex; flex-direction:column; gap:10px;}
+  .road-row{display:flex; align-items:flex-start; gap:14px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px 18px;}
+  .road-row .stage{font:700 10px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:#0B0D12; background:var(--ok); padding:4px 9px; border-radius:7px; flex-shrink:0; margin-top:1px;}
+  .road-row.hold .stage{background:var(--warn);}
+  .road-row .body b{color:var(--text); font-size:13.5px;}
+  .road-row .body p{color:var(--text-2); font-size:13px; margin-top:4px; line-height:1.55;}
+
+  footer{padding:40px 0 10px; text-align:center; color:var(--text-3); font-size:12px; border-top:1px solid var(--border-soft);}
+  footer b{color:var(--text-2);}
+</style>
+
+<div class="banner-ribbon">🔒 Preview Only — <b>Not Final Implementation</b> · No production or test flows were changed</div>
+
+<div class="page">
+
+  <header class="hero">
+    <div class="brand-row">
+      <div class="brand-mark">N</div>
+      <span class="brand-word">NOQ</span>
+      <span class="tag-pill">Design Validation</span>
+    </div>
+    <h1>One brand,<br><em>five worlds.</em></h1>
+    <p class="lede">A visual-direction preview for the NOQ customer Home screen — one fixed brand identity in the header, search, and navigation, with a category zone that changes personality when the floating deck switches between Salon, Gym, Shop, Clinic and Spa.</p>
+    <div class="hero-meta">
+      <span class="meta-chip"><span class="dot"></span> Prototype build — no app code touched</span>
+      <span class="meta-chip">Home structure preserved</span>
+      <span class="meta-chip">Floating deck kept as the hero interaction</span>
+    </div>
+  </header>
+
+  <section id="live">
+    <div class="section-head">
+      <span class="eyebrow">01 — Interactive preview</span>
+      <h2>Switch the category, watch the brand hold still</h2>
+      <p>Tap a category below. The header, search shell and bottom nav never move a pixel — only the floating deck, banner accent and listing highlights change.</p>
+    </div>
+
+    <div class="switcher" id="switcher"></div>
+
+    <div class="hero-stage">
+      <div class="phone-wrap">
+        <div id="hero-phone"></div>
+      </div>
+      <div class="stage-notes" id="stage-notes"></div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <div class="section-head">
+      <span class="eyebrow">02 — Side-by-side</span>
+      <h2>Same layout, different personality</h2>
+      <p>All five category states, rendered from the identical Home template — nothing structural is rearranged, only the category zone re-skins.</p>
+    </div>
+    <div class="strip" id="strip"></div>
+  </section>
+
+  <section id="zones">
+    <div class="section-head">
+      <span class="eyebrow">03 — The system</span>
+      <h2>Fixed Brand Zone vs. Dynamic Category Zone</h2>
+      <p>Every screen is built from two zones. The split is what keeps NOQ recognizable no matter which category a customer is browsing.</p>
+    </div>
+    <div class="zone-grid">
+      <div class="zone-card fixed">
+        <h3><span class="lock">🔒</span> Brand Zone — always NOQ</h3>
+        <ul>
+          <li><b>Header</b> — location pill, wallet chip, avatar</li>
+          <li><b>Search shell</b> — glass surface, icon, placeholder rhythm</li>
+          <li><b>Bottom navigation</b> — icons, labels, active-state color</li>
+          <li><b>QR center button</b> — always brand violet, always raised</li>
+          <li><b>Typography system</b> — Sora display, Inter body</li>
+          <li><b>Base dark glass surfaces</b> — #0F1116 / #171A22</li>
+        </ul>
+      </div>
+      <div class="zone-card dynamic">
+        <h3><span class="lock">🎨</span> Category Zone — changes per world</h3>
+        <ul>
+          <li><b>Floating deck</b> — front card art, side-card mood</li>
+          <li><b>Ambient glow</b> — ring color behind the front card</li>
+          <li><b>Featured banner accent</b> — glow + CTA underline only</li>
+          <li><b>Listing highlights</b> — a 2px top border, nothing more</li>
+          <li><b>Chips / badges / icons</b> — category tint</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="colors">
+    <div class="section-head">
+      <span class="eyebrow">04 — Color logic</span>
+      <h2>One brand color. Five category accents.</h2>
+      <p>Category color is never allowed to become the app's identity — it decorates the zone it belongs to and stops there.</p>
+    </div>
+    <div class="color-rail" id="brand-swatch"></div>
+    <p style="margin-top:22px; color:var(--text-3); font-size:12.5px; font-weight:600;">Category accents — dynamic zones only</p>
+    <div class="color-rail" id="cat-swatches" style="margin-top:10px;"></div>
+
+    <table class="rules">
+      <thead><tr><th>Surface</th><th>Behavior</th><th>Status</th></tr></thead>
+      <tbody id="rules-body"></tbody>
+    </table>
+  </section>
+
+  <section id="why">
+    <div class="section-head">
+      <span class="eyebrow">05 — Why this works</span>
+      <h2>Solving the "every category owns a color" problem</h2>
+    </div>
+    <div class="why-grid">
+      <div class="why-card"><span class="num">01</span><h4>Brand recall stays intact</h4><p>Right now the header, chips and CTAs shift color with every category tap — a customer never sees a stable "NOQ blue." Locking those to one violet gives the brand something to be remembered by.</p></div>
+      <div class="why-card"><span class="num">02</span><h4>Category still gets a voice</h4><p>Gym should feel energetic, Spa should feel calm — that's real product value. This system keeps that personality alive in the deck and banner, just without letting it repaint the whole app.</p></div>
+      <div class="why-card"><span class="num">03</span><h4>Scales past five categories</h4><p>Adding a sixth or seventh category later is just one new accent color and one new deck illustration — the shell, nav and typography don't need to be touched.</p></div>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="section-head">
+      <span class="eyebrow">06 — If you approve this direction</span>
+      <h2>What would be safe to implement next</h2>
+    </div>
+    <div class="roadmap">
+      <div class="road-row"><span class="stage">Safe</span><div class="body"><b>Extract a CATEGORY_THEME token</b><p>Formalize <span class="mono">primary / accent / glow</span> per category (the current <span class="mono">CATEGORY_THEME_MAP</span> already has this shape) and add a separate, non-overridable <span class="mono">brandPrimary</span> used only by header, search and nav.</p></div></div>
+      <div class="road-row"><span class="stage">Safe</span><div class="body"><b>Re-skin the floating deck + banner glow only</b><p>Apply the category token to <span class="mono">CategoryLiveCard</span> and the promotional banner glow, leaving <span class="mono">TopCategoryTabs</span>, search bar and bottom nav on the fixed brand color.</p></div></div>
+      <div class="road-row hold"><span class="stage">Hold</span><div class="body"><b>Dark theme rollout</b><p>This preview is dark to match the reference board; the live app is currently light-themed. Dark mode is a separate decision — validate the brand-zone/category-zone split first, on the current light palette, before considering a theme change.</p></div></div>
+      <div class="road-row hold"><span class="stage">Hold</span><div class="body"><b>Real photography for deck cards</b><p>This preview uses vector illustrations per category. Swap in real salon/gym/shop/clinic/spa photography only once the layout and color logic are approved.</p></div></div>
+    </div>
+  </section>
+
+  <footer>
+    Built as a standalone preview at <b>docs/preview/noq-brand-preview.html</b> — isolated from the customer app source. Nothing in <span class="mono">src/</span> was modified to produce this board.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const CATS = [
+    {
+      key:'salon', name:'Salon', tagline:'Look Good. Feel Great.', color:'#00D1D8',
+      offerBadge:'25% OFF', offerHead:'Glow with Confidence', offerSub:'Get 25% off on all salon services',
+      ctaLabel:'Explore Salon', listLabel:'Top Rated Salons',
+      listings:[{n:'Glow Studio', r:'4.9 · 2.1k'},{n:'Urban Cuts', r:'4.7 · 980'},{n:'Bliss Salon', r:'4.8 · 1.4k'}],
+      glyph:(s)=>`<g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"><circle cx="${9*s}" cy="${9*s}" r="${3.2*s}"/><circle cx="${9*s}" cy="${23*s}" r="${3.2*s}"/><line x1="${11.5*s}" y1="${11*s}" x2="${27*s}" y2="${25*s}"/><line x1="${11.5*s}" y1="${21*s}" x2="${27*s}" y2="${7*s}"/></g>`,
+    },
+    {
+      key:'gym', name:'Gym', tagline:'Train. Transform. You.', color:'#7B61FF',
+      offerBadge:'20% OFF', offerHead:'Stronger Every Day', offerSub:'Get 20% off on all gym sessions',
+      ctaLabel:'Explore Gym', listLabel:'Popular Gyms',
+      listings:[{n:'NOQ Elite Gym', r:'4.8 · 3.2k'},{n:'Iron Forge', r:'4.6 · 1.1k'},{n:'Fit Nation', r:'4.7 · 2.0k'}],
+      glyph:(s)=>`<g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"><line x1="${4*s}" y1="${16*s}" x2="${28*s}" y2="${16*s}"/><rect x="${1*s}" y="${11*s}" width="${4*s}" height="${10*s}" rx="${1.5*s}" fill="#fff" stroke="none"/><rect x="${27*s}" y="${11*s}" width="${4*s}" height="${10*s}" rx="${1.5*s}" fill="#fff" stroke="none"/><rect x="${7*s}" y="${8*s}" width="${3.4*s}" height="${16*s}" rx="${1.4*s}" fill="#fff" stroke="none"/><rect x="${21.6*s}" y="${8*s}" width="${3.4*s}" height="${16*s}" rx="${1.4*s}" fill="#fff" stroke="none"/></g>`,
+    },
+    {
+      key:'shop', name:'Shop', tagline:'Everything You Need.', color:'#FFC94A',
+      offerBadge:'15% OFF', offerHead:'Deals You’ll Love', offerSub:'Get 15% off on selected items',
+      ctaLabel:'Shop Now', listLabel:'Recommended for You',
+      listings:[{n:'Trend Mart', r:'4.5 · 860'},{n:'Style Bazaar', r:'4.6 · 1.3k'},{n:'Urban Basket', r:'4.4 · 640'}],
+      glyph:(s)=>`<g stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M${6*s} ${11*s} h${20*s} l-${1.6*s} ${16*s} a${2*s} ${2*s} 0 0 1 -2 ${1.8*s} h-${13*s} a${2*s} ${2*s} 0 0 1 -2 -${1.8*s} Z"/><path d="M${10.5*s} ${11*s} v-${2*s} a${5*s} ${5*s} 0 0 1 ${10*s} 0 v${2*s}"/></g>`,
+    },
+    {
+      key:'clinic', name:'Clinic', tagline:'Care. Trust. Health.', color:'#25D0A5',
+      offerBadge:'30% OFF', offerHead:'Better Health', offerSub:'Get 30% off on consultations',
+      ctaLabel:'Book Appointment', listLabel:'Top Clinics',
+      listings:[{n:'CarePlus Clinic', r:'4.9 · 1.9k'},{n:'MediTrust', r:'4.7 · 1.0k'},{n:'Wellness Point', r:'4.8 · 780'}],
+      glyph:(s)=>`<g fill="#fff"><rect x="${13*s}" y="${5*s}" width="${6*s}" height="${22*s}" rx="${2*s}"/><rect x="${5*s}" y="${13*s}" width="${22*s}" height="${6*s}" rx="${2*s}"/></g>`,
+    },
+    {
+      key:'spa', name:'Spa', tagline:'Relax. Refresh. Rejuvenate.', color:'#FF6FA3',
+      offerBadge:'20% OFF', offerHead:'Relax & Rejuvenate', offerSub:'Get 20% off on all spa services',
+      ctaLabel:'Explore Spa', listLabel:'Top Spas',
+      listings:[{n:'Serenity Spa', r:'4.9 · 1.5k'},{n:'Zen Retreat', r:'4.8 · 1.1k'},{n:'Aroma Spa', r:'4.6 · 690'}],
+      glyph:(s)=>`<g fill="#fff"><circle cx="${16*s}" cy="${16*s}" r="${3*s}"/><ellipse cx="${16*s}" cy="${7*s}" rx="${4*s}" ry="${6*s}"/><ellipse cx="${16*s}" cy="${25*s}" rx="${4*s}" ry="${6*s}"/><ellipse cx="${7*s}" cy="${16*s}" rx="${6*s}" ry="${4*s}"/><ellipse cx="${25*s}" cy="${16*s}" rx="${6*s}" ry="${4*s}"/></g>`,
+    },
+  ];
+
+  const BRAND = '#8A5CFF';
+  const esc = (str)=>String(str);
+
+  function cardSvg(cat, size, uid){
+    const s = size/32;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <defs><radialGradient id="cg-${cat.key}-${uid}" cx="30%" cy="20%" r="90%">
+        <stop offset="0%" stop-color="${cat.color}" stop-opacity="0.9"/>
+        <stop offset="100%" stop-color="${cat.color}" stop-opacity="0.35"/>
+      </radialGradient></defs>
+      <rect width="${size}" height="${size}" rx="${size*0.28}" fill="url(#cg-${cat.key}-${uid})"/>
+      ${cat.glyph(s*1.05)}
+    </svg>`;
+  }
+
+  function phoneHTML(cat, {small, uid, showTime}={}){
+    const dim = small ? 32 : 44;
+    const catStyle = `--cat:${cat.color}`;
+    const listings = cat.listings.map(l => `
+      <div class="listing-card" style="${catStyle}">
+        <div class="thumb" style="background:${cat.color}22">${cardSvg(cat, small?18:22, uid+'-l')}</div>
+        <div class="lname">${esc(l.n)}</div>
+        <div class="lmeta mono">★ ${esc(l.r)}</div>
+      </div>`).join('');
+
+    return `
+    <div class="phone ${small?'small':''}" style="${catStyle}">
+      <div class="phone-screen">
+        <div class="notch"></div>
+        <div class="statusbar">
+          <span>${showTime===false?'':'9:41'}</span>
+          <span class="icons">${small?'':'📶 🔋'}</span>
+        </div>
+        <div class="screen-body">
+          <div class="app-header">
+            <div class="loc">
+              <span class="l1">📍 DHA Phase 6, Lahore</span>
+              <span class="l2">Deliver to Home</span>
+            </div>
+            <div class="head-actions">
+              <div class="wallet-chip">💳 Rs.1,250</div>
+              <div class="avatar"></div>
+            </div>
+          </div>
+
+          <div class="search-shell">
+            <svg width="${small?9:12}" height="${small?9:12}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+            <span>Search ${esc(cat.name.toLowerCase())}, salons, gyms&hellip;</span>
+          </div>
+
+          <div class="deck">
+            <div class="card back-l" style="background:linear-gradient(160deg, ${cat.color}33, #12141b)">
+              ${cardSvg(cat, dim, uid+'-bl')}
+            </div>
+            <div class="card back-r" style="background:linear-gradient(160deg, ${cat.color}33, #12141b)">
+              ${cardSvg(cat, dim, uid+'-br')}
+            </div>
+            <div class="card front" style="background:linear-gradient(160deg, ${cat.color}55, #14161f); box-shadow:0 18px 34px -14px ${cat.color}77;">
+              <div class="glyph">${cardSvg(cat, dim+8, uid+'-f')}</div>
+              <div>
+                <div class="cname">NOQ ${esc(cat.name.toUpperCase())}</div>
+                <div class="ctag">${esc(cat.tagline)}</div>
+                <div class="ccta">${esc(cat.ctaLabel)} →</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="banner">
+            <div class="glow" style="background:${cat.color}"></div>
+            <span class="badge">${esc(cat.offerBadge)}</span>
+            <h4>${esc(cat.offerHead)}</h4>
+            <p>${esc(cat.offerSub)}</p>
+            <span class="cta">${esc(cat.ctaLabel)} <i style="background:${cat.color}"></i></span>
+          </div>
+
+          <div class="listing-head">
+            <span>${esc(cat.listLabel)}</span>
+            <span>See all</span>
+          </div>
+          <div class="listings">${listings}</div>
+
+          <div class="bottom-nav">
+            <div class="nav-item active"><span>●</span><span>Home</span></div>
+            <div class="nav-item"><span>▤</span><span>Bookings</span></div>
+            <div class="nav-qr">▦</div>
+            <div class="nav-item"><span>◔</span><span>Alerts</span></div>
+            <div class="nav-item"><span>▪</span><span>More</span></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---- interactive hero ----
+  const switcher = document.getElementById('switcher');
+  const heroPhone = document.getElementById('hero-phone');
+  const notes = document.getElementById('stage-notes');
+
+  function renderNotes(cat){
+    notes.innerHTML = `
+      <div class="note-card fixed"><span class="k">Stays NOQ</span><div class="v">Header, search shell and bottom nav are rendered identically for every category — only the text inside the search hint changes.</div></div>
+      <div class="note-card dynamic" style="--cat:${cat.color}"><span class="k">Now showing — ${esc(cat.name)}</span><div class="v">Front card, ambient glow, banner accent and listing top-border switch to <span class="mono">${cat.color}</span>.</div></div>
+      <div class="note-card fixed"><span class="k">QR + Nav</span><div class="v">The center QR button and active nav state stay brand violet <span class="mono">#8A5CFF</span> regardless of category — it's how a customer always knows they're in NOQ.</div></div>
+    `;
+  }
+
+  function renderHero(cat){
+    heroPhone.innerHTML = phoneHTML(cat, {small:false, uid:'hero'});
+    renderNotes(cat);
+  }
+
+  CATS.forEach((cat, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'switch-btn' + (i===1 ? ' is-active' : '');
+    btn.style.setProperty('--cat', cat.color);
+    btn.innerHTML = `<span class="swatch" style="background:${cat.color}"></span>${cat.name}`;
+    btn.addEventListener('click', () => {
+      switcher.querySelectorAll('.switch-btn').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      renderHero(cat);
+    });
+    switcher.appendChild(btn);
+  });
+  renderHero(CATS[1]); // default: Gym
+
+  // ---- comparison strip ----
+  const strip = document.getElementById('strip');
+  CATS.forEach((cat, i) => {
+    const col = document.createElement('div');
+    col.innerHTML = `
+      <div class="phone-wrap">
+        <div class="phone-label"><span class="dot" style="background:${cat.color}"></span><span>${esc(cat.name)}</span></div>
+        ${phoneHTML(cat, {small:true, uid:'strip'+i})}
+      </div>`;
+    strip.appendChild(col);
+  });
+
+  // ---- color rails ----
+  document.getElementById('brand-swatch').innerHTML = `
+    <div class="swatch-card brand">
+      <div class="fill" style="background:linear-gradient(155deg,${BRAND},#5E3FCB)"></div>
+      <div class="meta"><div class="name">Brand Primary</div><div class="hex mono">${BRAND}</div></div>
+    </div>
+    <div class="swatch-card">
+      <div class="fill" style="background:#0F1116"></div>
+      <div class="meta"><div class="name">Surface Base</div><div class="hex mono">#0F1116</div></div>
+    </div>
+    <div class="swatch-card">
+      <div class="fill" style="background:#171A22"></div>
+      <div class="meta"><div class="name">Surface Elevated</div><div class="hex mono">#171A22</div></div>
+    </div>
+    <div class="swatch-card">
+      <div class="fill" style="background:#FFFFFF"></div>
+      <div class="meta"><div class="name">Text Primary</div><div class="hex mono">#FFFFFF</div></div>
+    </div>
+    <div class="swatch-card">
+      <div class="fill" style="background:#A1A6B2"></div>
+      <div class="meta"><div class="name">Text Secondary</div><div class="hex mono">#A1A6B2</div></div>
+    </div>`;
+
+  document.getElementById('cat-swatches').innerHTML = CATS.map(cat => `
+    <div class="swatch-card">
+      <div class="fill" style="background:${cat.color}"></div>
+      <div class="meta"><div class="name">${esc(cat.name)}</div><div class="hex mono">${cat.color}</div></div>
+    </div>`).join('');
+
+  document.getElementById('rules-body').innerHTML = `
+    <tr><td class="area">Header, Search, Bottom Nav</td><td>Never changes with category</td><td><span class="pill-tag locked">🔒 Locked to brand</span></td></tr>
+    <tr><td class="area">Floating Deck + Ambient Glow</td><td>Front card art, side-card tint, glow color all switch</td><td><span class="pill-tag open">🎨 Category</span></td></tr>
+    <tr><td class="area">Featured Banner</td><td>NOQ card structure and CTA button stay brand; glow + underline take category color</td><td><span class="pill-tag mixed">◐ 70% brand / 30% category</span></td></tr>
+    <tr><td class="area">Listing Cards</td><td>Only a 2px top border tints — no full recolor</td><td><span class="pill-tag mixed">◐ Subtle highlight</span></td></tr>
+    <tr><td class="area">Chips, Badges, Icons inside deck/banner</td><td>Take the active category's color</td><td><span class="pill-tag open">🎨 Category</span></td></tr>
+    <tr><td class="area">QR Center Button</td><td>Always brand violet, always raised</td><td><span class="pill-tag locked">🔒 Locked to brand</span></td></tr>
+  `;
+})();
+</script>
