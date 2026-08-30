@@ -1,5 +1,6 @@
 import React from 'react';
 import { QrCode, House, CalendarCheck, Bell, Menu } from 'lucide-react';
+import { NOQ_BRAND, NOQ_BRAND_SOFT } from './CustomerHomeComponents';
 
 export type BottomTab = 'home' | 'bookings' | 'notifications' | 'more';
 
@@ -38,7 +39,7 @@ const NavIcon: React.FC<{
     <span className="relative flex h-6 w-6 items-center justify-center">
       <Icon
         className="h-[19px] w-[19px]"
-        style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
+        style={{ color: active ? NOQ_BRAND_SOFT : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
       />
       {Boolean(badge) && (
         <span
@@ -51,7 +52,7 @@ const NavIcon: React.FC<{
     </span>
     <span
       className="text-[9px] font-bold uppercase tracking-wide"
-      style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.75)' }}
+      style={{ color: active ? NOQ_BRAND_SOFT : 'rgba(148,163,184,0.75)' }}
     >
       {label}
     </span>
@@ -65,8 +66,10 @@ const NavIcon: React.FC<{
  * (tracking, NotificationCenterModal, profile) — no new routes are added.
  * The bar and the Scan CTA are both a constant size at all times; neither
  * reacts to Home's scroll position, matching the "stays stable while
- * scrolling" requirement. The Scan CTA's fill/glow/ring read the active
- * category's CSS variables, so it recolors with the selected category.
+ * scrolling" requirement. The Scan CTA and the active-tab highlight always
+ * use the fixed NOQ brand color (never `--category-*`) — the bottom nav and
+ * QR button are part of the fixed brand shell and never recolor with the
+ * selected category.
  */
 export const StickyScanQrButton: React.FC<Props> = ({
   activeTab = 'home',
@@ -101,7 +104,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -m-1 rounded-full blur-[14px]"
-            style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.28))' }}
+            style={{ backgroundColor: 'rgba(138,92,255,0.28)' }}
           />
           <button
             type="button"
@@ -109,9 +112,9 @@ export const StickyScanQrButton: React.FC<Props> = ({
             aria-label="Scan QR"
             className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-slate-950 ring-2 transition-transform duration-150 ease-out active:scale-90"
             style={{
-              backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
-              boxShadow: '0 8px 20px -7px var(--category-glow, rgba(34,211,238,0.45))',
-              ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.2))',
+              backgroundImage: `linear-gradient(to bottom right, ${NOQ_BRAND}, ${NOQ_BRAND_SOFT}, ${NOQ_BRAND})`,
+              boxShadow: '0 8px 20px -7px rgba(138,92,255,0.5)',
+              ['--tw-ring-color' as any]: 'rgba(183,156,255,0.25)',
             }}
           >
             <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />

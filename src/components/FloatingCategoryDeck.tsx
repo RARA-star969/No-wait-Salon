@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, MoveHorizontal } from 'lucide-react';
-import { CategoryItemConfig, getCategoryIcon } from './CustomerHomeComponents';
+import { CategoryItemConfig, CategorySceneArt, getCategoryIcon } from './CustomerHomeComponents';
 
 type GestureIntent = 'pending' | 'horizontal' | 'vertical';
 
@@ -567,6 +567,13 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
             >
               <span className="floating-glass-reflection" aria-hidden />
               <span className="floating-glass-caustic" aria-hidden />
+              {/* Faint category imagery — purely decorative, sits behind the
+                  icon/text content below and never touches the geometry,
+                  gesture, or z-index rules that drive the deck itself. */}
+              <CategorySceneArt
+                themeKey={category.themeKey || category.id}
+                className="pointer-events-none absolute inset-0 h-full w-full rounded-[26px] opacity-[0.16] mix-blend-screen"
+              />
               {transform.frost > 0 && (
                 <span
                   className="floating-glass-frost"

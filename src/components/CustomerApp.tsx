@@ -37,7 +37,7 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, NOQ_BRAND } from './CustomerHomeComponents';
 import { FloatingCategoryDeck } from './FloatingCategoryDeck';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
@@ -1235,7 +1235,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   aria-label="Open address management"
                 >
                   <div className="flex items-center gap-1.5 text-white">
-                    <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
+                    <MapPin className="h-4 w-4 shrink-0" style={{ color: NOQ_BRAND }} />
                     <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
                   </div>
                   <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
@@ -1289,10 +1289,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   ? 'pointer-events-auto translate-y-0 opacity-100'
                   : 'pointer-events-none -translate-y-2 opacity-0'
               }`}
-              style={{ borderColor: 'var(--category-tint-20, rgba(148,163,184,0.25))' }}
+              style={{ borderColor: 'rgba(138,92,255,0.28)' }}
               aria-label="Return to top"
             >
-              <ArrowUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
+              <ArrowUp className="h-3.5 w-3.5" style={{ color: NOQ_BRAND }} />
             </button>
           </div>
 

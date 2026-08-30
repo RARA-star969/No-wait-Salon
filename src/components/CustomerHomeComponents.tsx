@@ -3,6 +3,16 @@ import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, Shop
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 
+/**
+ * Fixed NOQ brand identity — deliberately NOT one of the CATEGORY_THEME_MAP
+ * colors and never read from `--category-*`. This is what keeps the header,
+ * search shell, bottom nav, and QR button recognizably "NOQ" no matter which
+ * category a customer is currently browsing (approved brand/category visual
+ * system: fixed brand shell + dynamic category zones).
+ */
+export const NOQ_BRAND = '#8A5CFF';
+export const NOQ_BRAND_SOFT = '#B79CFF';
+
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
     type="button"
@@ -10,7 +20,7 @@ export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> 
     aria-label={`Wallet balance ${balance}`}
     className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-slate-100 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
   >
-    <WalletCards className="h-4 w-4" style={{ color: 'var(--category-accent, #22D3EE)' }} />
+    <WalletCards className="h-4 w-4" style={{ color: NOQ_BRAND }} />
     <span className="text-xs font-bold">{balance}</span>
   </button>
 );
@@ -21,7 +31,7 @@ export const ProfileButton: React.FC<{ onClick?: () => void }> = ({ onClick }) =
     onClick={onClick}
     aria-label="Open customer profile"
     className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
-    style={{ color: 'var(--category-accent, #22D3EE)' }}
+    style={{ color: NOQ_BRAND }}
   >
     <UserRound className="h-[18px] w-[18px]" />
   </button>
@@ -312,8 +322,8 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
         }`}
-        style={isListening ? undefined : ({ '--tw-ring-color': 'var(--category-tint-20, rgba(34,211,238,0.15))' } as React.CSSProperties)}
-        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--category-border, rgba(34,211,238,0.5))'; }}
+        style={isListening ? undefined : ({ '--tw-ring-color': 'rgba(138,92,255,0.18)' } as React.CSSProperties)}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(138,92,255,0.55)'; }}
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
         <Search className="h-5 w-5 shrink-0 text-slate-400" />
@@ -363,16 +373,16 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
                 : 'bg-amber-500/10 text-amber-200 border-amber-400/30'
           }`}
           style={!isListening && voiceFeedback.includes('Heard') ? {
-            backgroundColor: 'var(--category-tint-10, rgba(34,211,238,0.1))',
-            color: 'var(--category-accent, #67E8F9)',
-            borderColor: 'var(--category-tint-20, rgba(34,211,238,0.3))',
+            backgroundColor: 'rgba(138,92,255,0.1)',
+            color: NOQ_BRAND_SOFT,
+            borderColor: 'rgba(138,92,255,0.3)',
           } : undefined}
         >
           <div className="flex items-center gap-2">
             {isListening ? (
               <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" />
             ) : (
-              <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--category-accent, #22D3EE)' }} />
+              <Volume2 className="h-4 w-4 shrink-0" style={{ color: NOQ_BRAND_SOFT }} />
             )}
             <span>{voiceFeedback}</span>
           </div>
@@ -384,6 +394,56 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         </div>
       )}
     </div>
+  );
+};
+
+/**
+ * Small line-art compositions layered behind the plain category icon —
+ * additive only, for the three categories the approved NOQ visual-system
+ * preview covered (Salon, Gym, Shop). A category with no authored art here
+ * (moto/pets/mall/food) renders nothing extra: its existing icon tile is
+ * untouched.
+ */
+const CATEGORY_SCENE_ART: Partial<Record<string, React.ReactNode>> = {
+  salon: (
+    <g fill="none" strokeLinecap="round">
+      <path d="M6 4 C11 8 10 14 5 16" stroke="#fff" strokeOpacity=".4" strokeWidth="1.6" />
+      <path d="M4 2 C10 7 9 14 3 16" stroke="#fff" strokeOpacity=".28" strokeWidth="1.6" />
+      <circle cx="6" cy="21" r="2.6" stroke="#fff" strokeOpacity=".95" strokeWidth="2" />
+      <circle cx="6" cy="29" r="2.6" stroke="#fff" strokeOpacity=".95" strokeWidth="2" />
+      <line x1="8.2" y1="22.6" x2="27" y2="7" stroke="#fff" strokeOpacity=".95" strokeWidth="2" />
+      <line x1="8.2" y1="27.4" x2="27" y2="21" stroke="#fff" strokeOpacity=".95" strokeWidth="2" />
+    </g>
+  ),
+  gym: (
+    <g>
+      <g fill="#fff" fillOpacity=".92">
+        <rect x="1.5" y="14" width="4" height="8" rx="1.6" />
+        <rect x="26.5" y="14" width="4" height="8" rx="1.6" />
+        <rect x="6" y="12" width="3" height="12" rx="1.3" />
+        <rect x="23" y="12" width="3" height="12" rx="1.3" />
+        <rect x="8" y="15.2" width="16" height="5.6" rx="2.4" />
+      </g>
+      <path d="M25 25 c2 1.6 4.4 1.6 6.2 0" stroke="#fff" strokeOpacity=".4" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+    </g>
+  ),
+  shop: (
+    <g>
+      <rect x="6" y="12" width="14" height="15" rx="2.6" fill="#fff" fillOpacity=".92" />
+      <path d="M10 12 C10 8.5 16 8.5 16 12" stroke="#fff" strokeOpacity=".92" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <rect x="20.5" y="6" width="9" height="7" rx="1.6" fill="#fff" fillOpacity=".85" />
+      <circle cx="27" cy="9.5" r="1" fill="#0A0B10" />
+    </g>
+  ),
+};
+
+export const CategorySceneArt: React.FC<{ themeKey?: string; className?: string }> = ({ themeKey, className }) => {
+  const art = themeKey ? CATEGORY_SCENE_ART[themeKey] : undefined;
+  if (!art) return null;
+  return (
+    <svg viewBox="0 0 32 32" preserveAspectRatio="xMidYMid slice" className={className} aria-hidden="true">
+      {art}
+    </svg>
   );
 };
 
@@ -445,9 +505,10 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
               style={{ background: `radial-gradient(circle, ${theme.primary}3C, transparent 70%)` }}
             />
             <div
-              className={`relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/20 bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-2xl sm:h-24 sm:w-24`}
+              className={`relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-[1.75rem] border border-white/20 bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-2xl sm:h-24 sm:w-24`}
             >
               <div className="absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/25 blur-[2px]" />
+              <CategorySceneArt themeKey={themeKey} className="absolute inset-0 h-full w-full opacity-90" />
               <IconComponent className="relative h-10 w-10 drop-shadow" />
             </div>
           </div>
