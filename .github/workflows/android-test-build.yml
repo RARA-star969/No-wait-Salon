@@ -156,15 +156,25 @@ jobs:
       - name: Build one Customer TEST APK
         run: pnpm android:apk:customer
 
+      # The staged APK's checksum is echoed into the job log and the run
+      # summary as well as written into the artifact: the artifact blob host
+      # is not reachable from every reviewer's network, so the log has to be
+      # sufficient on its own to verify the file that gets installed.
       - name: Verify compiled API and stage exactly one APK
         shell: bash
         run: |
-          grep -R --binary-files=text -Fq "https://no-wait-salon-web-test.onrender.com" dist
-          grep -R --binary-files=text -Fq "/api/gym/" dist
-          if grep -R --binary-files=text -Fq "https://no-wait-salon-api.onrender.com" dist; then
-            echo "Production API was found in the compiled Customer bundle" >&2
-            exit 1
-          fi
+          # The bundle the APK actually ships is the copy synced into the
+          # Android assets, so assert against that as well as dist/.
+          ASSETS=android-customer/app/src/main/assets/public
+          for tree in dist "${ASSETS}"; do
+            grep -R --binary-files=text -Fq "https://no-wait-salon-web-test.onrender.com" "${tree}"
+            grep -R --binary-files=text -Fq "/api/gym/" "${tree}"
+            if grep -R --binary-files=text -Fq "https://no-wait-salon-api.onrender.com" "${tree}"; then
+              echo "Production API was found in ${tree}" >&2
+              exit 1
+            fi
+            echo "${tree}: TEST API present, production API absent"
+          done
           mkdir -p customer-test-artifact
           APK_NAME="NOQ-Customer-TEST-${SHORT_SHA}-run${GITHUB_RUN_NUMBER}.apk"
           cp android-customer/app/build/outputs/apk/debug/app-debug.apk "customer-test-artifact/${APK_NAME}"
@@ -172,6 +182,22 @@ jobs:
           sha256sum "customer-test-artifact/${APK_NAME}" > customer-test-artifact/SHA256SUMS.txt
           printf '%s\n' "${APPLICATION_SHA}" > customer-test-artifact/APPLICATION_SHA.txt
           printf '%s\n' "${VITE_API_BASE_URL}" > customer-test-artifact/API_BASE_URL.txt
+          APK_SHA256="$(cut -d' ' -f1 customer-test-artifact/SHA256SUMS.txt)"
+          echo "APK name:      ${APK_NAME}"
+          echo "APK SHA256:    ${APK_SHA256}"
+          echo "Source SHA:    ${APPLICATION_SHA}"
+          echo "Baked API URL: ${VITE_API_BASE_URL}"
+          {
+            echo "### Customer TEST APK"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| APK | \`${APK_NAME}\` |"
+            echo "| SHA256 | \`${APK_SHA256}\` |"
+            echo "| Source commit | \`${APPLICATION_SHA}\` |"
+            echo "| Baked API | \`${VITE_API_BASE_URL}\` |"
+            echo "| Production API in bundle | absent (asserted) |"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload Customer TEST APK
         uses: actions/upload-artifact@v4
