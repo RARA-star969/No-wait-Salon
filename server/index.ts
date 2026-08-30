@@ -1171,11 +1171,12 @@ function upsertBooking(salonId: string, item: QueueItem) {
 /**
  * Turns one queue state transition into durable customer notifications.
  *
- * Deliberately derived from the before/after diff at the single command entry
- * point rather than scattered through applyCommand: every queue mutation
- * already flows through there, so no path can mutate a booking without the
- * customer being told, and no path can tell them twice (every write carries a
- * dedupe key derived from the queue entry id).
+ * Deliberately derived from a before/after diff rather than scattered through
+ * applyCommand, so one generator serves every queue write path. Each such path
+ * must call this itself after its COMMIT — today that is the staff/customer
+ * commands endpoint and the public QR join endpoint. Re-running it is safe:
+ * every write carries a dedupe key derived from the queue entry id, so no
+ * customer can be told twice about the same transition.
  */
 function emitQueueNotifications(
   salonId: string,
@@ -3751,10 +3752,18 @@ app.post('/api/business-qr/:token/join',requireCustomer,async(request:Authentica
     const latest=readState(resolved.salon.id);
     const duplicate=latest.queue.find(entry=>entry.customerId===request.customerId);
     if(duplicate){db.exec('ROLLBACK');return response.json({joined:false,reason:'already_in_queue',entry:duplicate,state:latest})}
+    // Same before/after diff the commands endpoint feeds the generator, so the
+    // QR join reuses that one notification path instead of a parallel one.
+    const previousItems=new Map(latest.queue.map(entry=>[entry.id,entry]));
     latest.queue.push(item);writeState(latest);upsertBooking(resolved.salon.id,item);
     if(requestedSource==='qr_web')markWebAttributionJoined(resolved.salon.id,resolved.qr.id,request.customerId!,now);
-    db.exec('COMMIT');publish(latest);
-    await postgresPersistence?.flushNow(['customer_booking','salon_state','web_qr_attribution']);
+    db.exec('COMMIT');
+    // After COMMIT so a rejected join (bad token, closed queue, duplicate,
+    // rolled-back transaction) can never write a notification, and so an inbox
+    // failure can never abort a join the customer already made.
+    try{emitQueueNotifications(resolved.salon.id,previousItems,latest)}catch{/* inbox is best-effort, the booking is not */}
+    publish(latest);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state','web_qr_attribution','customer_notification']);
     response.status(201).json({joined:true,entry:item,state:latest});
   }catch(error){try{db.exec('ROLLBACK')}catch{}response.status(409).json({error:'Unable to join this queue right now. Please try again.',code:'QUEUE_JOIN_FAILED'})}
 });

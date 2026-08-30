@@ -369,3 +369,129 @@ test('My Bookings reads real history for the authenticated customer only', async
   assert.deepEqual(theirs.data.bookings, [], 'a customer with no history gets an empty list, never someone else\'s');
   assert.equal((await api('GET', '/api/me/bookings')).status, 401);
 });
+
+/* ============ QR-scan queue join (the real customer entry point) ============ */
+
+let qrSalonId = '';
+let qrToken = '';
+let qrServiceId = '';
+let qrServiceName = '';
+let closedSalonToken = '';
+let qrCustomerToken = '';
+let scannerToken = '';
+
+const createQrSalon = async (name: string, code: string, isOpen: boolean, serviceName: string) => {
+  const created = await api('POST', '/api/admin/salons', {
+    name, main_category_id: 'salon', business_code: code, status: 'active',
+    latitude: 0, longitude: 0, city: 'Bengaluru', isOpen,
+    services: [{ name: serviceName, price_inr: 300, duration_min: 30, active: true }],
+  }, adminToken);
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const id = created.data.salon.id as string;
+  const qr = await api('GET', `/api/admin/businesses/${id}/qr`, undefined, adminToken);
+  return { id, token: qr.data.qr.publicToken as string };
+};
+
+const qrJoin = (token: string, body: Record<string, unknown>, customer?: string) =>
+  api('POST', `/api/business-qr/${encodeURIComponent(token)}/join`, body, customer);
+
+test('a real QR scan join notifies the customer exactly once, with business context and a Live Ticket link', async () => {
+  const open = await createQrSalon('QR Notify Salon', 'QRNOTIFY1', true, 'Signature Haircut');
+  qrSalonId = open.id;
+  qrToken = open.token;
+  assert.ok(qrToken, 'the admin-provisioned QR exposes a public token');
+  const closed = await createQrSalon('QR Closed Salon', 'QRNOTIFY2', false, 'Beard Trim');
+  closedSalonToken = closed.token;
+
+  const resolvedBusiness = await api('GET', `/api/business-qr/${qrToken}`);
+  assert.equal(resolvedBusiness.status, 200);
+  qrServiceId = resolvedBusiness.data.business.services[0].id;
+  qrServiceName = resolvedBusiness.data.business.services[0].name;
+
+  ({ token: qrCustomerToken } = await verifyCustomer('9111100003'));
+  assert.deepEqual((await inbox(qrCustomerToken)).notifications, [], 'the scanner starts with a genuinely empty inbox');
+
+  const joined = await qrJoin(qrToken, {
+    serviceIds: [qrServiceId], sessionId: 'qr-session-1', source: 'qr_web',
+  }, qrCustomerToken);
+  assert.equal(joined.status, 201, JSON.stringify(joined.data));
+  assert.equal(joined.data.joined, true);
+  const entryId = joined.data.entry.id as string;
+
+  const body = await inbox(qrCustomerToken);
+  const joins = body.notifications.filter((n: { type: string }) => n.type === 'queue_joined');
+  assert.equal(joins.length, 1, 'a QR join writes exactly one queue_joined notification');
+  const notification = joins[0];
+  assert.equal(notification.sourceKind, 'business');
+  assert.equal(notification.sourceBusinessId, qrSalonId, 'the notification is attributed to the scanned business');
+  assert.equal(notification.sourceName, 'QR Notify Salon');
+  assert.match(notification.title, /QR Notify Salon/);
+  assert.match(notification.body, new RegExp(qrServiceName), 'the service the customer actually picked is named');
+  // Deep-links to the customer's Live Ticket, the same shape every other queue
+  // notification uses.
+  assert.equal(notification.deepLink.kind, 'ticket');
+  assert.equal(notification.deepLink.businessId, qrSalonId);
+  assert.equal(notification.deepLink.queueEntryId, entryId);
+  assert.equal(notification.readAt, null);
+});
+
+test('a retried QR join never produces a second notification', async () => {
+  const before = (await inbox(qrCustomerToken)).notifications.length;
+
+  // A double-submit / network retry replaying the same scan, and a fresh tab
+  // replaying it under a new session id: both are refused by the server-side
+  // duplicate check, so neither can notify.
+  const retry = await qrJoin(qrToken, { serviceIds: [qrServiceId], sessionId: 'qr-session-1', source: 'qr_web' }, qrCustomerToken);
+  assert.equal(retry.status, 200);
+  assert.equal(retry.data.joined, false);
+  assert.equal(retry.data.reason, 'already_in_queue');
+  const newTab = await qrJoin(qrToken, { serviceIds: [qrServiceId], sessionId: 'qr-session-1-new-tab', source: 'qr_web' }, qrCustomerToken);
+  assert.equal(newTab.data.joined, false);
+
+  // And the dedupe key itself holds when the generator is legitimately re-run
+  // over the same entry by a later staff command.
+  const entryId = retry.data.entry.id as string;
+  await api('POST', `/api/salons/${qrSalonId}/commands`, {
+    type: 'queue_action', itemId: entryId, action: 'Pay-cash',
+  }, undefined, staffHeaders(qrSalonId));
+
+  const after = await inbox(qrCustomerToken);
+  assert.equal(after.notifications.filter((n: { type: string }) => n.type === 'queue_joined').length, 1);
+  assert.equal(after.notifications.length, before, 'no retry path adds an inbox row');
+});
+
+test('a failed or unauthorized QR join creates no notification at all', async () => {
+  ({ token: scannerToken } = await verifyCustomer('9111100004'));
+
+  // Unauthenticated: the endpoint requires a real customer.
+  assert.equal((await qrJoin(qrToken, { serviceIds: [qrServiceId], sessionId: 'anon' })).status, 401);
+  // A token linked to no business on the platform.
+  assert.equal((await qrJoin('not-a-real-token', { serviceIds: [qrServiceId], sessionId: 's1' }, scannerToken)).status, 404);
+  // A business that is not accepting queue entries.
+  const closed = await qrJoin(closedSalonToken, { serviceIds: [qrServiceId], sessionId: 's2' }, scannerToken);
+  assert.equal(closed.status, 409);
+  assert.equal(closed.data.code, 'QUEUE_CLOSED');
+  // A service that does not belong to the scanned business, and no service.
+  assert.equal((await qrJoin(qrToken, { serviceIds: ['not-a-service'], sessionId: 's3' }, scannerToken)).status, 400);
+  assert.equal((await qrJoin(qrToken, { serviceIds: [], sessionId: 's4' }, scannerToken)).status, 400);
+  // A valid service but no scan session.
+  assert.equal((await qrJoin(qrToken, { serviceIds: [qrServiceId], sessionId: '' }, scannerToken)).status, 400);
+
+  const body = await inbox(scannerToken);
+  assert.deepEqual(body.notifications, [], 'a rejected join is never announced to the customer');
+  assert.equal(body.unreadCount, 0);
+});
+
+test('the QR join updates the unread badge through the existing inbox read paths', async () => {
+  const body = await inbox(qrCustomerToken);
+  assert.equal(body.unreadCount, body.notifications.filter((n: { readAt: number | null }) => !n.readAt).length);
+  assert.ok(body.unreadCount >= 1, 'the join lands as an unread badge with no second mechanism');
+
+  const target = body.notifications.find((n: { type: string }) => n.type === 'queue_joined');
+  const read = await api('POST', `/api/me/notifications/${target.id}/read`, undefined, qrCustomerToken);
+  assert.equal(read.data.changed, true);
+  assert.equal((await inbox(qrCustomerToken)).unreadCount, body.unreadCount - 1);
+
+  await api('POST', '/api/me/notifications/read-all', undefined, qrCustomerToken);
+  assert.equal((await inbox(qrCustomerToken)).unreadCount, 0);
+});
