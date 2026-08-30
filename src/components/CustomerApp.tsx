@@ -48,6 +48,7 @@ import { ReserveFutureWindowScreen } from './ReserveFutureWindowScreen';
 import { ThankYouScreen } from './ThankYouScreen';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { QrScannerModal } from './QrScannerModal';
+import { DetailErrorBoundary } from './DetailErrorBoundary';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
 import { salonDiscoveryService } from '../services/salonDiscoveryService';
 import {
@@ -1318,41 +1319,48 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               Back to Home
             </button>
           </div>
-        ) : isGymCategory(selectedSalon.mainCategoryId) ? (
-          <GymDetailPage
-            salon={selectedSalon}
-            nearbySalons={nearbySalons}
-            onBack={() => setScreen('home')}
-            customerAuth={customerAuth}
-            customerProfile={customerProfile}
-            profileLoading={profileLoading}
-            onIdentityVerified={onIdentityVerified}
-            onProfileSaved={onProfileSaved}
-          />
         ) : (
-          <SalonDetailPage
-            salon={selectedSalon}
-            nearbySalons={nearbySalons}
-            queue={queue}
-            barbers={barbers}
-            selectedService={selectedService}
-            setSelectedService={setSelectedService}
-            selectedServiceIds={selectedServiceIds}
-            setSelectedServiceIds={setSelectedServiceIds}
-            appliedOfferId={appliedOfferId}
-            onApplyOffer={onApplyOffer}
-            onRemoveOffer={onRemoveOffer}
-            onBack={() => setScreen('home')}
-            onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
-            onReserve={() => setScreen('slots')}
-            userEntry={userEntry}
-            isJoinSheetOpen={isJoinSheetOpen}
-            customerAuth={customerAuth}
-            customerProfile={customerProfile}
-            profileLoading={profileLoading}
-            onIdentityVerified={onIdentityVerified}
-            onProfileSaved={onProfileSaved}
-          />
+          <DetailErrorBoundary
+            businessName={selectedSalon.name}
+            onBackToHome={() => setScreen('home')}
+          >
+            {isGymCategory(selectedSalon.mainCategoryId) ? (
+              <GymDetailPage
+                salon={selectedSalon}
+                nearbySalons={nearbySalons}
+                onBack={() => setScreen('home')}
+                customerAuth={customerAuth}
+                customerProfile={customerProfile}
+                profileLoading={profileLoading}
+                onIdentityVerified={onIdentityVerified}
+                onProfileSaved={onProfileSaved}
+              />
+            ) : (
+              <SalonDetailPage
+                salon={selectedSalon}
+                nearbySalons={nearbySalons}
+                queue={queue}
+                barbers={barbers}
+                selectedService={selectedService}
+                setSelectedService={setSelectedService}
+                selectedServiceIds={selectedServiceIds}
+                setSelectedServiceIds={setSelectedServiceIds}
+                appliedOfferId={appliedOfferId}
+                onApplyOffer={onApplyOffer}
+                onRemoveOffer={onRemoveOffer}
+                onBack={() => setScreen('home')}
+                onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
+                onReserve={() => setScreen('slots')}
+                userEntry={userEntry}
+                isJoinSheetOpen={isJoinSheetOpen}
+                customerAuth={customerAuth}
+                customerProfile={customerProfile}
+                profileLoading={profileLoading}
+                onIdentityVerified={onIdentityVerified}
+                onProfileSaved={onProfileSaved}
+              />
+            )}
+          </DetailErrorBoundary>
         )}
         </div>
       )}

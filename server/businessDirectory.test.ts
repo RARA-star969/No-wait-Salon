@@ -74,4 +74,30 @@ test('Business detail routing — a Salon never resolves to Gym data and vice ve
     assert.notEqual(sharpcut.mainCategoryId, 'gym');
     assert.equal(ironHouse.mainCategoryId, 'gym');
   });
+
+  // Regression coverage for the shared listing -> detail transition
+  // (PremiumBusinessCard onClick -> setSelectedSalon -> setScreen('salon')):
+  // GymDetailPage/SalonDetailPage seed their initial render straight from the
+  // nearby-listing object (before any async profile refresh resolves), so a
+  // field the detail page renders unconditionally on first paint must never
+  // be missing from the listing payload — that gap would only ever surface
+  // as a real-app crash, never as a TypeScript error, since NearbySalon's
+  // type already declares these fields non-optional.
+  await t.test('nearby-listing rows carry every field the detail pages read on their very first render', async () => {
+    const REQUIRED_ON_FIRST_RENDER = [
+      'id', 'name', 'address', 'latitude', 'longitude', 'rating', 'reviewCount',
+      'isOpen', 'openingHours', 'mainCategoryId', 'services',
+    ];
+    const nearby = await api('GET', '/api/salons/nearby?area=Bengaluru');
+    assert.ok(nearby.data.salons.length > 0, 'fixture must include at least one business');
+    for (const salon of nearby.data.salons as Record<string, unknown>[]) {
+      for (const field of REQUIRED_ON_FIRST_RENDER) {
+        assert.notEqual(
+          salon[field],
+          undefined,
+          `${salon.name}'s nearby-listing row is missing "${field}" — GymDetailPage/SalonDetailPage would read this as undefined on first render`,
+        );
+      }
+    }
+  });
 });

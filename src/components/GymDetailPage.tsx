@@ -269,7 +269,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
   useEffect(() => {
     const cardEl = document.getElementById('gym-live-card');
-    if (!cardEl) return;
+    if (!cardEl || typeof IntersectionObserver === 'undefined') return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsCardVisible(entry.isIntersecting);
