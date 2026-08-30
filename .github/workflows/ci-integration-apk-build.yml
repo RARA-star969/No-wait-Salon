@@ -1,4 +1,4 @@
-name: TEMP - Integration APK build (physical test, TEST API)
+name: TEMP - Customer fix APK build (physical test, TEST API)
 
 # TEMPORARY workflow for physical testing of a specific already-audited and
 # already-tested commit before it is promoted to main. Delete this file (and
@@ -6,16 +6,19 @@ name: TEMP - Integration APK build (physical test, TEST API)
 #
 # Safety properties:
 #   - The application source built here is pinned to a specific commit SHA
-#     (INTEGRATION_SHA below), not to whatever this workflow file's own
-#     commit happens to be — so the branch this workflow lives on can safely
-#     carry a later commit (this workflow file itself) without that commit
-#     ever becoming part of the built APKs.
+#     (FIX_SHA below), not to whatever this workflow file's own commit
+#     happens to be — so the branch this workflow lives on can safely carry
+#     a later commit (this workflow file itself) without that commit ever
+#     becoming part of the built APK.
 #   - Points at the isolated hosted TEST backend
 #     (https://no-wait-salon-web-test.onrender.com), never the production API.
 #   - Debug-signed only. No release signing, no Play Store upload, no
 #     production deploy step of any kind.
-#   - Runs tsc, the full test suite, and both APK builds; fails closed if any
-#     step fails.
+#   - Runs tsc, the full test suite, and the Customer APK build; fails
+#     closed if any step fails.
+#   - Builds only the Customer APK — the reported white-screen regression is
+#     Customer-app-only, and the Staff APK from the prior integration SHA
+#     (3fa1cf87051f3023e56fb8ffe88e4838c146b010) is unaffected by this fix.
 
 on:
   push:
@@ -31,24 +34,24 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  INTEGRATION_SHA: 3fa1cf87051f3023e56fb8ffe88e4838c146b010
+  FIX_SHA: 139f93fd93c0fba76ad6e78efdc5a765e45521df
   VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
 
 jobs:
-  build-both-apks:
+  build-customer-apk:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the exact tested integration SHA (not the workflow commit)
+      - name: Check out the exact fix SHA (not the workflow commit)
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.INTEGRATION_SHA }}
+          ref: ${{ env.FIX_SHA }}
 
-      - name: Confirm checked-out commit matches the pinned integration SHA
+      - name: Confirm checked-out commit matches the pinned fix SHA
         run: |
           actual="$(git rev-parse HEAD)"
           echo "Checked out: $actual"
-          echo "Expected:    ${INTEGRATION_SHA}"
-          test "$actual" = "${INTEGRATION_SHA}"
+          echo "Expected:    ${FIX_SHA}"
+          test "$actual" = "${FIX_SHA}"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -79,63 +82,43 @@ jobs:
 
       - name: Build Customer debug APK (TEST API)
         env:
-          APP_VERSION_NAME: 0.0.0-integration-test.${{ github.run_number }}
+          APP_VERSION_NAME: 0.0.0-fix-test.${{ github.run_number }}
           APP_VERSION_CODE: ${{ github.run_number }}
         run: pnpm android:apk:customer
 
-      - name: Build Staff / NOQ Business debug APK (TEST API)
-        env:
-          APP_VERSION_NAME: 0.0.0-integration-test.${{ github.run_number }}
-          APP_VERSION_CODE: ${{ github.run_number }}
-        run: pnpm android:apk:staff
-
-      - name: Confirm the built web bundles were compiled against the TEST API
+      - name: Confirm the built web bundle was compiled against the TEST API
         shell: bash
         run: |
-          for dir in android-customer/app/src/main/assets/public android-staff/app/src/main/assets/public; do
-            echo "Checking $dir"
-            if ! grep -rl "no-wait-salon-web-test.onrender.com" "$dir" >/dev/null; then
-              echo "TEST API base URL not found baked into $dir" >&2
-              exit 1
-            fi
-            if grep -rl "no-wait-salon-api.onrender.com" "$dir" >/dev/null; then
-              echo "Production API base URL unexpectedly present in $dir" >&2
-              exit 1
-            fi
-          done
-          echo "Both bundles reference only the TEST API base URL."
+          dir=android-customer/app/src/main/assets/public
+          echo "Checking $dir"
+          if ! grep -rl "no-wait-salon-web-test.onrender.com" "$dir" >/dev/null; then
+            echo "TEST API base URL not found baked into $dir" >&2
+            exit 1
+          fi
+          if grep -rl "no-wait-salon-api.onrender.com" "$dir" >/dev/null; then
+            echo "Production API base URL unexpectedly present in $dir" >&2
+            exit 1
+          fi
+          echo "Bundle references only the TEST API base URL."
 
-      - name: Stage APKs and generate checksums
+      - name: Stage APK and generate checksum
         shell: bash
         run: |
-          mkdir -p integration-artifacts
+          mkdir -p fix-artifacts
           cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
-            "integration-artifacts/NOQ-Customer-integration-test-${INTEGRATION_SHA::12}.apk"
-          cp android-staff/app/build/outputs/apk/debug/app-debug.apk \
-            "integration-artifacts/NOQ-Business-integration-test-${INTEGRATION_SHA::12}.apk"
-          (cd integration-artifacts && sha256sum *.apk > SHA256SUMS.txt)
-          echo "Application source SHA: ${INTEGRATION_SHA}" > integration-artifacts/SOURCE_SHA.txt
-          cat integration-artifacts/SHA256SUMS.txt
-          ls -la integration-artifacts
+            "fix-artifacts/NOQ-Customer-fix-test-${FIX_SHA::12}.apk"
+          (cd fix-artifacts && sha256sum *.apk > SHA256SUMS.txt)
+          echo "Application source SHA: ${FIX_SHA}" > fix-artifacts/SOURCE_SHA.txt
+          cat fix-artifacts/SHA256SUMS.txt
+          ls -la fix-artifacts
 
       - name: Upload Customer APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: noq-customer-integration-test-apk-${{ github.run_number }}
+          name: noq-customer-fix-test-apk-${{ github.run_number }}
           path: |
-            integration-artifacts/NOQ-Customer-integration-test-*.apk
-            integration-artifacts/SHA256SUMS.txt
-            integration-artifacts/SOURCE_SHA.txt
-          retention-days: 14
-          if-no-files-found: error
-
-      - name: Upload Staff APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: noq-business-integration-test-apk-${{ github.run_number }}
-          path: |
-            integration-artifacts/NOQ-Business-integration-test-*.apk
-            integration-artifacts/SHA256SUMS.txt
-            integration-artifacts/SOURCE_SHA.txt
+            fix-artifacts/NOQ-Customer-fix-test-*.apk
+            fix-artifacts/SHA256SUMS.txt
+            fix-artifacts/SOURCE_SHA.txt
           retention-days: 14
           if-no-files-found: error
