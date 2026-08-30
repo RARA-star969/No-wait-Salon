@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Star, BadgeCheck, Loader2 } from 'lucide-react';
-import { businessReviewService, type PublicReviewView } from '../services/businessReviewService';
+import { businessReviewService, formatOverallRating, type PublicReviewView } from '../services/businessReviewService';
 
 /**
  * Real reviews section shared by Gym Detail and Salon Detail — one review
@@ -83,11 +83,16 @@ export const PublicReviewsSection: React.FC<{
       ) : (
         <>
           <div className="mt-2 flex items-center gap-3">
-            <span className={`text-2xl font-extrabold ${textClass}`}>{totalReviews ? overallRating.toFixed(1) : '—'}</span>
+            {/* A broken/reviews-unavailable response (or any non-finite
+                rating) must never reach .toFixed() — shows "—" instead of
+                crashing the Detail page it's embedded in. */}
+            <span className={`text-2xl font-extrabold ${textClass}`}>
+              {formatOverallRating(overallRating, totalReviews) ?? '—'}
+            </span>
             <div>
               <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <Star key={n} className={`h-3.5 w-3.5 ${n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[#DDE5E3]'}`} />
+                  <Star key={n} className={`h-3.5 w-3.5 ${Number.isFinite(overallRating) && n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[#DDE5E3]'}`} />
                 ))}
               </div>
               <p className={`text-[11px] ${mutedClass}`}>{totalReviews} review{totalReviews === 1 ? '' : 's'}</p>
