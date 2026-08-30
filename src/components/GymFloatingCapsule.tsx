@@ -37,6 +37,7 @@ export const GymFloatingCapsule: React.FC<GymFloatingCapsuleProps> = ({
       onTap={onTap}
       className={className}
       palette={GYM_SCOREBOARD_PALETTE}
+      premiumLive
       metrics={[
         {
           key: 'inside',

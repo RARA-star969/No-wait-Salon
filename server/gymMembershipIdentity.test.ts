@@ -418,6 +418,28 @@ test("10. regression — manual existing-member claim flow and payment/check-in 
   assert.equal(claim.status, 201);
   const claimId = claim.data.claim.id;
 
+  const pendingState = await state();
+  const pending = pendingState.membershipClaims.find((c: any) => c.id === claimId);
+  assert.deepEqual(
+    {
+      name: pending.name,
+      mobile: pending.mobile,
+      joiningDate: pending.joiningDate,
+      expiryDate: pending.expiryDate,
+      planText: pending.planText,
+      status: pending.status,
+    },
+    {
+      name: "Genuine Claimant",
+      mobile: phone,
+      joiningDate: "2026-01-01",
+      expiryDate: "2099-01-01",
+      planText: "Legacy plan",
+      status: "pending",
+    },
+    "the Business Members dashboard must receive every submitted claim field",
+  );
+
   const approve = await api(
     "POST",
     gymA("operations/membership_claims"),
@@ -428,8 +450,56 @@ test("10. regression — manual existing-member claim flow and payment/check-in 
   const membership = approve.data.state.memberships.find((m: any) => m.customerId === customer.customerId);
   assert.ok(membership, "manual claim approval must still create/link a real membership");
   assert.equal(membership.source, "claim");
+  assert.equal(
+    approve.data.state.membershipClaims.find((c: any) => c.id === claimId).status,
+    "approved",
+  );
+  assert.equal(
+    approve.data.state.memberships.filter((m: any) => m.customerId === customer.customerId).length,
+    1,
+    "approval creates/links exactly one real membership",
+  );
 
   const mine = await api("GET", gymA("my-membership"), undefined, customer.token);
   assert.ok(mine.data.membership);
   assert.equal(mine.data.membership.planName, "Legacy plan");
+  assert.equal(mine.data.pendingClaim, null);
+
+  const activity = await api("GET", "/api/me/gym-memberships", undefined, customer.token);
+  assert.ok(
+    activity.data.memberships.some(
+      (entry: any) => entry.gymId === "gym-1" && entry.membership.id === membership.id,
+    ),
+    "Customer Profile > Gym Activity must expose the approved membership",
+  );
+});
+
+test("11. rejected membership claim clears the customer pending state without creating a membership", async () => {
+  const phone = "9111100012";
+  const customer = await loginCustomer(phone);
+  const submitted = await api(
+    "POST",
+    gymA("membership-claims"),
+    { name: "Rejected Claimant", mobile: phone, joiningDate: "2026-08-01", expiryDate: "2026-09-30", planText: "Monthly" },
+    customer.token,
+  );
+  assert.equal(submitted.status, 201);
+  const rejected = await api(
+    "POST",
+    gymA("operations/membership_claims"),
+    { id: submitted.data.claim.id, action: "reject" },
+    owner,
+  );
+  assert.equal(rejected.status, 200);
+  assert.equal(
+    rejected.data.state.membershipClaims.find((c: any) => c.id === submitted.data.claim.id).status,
+    "rejected",
+  );
+  assert.equal(
+    rejected.data.state.memberships.some((m: any) => m.customerId === customer.customerId),
+    false,
+  );
+  const mine = await api("GET", gymA("my-membership"), undefined, customer.token);
+  assert.equal(mine.data.pendingClaim, null, "rejection must not leave the Customer APK falsely pending");
+  assert.equal(mine.data.membership, null);
 });

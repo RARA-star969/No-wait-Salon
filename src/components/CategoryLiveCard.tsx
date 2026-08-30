@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMetricFlash } from '../shared/useMetricFlash';
 import { LIVE_QUEUE_GRADIENT, LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
+import { LiveStatusChip } from './LiveStatusChip';
 
 export interface CategoryMetric {
   key: string;
@@ -27,6 +28,7 @@ export interface CategoryLiveCardProps {
   metrics: CategoryMetric[];
   className?: string;
   palette?: CategoryLiveCardPalette;
+  premiumLive?: boolean;
 }
 
 const CategoryStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; dense?: boolean; flashColor: string }> = ({
@@ -61,6 +63,7 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
   metrics,
   className = '',
   palette,
+  premiumLive = false,
 }) => {
   const gradient = palette?.gradient ?? LIVE_QUEUE_GRADIENT;
   const rim = palette?.rim ?? LIVE_QUEUE_RIM_FULL;
@@ -112,17 +115,21 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
           intentionally small: they're context, not the content. The three
           metrics below stay the strongest visual element on the card. */}
       <div className="relative flex items-center justify-between gap-2">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-[0.08em] text-white/70 ${
-            live ? 'live-chip-pulse' : ''
-          }`}
-        >
-          <span className="relative flex h-1 w-1">
-            {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/80" />}
-            <span className="relative inline-flex h-1 w-1 rounded-full bg-rose-400" />
+        {premiumLive ? (
+          <LiveStatusChip label="Live" live={live} />
+        ) : (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full bg-white/[0.07] px-1.5 py-[3px] text-[8px] font-bold uppercase tracking-[0.08em] text-white/70 ${
+              live ? 'live-chip-pulse' : ''
+            }`}
+          >
+            <span className="relative flex h-1 w-1">
+              {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400/80" />}
+              <span className="relative inline-flex h-1 w-1 rounded-full bg-rose-400" />
+            </span>
+            {liveLabel}
           </span>
-          {liveLabel}
-        </span>
+        )}
         {topRightLabel && (
           <span className="text-[8px] font-semibold uppercase tracking-[0.08em] text-white/45">
             {topRightLabel}

@@ -49,6 +49,7 @@ import { workoutPlanService, todaysWorkoutDay, nextWorkoutDay, workoutDayLabel, 
 import { TodaysWorkoutSheet } from './TodaysWorkoutSheet';
 import { AttendanceCalendarSheet } from './AttendanceCalendarSheet';
 import { WorkoutPlanEditor } from './WorkoutPlanEditor';
+import { resolveGymAccessBarCopy, type GymAccessBarState } from '../shared/gymAccessBar';
 
 // Gym's own violet/purple quick-action tile surface — QuickAction is shared
 // with Salon (which keeps its default teal), so Gym passes its own gradient.
@@ -462,15 +463,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const activeHeading = activeVisit ? activeAccessHeading(activeVisit) : 'ACTIVE VISIT';
   const activeDurationLabel = activeVisit ? gymVisitDurationLabel(activeVisit, nowTick) : '';
 
-  type BottomCtaState =
-    | 'checked_in'
-    | 'queued'
-    | 'awaiting_payment'
-    | 'selected'
-    | 'scan'
-    | 'renew'
-    | 'choose_access';
-  const bottomCtaState: BottomCtaState = isCheckedIn
+  const bottomCtaState: GymAccessBarState = isCheckedIn
     ? 'checked_in'
     : isQueued
     ? 'queued'
@@ -480,22 +473,26 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
     ? 'scan'
     : selectedOffering
     ? 'selected'
+    : loading
+    ? 'loading_access'
+    : offerings.length === 0
+    ? 'unavailable'
     : isExpiredMember
     ? 'renew'
     : 'choose_access';
 
-  const bottomCtaLabel: Record<BottomCtaState, string> = {
-    checked_in: 'Check Out',
-    queued: 'In Entry Queue\u2026',
-    awaiting_payment: 'Waiting for gym',
-    selected: 'Payment',
-    scan: 'Scan to Check In',
-    renew: 'Renew Membership',
-    choose_access: 'Choose Access',
-  };
-
   const durationText = (o: GymOffering) =>
     `${o.durationValue} ${o.durationUnit}${o.durationValue === 1 ? '' : 's'}`;
+
+  const accessBarCopy = resolveGymAccessBarCopy({
+    state: bottomCtaState,
+    selectedOffering,
+    membership,
+    paidPassName: myMembership?.paidPass?.offeringName,
+    activeHeading,
+    activeMain: activeVisit ? `Inside · ${activeDurationLabel}` : undefined,
+    pendingName: awaitingPayment?.offeringName,
+  });
 
   // Coupon breakdown for the Payment sheet. This reuses the SAME
   // evaluateCoupon engine the Salon price breakdown and the server use \u2014 no
@@ -580,7 +577,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       void handleSelfCheckout();
       return;
     }
-    if (bottomCtaState === 'queued' || bottomCtaState === 'awaiting_payment') return;
+    if (
+      bottomCtaState === 'queued' ||
+      bottomCtaState === 'awaiting_payment' ||
+      bottomCtaState === 'loading_access' ||
+      bottomCtaState === 'unavailable'
+    ) return;
     if (bottomCtaState === 'scan') {
       requireReady('scan', () => setQrScannerOpen(true));
       return;
@@ -1293,7 +1295,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           bottomCtaState === 'selected' && selectedOffering ? (
             <div className="flex items-center justify-between gap-3 rounded-xl px-2 py-1">
               <span className="min-w-0">
-                <span className="block truncate text-[11px] font-bold text-[#12332E]">{selectedOffering.name}</span>
+                <span className="block break-words text-[11px] font-bold leading-tight text-[#12332E]">{selectedOffering.name}</span>
                 <span className="mt-0.5 block text-[10px] font-semibold text-[#4A5D5A]">Valid for {durationText(selectedOffering)}</span>
               </span>
               <span className="shrink-0 text-sm font-extrabold text-[#0B1F1C]">₹{selectedOffering.priceInr}</span>
@@ -1331,30 +1333,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           ) : null
         }
       >
-        <div className="flex min-w-0 flex-col justify-center pl-1">
-          <div className={`text-[10px] font-bold uppercase tracking-wider ${dockExpanded ? 'text-[#4A5D5A]' : 'text-white/60'}`}>
-            {bottomCtaState === 'checked_in'
-              ? activeHeading
-              : bottomCtaState === 'queued'
-              ? 'Entry queue'
-              : bottomCtaState === 'awaiting_payment'
-              ? 'Payment pending'
-              : 'Gym access'}
+        <div className="flex min-w-0 flex-col justify-center py-0.5 pl-1 pr-1">
+          <div className={`text-[9px] font-bold uppercase tracking-[0.11em] sm:text-[10px] ${dockExpanded ? 'text-[#4A5D5A]' : 'text-white/60'}`}>
+            {accessBarCopy.eyebrow}
           </div>
-          <div className={`truncate text-xs font-extrabold ${dockExpanded ? 'text-[#12332E]' : 'text-white'}`}>
-            {bottomCtaState === 'checked_in'
-              ? `Inside · ${activeDurationLabel}`
-              : bottomCtaState === 'queued'
-              ? 'Waiting for a space'
-              : bottomCtaState === 'awaiting_payment'
-              ? 'Waiting for the gym to confirm'
-              : bottomCtaState === 'selected' && selectedOffering
-              ? `₹${selectedOffering.priceInr} · ${durationText(selectedOffering)}`
-              : bottomCtaState === 'scan'
-              ? membership?.planName || myMembership?.paidPass?.offeringName || 'Ready to check in'
-              : bottomCtaState === 'renew'
-              ? membership?.planName || 'Membership expired'
-              : 'Select an access option to continue'}
+          <div id="gym-access-copy" className={`mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] sm:text-xs ${dockExpanded ? 'text-[#12332E]' : 'text-white'}`}>
+            {accessBarCopy.main}
           </div>
         </div>
         <button
@@ -1363,10 +1347,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           disabled={
             bottomCtaState === 'queued' ||
             bottomCtaState === 'awaiting_payment' ||
+            bottomCtaState === 'loading_access' ||
+            bottomCtaState === 'unavailable' ||
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className={`relative flex min-h-13 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-5 text-xs font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:opacity-70 ${
+          className={`relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-3.5 text-[11px] font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs ${
             bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[var(--category-primary-dark)]'
           }`}
         >
@@ -1377,7 +1363,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               ? 'Checking in…'
               : bottomCtaState === 'checked_in' && checkoutBusy
               ? 'Checking out…'
-              : bottomCtaLabel[bottomCtaState]}
+              : accessBarCopy.action}
           </span>
         </button>
       </CategoryActionBar>

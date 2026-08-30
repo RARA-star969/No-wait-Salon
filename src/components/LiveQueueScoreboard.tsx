@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMetricFlash } from '../shared/useMetricFlash';
 import { LIVE_QUEUE_FILL_CAPSULE, LIVE_QUEUE_RIM_CAPSULE } from '../shared/liveQueueVisual';
+import { LiveStatusChip } from './LiveStatusChip';
 
 /**
  * The Salon Detail page's floating scoreboard capsule — a glassy teal pill
@@ -28,6 +29,7 @@ type Props = {
   onTap?: () => void;
   className?: string;
   palette?: ScoreboardPalette;
+  premiumLive?: boolean;
 };
 
 const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
@@ -48,7 +50,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
   );
 };
 
-export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette }) => {
+export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette, premiumLive = false }) => {
   const Wrapper = onTap ? 'button' : 'div';
   const fill = palette?.fill ?? LIVE_QUEUE_FILL_CAPSULE;
   const rim = palette?.rim ?? LIVE_QUEUE_RIM_CAPSULE;
@@ -74,15 +76,19 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className
       <span className="live-scoreboard-glow pointer-events-none absolute -right-4 -top-5 h-14 w-14 rounded-full blur-2xl" style={{ backgroundColor: `${glow}24` }} aria-hidden="true" />
       <span className="pointer-events-none absolute inset-x-0 top-0 h-[55%] rounded-t-full bg-gradient-to-b from-white/[0.12] to-transparent" aria-hidden="true" />
 
-      <span className="relative flex shrink-0 items-center">
-        <span className="live-chip-pulse inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[#EF4444]/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white">
-          <span className="relative flex h-1.5 w-1.5 shrink-0">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+      {premiumLive ? (
+        <LiveStatusChip />
+      ) : (
+        <span className="relative flex shrink-0 items-center">
+          <span className="live-chip-pulse inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[#EF4444]/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white">
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+            </span>
+            Live
           </span>
-          Live
         </span>
-      </span>
+      )}
 
       <span className="relative flex min-w-0 shrink-0 items-center gap-2.5">
         {metrics.map((metric) => (

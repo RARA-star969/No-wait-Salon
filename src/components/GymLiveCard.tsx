@@ -42,7 +42,8 @@ export const GymLiveCard: React.FC<GymLiveCardProps> = ({
     <CategoryLiveCard
       id="gym-live-card"
       live={live}
-      liveLabel="LIVE GYM CROWD"
+      liveLabel="Live"
+      premiumLive
       topRightLabel={trainerLabel}
       className={className}
       palette={GYM_LIVE_CARD_PALETTE}

@@ -25,6 +25,9 @@ concurrency:
 
 jobs:
   noq-business-debug-apk:
+    # The final physical-glitches branch produces only the requested Customer
+    # APK in the dedicated job below.
+    if: github.ref_name != 'fix/customer-final-physical-glitches'
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
@@ -82,4 +85,89 @@ jobs:
           name: ${{ github.ref_name == 'main' && 'noq-business-main-apk' || 'noq-business-test-apk' }}-${{ github.run_number }}
           path: android-artifacts/
           retention-days: 14
+          if-no-files-found: error
+
+  customer-final-physical-apk:
+    if: github.ref_name == 'fix/customer-final-physical-glitches'
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
+
+    steps:
+      - name: Check out the exact application SHA
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify branch and checkout SHA
+        shell: bash
+        run: |
+          test "${GITHUB_REF_NAME}" = "fix/customer-final-physical-glitches"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "${ACTUAL_SHA}" = "${GITHUB_SHA}"
+          echo "APPLICATION_SHA=${ACTUAL_SHA}" >> "${GITHUB_ENV}"
+          echo "SHORT_SHA=${ACTUAL_SHA:0:12}" >> "${GITHUB_ENV}"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Type-check
+        run: pnpm lint
+
+      - name: Run full automated tests
+        run: pnpm test
+
+      - name: Confirm TEST backend is reachable
+        run: curl --fail --retry 4 --retry-all-errors --max-time 70 "${VITE_API_BASE_URL}/api/health"
+
+      - name: Resolve installable TEST version
+        shell: bash
+        run: |
+          echo "APP_VERSION_NAME=1.0.0-customer-test.${GITHUB_RUN_NUMBER}" >> "${GITHUB_ENV}"
+          echo "APP_VERSION_CODE=$((100000 + GITHUB_RUN_NUMBER))" >> "${GITHUB_ENV}"
+
+      - name: Build one Customer TEST APK
+        run: pnpm android:apk:customer
+
+      - name: Verify compiled API and stage exactly one APK
+        shell: bash
+        run: |
+          grep -R --binary-files=text -Fq "https://no-wait-salon-web-test.onrender.com" dist
+          grep -R --binary-files=text -Fq "/api/gym/" dist
+          if grep -R --binary-files=text -Fq "https://no-wait-salon-api.onrender.com" dist; then
+            echo "Production API was found in the compiled Customer bundle" >&2
+            exit 1
+          fi
+          mkdir -p customer-test-artifact
+          APK_NAME="NOQ-Customer-TEST-${SHORT_SHA}-run${GITHUB_RUN_NUMBER}.apk"
+          cp android-customer/app/build/outputs/apk/debug/app-debug.apk "customer-test-artifact/${APK_NAME}"
+          test "$(find customer-test-artifact -maxdepth 1 -name '*.apk' | wc -l | tr -d ' ')" = "1"
+          sha256sum "customer-test-artifact/${APK_NAME}" > customer-test-artifact/SHA256SUMS.txt
+          printf '%s\n' "${APPLICATION_SHA}" > customer-test-artifact/APPLICATION_SHA.txt
+          printf '%s\n' "${VITE_API_BASE_URL}" > customer-test-artifact/API_BASE_URL.txt
+
+      - name: Upload Customer TEST APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: noq-customer-test-${{ env.SHORT_SHA }}-run${{ github.run_number }}
+          path: customer-test-artifact/
+          retention-days: 30
           if-no-files-found: error

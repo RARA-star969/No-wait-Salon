@@ -112,10 +112,12 @@ export interface GymVisitActivity {
   accessName: string;
 }
 
-const getBaseUrl = () => {
-  if (typeof window !== 'undefined') return '';
-  return 'http://127.0.0.1:3000';
-};
+// Capacitor runs inside a WebView, so `window` exists there too. Deriving the
+// API origin from browser globals therefore sends packaged APK requests to
+// the WebView's local origin. Use the same build-time API base as every other
+// customer client; the optional chain only keeps this module importable by
+// the repository's plain node:test runner, where Vite does not inject env.
+const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 function authHeaders(): Record<string, string> {
   try {
@@ -128,7 +130,7 @@ function authHeaders(): Record<string, string> {
 }
 
 async function authedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${getBaseUrl()}${path}`, {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...init.headers },
   });
@@ -145,7 +147,7 @@ export const gymCustomerService = {
   // silently substituting fabricated occupancy, trainers, or classes.
   async getPublicOverview(gymId: string): Promise<GymPublicOverview> {
     const isJson = (res: Response) => res.ok && (res.headers.get('content-type') || '').includes('application/json');
-    const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/public-overview`);
+    const res = await fetch(`${API_BASE_URL}/api/gym/${encodeURIComponent(gymId)}/public-overview`);
     if (!isJson(res)) throw new Error('Unable to load live gym data.');
     const data = await res.json();
     const availableTrainersCount = data.availableTrainersCount ?? (data.trainers || []).filter((t: GymTrainer) => t.status === 'Available').length;
@@ -153,17 +155,10 @@ export const gymCustomerService = {
   },
 
   async bookClass(gymId: string, classId: string, memberName = 'Gym Member') {
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/class-booking`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId, memberName }),
-      });
-      if (res.ok) return await res.json();
-    } catch {
-      /* fallback */
-    }
-    return { ok: true };
+    return authedRequest<{ ok: boolean; class: GymClass }>(
+      `/api/gym/${encodeURIComponent(gymId)}/class-booking`,
+      { method: 'POST', body: JSON.stringify({ classId, memberName }) },
+    );
   },
 
   async bookPT(
@@ -179,24 +174,17 @@ export const gymCustomerService = {
     const timeSlot = typeof trainerIdOrParams === 'string' ? timeSlotArg : trainerIdOrParams.timeSlot || '04:00 PM';
     const serviceName = typeof trainerIdOrParams === 'object' ? trainerIdOrParams.serviceName || 'Personal Training 1-on-1' : 'Personal Training 1-on-1';
 
-    try {
-      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/pt-booking`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trainerId, trainerName, clientName, timeSlot, serviceName }),
-      });
-      if (res.ok) return await res.json();
-    } catch {
-      /* fallback */
-    }
-    return { ok: true };
+    return authedRequest<{ ok: boolean; booking: { trainer: string } }>(
+      `/api/gym/${encodeURIComponent(gymId)}/pt-booking`,
+      { method: 'POST', body: JSON.stringify({ trainerId, trainerName, clientName, timeSlot, serviceName }) },
+    );
   },
 
   async updateTrainerStatus(gymId: string, trainerId: string, status: string, token?: string) {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/trainer-status`, {
+      const res = await fetch(`${API_BASE_URL}/api/gym/${encodeURIComponent(gymId)}/trainer-status`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ trainerId, status }),
@@ -211,7 +199,7 @@ export const gymCustomerService = {
     try {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${getBaseUrl()}/api/gym/${encodeURIComponent(gymId)}/settings`, {
+      const res = await fetch(`${API_BASE_URL}/api/gym/${encodeURIComponent(gymId)}/settings`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ maxCapacity }),
