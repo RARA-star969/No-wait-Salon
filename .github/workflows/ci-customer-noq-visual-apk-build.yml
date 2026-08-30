@@ -1,0 +1,129 @@
+name: TEMP - Customer NOQ visual-system APK build (physical test, TEST API)
+
+# TEMPORARY workflow to produce one physical-test Customer APK for the
+# approved NOQ brand-shell / category-world visual system before it is
+# promoted to main. Delete this file (and the ci/customer-noq-visual-apk
+# branch) once physical testing is done.
+#
+# Safety properties:
+#   - The application source built here is pinned to a specific commit SHA
+#     (FIX_SHA below), not to whatever this workflow file's own commit
+#     happens to be — so the branch this workflow lives on can safely carry
+#     a later commit (this workflow file itself) without that commit ever
+#     becoming part of the built APK.
+#   - Points at the isolated hosted TEST backend
+#     (https://no-wait-salon-web-test.onrender.com), never the production API.
+#   - Debug-signed only. No release signing, no Play Store upload, no
+#     production deploy step of any kind.
+#   - Runs tsc, the full test suite, and the Customer APK build; fails
+#     closed if any step fails.
+#   - Builds only the Customer APK — the visual-system change is
+#     Customer-app-only (CustomerApp/CustomerHomeComponents/FloatingCategoryDeck/
+#     StickyScanQrButton); the Staff app is untouched.
+#   - Pinned to 7dd5fb2e5b654e8450f99a5c04eb83c390ce1730, built from
+#     fix/customer-navigation-notifications-polish (the latest tested
+#     customer feature branch), implementing the approved fixed NOQ
+#     brand-shell + dynamic category-world visual system.
+
+on:
+  push:
+    branches:
+      - ci/customer-noq-visual-apk
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-customer-noq-visual-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FIX_SHA: 7dd5fb2e5b654e8450f99a5c04eb83c390ce1730
+  VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
+
+jobs:
+  build-customer-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the exact pinned SHA (not the workflow commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FIX_SHA }}
+
+      - name: Confirm checked-out commit matches the pinned SHA
+        run: |
+          actual="$(git rev-parse HEAD)"
+          echo "Checked out: $actual"
+          echo "Expected:    ${FIX_SHA}"
+          test "$actual" = "${FIX_SHA}"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Type-check
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build Customer debug APK (TEST API)
+        env:
+          APP_VERSION_NAME: 0.0.0-noq-visual-test.${{ github.run_number }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+        run: pnpm android:apk:customer
+
+      - name: Confirm the built web bundle was compiled against the TEST API
+        shell: bash
+        run: |
+          dir=android-customer/app/src/main/assets/public
+          echo "Checking $dir"
+          if ! grep -rl "no-wait-salon-web-test.onrender.com" "$dir" >/dev/null; then
+            echo "TEST API base URL not found baked into $dir" >&2
+            exit 1
+          fi
+          if grep -rl "no-wait-salon-api.onrender.com" "$dir" >/dev/null; then
+            echo "Production API base URL unexpectedly present in $dir" >&2
+            exit 1
+          fi
+          echo "Bundle references only the TEST API base URL."
+
+      - name: Stage APK and generate checksum
+        shell: bash
+        run: |
+          mkdir -p visual-artifacts
+          cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
+            "visual-artifacts/NOQ-Customer-visual-system-test-${FIX_SHA::12}.apk"
+          (cd visual-artifacts && sha256sum *.apk > SHA256SUMS.txt)
+          echo "Application source SHA: ${FIX_SHA}" > visual-artifacts/SOURCE_SHA.txt
+          cat visual-artifacts/SHA256SUMS.txt
+          ls -la visual-artifacts
+
+      - name: Upload Customer APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noq-customer-visual-system-test-apk-${{ github.run_number }}
+          path: |
+            visual-artifacts/NOQ-Customer-visual-system-test-*.apk
+            visual-artifacts/SHA256SUMS.txt
+            visual-artifacts/SOURCE_SHA.txt
+          retention-days: 14
+          if-no-files-found: error
