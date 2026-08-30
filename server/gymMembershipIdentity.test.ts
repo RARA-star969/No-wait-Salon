@@ -288,14 +288,19 @@ test("5. cross-gym isolation — the same phone's membership at Gym A never appe
   assert.equal(atGymBAfter.data.membership.planName, "Peak Monthly");
 });
 
-test("6. duplicate prevention — repeating the same staff Add Visitor for an active member is rejected", async (t) => {
+test("6. duplicate prevention — repeating the same staff Add Visitor for an active member asks for confirmation instead of duplicating", async (t) => {
   const phone = "9111100007";
   const first = await addVisitorMembership("Repeat Person", phone);
   assert.equal(first.status, 200);
 
+  // Add Visitor never silently creates a second membership for an already
+  // active member — it comes back with a confirmation prompt instead, and
+  // creates nothing until the owner explicitly confirms "Check in as Member".
   const second = await addVisitorMembership("Repeat Person", phone);
-  assert.equal(second.status, 400);
-  assert.match(second.data.error, /already has an active membership/i);
+  assert.equal(second.status, 200);
+  assert.equal(second.data.requiresConfirmation, true);
+  assert.match(second.data.existingMember.planName, /.+/);
+  assert.equal(second.data.existingMember.name, "Repeat Person");
 
   const s = await state();
   assert.equal(
@@ -303,6 +308,40 @@ test("6. duplicate prevention — repeating the same staff Add Visitor for an ac
     1,
     "only one active membership must exist",
   );
+
+  // The original purchase already checked this person in (capacity was
+  // available) — close that visit so confirming below starts from "not
+  // inside" instead of hitting the already-checked-in guard.
+  const openVisit = s.visits.find(
+    (v: any) => v.membershipId === second.data.existingMember.membershipId && !v.checkedOutAt,
+  );
+  assert.ok(openVisit);
+  await api("POST", gymA("checkout"), { visitId: openVisit.id }, owner);
+
+  // Confirming uses the existing membership identity and opens exactly one
+  // physical visit — never a second membership.
+  const confirmed = await api(
+    "POST",
+    gymA("operations/confirm_member_checkin"),
+    { membershipId: second.data.existingMember.membershipId },
+    owner,
+  );
+  assert.equal(confirmed.status, 200);
+  const visits = confirmed.data.state.visits.filter(
+    (v: any) => v.membershipId === second.data.existingMember.membershipId && !v.checkedOutAt,
+  );
+  assert.equal(visits.length, 1, "confirming must create exactly one open visit");
+  assert.equal(visits[0].purpose, "member");
+
+  // Confirming again while still checked in must block the duplicate.
+  const again = await api(
+    "POST",
+    gymA("operations/confirm_member_checkin"),
+    { membershipId: second.data.existingMember.membershipId },
+    owner,
+  );
+  assert.equal(again.status, 400);
+  assert.match(again.data.error, /already checked in/i);
 });
 
 test("7. existing duplicate reconciliation — an approved claim re-links an existing unclaimed row instead of duplicating it", async (t) => {

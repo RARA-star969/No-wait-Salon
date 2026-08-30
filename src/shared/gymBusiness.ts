@@ -131,6 +131,13 @@ export type GymMembership = {
   status: GymMembershipStatus;
   joinedDate: string; // ISO date (yyyy-mm-dd)
   expiryDate: string; // ISO date (yyyy-mm-dd)
+  // Usage-bound plans only (offering.durationUnit === "session"): a visit
+  // package consumes exactly one session per successful new check-in,
+  // tracked here instead of by expiryDate. Absent on date-based
+  // (day/week/month/quarter/year) memberships, which are attendance-only —
+  // check-ins never touch their expiryDate.
+  sessionsTotal?: number;
+  sessionsUsed?: number;
   previousMembershipId?: string; // renewal chain — history is never overwritten
   // Response-only, gym-scoped profile photo URL. Never persisted; resolved
   // from the existing customer profile on each authorized staff overview.

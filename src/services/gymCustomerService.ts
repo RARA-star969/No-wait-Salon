@@ -57,6 +57,8 @@ export interface GymMembershipView {
   expiryDate: string;
   displayStatus: 'active' | 'expiring_soon' | 'expires_today' | 'expired';
   daysRemaining: number;
+  sessionsTotal?: number;
+  sessionsUsed?: number;
 }
 
 export interface GymMyMembershipResponse {

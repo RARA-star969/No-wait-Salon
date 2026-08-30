@@ -192,6 +192,7 @@ test("Customer self-checkout — own visit only, active session, correct gym, st
       gym("operations/add_visitor"),
       {
         name: "Self Checkout Tester",
+        mobile: "9810000001",
         offeringId,
         method: "cash",
         customerId: customerA.customerId,
@@ -245,6 +246,7 @@ test("Customer self-checkout — own visit only, active session, correct gym, st
       gym("operations/add_visitor"),
       {
         name: "Victim Visitor",
+        mobile: "9810000002",
         offeringId,
         method: "cash",
         customerId: customerB.customerId,

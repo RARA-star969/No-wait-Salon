@@ -29,7 +29,11 @@ import {
   resolveCategoryModules,
   type StaffRole,
 } from "../shared/categoryDashboardResolver";
-import { gymStaffService, type GymEntryQr } from "../services/gymStaffService";
+import {
+  gymStaffService,
+  type GymEntryQr,
+  type GymExistingMemberMatch,
+} from "../services/gymStaffService";
 import type {
   GymClass,
   GymMembershipClaim,
@@ -387,6 +391,88 @@ function DeclinePaymentDialog({
     </dialog>
   );
 }
+// Shown instead of creating a visitor/membership when Add Visitor's phone
+// number already has an active membership at this gym. "Continue as
+// Visitor" is deliberately not an option here — the two choices are use
+// the real identity, or cancel.
+function ConfirmMemberDialog({
+  member,
+  busy,
+  error,
+  onConfirm,
+  close,
+}: {
+  member: GymExistingMemberMatch & { alreadyCheckedIn: boolean };
+  busy: boolean;
+  error: string;
+  onConfirm: () => void;
+  close: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="gym-dialog"
+      onCancel={(e) => {
+        e.preventDefault();
+        if (!busy) close();
+      }}
+    >
+      <div className="gym-panel-heading">
+        <h2>Active member found</h2>
+        <button
+          type="button"
+          aria-label="Close"
+          disabled={busy}
+          className="gym-icon-button"
+          onClick={close}
+        >
+          <X size={20} />
+        </button>
+      </div>
+      <p className="gym-muted">
+        {member.name} already has an active {member.planName} at this gym.
+      </p>
+      <p>
+        {member.alreadyCheckedIn
+          ? "Already checked in."
+          : `Valid till ${new Date(member.expiryDate).toLocaleDateString()} · ${member.daysRemaining} day${member.daysRemaining === 1 ? "" : "s"} left${
+              member.sessionsTotal !== undefined
+                ? ` · ${member.sessionsRemaining} of ${member.sessionsTotal} sessions remaining`
+                : ""
+            }`}
+      </p>
+      {error && (
+        <p role="alert" className="gym-error">
+          {error}
+        </p>
+      )}
+      <div className="gym-form-actions">
+        <button
+          type="button"
+          className="gym-button secondary"
+          onClick={close}
+          disabled={busy}
+        >
+          Cancel
+        </button>
+        {!member.alreadyCheckedIn && (
+          <button
+            type="button"
+            className="gym-button"
+            onClick={onConfirm}
+            disabled={busy}
+          >
+            {busy ? "Checking in…" : "Check in as Member"}
+          </button>
+        )}
+      </div>
+    </dialog>
+  );
+}
 export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   gymId,
   gymName,
@@ -410,6 +496,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     "inside" | "waiting" | "payments"
   >("inside");
   const [declinePayment, setDeclinePayment] = useState<GymPayment | null>(null);
+  const [confirmMember, setConfirmMember] = useState<
+    (GymExistingMemberMatch & { alreadyCheckedIn: boolean }) | null
+  >(null);
   const [showManageProfile, setShowManageProfile] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
@@ -744,6 +833,53 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           paymentOptions: o?.paymentOptions || ["cash"],
         }),
     });
+  // Runs Add Visitor through the dedicated addVisitor call (not operate()
+  // → mutate()) because the server can respond with an existing-member
+  // confirmation prompt instead of the usual { ok, state } result — that
+  // response carries no state to apply, so it must never reach setState.
+  const submitAddVisitor = async (values: Record<string, unknown>) => {
+    if (mutating.current)
+      throw new Error("Another action is saving. Please wait.");
+    mutating.current = true;
+    generation.current++;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await gymStaffService.addVisitor(gymId, values);
+      if (!mounted.current) return;
+      if ("requiresConfirmation" in result) {
+        setConfirmMember({
+          ...result.existingMember,
+          alreadyCheckedIn: result.alreadyCheckedIn,
+        });
+      } else {
+        setState(result.state);
+        setUpdated(Date.now());
+        setNotice("Visitor added");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save.");
+      throw e;
+    } finally {
+      mutating.current = false;
+      setBusy(false);
+    }
+  };
+  const confirmMemberCheckIn = () => {
+    if (!confirmMember) return;
+    const membershipId = confirmMember.membershipId;
+    // Stays open on failure (e.g. "Already checked in.") so the owner sees
+    // why, instead of closing and losing the error in the main banner.
+    void mutate(
+      () =>
+        gymStaffService.operate(gymId, "confirm_member_checkin", {
+          membershipId,
+        }),
+      "Checked in as member",
+    )
+      .then(() => setConfirmMember(null))
+      .catch(() => {});
+  };
   const openAddVisitor = () => {
     if (!state) return;
     const offerings = state.offerings.filter((o) => o.active);
@@ -752,10 +888,10 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
     setForm({
       title: "Add visitor",
       description:
-        "Staff presence is the physical verification — no QR scan needed. A paid access records the payment and activates any membership; Custom Entry is free and creates the visit immediately with no payment at all.",
+        "Staff presence is the physical verification — no QR scan needed. A paid access records the payment and activates any membership; Custom Entry is free and creates the visit immediately with no payment at all. A mobile number is required so an existing active member is never entered twice.",
       fields: [
         { name: "name", label: "Full name" },
-        { name: "mobile", label: "Mobile number", type: "tel", optional: true },
+        { name: "mobile", label: "Mobile number", type: "tel", help: "Required — used to detect an existing active membership before creating anything new." },
         {
           name: "offeringId",
           label: ACCESS_LABEL,
@@ -780,7 +916,7 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           help: "Ignored for Custom Entry — nothing is collected and no payment record is created.",
         },
       ],
-      submit: (v) => operate("add_visitor", v),
+      submit: (v) => submitAddVisitor(v),
     });
   };
   const openAcceptPayment = (p: GymPayment) =>
@@ -2199,6 +2335,15 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             setUpdated(Date.now());
             setNotice("Payment declined");
           }}
+        />
+      )}
+      {confirmMember && (
+        <ConfirmMemberDialog
+          member={confirmMember}
+          busy={busy}
+          error={error}
+          onConfirm={confirmMemberCheckIn}
+          close={() => setConfirmMember(null)}
         />
       )}
     </div>

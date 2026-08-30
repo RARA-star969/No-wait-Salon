@@ -9,6 +9,7 @@ import {
   reconcileExpiredMemberships,
   unclaimedCustomerId,
   isUnclaimedCustomerId,
+  daysRemaining,
   type GymState,
   type GymEvent,
   type GymCampaign,
@@ -186,6 +187,74 @@ export function assertNoOpenVisit(s: GymState, customerId: string) {
     throw new Error(
       "This customer already has an open visit at this gym. Check them out first, or use Upgrade.",
     );
+}
+/** Finds this person's currently-active membership at THIS gym only — never
+ * across gyms, and never by name. Matched by the real customerId once a
+ * phone resolves to a verified account; otherwise by the same normalized
+ * mobile number on a still-unclaimed (staff-created) membership row. An
+ * expired membership never matches (reconcileExpiredMemberships already
+ * flips status before this runs via commit()), so Add Visitor always offers
+ * Add as Visitor / Renew / Sell Access for an expired member instead of
+ * treating them as active. */
+function findActiveMembershipForIdentity(
+  s: GymState,
+  customerId: string | undefined,
+  normalizedMobile: string,
+): GymMembership | undefined {
+  return s.memberships.find((m) => {
+    if (m.status !== "active") return false;
+    if (customerId) return m.customerId === customerId;
+    return (
+      normalizedMobile.length === 10 &&
+      m.customerMobileNormalized === normalizedMobile &&
+      isUnclaimedCustomerId(m.customerId)
+    );
+  });
+}
+/** The confirmation payload Add Visitor returns instead of creating a
+ * duplicate visitor/membership when this phone already has an active
+ * membership here — the owner must explicitly confirm "Check in as Member"
+ * (or Cancel) before anything is created. */
+function existingMemberConfirmation(s: GymState, membership: GymMembership) {
+  return {
+    ok: true as const,
+    requiresConfirmation: true as const,
+    // Matched by membershipId, not customerId: an unclaimed (pre-verification)
+    // membership's own visits never carry a customerId (there is no real
+    // account to attach one to yet), so membershipId is the only identity
+    // link guaranteed to be set on both claimed and unclaimed members.
+    alreadyCheckedIn: s.visits.some(
+      (v) => v.membershipId === membership.id && !v.checkedOutAt,
+    ),
+    existingMember: {
+      membershipId: membership.id,
+      customerId: membership.customerId,
+      name: membership.customerName,
+      planName: membership.planName,
+      expiryDate: membership.expiryDate,
+      daysRemaining: daysRemaining(membership.expiryDate),
+      sessionsTotal: membership.sessionsTotal,
+      sessionsRemaining:
+        membership.sessionsTotal === undefined
+          ? undefined
+          : Math.max(membership.sessionsTotal - (membership.sessionsUsed || 0), 0),
+    },
+  };
+}
+/** Usage-bound plans only (offering.durationUnit === "session"): consumes
+ * exactly one session on a successful NEW physical check-in. Never called
+ * for a queue "join" — only once the visit actually opens (direct check-in,
+ * confirm_checkin, queue admit, or confirm_member_checkin) — so a duplicate
+ * or still-open visit can never consume twice. Date-based memberships have
+ * no sessionsTotal and are left untouched: attendance only, expiry unchanged. */
+function recordSessionUsage(s: GymState, membershipId: string | undefined) {
+  if (!membershipId) return;
+  const membership = s.memberships.find((m) => m.id === membershipId);
+  if (!membership || membership.sessionsTotal === undefined) return;
+  membership.sessionsUsed = (membership.sessionsUsed || 0) + 1;
+  membership.updatedAt = Date.now();
+  if (membership.sessionsUsed >= membership.sessionsTotal)
+    membership.status = "expired";
 }
 function find<T extends { id: string }>(
   items: T[],
@@ -542,6 +611,11 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
     "operations/:kind",
     ["owner", "manager", "staff", "reception"],
     async (req, res, s, session) => {
+      // commit() also reconciles expiry, but that runs at the very end —
+      // too late for the existing-active-member checks below, which must
+      // never mistake a calendar-expired membership for active just because
+      // reconciliation hasn't run yet this request.
+      reconcileExpiredMemberships(s.memberships);
       const b = req.body;
       const kind = String(req.params.kind);
       if (
@@ -640,6 +714,7 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
               const linked = s.payments.find((p) => p.id === q.paymentId);
               if (linked) linked.visitId = admittedVisit.id;
             }
+            recordSessionUsage(s, admittedVisit.membershipId);
             gymEvent(s, "checkins", "checkin", q.name, session.name);
           }
           q.status = b.action === "admit" ? "Admitted" : "Removed";
@@ -954,13 +1029,32 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         const name = requireText(b.name, "Visitor name");
         const mobile =
           typeof b.mobile === "string" ? b.mobile.trim().slice(0, 20) : "";
+        const normalizedMobile = normalizePhone(mobile);
+        if (normalizedMobile.length !== 10)
+          throw new Error(
+            "A valid 10-digit mobile number is required to add a visitor.",
+          );
         const customerId =
-          typeof b.customerId === "string" && b.customerId ? b.customerId : undefined;
+          (typeof b.customerId === "string" && b.customerId
+            ? b.customerId
+            : undefined) || deps.resolveCustomerIdByPhone(normalizedMobile);
+        // Never identify by name alone: this phone (or the resolved real
+        // identity behind it) already has an active membership here — stop
+        // before creating a visitor row and ask the owner to confirm instead.
+        const existingActive = findActiveMembershipForIdentity(
+          s,
+          customerId,
+          normalizedMobile,
+        );
+        if (existingActive) {
+          res.json(existingMemberConfirmation(s, existingActive));
+          return;
+        }
         if (customerId) assertNoOpenVisit(s, customerId);
         const base = {
           name,
           customerId,
-          mobile: mobile || undefined,
+          mobile,
           purpose: "visitor" as const,
           entryMethod: "staff_manual" as const,
           customEntry: true,
@@ -996,15 +1090,33 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           const name = requireText(b.name, "Visitor name");
           const mobile =
             typeof b.mobile === "string" ? b.mobile.trim().slice(0, 20) : "";
+          const normalizedMobile = normalizePhone(mobile);
+          if (normalizedMobile.length !== 10)
+            throw new Error(
+              "A valid 10-digit mobile number is required to add a visitor.",
+            );
+          const resolvedCustomerId =
+            (typeof b.customerId === "string" && b.customerId
+              ? b.customerId
+              : undefined) || deps.resolveCustomerIdByPhone(normalizedMobile);
+          // Never identify by name alone: check for an existing active
+          // membership at THIS gym before any payment/visitor is created,
+          // regardless of which offering staff picked.
+          const existingActive = findActiveMembershipForIdentity(
+            s,
+            resolvedCustomerId,
+            normalizedMobile,
+          );
+          if (existingActive) {
+            res.json(existingMemberConfirmation(s, existingActive));
+            return;
+          }
           const method = choice(b.method || "cash", ["online", "cash"], "payment method") as
             | "online"
             | "cash";
           payment = {
             id: randomUUID(),
-            customerId:
-              typeof b.customerId === "string" && b.customerId
-                ? b.customerId
-                : undefined,
+            customerId: resolvedCustomerId,
             customerName: name,
             customerMobile: mobile,
             offeringId: offering.id,
@@ -1052,11 +1164,18 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
               `${payment.customerName} already has an active membership (${existingActive.planName}, expires ${existingActive.expiryDate}). Renew the existing membership instead of adding a new one.`,
             );
           }
-          const expiryDate = addDuration(
-            new Date().toISOString().slice(0, 10),
-            offering.durationValue,
-            offering.durationUnit,
-          );
+          const isSessionPackage = offering.durationUnit === "session";
+          const expiryDate = isSessionPackage
+            // Session packages are usage-bound, not calendar-bound: consuming
+            // is tracked by sessionsUsed below, so give a full year to use
+            // the sessions up rather than addDuration()'s incidental 1-day
+            // nominal window for "session".
+            ? addDuration(new Date().toISOString().slice(0, 10), 365, "day")
+            : addDuration(
+                new Date().toISOString().slice(0, 10),
+                offering.durationValue,
+                offering.durationUnit,
+              );
           // Case B — no verified account yet: created "unclaimed", carrying
           // the normalized mobile so a future OTP verification (this
           // provider or any other) can find and re-point it automatically.
@@ -1072,6 +1191,8 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
             status: "active",
             joinedDate: new Date().toISOString().slice(0, 10),
             expiryDate,
+            sessionsTotal: isSessionPackage ? offering.durationValue : undefined,
+            sessionsUsed: isSessionPackage ? 0 : undefined,
             createdAt: Date.now(),
             updatedAt: Date.now(),
           };
@@ -1130,6 +1251,7 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           };
           s.visits.unshift(visit);
           payment.visitId = visit.id;
+          recordSessionUsage(s, membershipId);
           gymEvent(
             s,
             "checkins",
@@ -1188,7 +1310,69 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           s.visits.unshift(visit);
           payment.visitId = visit.id;
           payment.updatedAt = Date.now();
+          recordSessionUsage(s, payment.membershipId);
           gymEvent(s, "checkins", "checkin", payment.customerName, session.name);
+        }
+      } else if (kind === "confirm_member_checkin") {
+        // The owner confirmed "Check in as Member" on the existing-member
+        // dialog Add Visitor returned instead of creating a duplicate
+        // visitor/membership. Uses the existing customer/membership
+        // identity as-is — never mints a new customer, membership or
+        // payment — and opens exactly one physical GymVisit.
+        const membership = find(s.memberships, b.membershipId, "Membership");
+        if (membership.status !== "active")
+          throw new Error("This membership is not active.");
+        // Matched by membershipId, not customerId: an unclaimed membership's
+        // own visits never carry a customerId, so membershipId is the only
+        // identity link guaranteed to be set either way.
+        if (
+          s.visits.some(
+            (v) => v.membershipId === membership.id && !v.checkedOutAt,
+          )
+        )
+          throw new Error("Already checked in.");
+        // Never write a synthetic "walkin-..." id onto customerId — every
+        // other visit-creation path in this file only sets customerId to a
+        // real, resolved customer_account id and leaves it undefined
+        // otherwise; membershipId alone carries the link until this person
+        // verifies their phone and reconcileUnclaimedMembershipsForPhone
+        // re-points the membership (and this visit) at their real account.
+        const linkedCustomerId = isUnclaimedCustomerId(membership.customerId)
+          ? undefined
+          : membership.customerId;
+        const purpose = "member" as const;
+        if (s.currentOccupancy >= s.maxCapacity) {
+          s.entryQueue.push({
+            id: randomUUID(),
+            name: membership.customerName,
+            customerId: linkedCustomerId,
+            membershipId: membership.id,
+            purpose,
+            entryMethod: "staff_manual",
+            arrivedAt: Date.now(),
+            status: "Waiting",
+          });
+          gymEvent(s, "queue", "joined", membership.customerName, session.name);
+        } else {
+          const visit = {
+            id: randomUUID(),
+            name: membership.customerName,
+            customerId: linkedCustomerId,
+            membershipId: membership.id,
+            purpose,
+            entryMethod: "staff_manual" as const,
+            checkedInAt: Date.now(),
+            checkedInBy: session.name,
+          };
+          s.visits.unshift(visit);
+          recordSessionUsage(s, membership.id);
+          gymEvent(
+            s,
+            "checkins",
+            "checkin",
+            membership.customerName,
+            session.name,
+          );
         }
       } else if (kind === "decline_payment") {
         const payment = find(s.payments, b.paymentId, "Payment");

@@ -37,6 +37,28 @@ export type GymReportFilter = {
   category: GymReportCategory;
   campaignId?: string;
 };
+// Add Visitor's server-side existing-member match — returned instead of a
+// normal { ok, state } result when this phone already has an active
+// membership at this gym, so the owner can confirm "Check in as Member"
+// instead of a duplicate visitor/membership silently being created.
+export type GymExistingMemberMatch = {
+  membershipId: string;
+  customerId: string;
+  name: string;
+  planName: string;
+  expiryDate: string;
+  daysRemaining: number;
+  sessionsTotal?: number;
+  sessionsRemaining?: number;
+};
+export type GymAddVisitorResult =
+  | { ok: true; state: GymState }
+  | {
+      ok: true;
+      requiresConfirmation: true;
+      alreadyCheckedIn: boolean;
+      existingMember: GymExistingMemberMatch;
+    };
 export type GymEntryQr = {
   businessId: string;
   businessName: string;
@@ -69,6 +91,14 @@ export const gymStaffService = {
   ) => write(id, "core-state", updates, "PUT"),
   operate: (id: string, kind: string, body: Record<string, unknown>) =>
     write(id, `operations/${kind}`, body),
+  // Distinct from operate("add_visitor", ...) because its response can be
+  // an existing-member confirmation prompt instead of { ok, state } — the
+  // generic `write` return type would otherwise hide that shape from callers.
+  addVisitor: (id: string, body: Record<string, unknown>) =>
+    request<GymAddVisitorResult>(`${root(id)}/operations/add_visitor`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   customerLookup: (id: string, phone: string) =>
     request<{ found: boolean; customerId: string | null; name: string | null }>(
       `${root(id)}/customer-lookup?phone=${encodeURIComponent(phone)}`,

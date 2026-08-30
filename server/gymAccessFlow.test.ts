@@ -306,6 +306,7 @@ test("Paid access: select -> pay -> pending -> staff accept -> visit starts", as
       gym("operations/add_visitor"),
       {
         name: "Duplicate Attempt",
+        mobile: "9822200001",
         offeringId,
         method: "cash",
         customerId: customer.customerId,
@@ -318,7 +319,12 @@ test("Paid access: select -> pay -> pending -> staff accept -> visit starts", as
     const custom = await api(
       "POST",
       gym("operations/add_visitor"),
-      { name: "Duplicate Custom", offeringId: "custom_entry", customerId: customer.customerId },
+      {
+        name: "Duplicate Custom",
+        mobile: "9822200001",
+        offeringId: "custom_entry",
+        customerId: customer.customerId,
+      },
       owner,
     );
     assert.equal(custom.status, 400);
@@ -606,7 +612,7 @@ test("Live Floor profile photos resolve from the existing Customer Profile syste
     const added = await api(
       "POST",
       gym("operations/add_visitor"),
-      { name: "Photo Customer", offeringId: "custom_entry", customerId: withPhoto.customerId },
+      { name: "Photo Customer", mobile: "9855500001", offeringId: "custom_entry", customerId: withPhoto.customerId },
       owner,
     );
     assert.equal(added.status, 200);
@@ -656,7 +662,7 @@ test("Live Floor profile photos resolve from the existing Customer Profile syste
     await api(
       "POST",
       gym("operations/add_visitor"),
-      { name: "No Photo Customer", offeringId: "custom_entry", customerId: withoutPhoto.customerId },
+      { name: "No Photo Customer", mobile: "9855500002", offeringId: "custom_entry", customerId: withoutPhoto.customerId },
       owner,
     );
     const s = await state();
@@ -671,7 +677,7 @@ test("Live Floor profile photos resolve from the existing Customer Profile syste
     const added = await api(
       "POST",
       gym("operations/add_visitor"),
-      { name: "Anonymous Walkin", offeringId: "custom_entry" },
+      { name: "Anonymous Walkin", mobile: "9855500099", offeringId: "custom_entry" },
       owner,
     );
     const visit = added.data.state.visits.find((v: any) => v.name === "Anonymous Walkin");

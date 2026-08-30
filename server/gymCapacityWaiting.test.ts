@@ -119,6 +119,7 @@ test("Capacity-full → Waiting, not an error", async (t) => {
 
     const res = await api("POST", gym("operations/add_visitor"), {
       name: "Overflow Visitor",
+      mobile: "9711100001",
       offeringId: dayPassId,
       method: "cash",
     });
@@ -144,6 +145,7 @@ test("Capacity-full → Waiting, not an error", async (t) => {
     assert.equal(setRoom.status, 200);
     const created = await api("POST", gym("operations/add_visitor"), {
       name: "Pending Cash Guest",
+      mobile: "9711100002",
       offeringId: dayPassId,
       method: "cash",
     });
@@ -163,6 +165,7 @@ test("Capacity-full → Waiting, not an error", async (t) => {
 
     const pendingRes = await api("POST", gym("operations/add_visitor"), {
       name: "Cash Pending Overflow",
+      mobile: "9711100003",
       offeringId: dayPassId,
       method: "cash",
     });
@@ -252,6 +255,7 @@ test("Capacity-full → Waiting, not an error", async (t) => {
     const customerId = "dedupe-test-customer";
     const first = await api("POST", gym("operations/add_visitor"), {
       name: "Dedupe Guest",
+      mobile: "9711100004",
       offeringId: dayPassId,
       method: "cash",
       customerId,
@@ -259,6 +263,7 @@ test("Capacity-full → Waiting, not an error", async (t) => {
     assert.equal(first.status, 200);
     const second = await api("POST", gym("operations/add_visitor"), {
       name: "Dedupe Guest",
+      mobile: "9711100004",
       offeringId: dayPassId,
       method: "cash",
       customerId,

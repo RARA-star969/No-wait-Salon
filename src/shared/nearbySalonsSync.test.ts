@@ -58,4 +58,17 @@ test('Nearby Salons Live Sync', async (t) => {
     assert.equal(merged[0].rating, 4.9);
     assert.equal(merged[0].currentOccupancy, 9);
   });
+
+  await t.test('picks up an owner-approved logo change on an already-open Customer Home listing', () => {
+    const current = [base({ id: 'gym-1', logoImageUrl: 'data:image/png;base64,OLD' })];
+    const fresh = [base({ id: 'gym-1', logoImageUrl: 'data:image/png;base64,NEW' })];
+    const merged = mergeLiveOperationalFields(current, fresh);
+    assert.equal(merged[0].logoImageUrl, 'data:image/png;base64,NEW');
+  });
+
+  await t.test('keeps last known logo when a business is missing from the fresh response', () => {
+    const current = [base({ id: 'gym-1', logoImageUrl: 'data:image/png;base64,OLD' })];
+    const merged = mergeLiveOperationalFields(current, []);
+    assert.equal(merged[0].logoImageUrl, 'data:image/png;base64,OLD');
+  });
 });

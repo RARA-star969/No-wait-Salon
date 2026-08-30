@@ -8,6 +8,11 @@ import type { NearbySalon } from '../types';
  * currently looking at (e.g. a QR-scanned business not present in the
  * fresh nearby response). A business missing from the fresh response
  * keeps its last known values rather than being reset or removed.
+ *
+ * logoImageUrl is included so an owner's approved logo change (Manage
+ * Profile -> Save changes) reaches an already-open Customer Home listing
+ * on the next poll, without a page refresh — see GymManageProfile's
+ * save flow and GymDetailPage's own poll for the equivalent Gym Detail path.
  */
 export function mergeLiveOperationalFields(current: NearbySalon[], fresh: NearbySalon[]): NearbySalon[] {
   const freshById = new Map(fresh.map((salon) => [salon.id, salon]));
@@ -21,6 +26,7 @@ export function mergeLiveOperationalFields(current: NearbySalon[], fresh: Nearby
       readyChairs: next.readyChairs,
       currentOccupancy: next.currentOccupancy,
       maxCapacity: next.maxCapacity,
+      logoImageUrl: next.logoImageUrl,
     };
   });
 }

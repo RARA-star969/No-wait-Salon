@@ -77,6 +77,11 @@ export const GymMemberHub: React.FC<{
                     ? `Expired on ${new Date(membership.expiryDate).toLocaleDateString()}`
                     : `Valid till ${new Date(membership.expiryDate).toLocaleDateString()} · ${membership.daysRemaining} day${membership.daysRemaining === 1 ? '' : 's'} left`}
                 </p>
+                {membership.sessionsTotal !== undefined && (
+                  <p className="mt-0.5 text-[11px] font-semibold text-[#17201F]">
+                    {Math.max(membership.sessionsTotal - (membership.sessionsUsed || 0), 0)} of {membership.sessionsTotal} sessions remaining
+                  </p>
+                )}
                 {isCheckedIn && (
                   <p className="mt-2 rounded-lg bg-[var(--category-tint-10)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--category-primary-dark)]">
                     Inside now

@@ -201,7 +201,7 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
     // customerId — the same real linkage the staff "Add Visitor by phone"
     // flow produces, never a client-asserted flag.
     const checkin = await api('POST', `/api/gym/${gymId}/operations/add_visitor`, {
-      name: 'Verified Visitor', offeringId: 'custom_entry', customerId,
+      name: 'Verified Visitor', mobile: '9123456780', offeringId: 'custom_entry', customerId,
     }, owner);
     assert.equal(checkin.status, 200);
     const res = await api('POST', `/api/business/${gymId}/reviews`, { rating: 5, reviewText: 'Actually trained there.' }, customerToken);
