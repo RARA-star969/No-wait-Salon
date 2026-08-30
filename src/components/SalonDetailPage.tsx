@@ -205,7 +205,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           cleanly visible above the modal backdrop during Join Queue. */}
       <div
         aria-hidden={!isScoreboardActive}
-        className={`fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)+0.6rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
+        className={`fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)_+_0.6rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
           isScoreboardActive ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
         }`}
       >

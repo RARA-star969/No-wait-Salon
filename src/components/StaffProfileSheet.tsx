@@ -235,7 +235,7 @@ export const StaffProfileSheet: React.FC<Props> = ({
         </div>
 
         {/* Bottom CTA Action Bar - Unified with Approved Get Token Mirror/Lens Design */}
-        <div className="border-t border-[#E2EAE9] bg-white px-5 py-4 pb-[max(1.2rem,calc(env(safe-area-inset-bottom)+0.5rem))]">
+        <div className="border-t border-[#E2EAE9] bg-white px-5 py-4 pb-[max(1.2rem,calc(env(safe-area-inset-bottom)_+_0.5rem))]">
           <button
             type="button"
             id="choose-stylist-cta"

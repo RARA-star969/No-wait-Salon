@@ -88,6 +88,61 @@ const EDGE_MAX_PULL = 44;
 /** px/ms above which a release counts as a "hard" flick for bounce/kick tuning. */
 const HARD_FLICK_SPEED = 0.9;
 
+/**
+ * ONE settle system for the whole deck.
+ *
+ * Previously the settle duration varied by release kind (520ms normally,
+ * 420ms after a hard flick) while a separate CSS keyframe animation could
+ * simultaneously drive the same card — two motion systems racing over one
+ * element, which is exactly what read as "jerky snapping". Now velocity only
+ * decides *which* category wins (see resolveDeckTarget); the motion that
+ * carries the deck there is always identical, so a slow drag and a hard flick
+ * settle with the same predictable feel.
+ *
+ * The curve is a pure decelerate with a long tail and no overshoot past 1 —
+ * an overshooting curve on a stack of 3D-transformed cards is what produced
+ * the visible wobble/jitter on mid-range Android.
+ */
+export const DECK_SETTLE_MS = 460;
+export const DECK_EASING = 'cubic-bezier(.22, .84, .28, 1)';
+
+/**
+ * Card geometry for one deck position, given the stage width. Exported pure
+ * so the deck's separation rules are regression-testable without rendering.
+ *
+ * A stacked deck overlaps by design — cards cannot be edge-to-edge disjoint
+ * without ceasing to be a deck. What the geometry must guarantee instead is:
+ *
+ *  - `exposedNeighbourWidth`: how much of the neighbour is actually painted
+ *    beyond the front card's edge. This is the strip a customer sees as "the
+ *    cyan Salon card" and the strip they can tap.
+ *  - `neighbourCentreClear`: the neighbour's own centre sits OUTSIDE the front
+ *    card. This is the real fix for "the front glass card mixes into the rear
+ *    card edges": with the previous geometry (0.59w cards on a 0.235w step)
+ *    the neighbour's centre was *underneath* the active card, so only a thin
+ *    coloured sliver showed and adjacent hues bled together. Narrower cards on
+ *    a wider step push each neighbour's body clear of the front card, and the
+ *    dark separation rim in the card's box-shadow finishes the job.
+ */
+export function deckCardGeometry(stageWidth: number) {
+  const cardWidth = clamp(stageWidth * 0.5, 164, 194);
+  const cardStep = clamp(stageWidth * 0.3, 100, 128);
+  const neighbourScale = 1 - NEIGHBOUR_SCALE_FALLOFF;
+  const frontHalf = cardWidth / 2;
+  const neighbourHalf = (cardWidth * neighbourScale) / 2;
+  const exposedNeighbourWidth = Math.max(0, cardStep + neighbourHalf - frontHalf);
+  return {
+    cardWidth,
+    cardStep,
+    neighbourScale,
+    exposedNeighbourWidth,
+    neighbourCentreClear: cardStep > frontHalf,
+  };
+}
+
+/** How much smaller each step back in the stack renders. */
+const NEIGHBOUR_SCALE_FALLOFF = 0.125;
+
 function paletteFor(category: CategoryItemConfig, index: number) {
   return DECK_PALETTES[category.themeKey || category.id] || FALLBACK_PALETTES[index % FALLBACK_PALETTES.length];
 }
@@ -139,12 +194,9 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
   const [fastSnap, setFastSnap] = useState(false);
 
   const activeIndex = Math.max(0, categories.findIndex((category) => category.id === selectedCategoryId));
-  // ~8-9% smaller than the original (stageWidth*0.64, max 244) footprint;
-  // cardStep is scaled down by the same ratio so the 3D spacing/depth
-  // character (how much cards overlap/stagger) reads the same as before,
-  // just at the smaller size.
-  const cardStep = clamp(stageWidth * 0.235, 82, 103);
-  const cardWidth = clamp(stageWidth * 0.59, 196, 224);
+  // Single source of truth for the deck's spacing/scale — shared with the
+  // regression test that asserts neighbouring cards keep a real visible gap.
+  const { cardStep, cardWidth } = deckCardGeometry(stageWidth);
   const dragProgress = -dragX / cardStep;
 
   // "Latest value" refs so the native touch listeners (attached once, see
@@ -376,7 +428,20 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     };
   }, [beginGesture, moveGesture, endGesture]);
 
-  const openActiveCategory = (id: string) => {
+  /**
+   * The deck's single tap entry point.
+   *
+   * Tapping a visible SIDE card (the cyan Salon card left of an active Gym
+   * card, the yellow Shop card right of it) brings it to the front through
+   * `selectIndex` — the exact same active-category state transition a swipe
+   * uses. There is deliberately no second selection mechanism: the card
+   * animates through the deck on the shared settle curve rather than
+   * teleporting, and the category theme / featured banner / listings all
+   * update from the same `onSelectCategory` call a swipe makes.
+   *
+   * Tapping the card that is ALREADY at the front opens that category.
+   */
+  const handleCardTap = (id: string) => {
     if (suppressClickRef.current || dragging) return;
     const clickedIndex = categories.findIndex((category) => category.id === id);
     if (clickedIndex !== activeIndex) {
@@ -397,10 +462,10 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     const relative = index - (activeIndex + dragProgress);
     const distance = Math.abs(relative);
     const direction = Math.sign(relative);
-    const spread = distance <= 1 ? distance * cardStep : cardStep + (distance - 1) * 38;
+    const spread = distance <= 1 ? distance * cardStep : cardStep + (distance - 1) * 42;
     const x = direction * spread;
-    const scale = clamp(1 - distance * 0.11, 0.67, 1);
-    const depth = -Math.min(190, distance * 62);
+    const scale = clamp(1 - distance * NEIGHBOUR_SCALE_FALLOFF, 0.62, 1);
+    const depth = -Math.min(210, distance * 72);
     const rotate = clamp(relative * -4.5, -12, 12);
     const opacity = clamp(1 - Math.max(0, distance - 2.4) * 0.24, 0.32, 1);
     // Rear-card material only — geometry above (x/scale/depth/rotate/opacity)
@@ -408,10 +473,13 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
     // "readable" a card behind the active one looks: a denser frosted wash,
     // a soft mirror blur on the glass itself, and dimmer inner content so text
     // stops competing with the front card while the shape stays recognizable.
-    // Nudged ~5% denser than before — still a frosted silhouette, not opaque.
-    const frost = clamp(distance * 0.19, 0, 0.63);
-    const frostBlur = clamp(distance * 1.4, 0, 5);
-    const contentOpacity = clamp(1 - distance * 0.26, 0.3, 1);
+    // Denser than before so a rear card reads as *behind* the front glass
+    // rather than mixing into its edge — this plus the dark separation rim in
+    // the box-shadow below is what keeps a cyan card and a yellow card from
+    // visually bleeding into an active purple one.
+    const frost = clamp(distance * 0.22, 0, 0.68);
+    const frostBlur = clamp(distance * 1.7, 0, 6);
+    const contentOpacity = clamp(1 - distance * 0.28, 0.26, 1);
     // Ambient idle-float tuning (Task 1) — active card drifts a touch more
     // than its neighbours, and neighbours are phase-offset so the stack
     // reads as loosely organic rather than moving in lockstep. Only cards
@@ -429,7 +497,7 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
       <div className="mb-1 flex items-center justify-between px-1">
         <div>
           <span className="text-[9px] font-black uppercase tracking-[0.22em] text-slate-400">Choose your world</span>
-          <p className="mt-0.5 text-xs font-semibold text-slate-200">Swipe the floating deck</p>
+          <p className="mt-0.5 text-xs font-semibold text-slate-200">Swipe, or tap a side card</p>
         </div>
         <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[9px] font-bold text-slate-300 shadow-sm backdrop-blur-md">
           <MoveHorizontal className="h-3 w-3" /> Drag
@@ -464,16 +532,26 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
               type="button"
               aria-current={isActive ? 'true' : undefined}
               aria-label={`${category.name}${isActive ? ', selected. Tap to explore' : ', tap to select'}`}
-              onClick={() => openActiveCategory(category.id)}
+              onClick={() => handleCardTap(category.id)}
               className={`floating-glass-card ${isActive ? 'is-active' : ''} ${settling ? 'is-settling' : ''} ${bouncing ? 'is-edge-bouncing' : ''} ${transform.isNear && !reducedMotion ? 'is-near' : ''}`}
               style={{
                 width: cardWidth,
                 zIndex,
                 opacity: transform.opacity,
                 transform: `translate3d(calc(-50% + ${transform.x}px), -50%, ${transform.depth}px) rotateY(${transform.rotate}deg) scale(${transform.scale})`,
-                transitionDuration: dragging || reducedMotion ? '0ms' : fastSnap ? '420ms' : '520ms',
+                // ONE duration and ONE curve for every settle — a fast flick
+                // and a slow drag land with the same motion; only the chosen
+                // target differs. While dragging, the card tracks the finger
+                // with no transition at all (1:1), which is what makes a slow
+                // drag feel direct instead of laggy.
+                transitionDuration: dragging || reducedMotion ? '0ms' : `${DECK_SETTLE_MS}ms`,
+                transitionTimingFunction: DECK_EASING,
                 background: `linear-gradient(145deg, ${palette.edge} 0%, ${palette.to}b8 9%, ${palette.middle}d9 48%, ${palette.from}f2 100%)`,
-                boxShadow: `inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 16px 32px -18px ${palette.glow}, 0 12px 24px -14px rgba(4,12,28,.8)`,
+                // The leading `0 0 0 2.5px` ring is a hard separation rim in
+                // the page's own background colour. It is what guarantees the
+                // front glass card never visually merges into the coloured
+                // edge of the card behind it, whatever those two colours are.
+                boxShadow: `0 0 0 2.5px rgba(5,11,12,.85), inset 1px 1px 0 rgba(255,255,255,.82), inset -1px -2px 0 rgba(0,0,0,.2), inset 0 0 30px rgba(255,255,255,.11), 0 16px 32px -18px ${palette.glow}, 0 18px 30px -16px rgba(4,12,28,.9)`,
                 // Ambient idle-float knobs consumed by the `.is-near` CSS
                 // animation (see index.css) — pure CSS custom properties, no
                 // JS timer. Cards further than `isNear` never get the class,
@@ -505,8 +583,10 @@ export const FloatingCategoryDeck: React.FC<FloatingCategoryDeckProps> = ({
                 style={{
                   opacity: transform.contentOpacity,
                   transitionProperty: 'opacity',
-                  transitionDuration: dragging || reducedMotion ? '0ms' : '520ms',
-                  transitionTimingFunction: 'cubic-bezier(.2, .9, .18, 1.18)',
+                  // Same duration/curve as the card itself, so the label never
+                  // fades on a different clock than the card it belongs to.
+                  transitionDuration: dragging || reducedMotion ? '0ms' : `${DECK_SETTLE_MS}ms`,
+                  transitionTimingFunction: DECK_EASING,
                 }}
               >
                 {/* No business-count badge here by design — top-right stays

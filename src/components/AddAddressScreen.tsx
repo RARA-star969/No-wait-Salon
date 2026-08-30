@@ -103,7 +103,11 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
   return (
     <div id="add-address-screen" className="flex flex-col min-h-full bg-slate-50 text-slate-900 animate-in fade-in duration-300">
       {/* Header Bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-6">
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 pb-3.5 backdrop-blur-md sm:px-6"
+        // Safe-area top: the back arrow and title must clear the Android
+        // status bar and any display cutout. `max()` keeps normal padding on
+        // devices that report no inset instead of over-padding them.
+        style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
         <button
           type="button"
           onClick={onBack}
@@ -120,7 +124,12 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 p-4 max-w-xl mx-auto w-full pb-12 sm:p-6">
+      <div
+        className="flex-1 p-4 max-w-xl mx-auto w-full sm:p-6"
+        // Bottom safe area: keeps the final field and Save action clear of the
+        // gesture bar / 3-button nav.
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)' }}
+      >
         <form onSubmit={handleSubmit} className="space-y-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           {error && <p className="rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</p>}
 

@@ -759,7 +759,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           floating scoreboard, so it always sits fully inside the viewport
           with breathing room from the top edge on notched devices. */}
       {!isCardVisible && (
-        <div className="fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)+0.6rem))]">
+        <div className="fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)_+_0.6rem))]">
           <div className="capsule-melt-in">
             <GymFloatingCapsule
               currentOccupancy={currentOcc}

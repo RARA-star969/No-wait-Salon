@@ -1,21 +1,24 @@
 import React from 'react';
 import { QrCode, House, CalendarCheck, Bell, Menu } from 'lucide-react';
 
+export type BottomTab = 'home' | 'bookings' | 'notifications' | 'more';
+
 type Props = {
-  activeHome?: boolean;
+  /** Which destination is currently on screen, for the highlighted state. */
+  activeTab?: BottomTab;
   onScan: () => void;
   /** Tapping Home while already on Home reuses the existing return-to-top glide. */
   onHome?: () => void;
-  /** Opens the existing tracking screen — the app's own "my active booking"
-   *  view, reused as-is rather than inventing a separate bookings list. */
+  /** Opens the dedicated, category-agnostic My Bookings screen — the same
+   *  component Profile -> My bookings opens. Never the Live Ticket directly. */
   onBookings?: () => void;
-  /** Opens the existing NotificationCenterModal (App.tsx), unchanged. */
+  /** Opens the persistent customer Notification inbox screen. */
   onNotifications?: () => void;
   /** Opens the existing Profile screen — the app's catch-all account/settings
    *  surface, reused as the "More" destination. */
   onMore?: () => void;
-  /** True while an unread/undismissed alert exists, for the small dot. */
-  hasNotifications?: boolean;
+  /** Unread notification count driving the Alerts badge. 0 hides it. */
+  unreadCount?: number;
 };
 
 const NavIcon: React.FC<{
@@ -23,12 +26,12 @@ const NavIcon: React.FC<{
   label: string;
   active?: boolean;
   onClick?: () => void;
-  dot?: boolean;
-}> = ({ icon: Icon, label, active, onClick, dot }) => (
+  badge?: number;
+}> = ({ icon: Icon, label, active, onClick, badge }) => (
   <button
     type="button"
     onClick={onClick}
-    aria-label={label}
+    aria-label={badge ? `${label}, ${badge} unread` : label}
     aria-current={active ? 'page' : undefined}
     className="flex h-12 flex-1 flex-col items-center justify-center gap-0.5 transition active:scale-90"
   >
@@ -37,8 +40,13 @@ const NavIcon: React.FC<{
         className="h-[19px] w-[19px]"
         style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
       />
-      {dot && (
-        <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-rose-400 ring-1 ring-black/40" />
+      {Boolean(badge) && (
+        <span
+          data-testid="alerts-unread-badge"
+          className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black leading-none text-white ring-1 ring-black/50"
+        >
+          {badge! > 99 ? '99+' : badge}
+        </span>
       )}
     </span>
     <span
@@ -61,13 +69,13 @@ const NavIcon: React.FC<{
  * category's CSS variables, so it recolors with the selected category.
  */
 export const StickyScanQrButton: React.FC<Props> = ({
-  activeHome = true,
+  activeTab = 'home',
   onScan,
   onHome,
   onBookings,
   onNotifications,
   onMore,
-  hasNotifications,
+  unreadCount = 0,
 }) => {
   return (
     <div
@@ -76,12 +84,12 @@ export const StickyScanQrButton: React.FC<Props> = ({
     >
       <div className="relative flex w-full max-w-sm items-end justify-center">
         <div className="pointer-events-auto flex w-full items-center rounded-[26px] border border-white/10 bg-black/60 px-2 shadow-[0_14px_34px_-14px_rgba(0,0,0,.8)] backdrop-blur-2xl">
-          <NavIcon icon={House} label="Home" active={activeHome} onClick={onHome} />
-          <NavIcon icon={CalendarCheck} label="Bookings" onClick={onBookings} />
+          <NavIcon icon={House} label="Home" active={activeTab === 'home'} onClick={onHome} />
+          <NavIcon icon={CalendarCheck} label="Bookings" active={activeTab === 'bookings'} onClick={onBookings} />
           {/* Reserves the center slot the raised Scan CTA floats above. */}
           <span className="w-16 shrink-0" aria-hidden />
-          <NavIcon icon={Bell} label="Alerts" onClick={onNotifications} dot={hasNotifications} />
-          <NavIcon icon={Menu} label="More" onClick={onMore} />
+          <NavIcon icon={Bell} label="Alerts" active={activeTab === 'notifications'} onClick={onNotifications} badge={unreadCount} />
+          <NavIcon icon={Menu} label="More" active={activeTab === 'more'} onClick={onMore} />
         </div>
 
         {/* Raised Scan QR CTA — fixed size always, never shrinks/expands with

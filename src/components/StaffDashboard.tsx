@@ -15,6 +15,7 @@ import {
   type BookingFilters,
   type BookingTab,
 } from '../shared/bookingBuckets';
+import { businessNotificationService } from '../services/businessNotificationService';
 import {
   Users,
   UserCheck,
@@ -535,7 +536,17 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                             </div>
                           </div>
                           {closed ? (
-                            <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full ${tone}`}>{badge.label}</span>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {/* Only a genuinely completed visit can be asked
+                                  for a review. The server re-proves that (and
+                                  that it was not already asked or already
+                                  reviewed) before anything is sent, so this
+                                  button is an affordance, never the check. */}
+                              {bookingTab === 'completed' && isCompleted(item) && (
+                                <RequestReviewButton item={item} />
+                              )}
+                              <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${tone}`}>{badge.label}</span>
+                            </div>
                           ) : (
                             <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E1E7E6]/60 text-[#6F7C7A]">
                               {item.status}
@@ -923,5 +934,54 @@ const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[];
         </button>
       </div>
     </div>
+  );
+};
+
+/**
+ * "Request Review" for one completed visit.
+ *
+ * Neutral by construction: staff choose only *which* completed visit to ask
+ * about — the message wording is authored server-side, so the ask can never
+ * be conditioned on the rating the owner hopes for. The server also refuses a
+ * second request for the same visit, and refuses one where the customer has
+ * already reviewed, so repeated taps can never spam a customer.
+ */
+const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'blocked'>('idle');
+  const [message, setMessage] = useState('');
+
+  // A walk-in with no linked NOQ account has no inbox to receive the request.
+  if (!item.customerId) return null;
+
+  const send = async () => {
+    setState('sending');
+    setMessage('');
+    try {
+      await businessNotificationService.requestReview(item.id);
+      setState('sent');
+    } catch (error) {
+      setState('blocked');
+      setMessage(error instanceof Error ? error.message : 'Unable to send the review request.');
+    }
+  };
+
+  if (state === 'sent') {
+    return <span className="text-[10px] font-bold text-[#0F766E]">Review requested</span>;
+  }
+
+  return (
+    <span className="flex flex-col items-end gap-0.5">
+      <button
+        type="button"
+        onClick={send}
+        disabled={state === 'sending'}
+        className="rounded-full border border-[#0F766E]/30 bg-[#0F766E]/5 px-2.5 py-1 text-[10px] font-bold text-[#0F766E] transition disabled:opacity-60"
+      >
+        {state === 'sending' ? 'Sending…' : 'Request review'}
+      </button>
+      {state === 'blocked' && message && (
+        <span className="max-w-[180px] text-right text-[9px] leading-tight text-[#8A6516]">{message}</span>
+      )}
+    </span>
   );
 };

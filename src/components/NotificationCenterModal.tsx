@@ -12,6 +12,15 @@ interface NotificationCenterModalProps {
   onClearAll: () => void;
 }
 
+/**
+ * DEVELOPER / QA CONSOLE — not a customer surface.
+ *
+ * This dialog intentionally exposes push diagnostics (device permission
+ * state, simulated push triggers, the raw local alert log). It is mounted
+ * only on the dev/split workspace; the packaged Customer app routes its
+ * bottom "Alerts" tab to NotificationsScreen, the real server-persisted
+ * inbox, which carries none of this. See App.tsx for the gate.
+ */
 export const NotificationCenterModal: React.FC<NotificationCenterModalProps> = ({
   isOpen,
   onClose,

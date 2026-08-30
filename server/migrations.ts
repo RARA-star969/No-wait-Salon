@@ -255,6 +255,53 @@ const migrations=[{
       PRIMARY KEY (customer_id, business_id)
     );
   `
+}, {
+  version: 16,
+  name: 'customer_notification_domain',
+  sql: `
+    CREATE TABLE IF NOT EXISTS customer_notification (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      priority TEXT NOT NULL DEFAULT 'transactional',
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      source_kind TEXT NOT NULL DEFAULT 'system',
+      source_business_id TEXT,
+      source_name TEXT NOT NULL DEFAULT 'NOQ',
+      deep_link_json TEXT NOT NULL DEFAULT '{}',
+      dedupe_key TEXT NOT NULL DEFAULT '',
+      actor_kind TEXT NOT NULL DEFAULT 'system',
+      actor_id TEXT NOT NULL DEFAULT '',
+      read_at BIGINT,
+      created_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS customer_notification_customer_idx ON customer_notification(customer_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS customer_notification_unread_idx ON customer_notification(customer_id, read_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS customer_notification_dedupe_idx
+      ON customer_notification(customer_id, dedupe_key) WHERE dedupe_key <> '';
+
+    CREATE TABLE IF NOT EXISTS customer_notification_preference (
+      customer_id TEXT PRIMARY KEY,
+      promotional_enabled INTEGER NOT NULL DEFAULT 1,
+      business_updates_enabled INTEGER NOT NULL DEFAULT 1,
+      quiet_hours_start TEXT NOT NULL DEFAULT '',
+      quiet_hours_end TEXT NOT NULL DEFAULT '',
+      updated_at BIGINT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS customer_push_device (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'web',
+      token TEXT NOT NULL UNIQUE,
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      last_seen_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS customer_push_device_customer_idx ON customer_push_device(customer_id, updated_at DESC);
+  `
 }];
 
 export async function runMigrations(db:Database){

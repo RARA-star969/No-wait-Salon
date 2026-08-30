@@ -25,9 +25,11 @@ concurrency:
 
 jobs:
   noq-business-debug-apk:
-    # The final physical-glitches branch produces only the requested Customer
-    # APK in the dedicated job below.
-    if: github.ref_name != 'fix/customer-final-physical-glitches'
+    # Customer-APK branches produce ONLY the requested Customer APK, in the
+    # dedicated job below — never a second Business artifact alongside it.
+    if: >-
+      github.ref_name != 'fix/customer-final-physical-glitches' &&
+      github.ref_name != 'fix/customer-navigation-notifications-polish'
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
@@ -87,8 +89,12 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+  # One Customer TEST APK, built from the exact pushed commit, with the TEST
+  # API baked in and the production API proven absent from the bundle.
   customer-final-physical-apk:
-    if: github.ref_name == 'fix/customer-final-physical-glitches'
+    if: >-
+      github.ref_name == 'fix/customer-final-physical-glitches' ||
+      github.ref_name == 'fix/customer-navigation-notifications-polish'
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
@@ -102,7 +108,10 @@ jobs:
       - name: Verify branch and checkout SHA
         shell: bash
         run: |
-          test "${GITHUB_REF_NAME}" = "fix/customer-final-physical-glitches"
+          case "${GITHUB_REF_NAME}" in
+            fix/customer-final-physical-glitches|fix/customer-navigation-notifications-polish) ;;
+            *) echo "Unexpected branch for the Customer APK job: ${GITHUB_REF_NAME}" >&2; exit 1 ;;
+          esac
           ACTUAL_SHA="$(git rev-parse HEAD)"
           test "${ACTUAL_SHA}" = "${GITHUB_SHA}"
           echo "APPLICATION_SHA=${ACTUAL_SHA}" >> "${GITHUB_ENV}"

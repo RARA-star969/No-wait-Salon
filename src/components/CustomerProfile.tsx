@@ -1,5 +1,5 @@
 import React, { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, BellRing, CalendarDays, Camera, CheckCircle2, ChevronRight, CircleUserRound, Dumbbell, LoaderCircle, LogOut, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { customerAccountService } from '../services/customerAccountService';
 
@@ -17,6 +17,11 @@ type Props = {
   /** Navigates to the dedicated in-app Gym Activity screen — memberships
    * and gym activity are no longer an inline dropdown here. */
   onOpenGymActivity: () => void;
+  /** Opens the SAME My Bookings screen the bottom-nav Bookings tab opens —
+   *  one component, one route, no duplicate bookings implementation. */
+  onOpenBookings: () => void;
+  /** Opens notification preferences (shared with the inbox's settings icon). */
+  onOpenNotificationSettings: () => void;
 };
 
 const fieldsComplete = (profile: CustomerProfile | null) => profile
@@ -42,7 +47,7 @@ const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; on
   );
 };
 
-export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout, onOpenGymActivity }) => {
+export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, loading, error, onBack, onEdit, onLogin, onSaved, onLogout, onOpenGymActivity, onOpenBookings, onOpenNotificationSettings }) => {
   const [form, setForm] = useState({ name: '', email: '', dateOfBirth: '', gender: '', anniversary: '', city: '' });
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -163,7 +168,11 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   );
 
   return (
-    <div id="customer-profile-screen" className="min-h-full bg-[#F8FAFA] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    // Reserves real space for the fixed bottom nav (bar + raised Scan CTA)
+    // plus the gesture-nav inset, so Log out is always reachable rather than
+    // sitting under the bar. Same 6.25rem reserve the SafeAreaScreen shell
+    // uses for `bottomInset="nav"`.
+    <div id="customer-profile-screen" className="min-h-full bg-[#F8FAFA] pb-[calc(env(safe-area-inset-bottom)_+_7.5rem)]">
       <div className="bg-gradient-to-b from-[#DFF1EE] to-[#F8FAFA] px-4 pb-7 pt-[max(1rem,env(safe-area-inset-top))]">
         <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/80 bg-white/80" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
         <div className="mt-5 flex flex-col items-center text-center">
@@ -179,8 +188,9 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
         </button>
         <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
-          <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Linked to your verified account" />
+          <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Active, upcoming and past bookings" onClick={onOpenBookings} />
           <ProfileRow icon={<Dumbbell />} label="My Memberships & Gym Activity" secondary="Gym plans and visits linked to your account" onClick={onOpenGymActivity} />
+          <ProfileRow icon={<BellRing />} label="Notification settings" secondary="Choose which alerts reach you" onClick={onOpenNotificationSettings} />
         </div>
         {error && <div role="alert" className="rounded-xl border border-[#F0D6D1] bg-[#FFF7F5] p-3 text-xs text-[#8A3E35]">{error}</div>}
         <button onClick={onLogout} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-[#E7D6D3] bg-white text-sm font-bold text-[#934A40]"><LogOut className="h-4 w-4" />Log out</button>

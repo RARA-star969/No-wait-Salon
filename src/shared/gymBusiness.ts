@@ -198,8 +198,27 @@ export type GymPayment = {
   declinedAt?: number;
   declinedBy?: string;
 };
+/**
+ * A real per-customer class enrolment. `classesToday[].enrolled` stays the
+ * authoritative headcount (staff-visible, includes walk-ups booked at the
+ * desk); this records only the enrolments that belong to an identified NOQ
+ * customer, so "My Bookings" can list a class the customer actually booked
+ * instead of inferring one from an anonymous counter.
+ */
+export type GymClassEnrollment = {
+  id: string;
+  classId: string;
+  title: string;
+  customerId: string;
+  memberName: string;
+  time: string;
+  createdAt: number;
+  status: "Booked" | "Cancelled";
+};
 export type GymPtBooking = {
   id: string;
+  /** Present only when the booking was made by an authenticated customer. */
+  customerId?: string;
   clientName: string;
   trainer: string;
   trainerId: string;
@@ -259,6 +278,7 @@ export type GymState = {
   members: GymMember[];
   visits: GymVisit[];
   ptBookings: GymPtBooking[];
+  classEnrollments: GymClassEnrollment[];
   campaigns: GymCampaign[];
   events: GymEvent[];
   historyStartedAt: number;

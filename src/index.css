@@ -103,7 +103,9 @@ body {
      only on `.is-near`/`.is-active` below, so far cards (which never animate)
      don't force a GPU layer they'll never use. */
   transition-property: transform, opacity, filter, box-shadow;
-  transition-timing-function: cubic-bezier(.2, .9, .18, 1.18);
+  /* Overridden inline with the single DECK_EASING token; kept here so a
+     card painted before hydration still settles on the same curve. */
+  transition-timing-function: cubic-bezier(.22, .84, .28, 1);
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   user-select: none;
@@ -161,7 +163,7 @@ body {
   /* Higher-priority than `.is-near` by source order (equal specificity):
      this fully replaces `animation` for the settle's duration, which is
      what stops the float rather than fighting it for the same property. */
-  animation: glass-card-settle 260ms cubic-bezier(.2, .9, .2, 1) both;
+  animation: glass-card-settle 260ms cubic-bezier(.22, .84, .28, 1) both;
 }
 
 /* Elastic edge physics (Task 4). Released past the first/last category: a
@@ -179,7 +181,7 @@ body {
 }
 
 .floating-glass-card.is-edge-bouncing {
-  animation: edge-bounce var(--edge-duration, 320ms) cubic-bezier(.2, .8, .2, 1) both;
+  animation: edge-bounce var(--edge-duration, 320ms) cubic-bezier(.22, .84, .28, 1) both;
 }
 
 /* High-speed reaction (Task 5): a restrained, one-shot cue on the card that
@@ -194,7 +196,7 @@ body {
 }
 
 .floating-category-stage.is-fast-snap .floating-glass-card.is-active {
-  animation: fast-snap-kick 260ms cubic-bezier(.2, .8, .2, 1) both;
+  animation: fast-snap-kick 260ms cubic-bezier(.22, .84, .28, 1) both;
 }
 
 .floating-glass-reflection {
@@ -229,7 +231,10 @@ body {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  transition: background-color 520ms cubic-bezier(.2, .9, .18, 1.18), backdrop-filter 520ms cubic-bezier(.2, .9, .18, 1.18);
+  /* Same 460ms / cubic-bezier(.22,.84,.28,1) settle system the card's own
+     transform uses (DECK_SETTLE_MS / DECK_EASING in FloatingCategoryDeck.tsx)
+     so the frost never resolves on a different clock than the card. */
+  transition: background-color 460ms cubic-bezier(.22, .84, .28, 1), backdrop-filter 460ms cubic-bezier(.22, .84, .28, 1);
 }
 
 .category-content-transition {
@@ -241,10 +246,16 @@ body {
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
+/* Tap-to-open acknowledgement. Deliberately animates ONLY the standalone
+   `scale` and `filter` properties — never `transform`, which is driven inline
+   from JS and carries the card's real deck position, depth and rotation.
+   The previous version replaced `transform` outright, which discarded the
+   card's depth/rotation for the duration of the settle and read as a small
+   teleport. Composing instead of replacing removes that entirely. */
 @keyframes glass-card-settle {
-  0% { transform: translate3d(-50%, -50%, 0) scale(1); filter: brightness(1.04); }
-  55% { transform: translate3d(-50%, -53%, 100px) scale(1.075); filter: brightness(1.14); }
-  100% { transform: translate3d(-50%, -50%, 24px) scale(1.02); filter: brightness(1.08); }
+  0% { scale: 1; filter: brightness(1.04); }
+  55% { scale: 1.06; filter: brightness(1.14); }
+  100% { scale: 1.02; filter: brightness(1.08); }
 }
 
 @media (prefers-reduced-motion: reduce) {

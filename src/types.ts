@@ -350,7 +350,14 @@ export type CustomerScreen =
   | 'location-select'
   | 'add-address'
   | 'request-address'
-  | 'gym-activity';
+  | 'gym-activity'
+  /** Category-agnostic "My Bookings" — the bottom Bookings tab AND
+   *  Profile -> My bookings both land here (one component, one route). */
+  | 'bookings'
+  /** Persistent customer Notification inbox — the bottom Alerts tab. */
+  | 'notifications'
+  /** Notification preferences, reached from the inbox and from Profile. */
+  | 'notification-settings';
 
 export interface OtpAction {
   type: 'slot' | 'profile';

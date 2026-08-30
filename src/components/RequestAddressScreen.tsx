@@ -57,7 +57,11 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
   return (
     <div id="request-address-screen" className="flex flex-col min-h-full bg-slate-50 text-slate-900 animate-in fade-in duration-300">
       {/* Header Bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-6">
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 pb-3.5 backdrop-blur-md sm:px-6"
+        // Safe-area top: the back arrow and title must clear the Android
+        // status bar and any display cutout. `max()` keeps normal padding on
+        // devices that report no inset instead of over-padding them.
+        style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
         <button
           type="button"
           onClick={onBack}
@@ -72,7 +76,11 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 p-4 max-w-xl mx-auto w-full pb-12 sm:p-6">
+      <div
+        className="flex-1 p-4 max-w-xl mx-auto w-full sm:p-6"
+        // Bottom safe area: keeps the submit action clear of the gesture bar.
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)' }}
+      >
         {submitted ? (
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50/80 p-8 text-center space-y-3 animate-in fade-in zoom-in-95 duration-200">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-600/20">

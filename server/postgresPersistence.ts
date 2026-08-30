@@ -30,13 +30,16 @@ const tables:Record<string,string[]>={
   business_profile_draft:['business_id','draft_json','submitted_by','submitted_at'],
   business_review:['id','business_id','customer_id','reviewer_name','rating','review_text','original_review_text','feedback_tags_json','source','verified_visit','status','owner_reply_text','owner_reply_at','edited_by_admin_id','edited_at','created_at','updated_at'],
   customer_workout_plan:['customer_id','business_id','plan_json','created_at','updated_at'],
+  customer_notification:['id','customer_id','type','category','priority','title','body','source_kind','source_business_id','source_name','deep_link_json','dedupe_key','actor_kind','actor_id','read_at','created_at'],
+  customer_notification_preference:['customer_id','promotional_enabled','business_updates_enabled','quiet_hours_start','quiet_hours_end','updated_at'],
+  customer_push_device:['id','customer_id','platform','token','created_at','updated_at','last_seen_at'],
 };
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();
 
 function includeReferencedTables(selected:string[]){
   const expanded=new Set(selected);
-  if(expanded.has('customer_account'))['customer_profile','customer_session','customer_booking'].forEach(table=>expanded.add(table));
+  if(expanded.has('customer_account'))['customer_profile','customer_session','customer_booking','customer_notification','customer_notification_preference','customer_push_device'].forEach(table=>expanded.add(table));
   if(expanded.has('admin_user'))expanded.add('admin_session');
   return insertOrder.filter(table=>expanded.has(table));
 }
@@ -50,6 +53,7 @@ const conflictKeys:Record<string,string[]>={
   admin_user:['id'],admin_session:['token_hash'],staff_account:['id'],staff_session:['token_hash'],salon_state:['salon_id'],business_qr:['id'],web_qr_attribution:['id'],
   business_profile_moderation:['business_id'],business_profile_draft:['business_id'],business_review:['id'],
   customer_workout_plan:['customer_id','business_id'],
+  customer_notification:['id'],customer_notification_preference:['customer_id'],customer_push_device:['id'],
 };
 
 async function replacePostgres(sqlite:DatabaseSync,postgres:Database,selected=insertOrder){

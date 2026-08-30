@@ -17,6 +17,9 @@ import { normalizePhone } from '../src/shared/phone.ts';
 import {validateBusinessCode} from '../src/shared/businessCodeValidation.ts';
 import { normalizeAmenities, sanitizeAmenitiesInput, normalizeQuickActions, sanitizeQuickActionsInput } from '../src/shared/gymProfileCms.ts';
 import { normalizeSocialLinks, sanitizeSocialLinksInput, socialLinksForEditor } from '../src/shared/gymSocialLinks.ts';
+import { NOTIFICATION_SCHEMA_SQL, NotificationStore, mountCustomerNotifications } from './customerNotifications.ts';
+import { isKnownNotificationType } from '../src/shared/customerNotifications.ts';
+import type { CustomerBookingView } from '../src/shared/customerBookingViews.ts';
 
 
 
@@ -755,8 +758,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS business_qr_token_status_idx ON business_qr(public_token,status);
 `);
 
+db.exec(NOTIFICATION_SCHEMA_SQL);
+
 const postgresPersistence=await initPostgresPersistence(db,dataDir);
 if(postgresPersistence)console.log(`PostgreSQL persistence active; hydrated from ${postgresPersistence.source}. SQLite safety backup: ${postgresPersistence.backupPath}`);
+/**
+ * The one durable customer notification store. Created before any route so
+ * every generator below (queue lifecycle, gym access, membership, review
+ * requests, business/admin sends) writes through exactly one code path.
+ *
+ * No external push provider credentials exist in this deployment, so the
+ * store's default transport reports `configured: false` and the inbox stays
+ * fully real and persisted regardless of push delivery. See the report notes
+ * for the exact configuration still required for background push.
+ */
+const notifications = new NotificationStore({
+  db,
+  flush: (tables) => { void postgresPersistence?.flushNow(tables as never); },
+});
+
+/** Display name for a business id — falls back to a neutral label, never ''. */
+function businessDisplayName(businessId: string): string {
+  const row = db.prepare('SELECT name FROM salon WHERE id = ?').get(businessId) as { name?: string } | undefined;
+  return row?.name || 'Your business';
+}
+
 const qrCountBefore=(db.prepare('SELECT COUNT(*) count FROM business_qr').get() as {count:number}).count;
 (db.prepare("SELECT id FROM salon WHERE main_category_id!='gym' OR main_category_id IS NULL").all() as Array<{id:string}>).forEach(({id})=>ensureBusinessQr(db,id,'salon'));
 // Every Gym gets its own Entry QR too — the same business_qr infrastructure
@@ -1140,6 +1166,115 @@ function upsertBooking(salonId: string, item: QueueItem) {
     item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
     JSON.stringify(item.services || []), item.totalPriceInr ?? null,
   );
+}
+
+/**
+ * Turns one queue state transition into durable customer notifications.
+ *
+ * Deliberately derived from the before/after diff at the single command entry
+ * point rather than scattered through applyCommand: every queue mutation
+ * already flows through there, so no path can mutate a booking without the
+ * customer being told, and no path can tell them twice (every write carries a
+ * dedupe key derived from the queue entry id).
+ */
+function emitQueueNotifications(
+  salonId: string,
+  previousItems: Map<string, QueueItem>,
+  nextState: SalonState,
+) {
+  const salonName = businessDisplayName(salonId);
+  const link = (item: QueueItem) => ({ kind: 'ticket' as const, businessId: salonId, queueEntryId: item.id, bookingId: item.id });
+  const base = (item: QueueItem) => ({
+    customerId: item.customerId!,
+    sourceKind: 'business' as const,
+    sourceBusinessId: salonId,
+    sourceName: salonName,
+    deepLink: link(item),
+  });
+
+  // Ordered active queue, so "one person ahead" is a real position, not a guess.
+  const ordered = nextState.queue
+    .filter((item) => ['Waiting', 'Called', 'Serving'].includes(item.status))
+    .sort((a, b) => a.createdAt - b.createdAt);
+
+  for (const item of nextState.queue) {
+    if (!item.customerId) continue;
+    const before = previousItems.get(item.id);
+    const serviceLabel = (item.services?.length ? item.services.join(' + ') : item.service) || 'your service';
+
+    if (!before) {
+      const reserved = item.status === 'Reserved';
+      notifications.notify({
+        ...base(item),
+        type: reserved ? 'booking_confirmed' : 'queue_joined',
+        title: reserved ? `${salonName} — booking confirmed` : `${salonName} — you're in the queue`,
+        body: reserved
+          ? `${serviceLabel} reserved for ${item.reservedFor || 'your chosen window'}.`
+          : `${serviceLabel}${item.token ? ` · token ${item.token}` : ''}. We'll alert you as your turn nears.`,
+        dedupeKey: `${reserved ? 'booking_confirmed' : 'queue_joined'}:${item.id}`,
+      });
+    }
+
+    if (item.status === 'Called' && before?.status !== 'Called') {
+      notifications.notify({
+        ...base(item),
+        type: 'your_turn',
+        title: `${salonName} — it's your turn`,
+        body: `Please head to the counter now for ${serviceLabel}.`,
+        dedupeKey: `your_turn:${item.id}:${item.callAttempt || 1}`,
+      });
+    }
+
+    if (item.status === 'Waiting') {
+      const index = ordered.findIndex((entry) => entry.id === item.id);
+      if (index === 1) {
+        notifications.notify({
+          ...base(item),
+          type: 'turn_approaching',
+          title: `${salonName} — you're next`,
+          body: `One person ahead of you for ${serviceLabel}. Please start heading over.`,
+          dedupeKey: `turn_approaching:${item.id}`,
+        });
+      }
+    }
+
+    if (item.paymentStatus === 'paid' && before?.paymentStatus !== 'paid') {
+      notifications.notify({
+        ...base(item),
+        type: 'payment_confirmed',
+        title: `${salonName} — payment confirmed`,
+        body: `Payment received for ${serviceLabel}${item.totalPriceInr ? ` · ₹${item.totalPriceInr}` : ''}.`,
+        deepLink: { kind: 'bookings', businessId: salonId, bookingId: item.id },
+        dedupeKey: `payment_confirmed:${item.id}`,
+      });
+    }
+  }
+
+  for (const item of nextState.completedList) {
+    if (!item.customerId) continue;
+    const serviceLabel = (item.services?.length ? item.services.join(' + ') : item.service) || 'your service';
+    if (item.outcome === 'completed' || item.status === 'Completed') {
+      notifications.notify({
+        ...base(item),
+        type: 'service_completed',
+        title: `${salonName} — service complete`,
+        body: `${serviceLabel} is done. Thanks for visiting.`,
+        deepLink: { kind: 'bookings', businessId: salonId, bookingId: item.id },
+        dedupeKey: `service_completed:${item.id}`,
+      });
+    } else if (item.outcome || item.status === 'Cancelled' || item.status === 'NoShow') {
+      notifications.notify({
+        ...base(item),
+        type: 'booking_cancelled',
+        title: `${salonName} — booking closed`,
+        body: item.outcome === 'no_show'
+          ? `Your arrival window for ${serviceLabel} passed, so the booking was closed.`
+          : `Your booking for ${serviceLabel} was cancelled.`,
+        deepLink: { kind: 'bookings', businessId: salonId, bookingId: item.id },
+        dedupeKey: `booking_cancelled:${item.id}`,
+      });
+    }
+  }
 }
 
 function seedState(salonId: string): SalonState {
@@ -2140,7 +2275,27 @@ app.post('/api/staff/logout', (request, response) => {
   response.json({ ok: true });
 });
 
-mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); }, customerPhotos: gymCustomerPhotos, resolveCustomerIdByPhone });
+mountCustomerNotifications(app, {
+  store: notifications,
+  db,
+  requireCustomer,
+  requireAdmin,
+  staffSession: (request) => {
+    const session = resolveStaffSession(request);
+    return session ? { businessId: session.businessId, staffId: session.staffId, name: session.name, role: session.role } : undefined;
+  },
+  businessName: businessDisplayName,
+});
+
+mountGymOperations(app, { get: getGymState, save: saveGymState, session: resolveStaffSession, active: isBusinessActive, trainerAccounts: id => db.prepare("SELECT id, name FROM staff_account WHERE business_id=? AND role='trainer' AND active=1").all(id) as {id: string; name: string}[], flush: async () => { await postgresPersistence?.flushNow(['gym_state']); }, customerPhotos: gymCustomerPhotos, resolveCustomerIdByPhone, notifyCustomer: ({ customerId, businessId, type, title, body, dedupeKey, deepLinkKind }) => {
+  if (!isKnownNotificationType(type)) return;
+  notifications.notify({
+    customerId, type, title, body, dedupeKey,
+    sourceKind: 'business', sourceBusinessId: businessId, sourceName: businessDisplayName(businessId),
+    deepLink: { kind: (deepLinkKind || 'gym-activity') as never, businessId },
+    actorKind: 'business',
+  });
+} });
 
 /**
  * Resolves customerId -> a Gym-staff-readable URL for that customer's existing
@@ -2238,8 +2393,37 @@ app.post('/api/gym/:gymId/class-booking', (request, response) => {
     return response.status(400).json({ error: 'Class is fully booked.' });
   }
   targetClass.enrolled += 1;
+  // A booking made by a verified customer is recorded against that identity so
+  // it can appear in their own My Bookings. An anonymous/desk booking still
+  // only moves the headcount, exactly as before — nothing is invented.
+  const classCustomerId = resolveCustomerId(request);
+  if (classCustomerId) {
+    state.classEnrollments.unshift({
+      id: `classbk-${randomUUID()}`,
+      classId: targetClass.id,
+      title: targetClass.title,
+      customerId: classCustomerId,
+      memberName,
+      time: (targetClass as { time?: string }).time || '',
+      createdAt: Date.now(),
+      status: 'Booked',
+    });
+  }
   gymEvent(state, 'classes', 'enrolled', targetClass.title, memberName);
   saveGymState(gymId, state);
+  if (classCustomerId) {
+    notifications.notify({
+      customerId: classCustomerId,
+      type: 'class_booking_confirmed',
+      title: `${businessDisplayName(gymId)} — class booked`,
+      body: `${targetClass.title} is confirmed${(targetClass as { time?: string }).time ? ` · ${(targetClass as { time?: string }).time}` : ''}.`,
+      sourceKind: 'business',
+      sourceBusinessId: gymId,
+      sourceName: businessDisplayName(gymId),
+      deepLink: { kind: 'bookings', businessId: gymId },
+    });
+    void postgresPersistence?.flushNow(['gym_state', 'customer_notification']);
+  }
   response.json({ ok: true, class: targetClass, state: publicGymState(state) });
 });
 
@@ -2252,8 +2436,11 @@ app.post('/api/gym/:gymId/pt-booking', (request, response) => {
   const serviceName = cleanText(request.body?.serviceName, 100) || 'Personal Training 1-on-1';
 
   const state = getGymState(gymId);
+  const ptCustomerId = resolveCustomerId(request);
   const newBooking = {
     id: `pt-${randomUUID()}`,
+    // Only ever the verified session's own customer id — never client-supplied.
+    customerId: ptCustomerId,
     clientName,
     time: timeSlot,
     trainer: trainerName,
@@ -2264,6 +2451,20 @@ app.post('/api/gym/:gymId/pt-booking', (request, response) => {
   state.ptBookings.push(newBooking);
   gymEvent(state, 'pt', 'booked', clientName, 'Customer booking');
   saveGymState(gymId, state);
+  if (ptCustomerId) {
+    notifications.notify({
+      customerId: ptCustomerId,
+      type: 'pt_booking_confirmed',
+      title: `${businessDisplayName(gymId)} — session booked`,
+      body: `${serviceName} with ${trainerName} · ${timeSlot}.`,
+      sourceKind: 'business',
+      sourceBusinessId: gymId,
+      sourceName: businessDisplayName(gymId),
+      deepLink: { kind: 'bookings', businessId: gymId },
+      dedupeKey: `pt_booking_confirmed:${newBooking.id}`,
+    });
+    void postgresPersistence?.flushNow(['gym_state', 'customer_notification']);
+  }
   response.json({ ok: true, booking: newBooking, state: publicGymState(state) });
 });
 
@@ -2420,7 +2621,18 @@ app.post('/api/gym/:gymId/membership-claims', requireCustomer, async (request: A
   state.membershipClaims.unshift(claim);
   gymEvent(state, 'members', 'claim_submitted', name, 'Customer');
   saveGymState(gymId, state);
-  await postgresPersistence?.flushNow(['gym_state']);
+  notifications.notify({
+    customerId: request.customerId!,
+    type: 'membership_claim_received',
+    title: `${businessDisplayName(gymId)} — membership claim received`,
+    body: 'Your existing membership claim is pending review by the gym team.',
+    sourceKind: 'business',
+    sourceBusinessId: gymId,
+    sourceName: businessDisplayName(gymId),
+    deepLink: { kind: 'gym-activity', businessId: gymId },
+    dedupeKey: `membership_claim_received:${claim.id}`,
+  });
+  await postgresPersistence?.flushNow(['gym_state', 'customer_notification']);
   response.status(201).json({ ok: true, claim });
 });
 
@@ -2558,7 +2770,18 @@ app.post('/api/gym/:gymId/checkin/scan', requireCustomer, async (request: Authen
     recomputeOccupancy(state);
     gymEvent(state, 'checkins', 'checkin', name, 'Customer (QR scan)');
     saveGymState(gymId, state);
-    await postgresPersistence?.flushNow(['gym_state']);
+    notifications.notify({
+      customerId,
+      type: 'gym_checkin',
+      title: `${businessDisplayName(gymId)} — checked in`,
+      body: `Entry confirmed at ${new Date(visit.checkedInAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. Have a great session.`,
+      sourceKind: 'business',
+      sourceBusinessId: gymId,
+      sourceName: businessDisplayName(gymId),
+      deepLink: { kind: 'member-hub', businessId: gymId },
+      dedupeKey: `gym_checkin:${visit.id}`,
+    });
+    await postgresPersistence?.flushNow(['gym_state', 'customer_notification']);
     return response.json({ ok: true, result: 'checked_in', visit });
   }
 
@@ -2599,7 +2822,18 @@ app.post('/api/gym/:gymId/checkout/self', requireCustomer, async (request: Authe
   recomputeOccupancy(state);
   gymEvent(state, 'checkins', 'checkout', visit.name, 'Customer (self checkout)');
   saveGymState(gymId, state);
-  await postgresPersistence?.flushNow(['gym_state']);
+  notifications.notify({
+    customerId,
+    type: 'gym_checkout',
+    title: `${businessDisplayName(gymId)} — checked out`,
+    body: 'Your visit has been closed. See you next time.',
+    sourceKind: 'business',
+    sourceBusinessId: gymId,
+    sourceName: businessDisplayName(gymId),
+    deepLink: { kind: 'member-hub', businessId: gymId },
+    dedupeKey: `gym_checkout:${visit.id}`,
+  });
+  await postgresPersistence?.flushNow(['gym_state', 'customer_notification']);
   response.json({ ok: true, visit });
 });
 
@@ -3677,8 +3911,12 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
       }
     }
     db.exec('COMMIT');
+    // After COMMIT so a notification can never be written for a transaction
+    // that rolled back, and so a notification failure can never abort a
+    // booking the customer already made.
+    try { emitQueueNotifications(next.salonId, previousItems, next); } catch { /* inbox is best-effort, the booking is not */ }
     publish(next);
-    await postgresPersistence?.flushNow(['customer_booking','salon_state']);
+    await postgresPersistence?.flushNow(['customer_booking','salon_state','customer_notification']);
     response.json(withCustomerPhotos(next));
   } catch (error) {
     try { db.exec('ROLLBACK'); } catch { /* transaction was not active */ }
@@ -3788,15 +4026,67 @@ app.get('/api/me/profile/photo', requireCustomer, (request: AuthenticatedRequest
   response.send(readFileSync(path.join(profilePhotoDir, `${request.customerId}.${extension}`)));
 });
 
+/**
+ * Category-agnostic booking history for the authenticated customer — the one
+ * source the "My Bookings" screen reads (reached identically from the bottom
+ * Bookings tab and from Profile). Every row is a real stored record:
+ * queue/reservation bookings from customer_booking, plus the gym class and PT
+ * bookings that actually carry this customer's identity. Nothing is
+ * synthesised for a customer with no history; they get an empty list.
+ */
 app.get('/api/me/bookings', requireCustomer, (request: AuthenticatedRequest, response) => {
-  const bookings = (db.prepare(`
-    SELECT id, salon_id AS salonId, service, status, reserved_for AS reservedFor, created_at AS createdAt, updated_at AS updatedAt,
-      services_json AS servicesJson, total_price_inr AS totalPriceInr
-    FROM customer_booking WHERE customer_id = ? ORDER BY created_at DESC LIMIT 100
-  `).all(request.customerId!) as Array<{ servicesJson?: string } & Record<string, unknown>>).map(({ servicesJson, ...rest }) => ({
-    ...rest,
-    services: servicesJson ? JSON.parse(servicesJson) : [],
+  const customerId = request.customerId!;
+  const rows = db.prepare(`
+    SELECT b.id, b.queue_entry_id AS queueEntryId, b.salon_id AS businessId, b.service, b.status,
+      b.outcome, b.reserved_for AS reservedFor, b.created_at AS createdAt, b.updated_at AS updatedAt,
+      b.services_json AS servicesJson, b.total_price_inr AS totalPriceInr,
+      b.service_completed_at AS serviceCompletedAt, b.cancelled_at AS cancelledAt, b.no_show_at AS noShowAt,
+      COALESCE(s.name, 'Business') AS businessName, LOWER(COALESCE(s.main_category_id, 'salon')) AS categoryId
+    FROM customer_booking b LEFT JOIN salon s ON s.id = b.salon_id
+    WHERE b.customer_id = ? ORDER BY b.created_at DESC LIMIT 200
+  `).all(customerId) as Array<{ servicesJson?: string } & Record<string, unknown>>;
+
+  const bookings: CustomerBookingView[] = rows.map(({ servicesJson, ...rest }) => ({
+    ...(rest as unknown as CustomerBookingView),
+    kind: 'queue',
+    services: servicesJson ? JSON.parse(String(servicesJson)) : [],
   }));
+
+  // Live token/position data lives in salon_state, not customer_booking — read
+  // it back so an active ticket shows its real token rather than a blank.
+  for (const booking of bookings) {
+    if (!booking.queueEntryId) continue;
+    const state = readState(booking.businessId);
+    const live = state.queue.find((item) => item.id === booking.queueEntryId)
+      || state.completedList.find((item) => item.id === booking.queueEntryId);
+    if (live?.token) booking.token = live.token;
+    if (live) booking.status = live.status;
+  }
+
+  for (const gymId of onboardedGymIds()) {
+    const state = getGymState(gymId);
+    const gymName = businessDisplayName(gymId);
+    for (const enrollment of state.classEnrollments) {
+      if (enrollment.customerId !== customerId || enrollment.status !== 'Booked') continue;
+      bookings.push({
+        id: enrollment.id, businessId: gymId, businessName: gymName, categoryId: 'gym',
+        service: enrollment.title, services: [enrollment.title], status: 'Booked',
+        createdAt: enrollment.createdAt, updatedAt: enrollment.createdAt,
+        kind: 'class', slotLabel: enrollment.time || null,
+      });
+    }
+    for (const booking of state.ptBookings) {
+      if (booking.customerId !== customerId) continue;
+      bookings.push({
+        id: booking.id, businessId: gymId, businessName: gymName, categoryId: 'gym',
+        service: booking.service, services: [booking.service],
+        status: booking.status === 'Confirmed' ? 'Booked' : booking.status,
+        createdAt: booking.createdAt, updatedAt: booking.createdAt,
+        kind: 'pt', slotLabel: [booking.time, booking.trainer].filter(Boolean).join(' · ') || null,
+      });
+    }
+  }
+
   response.set('Cache-Control', 'no-store');
   response.json({ bookings });
 });

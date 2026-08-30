@@ -971,9 +971,16 @@ export default function App() {
         }}
       />
 
-      {/* Notification Center Modal */}
+      {/* Developer/QA notification console.
+          This modal is the one surface that still carries push diagnostics
+          (device permission state, simulated triggers, raw alert log). It is
+          therefore explicitly NOT part of the packaged Customer app: the
+          customer's Alerts destination is the real persisted Notification
+          inbox screen inside CustomerApp. Gating it here — rather than
+          deleting it — keeps the diagnostics available on the dev/split
+          workspace without ever shipping test UI to a customer build. */}
       <NotificationCenterModal
-        isOpen={isNotificationCenterOpen}
+        isOpen={PACKAGED_MODE !== 'customer' && isNotificationCenterOpen}
         onClose={() => setIsNotificationCenterOpen(false)}
         notifications={notifications}
         permissionStatus={permissionStatus}

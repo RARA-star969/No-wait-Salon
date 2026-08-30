@@ -116,7 +116,11 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
   return (
     <div id="location-select-screen" className="flex flex-col min-h-full bg-slate-50 text-slate-900 animate-in fade-in duration-300">
       {/* Header Bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-6">
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 pb-3.5 backdrop-blur-md sm:px-6"
+        // Safe-area top: the back arrow and title must clear the Android
+        // status bar and any display cutout. `max()` keeps normal padding on
+        // devices that report no inset instead of over-padding them.
+        style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}>
         <button
           type="button"
           onClick={onBack}
@@ -131,7 +135,12 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 p-4 space-y-6 max-w-2xl mx-auto w-full pb-12 sm:p-6">
+      <div
+        className="flex-1 p-4 space-y-6 max-w-2xl mx-auto w-full sm:p-6"
+        // Bottom safe area: the last row must clear the gesture bar / 3-button
+        // nav rather than sitting underneath it.
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 3rem)' }}
+      >
         {/* Search Input */}
         <div className="relative">
           <div className="flex h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-100">

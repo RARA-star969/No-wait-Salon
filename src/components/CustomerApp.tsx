@@ -50,7 +50,7 @@ import { realtimeQueueService } from '../services/realtimeQueueService';
 import { QrScannerModal } from './QrScannerModal';
 import { DetailErrorBoundary } from './DetailErrorBoundary';
 import { businessQrService, businessQrToken, type QrBusiness } from '../services/businessQrService';
-import { salonDiscoveryService } from '../services/salonDiscoveryService';
+import { fetchSalonProfile, salonDiscoveryService } from '../services/salonDiscoveryService';
 import {
   locationPreference,
   readGeolocationPermission,
@@ -74,6 +74,13 @@ import { resolveOnboardingStage } from '../shared/onboardingStage';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { LiveTicket, type JourneyStage, type TicketPerson } from './LiveTicket';
 import { StickyScanQrButton } from './StickyScanQrButton';
+import { MyBookingsScreen } from './MyBookingsScreen';
+import { NotificationsScreen } from './NotificationsScreen';
+import { NotificationSettingsScreen } from './NotificationSettingsScreen';
+import { useNotificationInbox } from './useNotificationInbox';
+import { resolveBackAction, type CustomerOverlayState } from '../shared/customerBackResolver';
+import type { CustomerNotification, NotificationFilter, NotificationRoute } from '../shared/customerNotifications';
+import type { BookingRoute, CustomerBookingView } from '../shared/customerBookingViews';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
@@ -149,8 +156,17 @@ interface CustomerAppProps {
 // ancestor like this to be the actual scroll container. Defined at module
 // scope (not inside CustomerApp) so it never remounts — and loses scroll
 // position — on an unrelated re-render.
+//
+// Deliberately a BLOCK container, not `flex flex-col`. As a flex column its
+// single child was a flex item with the default `flex-shrink: 1`, so a screen
+// taller than the viewport was *shrunk back down* to exactly the container
+// height instead of overflowing it. The screen then never scrolled, its own
+// bottom safe-area padding had nothing to push against, and its last rows
+// (Log out, the final settings row) sat permanently under the bottom nav.
+// A block child grows to its natural height, which is what makes this element
+// the real — and only — scroll owner for the screen.
 const ScreenScroll: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
+  <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] [touch-action:pan-y]">
     {children}
   </div>
 );
@@ -373,6 +389,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // first without a second, disconnected back-handling mechanism.
   const [memberHubTarget, setMemberHubTarget] = useState<{ gymId: string; gymName: string } | null>(null);
   const [memberHubWorkoutPlanOpen, setMemberHubWorkoutPlanOpen] = useState(false);
+  // Which tab the Live Ticket was entered from. The centralized back resolver
+  // reads this so Bookings -> Ticket -> back returns to My Bookings, while the
+  // Home active-queue banner -> Ticket -> back returns to Home. Without it the
+  // ticket's back destination is ambiguous.
+  const [ticketOrigin, setTicketOrigin] = useState<'home' | 'bookings'>('home');
+  const [notificationFilter, setNotificationFilter] = useState<NotificationFilter>('all');
+  // One inbox for the whole customer surface — the Alerts screen, the bottom
+  // nav's unread badge and the settings screen all read this same state.
+  const inbox = useNotificationInbox(
+    customerAuth?.token,
+    currentScreen === 'home' || currentScreen === 'notifications' || currentScreen === 'bookings',
+  );
+
   const [selectedReservationDay, setSelectedReservationDay] = useState<'today' | 'tomorrow' | 'day3' | 'day4'>('today');
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const homeScrollRef = useRef<HTMLDivElement>(null);
@@ -785,38 +814,56 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // it) reports "unhandled", which is the sole case allowed to background
   // or exit the app. On web/iOS this listener is installed but the
   // 'backButton' event never fires, so normal browser-back stays untouched.
+  // Every dismissable overlay, declared once. The resolver below decides the
+  // order; nothing here decides it locally any more.
+  const overlays: CustomerOverlayState = {
+    qrScanner: isQrScannerOpen,
+    locationSheet: isChangingLocation,
+    cancelSheet: cancelSheetOpen,
+    callModal: isCallModalOpen,
+    loginGate: showLoginGate,
+    memberHubWorkoutPlan: memberHubWorkoutPlanOpen,
+    memberHub: Boolean(memberHubTarget),
+  };
+
+  const closeOverlay = useCallback((overlay: keyof CustomerOverlayState) => {
+    if (overlay === 'qrScanner') setIsQrScannerOpen(false);
+    else if (overlay === 'locationSheet') setIsChangingLocation(false);
+    else if (overlay === 'cancelSheet') setCancelSheetOpen(false);
+    else if (overlay === 'callModal') setIsCallModalOpen(false);
+    else if (overlay === 'loginGate') setShowLoginGate(false);
+    else if (overlay === 'memberHubWorkoutPlan') setMemberHubWorkoutPlanOpen(false);
+    else if (overlay === 'memberHub') setMemberHubTarget(null);
+  }, []);
+
+  /**
+   * Android hardware back. The ordering rule (deepest sheet -> child screen ->
+   * parent -> Home -> exit) now lives entirely in the shared resolver, so the
+   * hardware button, every visible Back control and the regression tests all
+   * read the same single decision. Only the true landing root reports
+   * "unhandled", which is the sole case allowed to exit the app.
+   */
   const handleHardwareBack = useCallback((): boolean => {
-    if (isQrScannerOpen) { setIsQrScannerOpen(false); return true; }
-    if (isChangingLocation) { setIsChangingLocation(false); return true; }
-    if (cancelSheetOpen) { setCancelSheetOpen(false); return true; }
-    if (isCallModalOpen) { setIsCallModalOpen(false); return true; }
-    if (showLoginGate) { setShowLoginGate(false); return true; }
-    // Deepest-first: Workout Plan (inside the Hub) closes before the Hub
-    // itself, which closes before falling through to screen-level back —
-    // mirrors Profile → Gym Activity → Member Hub → Workout Plan exactly.
-    if (memberHubWorkoutPlanOpen) { setMemberHubWorkoutPlanOpen(false); return true; }
-    if (memberHubTarget) { setMemberHubTarget(null); return true; }
-
-    const atLandingRoot = stage === 'landing' || showLandingOverride;
-    if (atLandingRoot) return false;
-
-    if (stage === 'location' || stage === 'notifications') { backToLanding(); return true; }
-    if (stage !== 'ready') return true;
-
-    if (currentScreen === 'edit-profile') { setScreen('profile'); return true; }
-    if (currentScreen === 'slots') { setScreen('salon'); return true; }
-    if (currentScreen === 'gym-activity') { setScreen('profile'); return true; }
-    if (currentScreen === 'profile' || currentScreen === 'salon' || currentScreen === 'tracking' || currentScreen === 'complete') {
-      setScreen('home');
-      return true;
+    const action = resolveBackAction({
+      stage,
+      landingOverride: showLandingOverride,
+      screen: currentScreen,
+      overlays,
+      ticketOrigin,
+    });
+    switch (action.type) {
+      case 'close-overlay': closeOverlay(action.overlay); return true;
+      case 'go-screen': setScreen(action.screen); return true;
+      case 'go-landing': backToLanding(); return true;
+      case 'consume': return true;
+      case 'exit-app':
+      default: return false;
     }
-    // currentScreen === 'home': the deepest customer screen backs out to landing.
-    backToLanding();
-    return true;
   }, [
-    isQrScannerOpen, isChangingLocation, cancelSheetOpen, isCallModalOpen, showLoginGate,
-    memberHubWorkoutPlanOpen, memberHubTarget,
-    stage, showLandingOverride, backToLanding, currentScreen, setScreen,
+    stage, showLandingOverride, currentScreen, ticketOrigin,
+    overlays.qrScanner, overlays.locationSheet, overlays.cancelSheet, overlays.callModal,
+    overlays.loginGate, overlays.memberHubWorkoutPlan, overlays.memberHub,
+    closeOverlay, backToLanding, setScreen,
   ]);
 
   // Always call the latest handler without resubscribing the native listener
@@ -881,6 +928,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   if (currentScreen === 'profile' || currentScreen === 'edit-profile') {
     return (
+      <>
       <ScreenScroll>
       <CustomerProfileScreen
         mode={currentScreen === 'edit-profile' ? 'edit' : 'profile'}
@@ -894,8 +942,24 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         onSaved={(profile) => { onProfileSaved(profile); setScreen('profile'); }}
         onLogout={onProfileLogout}
         onOpenGymActivity={() => setScreen('gym-activity')}
+        // Exactly the same destination the bottom-nav Bookings tab opens.
+        onOpenBookings={() => setScreen('bookings')}
+        onOpenNotificationSettings={() => setScreen('notification-settings')}
       />
       </ScreenScroll>
+      {currentScreen === 'profile' && (
+        <StickyScanQrButton
+          activeTab="more"
+          onScan={openScanner}
+          onHome={() => setScreen('home')}
+          onBookings={() => setScreen('bookings')}
+          onNotifications={() => setScreen('notifications')}
+          onMore={() => setScreen('profile')}
+          unreadCount={inbox.unreadCount}
+        />
+      )}
+      <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+      </>
     );
   }
 
@@ -928,6 +992,144 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         />
       )}
       </>
+    );
+  }
+
+  // A booking/notification that names a business opens that business's real
+  // detail page. Resolved against the already-loaded nearby list first, then
+  // fetched by id, so a deep link never dead-ends on Home.
+  const openBusinessById = async (businessId: string) => {
+    const known = nearbySalons.find((salon) => salon.id === businessId);
+    if (known) {
+      setSelectedSalon(known);
+      onQrContextChange(null);
+      setScreen('salon');
+      return;
+    }
+    const profile = await fetchSalonProfile(businessId);
+    if (!profile) { setScreen('bookings'); return; }
+    setSelectedSalon(profile);
+    setNearbySalons((current) => (current.some((salon) => salon.id === profile.id) ? current : [profile as NearbySalon, ...current]));
+    onQrContextChange(null);
+    setScreen('salon');
+  };
+
+  /** One booking-tap handler shared by both My Bookings entry points. */
+  const openBookingRoute = (route: BookingRoute, _booking: CustomerBookingView) => {
+    if (route.screen === 'tracking') { setTicketOrigin('bookings'); setScreen('tracking'); return; }
+    void openBusinessById(route.businessId);
+  };
+
+  /**
+   * Notification deep links. Marks the row read, then routes to the
+   * notification's own destination — never a blanket redirect to Home.
+   */
+  const openNotification = (notification: CustomerNotification, route: NotificationRoute) => {
+    void inbox.markRead(notification);
+    switch (route.screen) {
+      case 'tracking': setTicketOrigin('bookings'); setScreen('tracking'); break;
+      case 'bookings': setScreen('bookings'); break;
+      case 'gym-activity': setScreen('gym-activity'); break;
+      case 'member-hub': {
+        const gym = nearbySalons.find((salon) => salon.id === route.businessId);
+        setMemberHubTarget({ gymId: route.businessId, gymName: gym?.name || 'Your gym' });
+        setScreen('gym-activity');
+        break;
+      }
+      case 'salon':
+      case 'review':
+        // The review flow lives on the business's own detail page (its
+        // Reviews section owns submission), so a review request deep-links
+        // straight there rather than to a duplicated rating screen.
+        void openBusinessById(route.businessId);
+        break;
+      case 'home': setScreen('home'); break;
+      case 'notifications':
+      default: setScreen('notifications'); break;
+    }
+  };
+
+  if (currentScreen === 'bookings') {
+    return (
+      <>
+        <MyBookingsScreen
+          auth={customerAuth}
+          onBack={() => setScreen('home')}
+          onLogin={onProfileLogin}
+          onExplore={() => setScreen('home')}
+          onOpenBooking={openBookingRoute}
+          liveBookingHint={userEntry ? {
+            id: `live-${userEntry.id}`,
+            queueEntryId: userEntry.id,
+            businessId: selectedSalon.id,
+            businessName: selectedSalon.name,
+            categoryId: (selectedSalon.mainCategoryId || 'salon').toLowerCase(),
+            service: userEntry.service,
+            services: userEntry.services || [],
+            status: userEntry.status,
+            reservedFor: userEntry.reservedFor || null,
+            token: userEntry.token || null,
+            createdAt: userEntry.createdAt,
+            updatedAt: userEntry.createdAt,
+            kind: 'queue',
+          } : null}
+        />
+        <StickyScanQrButton
+          activeTab="bookings"
+          onScan={openScanner}
+          onHome={() => setScreen('home')}
+          onBookings={() => setScreen('bookings')}
+          onNotifications={() => setScreen('notifications')}
+          onMore={() => setScreen('profile')}
+          unreadCount={inbox.unreadCount}
+        />
+        <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+      </>
+    );
+  }
+
+  if (currentScreen === 'notifications') {
+    return (
+      <>
+        <NotificationsScreen
+          auth={customerAuth}
+          notifications={inbox.notifications}
+          unreadCount={inbox.unreadCount}
+          loading={inbox.loading}
+          error={inbox.error}
+          pushTransport={inbox.pushTransport}
+          filter={notificationFilter}
+          onFilterChange={setNotificationFilter}
+          onBack={() => setScreen('home')}
+          onLogin={onProfileLogin}
+          onOpenSettings={() => setScreen('notification-settings')}
+          onMarkAllRead={() => void inbox.markAllRead()}
+          onOpen={openNotification}
+        />
+        <StickyScanQrButton
+          activeTab="notifications"
+          onScan={openScanner}
+          onHome={() => setScreen('home')}
+          onBookings={() => setScreen('bookings')}
+          onNotifications={() => setScreen('notifications')}
+          onMore={() => setScreen('profile')}
+          unreadCount={inbox.unreadCount}
+        />
+        <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
+      </>
+    );
+  }
+
+  if (currentScreen === 'notification-settings') {
+    return (
+      <NotificationSettingsScreen
+        preferences={inbox.preferences}
+        pushTransport={inbox.pushTransport}
+        saving={inbox.savingPreferences}
+        error={inbox.error}
+        onBack={() => setScreen('notifications')}
+        onSave={(preferences) => void inbox.savePreferences(preferences)}
+      />
     );
   }
 
@@ -1098,7 +1300,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               glide (Task 1: "premium and controlled, not flashy") — barely a
               1% scale dip, no brightness/opacity change to draw the eye. */}
           <div
-            className={`relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
+            className={`relative space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_6rem)] pt-3 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
               isReturningToTop ? 'duration-500 scale-[0.994]' : 'duration-300 scale-100'
             }`}
           >
@@ -1137,7 +1339,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           {userEntry && (
             <div
               id="active-queue-banner"
-              onClick={() => setScreen('tracking')}
+              onClick={() => { setTicketOrigin('home'); setScreen('tracking'); }}
               className="flex cursor-pointer items-center justify-between rounded-2xl border p-4 text-white backdrop-blur-md transition"
               style={{
                 borderColor: 'var(--category-tint-20)',
@@ -1349,7 +1551,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 onApplyOffer={onApplyOffer}
                 onRemoveOffer={onRemoveOffer}
                 onBack={() => setScreen('home')}
-                onJoin={userEntry ? () => setScreen('tracking') : onJoinClick}
+                onJoin={userEntry ? () => { setTicketOrigin('home'); setScreen('tracking'); } : onJoinClick}
                 onReserve={() => setScreen('slots')}
                 userEntry={userEntry}
                 isJoinSheetOpen={isJoinSheetOpen}
@@ -1367,12 +1569,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {currentScreen === 'home' && !isQrScannerOpen && (
         <StickyScanQrButton
-          activeHome
+          activeTab="home"
           onScan={openScanner}
           onHome={revealHomeHeader}
-          onBookings={() => setScreen('tracking')}
-          onNotifications={onOpenNotifications}
+          // Bookings opens the dedicated My Bookings screen — NOT the Live
+          // Ticket. The ticket is reachable from the active booking inside it.
+          onBookings={() => setScreen('bookings')}
+          onNotifications={() => setScreen('notifications')}
           onMore={() => setScreen('profile')}
+          unreadCount={inbox.unreadCount}
         />
       )}
 
@@ -1400,11 +1605,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         <div id="customer-tracking-screen" className="p-5 space-y-4 animate-in fade-in duration-150">
           <button
             id="back-to-home-btn"
-            onClick={() => setScreen('home')}
+            onClick={() => setScreen(ticketOrigin === 'bookings' ? 'bookings' : 'home')}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Find another salon</span>
+            <span>{ticketOrigin === 'bookings' ? 'Back to My Bookings' : 'Find another salon'}</span>
           </button>
 
           <div>
@@ -1496,7 +1701,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             />
           )}
 
-          {/* Push Notifications Status & Alert Settings Card */}
+          {/* Alerts card. Deliberately carries NO developer affordances: no
+              "simulate push" trigger, no test-alert button, and no
+              "Simulated Push Active" claim. It states only what is true —
+              every update is written to the customer's real, persisted
+              Notification inbox — and offers the OS permission prompt when
+              the device has not decided yet. */}
           <div
             id="tracking-push-notification-card"
             className="p-4 rounded-2xl bg-white border border-[#E1E7E6] space-y-2.5"
@@ -1504,23 +1714,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BellRing className="w-4 h-4 text-[#0F766E]" />
-                <span className="text-xs font-bold text-[#17201F]">Live Push Notifications</span>
+                <span className="text-xs font-bold text-[#17201F]">Queue alerts</span>
               </div>
-              <span
-                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                  permissionStatus === 'granted'
-                    ? 'bg-[#E7F5F2] text-[#0F766E]'
-                    : 'bg-[#0F766E]/10 text-[#0F766E]'
-                }`}
-              >
-                {permissionStatus === 'granted' ? 'Alerts Enabled' : 'Simulated Push Active'}
-              </span>
+              {permissionStatus === 'granted' && (
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#E7F5F2] text-[#0F766E]">
+                  Device alerts on
+                </span>
+              )}
             </div>
 
             <p className="text-[11px] text-[#6F7C7A] leading-relaxed">
               {userEntry?.status === 'Reserved'
-                ? `Push alert will notify your device 15 minutes before your reserved arrival window (${userEntry.reservedFor}).`
-                : 'Push notification will sound and alert your screen when 10–15 minutes remain (1 person ahead) and when your counter is ready.'}
+                ? `We'll alert you ahead of your reserved arrival window (${userEntry.reservedFor}), and every update is saved to your Notifications inbox.`
+                : "We'll alert you when one person is ahead of you and when it's your turn. Every update is saved to your Notifications inbox."}
             </p>
 
             <div className="flex items-center gap-2 pt-1">
@@ -1531,20 +1737,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   className="flex-1 py-2 px-3 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Bell className="w-3 h-3" />
-                  <span>Enable Device Notifications</span>
+                  <span>Enable device notifications</span>
                 </button>
               )}
-
               <button
-                id="tracking-test-push-btn"
-                onClick={() =>
-                  onTestPush(userEntry?.status === 'Reserved' ? 'reserved_nearing' : 'approaching')
-                }
+                id="tracking-open-notifications-btn"
+                onClick={() => setScreen('notifications')}
                 className="py-2 px-3 rounded-xl bg-[#F8FAFA] hover:bg-[#E1E7E6] border border-[#E1E7E6] text-[#0F766E] text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
-                title="Test Push Alert"
               >
-                <Volume2 className="w-3 h-3" />
-                <span>Test Alert</span>
+                <span>Open Notifications</span>
               </button>
             </div>
           </div>

@@ -21,6 +21,7 @@ const state: GymState = {
   entryQueue: [],
   members: [],
   ptBookings: [],
+  classEnrollments: [],
   campaigns: [],
   events: [],
   historyStartedAt: now - 90 * DAY,

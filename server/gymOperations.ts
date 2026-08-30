@@ -46,6 +46,21 @@ type Dependencies = {
    * always falling back to a synthetic walk-in id. Independent of whatever
    * OTP provider verified that phone. */
   resolveCustomerIdByPhone: (normalizedPhone: string) => string | undefined;
+  /**
+   * Writes one durable customer notification. Injected rather than imported so
+   * gym operations stay decoupled from the notification store, and so a
+   * deployment without it simply sends nothing instead of failing an
+   * operational action.
+   */
+  notifyCustomer?: (input: {
+    customerId: string;
+    businessId: string;
+    type: string;
+    title: string;
+    body: string;
+    dedupeKey?: string;
+    deepLinkKind?: string;
+  }) => void;
 };
 const operators = ["owner", "manager", "staff", "reception"];
 const managers = ["owner", "manager"];
@@ -69,6 +84,7 @@ export function normalizeGymState(
     members: raw.members || [],
     visits: raw.visits || [],
     ptBookings: raw.ptBookings || [],
+    classEnrollments: raw.classEnrollments || [],
     campaigns: raw.campaigns || [],
     events: raw.events || [],
     historyStartedAt: raw.historyStartedAt || Date.now(),
@@ -957,6 +973,15 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
         if (decision === "reject") {
           claim.status = "rejected";
           gymEvent(s, "members", "claim_rejected", claim.name, session.name);
+          deps.notifyCustomer?.({
+            customerId: claim.customerId,
+            businessId: session.businessId,
+            type: "membership_claim_rejected",
+            title: "Membership claim not approved",
+            body: "The gym could not verify this membership claim. Please contact the front desk.",
+            dedupeKey: `membership_claim_rejected:${claim.id}`,
+            deepLinkKind: "gym-activity",
+          });
         } else {
           const name =
             typeof b.name === "string" && b.name.trim()
@@ -1015,6 +1040,15 @@ export function mountGymOperations(app: express.Express, deps: Dependencies) {
           claim.status = "approved";
           claim.resultingMembershipId = membershipId;
           gymEvent(s, "members", "claim_approved", claim.name, session.name);
+          deps.notifyCustomer?.({
+            customerId: claim.customerId,
+            businessId: session.businessId,
+            type: "membership_claim_approved",
+            title: "Membership approved",
+            body: "Your membership is now active. Open Member Hub for your plan and check-in.",
+            dedupeKey: `membership_claim_approved:${claim.id}`,
+            deepLinkKind: "member-hub",
+          });
         }
       } else if (
         kind === "add_visitor" &&
