@@ -1,5 +1,5 @@
 import React from 'react';
-import { QrCode, House, CalendarCheck, Bell, Menu } from 'lucide-react';
+import { QrCode, House, CalendarCheck, Bell, CircleUserRound } from 'lucide-react';
 
 type Props = {
   activeHome?: boolean;
@@ -11,9 +11,8 @@ type Props = {
   onBookings?: () => void;
   /** Opens the existing NotificationCenterModal (App.tsx), unchanged. */
   onNotifications?: () => void;
-  /** Opens the existing Profile screen — the app's catch-all account/settings
-   *  surface, reused as the "More" destination. */
-  onMore?: () => void;
+  /** Opens the existing Profile screen. */
+  onProfile?: () => void;
   /** True while an unread/undismissed alert exists, for the small dot. */
   hasNotifications?: boolean;
 };
@@ -35,7 +34,7 @@ const NavIcon: React.FC<{
     <span className="relative flex h-6 w-6 items-center justify-center">
       <Icon
         className="h-[19px] w-[19px]"
-        style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
+        style={{ color: active ? '#2A7BFF' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
       />
       {dot && (
         <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-rose-400 ring-1 ring-black/40" />
@@ -43,7 +42,7 @@ const NavIcon: React.FC<{
     </span>
     <span
       className="text-[9px] font-bold uppercase tracking-wide"
-      style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.75)' }}
+      style={{ color: active ? '#2A7BFF' : 'rgba(148,163,184,0.75)' }}
     >
       {label}
     </span>
@@ -51,14 +50,14 @@ const NavIcon: React.FC<{
 );
 
 /**
- * Persistent bottom navigation: Home | Bookings | Scan QR | Notifications |
- * More, with Scan raised as a fixed-size floating center CTA. All four side
+ * Persistent bottom navigation: Home | Bookings | Scan QR | Alerts |
+ * Profile, with Scan raised as a fixed-size floating center CTA. All four side
  * items route through screens/modals CustomerApp and App.tsx already own
  * (tracking, NotificationCenterModal, profile) — no new routes are added.
  * The bar and the Scan CTA are both a constant size at all times; neither
  * reacts to Home's scroll position, matching the "stays stable while
- * scrolling" requirement. The Scan CTA's fill/glow/ring read the active
- * category's CSS variables, so it recolors with the selected category.
+ * scrolling" requirement. Shell actions are always NOQ blue and never inherit
+ * the selected category's content accent.
  */
 export const StickyScanQrButton: React.FC<Props> = ({
   activeHome = true,
@@ -66,7 +65,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
   onHome,
   onBookings,
   onNotifications,
-  onMore,
+  onProfile,
   hasNotifications,
 }) => {
   return (
@@ -81,7 +80,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
           {/* Reserves the center slot the raised Scan CTA floats above. */}
           <span className="w-16 shrink-0" aria-hidden />
           <NavIcon icon={Bell} label="Alerts" onClick={onNotifications} dot={hasNotifications} />
-          <NavIcon icon={Menu} label="More" onClick={onMore} />
+          <NavIcon icon={CircleUserRound} label="Profile" onClick={onProfile} />
         </div>
 
         {/* Raised Scan QR CTA — fixed size always, never shrinks/expands with
@@ -93,7 +92,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -m-1 rounded-full blur-[14px]"
-            style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.28))' }}
+            style={{ backgroundColor: 'rgba(42,123,255,0.28)' }}
           />
           <button
             type="button"
@@ -101,9 +100,9 @@ export const StickyScanQrButton: React.FC<Props> = ({
             aria-label="Scan QR"
             className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-slate-950 ring-2 transition-transform duration-150 ease-out active:scale-90"
             style={{
-              backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
-              boxShadow: '0 8px 20px -7px var(--category-glow, rgba(34,211,238,0.45))',
-              ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.2))',
+              backgroundImage: 'linear-gradient(145deg, #5A9AFF 0%, #2A7BFF 52%, #155DCC 100%)',
+              boxShadow: '0 8px 20px -7px rgba(42,123,255,0.72)',
+              ['--tw-ring-color' as any]: 'rgba(42,123,255,0.22)',
             }}
           >
             <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />

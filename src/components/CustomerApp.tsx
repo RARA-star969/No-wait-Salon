@@ -37,8 +37,7 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
-import { FloatingCategoryDeck } from './FloatingCategoryDeck';
+import { PromotionalBanner, SalonSearchBar, CategoryGrid, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, LiveNowBadge } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -58,13 +57,9 @@ import {
 } from '../services/locationPreferenceService';
 import { lastViewedBusinessPreference, type LastViewedByCategory } from '../services/recentBusinessPreferenceService';
 import { businessMembershipService } from '../services/businessMembershipService';
-import type { SignalColor } from '../shared/signalColor';
-import { resolveSalonQueueSignal } from '../shared/salonQueueLevel';
 import { deriveLocalityLabel } from '../shared/localityLabel';
 import { mergeLiveOperationalFields } from '../shared/nearbySalonsSync';
-import { salonListingPositionLabel } from '../shared/liveQueueDisplayMetrics';
-import { resolveGymCrowdLevel } from '../shared/gymCrowdResolver';
-import { gymListingSignal } from '../shared/gymListingSignal';
+import { resolveHomeBusinessStatus } from '../shared/customerHomeStatus';
 import { LocationSelectorSheet } from './LocationSelectorSheet';
 import { callPhase, canCancel, formatCountdown, remainingMs } from '../shared/queueTiming';
 import { getNotificationPermissionStatus } from '../services/notificationService';
@@ -644,8 +639,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   })();
 
   const normalizedSearch = salonSearch.trim().toLocaleLowerCase();
-  const visibleSalons = nearbySalons?.filter((salon) => {
+  const availableSalons = nearbySalons?.filter((salon) => {
     if (salon.platformStatus === 'deactivated' || salon.platformStatus === 'inactive') return false;
+    return true;
+  }) || [];
+  const visibleSalons = availableSalons.filter((salon) => {
     if (!normalizedSearch) return true;
     return [
       salon.name,
@@ -658,13 +656,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     const catId = (salon.mainCategoryId || 'salon').toLowerCase();
     return catId === activeCategoryId.toLowerCase();
   });
+  const activeCategoryBusinesses = availableSalons.filter((salon) => {
+    const catId = (salon.mainCategoryId || 'salon').toLowerCase();
+    return catId === activeCategoryId.toLowerCase();
+  });
+  const featuredBusiness = activeCategoryBusinesses[0];
+  const featuredStatus = featuredBusiness ? resolveHomeBusinessStatus(featuredBusiness) : null;
   const activeCategoryObj = mainCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
 
   // Live per-category counts derived from the same nearby-salons data already
   // loaded for the list — no invented backend field, just a client-side tally.
   const categoriesWithLiveCounts = mainCategories.map((cat) => ({
     ...cat,
-    businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
+    businessCount: availableSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
 
   // The browse theme follows the customer's chosen category everywhere they
@@ -757,13 +761,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     container.addEventListener('touchstart', onUserInterrupt, { passive: true, once: true });
     container.addEventListener('pointerdown', onUserInterrupt, { passive: true, once: true });
     window.setTimeout(finish, 800);
-  }, []);
-
-  const openCategoryExploration = useCallback((_categoryId: string) => {
-    setHomeHeaderCollapsed(true);
-    const target = document.getElementById('category-exploration-anchor');
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    target?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
   }, []);
 
   // The single authoritative pre-Home sequence: landing, then permissions
@@ -986,22 +983,15 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     <div
       ref={homeScrollRef}
       onScroll={handleHomeScroll}
-      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#050B0C] text-slate-100 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#0D1118] text-[#E6E8F0] [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
     >
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className={`relative min-h-full overflow-x-clip transition-colors duration-500 animate-in fade-in ${
-          (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).joinedBg
-        }`}>
-          {/* Futuristic ambient glow backdrop */}
+        <div id="customer-home-screen" className="relative min-h-full overflow-x-clip bg-[#0D1118] animate-in fade-in">
+          {/* The shell stays NOQ blue; category color is limited to owned content. */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="absolute -top-24 -left-16 h-72 w-72 rounded-full blur-[72px] opacity-[28%] transition-colors duration-700"
-              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).primary }}
-            />
-            <div
-              className="absolute top-64 -right-20 h-80 w-80 rounded-full blur-[80px] opacity-[17%] transition-colors duration-700"
-              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).accent }}
+              className="absolute -top-28 -left-20 h-72 w-72 rounded-full bg-[#2A7BFF] blur-[82px] opacity-[12%]"
             />
           </div>
 
@@ -1017,34 +1007,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="customer-home-header"
               ref={setHomeHeaderNode}
-              className={`absolute inset-x-0 top-0 overflow-hidden border-b bg-black/20 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+              className={`absolute inset-x-0 top-0 overflow-hidden border-b bg-[#0D1118]/88 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
                 homeHeaderCollapsed
                   ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
                   : 'translate-y-0 border-white/[0.06] opacity-100'
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                {/* LEFT: Address Title + Short Address */}
+              <div className="flex min-h-10 items-center justify-between gap-3">
+                <div className="flex items-center gap-2" aria-label="NOQ">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#2A7BFF] shadow-[0_0_12px_rgba(42,123,255,0.55)]" />
+                  <span className="text-[22px] font-black tracking-[-0.06em] text-[#E6E8F0]">NOQ</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => setScreen('location-select')}
-                  className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#2A7BFF]/20 bg-[#2A7BFF]/10 text-[#2A7BFF] transition active:scale-95"
                   aria-label="Open address management"
                 >
-                  <div className="flex items-center gap-1.5 text-white">
-                    <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
-                    <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
-                  </div>
-                  <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
-                    {locationLabel || 'Indiranagar, Bengaluru'}
-                  </p>
+                  <MapPin className="h-5 w-5" />
                 </button>
-
-                {/* RIGHT: Compact 3D Wallet + Profile controls ONLY */}
-                <div className="flex shrink-0 items-center gap-2">
-                  <WalletButton />
-                  <ProfileButton onClick={() => setScreen('profile')} />
-                </div>
               </div>
 
               {/* Large Search Box with rotating placeholder & inner mic button */}
@@ -1089,7 +1070,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               style={{ borderColor: 'var(--category-tint-20, rgba(148,163,184,0.25))' }}
               aria-label="Return to top"
             >
-              <ArrowUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
+              <ArrowUp className="h-3.5 w-3.5 text-[#2A7BFF]" />
             </button>
           </div>
 
@@ -1102,20 +1083,29 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             }`}
           >
 
-          {/* Physical floating glass deck; this is the only Home category interaction. */}
-          <FloatingCategoryDeck
+          <CategoryGrid
             categories={categoriesWithLiveCounts}
             selectedCategoryId={activeCategoryId}
             onSelectCategory={setActiveCategoryId}
-            onOpenCategory={openCategoryExploration}
-            onExploreStart={() => setHomeHeaderCollapsed(true)}
           />
 
           {/* Premium hero / featured card — adapts to the selected category */}
           <div id="category-exploration-anchor" key={`banner-${activeCategoryId}`} className="scroll-mt-3 category-content-transition">
             <PromotionalBanner
               category={activeCategoryObj}
-              onCtaClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              featuredBusiness={featuredBusiness}
+              livePrimary={featuredStatus?.liveLine1}
+              liveSecondary={featuredStatus?.liveLine2}
+              onCtaClick={() => {
+                if (!featuredBusiness) {
+                  listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  return;
+                }
+                setSelectedSalon(featuredBusiness);
+                markLastViewed(activeCategoryId, featuredBusiness.id);
+                onQrContextChange(null);
+                setScreen('salon');
+              }}
             />
           </div>
 
@@ -1176,10 +1166,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   {activeCategoryId === 'salon' ? 'Choose your chair' : `Explore ${activeCategoryObj.name}`}
                 </h2>
               </div>
-              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold" style={{ color: 'var(--category-accent)' }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--category-accent)', boxShadow: '0 0 8px 2px var(--category-tint-20)' }} />
-                Live now
-              </span>
+              <LiveNowBadge />
             </div>
 
             <div className="space-y-3">
@@ -1227,8 +1214,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
 
               {categoryFilteredSalons.map((salon) => {
-                const catId = (salon.mainCategoryId || 'salon').toLowerCase();
-                const isGym = catId === 'gym';
                 // Category-agnostic: any business with a real active
                 // membership record lights up the crown, not just Gym.
                 const isMember = activeMemberBusinessIds.has(salon.id);
@@ -1237,36 +1222,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
                 const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
 
-                let liveLine1: string;
-                let liveLine2: string;
-                let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
-                let signalLabel: string;
-                let positionLabel: string | null = null;
-                let liveFloorMeter: { occupancy: number; maxCapacity: number; color: SignalColor } | undefined;
-
-                if (isGym) {
-                  const currentOccupancy = salon.currentOccupancy ?? 0;
-                  const maxCapacity = salon.maxCapacity ?? 0;
-                  const crowd = resolveGymCrowdLevel(currentOccupancy, maxCapacity);
-                  const signal = gymListingSignal(crowd.level);
-                  liveLine1 = '';
-                  liveLine2 = '';
-                  liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
-                  signalColor = signal.color;
-                  signalLabel = signal.label;
-                } else {
-                  const waitingCustomers = salon.waitingCustomers;
-                  const isNoWait = waitingCustomers === 0;
-                  // Compact form — no "Live queue:"/"Est. wait:" prefixes,
-                  // which read as verbose duplication once the signal chip
-                  // already names the status.
-                  liveLine1 = isNoWait ? 'No wait' : `${waitingCustomers} ahead`;
-                  liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
-                  const signal = resolveSalonQueueSignal(waitingCustomers);
-                  signalColor = signal.color;
-                  signalLabel = signal.label;
-                  positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
-                }
+                const status = resolveHomeBusinessStatus(salon);
 
                 return (
                   <div key={salon.id} id={`salon-item-${salon.id}`}>
@@ -1277,12 +1233,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       isSelected={isSelected}
                       isMember={isMember}
                       localityLabel={deriveLocalityLabel(salon)}
-                      liveFloorMeter={liveFloorMeter}
-                      liveLine1={liveLine1}
-                      liveLine2={liveLine2}
-                      signalColor={signalColor}
-                      signalLabel={signalLabel}
-                      positionLabel={positionLabel}
+                      liveFloorMeter={status.liveFloorMeter}
+                      liveLine1={status.liveLine1}
+                      liveLine2={status.liveLine2}
+                      signalColor={status.signalColor}
+                      signalLabel={status.signalLabel}
+                      positionLabel={status.positionLabel}
                       onClick={() => {
                         setSelectedSalon(salon);
                         markLastViewed(activeCategoryId, salon.id);
@@ -1364,7 +1320,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           onHome={revealHomeHeader}
           onBookings={() => setScreen('tracking')}
           onNotifications={onOpenNotifications}
-          onMore={() => setScreen('profile')}
+          onProfile={() => setScreen('profile')}
         />
       )}
 

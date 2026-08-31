@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock } from 'lucide-react';
+import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock, Stethoscope } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 
@@ -80,49 +80,49 @@ type CategoryThemeBase = Omit<
 export const CATEGORY_THEME_MAP = {
   salon: {
     key: 'salon',
-    primary: '#22D3EE',
-    accent: '#2DD4BF',
-    gradientFrom: 'from-cyan-400',
-    gradientTo: 'to-teal-600',
-    badgeBg: 'bg-cyan-500/15',
-    badgeText: 'text-cyan-200',
-    joinedBg: 'bg-[#050B0C]',
-    bannerGradient: 'from-cyan-500/18 via-teal-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(34,211,238,0.45)]',
-    ring: 'ring-cyan-400/50',
-    chip: 'bg-cyan-400 text-slate-950',
-    cardBg: 'from-[#0B3033] to-[#061B1D]',
-    softText: 'text-cyan-100/70',
+    primary: '#FF5CC8',
+    accent: '#FF5CC8',
+    gradientFrom: 'from-[#FF5CC8]',
+    gradientTo: 'to-[#A82783]',
+    badgeBg: 'bg-pink-500/15',
+    badgeText: 'text-pink-200',
+    joinedBg: 'bg-[#0D1118]',
+    bannerGradient: 'from-pink-500/18 via-fuchsia-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(255,92,200,0.38)]',
+    ring: 'ring-pink-400/50',
+    chip: 'bg-[#FF5CC8] text-[#0D1118]',
+    cardBg: 'from-[#321327] to-[#17101A]',
+    softText: 'text-pink-100/70',
   },
   gym: {
     key: 'gym',
-    primary: '#A855F7',
-    accent: '#C084FC',
-    gradientFrom: 'from-fuchsia-500',
-    gradientTo: 'to-purple-700',
-    badgeBg: 'bg-purple-500/15',
-    badgeText: 'text-purple-200',
-    joinedBg: 'bg-[#0A0713]',
-    bannerGradient: 'from-purple-500/18 via-fuchsia-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(168,85,247,0.45)]',
-    ring: 'ring-purple-400/50',
-    chip: 'bg-purple-400 text-slate-950',
-    cardBg: 'from-[#251035] to-[#150A20]',
-    softText: 'text-purple-100/70',
+    primary: '#23E08D',
+    accent: '#23E08D',
+    gradientFrom: 'from-[#23E08D]',
+    gradientTo: 'to-[#08764A]',
+    badgeBg: 'bg-emerald-500/15',
+    badgeText: 'text-emerald-200',
+    joinedBg: 'bg-[#0D1118]',
+    bannerGradient: 'from-emerald-500/18 via-green-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(35,224,141,0.38)]',
+    ring: 'ring-emerald-400/50',
+    chip: 'bg-[#23E08D] text-[#0D1118]',
+    cardBg: 'from-[#103126] to-[#0D1915]',
+    softText: 'text-emerald-100/70',
   },
   shop: {
     key: 'shop',
-    primary: '#F59E0B',
-    accent: '#FBBF24',
+    primary: '#FFD166',
+    accent: '#FFD166',
     gradientFrom: 'from-amber-400',
     gradientTo: 'to-orange-600',
     badgeBg: 'bg-amber-500/15',
     badgeText: 'text-amber-200',
-    joinedBg: 'bg-[#0C0904]',
+    joinedBg: 'bg-[#0D1118]',
     bannerGradient: 'from-amber-500/18 via-orange-600/7 to-transparent',
     glow: 'shadow-[0_0_32px_-9px_rgba(245,158,11,0.42)]',
     ring: 'ring-amber-400/50',
-    chip: 'bg-amber-400 text-slate-950',
+    chip: 'bg-[#FFD166] text-[#0D1118]',
     cardBg: 'from-[#332008] to-[#1C1204]',
     softText: 'text-amber-100/70',
   },
@@ -134,7 +134,7 @@ export const CATEGORY_THEME_MAP = {
     gradientTo: 'to-blue-700',
     badgeBg: 'bg-blue-500/15',
     badgeText: 'text-blue-200',
-    joinedBg: 'bg-[#050813]',
+    joinedBg: 'bg-[#0D1118]',
     bannerGradient: 'from-blue-500/18 via-sky-600/7 to-transparent',
     glow: 'shadow-[0_0_32px_-9px_rgba(59,130,246,0.42)]',
     ring: 'ring-blue-400/50',
@@ -150,7 +150,7 @@ export const CATEGORY_THEME_MAP = {
     gradientTo: 'to-rose-600',
     badgeBg: 'bg-pink-500/15',
     badgeText: 'text-pink-200',
-    joinedBg: 'bg-[#0C0409]',
+    joinedBg: 'bg-[#0D1118]',
     bannerGradient: 'from-pink-500/18 via-rose-600/7 to-transparent',
     glow: 'shadow-[0_0_32px_-9px_rgba(236,72,153,0.42)]',
     ring: 'ring-pink-400/50',
@@ -166,7 +166,7 @@ export const CATEGORY_THEME_MAP = {
     gradientTo: 'to-indigo-700',
     badgeBg: 'bg-indigo-500/15',
     badgeText: 'text-indigo-200',
-    joinedBg: 'bg-[#07071A]',
+    joinedBg: 'bg-[#0D1118]',
     bannerGradient: 'from-indigo-500/18 via-violet-600/7 to-transparent',
     glow: 'shadow-[0_0_32px_-9px_rgba(99,102,241,0.42)]',
     ring: 'ring-indigo-400/50',
@@ -182,13 +182,29 @@ export const CATEGORY_THEME_MAP = {
     gradientTo: 'to-red-700',
     badgeBg: 'bg-rose-500/15',
     badgeText: 'text-rose-200',
-    joinedBg: 'bg-[#0C0507]',
+    joinedBg: 'bg-[#0D1118]',
     bannerGradient: 'from-rose-500/18 via-red-600/7 to-transparent',
     glow: 'shadow-[0_0_32px_-9px_rgba(244,63,94,0.42)]',
     ring: 'ring-rose-400/50',
     chip: 'bg-rose-400 text-slate-950',
     cardBg: 'from-[#360F17] to-[#1E0A0F]',
     softText: 'text-rose-100/70',
+  },
+  clinic: {
+    key: 'clinic',
+    primary: '#4DB7FF',
+    accent: '#4DB7FF',
+    gradientFrom: 'from-[#4DB7FF]',
+    gradientTo: 'to-[#126CA8]',
+    badgeBg: 'bg-sky-500/15',
+    badgeText: 'text-sky-200',
+    joinedBg: 'bg-[#0D1118]',
+    bannerGradient: 'from-sky-500/18 via-blue-600/7 to-transparent',
+    glow: 'shadow-[0_0_32px_-9px_rgba(77,183,255,0.38)]',
+    ring: 'ring-sky-400/50',
+    chip: 'bg-[#4DB7FF] text-[#0D1118]',
+    cardBg: 'from-[#10283A] to-[#0D171F]',
+    softText: 'text-sky-100/70',
   },
 } satisfies Record<string, CategoryThemeBase> as unknown as Record<string, CategoryTheme>;
 // The cast above is safe only because the derivation loop immediately below
@@ -230,15 +246,6 @@ for (const theme of Object.values(CATEGORY_THEME_MAP)) {
   theme.modalTint = `linear-gradient(180deg, ${theme.primary}1F 0%, ${shadeHex(theme.primary, -0.55)}F2 60%)`;
   theme.subtleAccent = shadeHex(theme.accent, 0.35);
 }
-Object.assign(CATEGORY_THEME_MAP.gym, {
-  darkSurface: '#241539',
-  glassSurface: 'rgba(46,27,74,0.88)',
-  glassBorder: 'rgba(192,132,252,0.16)',
-  ctaGradient: 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)',
-  selectedGlow: '#8B5CF6',
-  modalTint: 'linear-gradient(160deg,#180F28 0%,#241539 55%,#2E1B4A 100%)',
-  subtleAccent: '#E9D5FF',
-} satisfies Partial<CategoryTheme>);
 
 export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
   const surfaceMatch = theme.joinedBg.match(/#[0-9A-Fa-f]{3,8}/);
@@ -312,8 +319,8 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
         }`}
-        style={isListening ? undefined : ({ '--tw-ring-color': 'var(--category-tint-20, rgba(34,211,238,0.15))' } as React.CSSProperties)}
-        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--category-border, rgba(34,211,238,0.5))'; }}
+        style={isListening ? undefined : ({ '--tw-ring-color': 'rgba(42,123,255,0.22)' } as React.CSSProperties)}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(42,123,255,0.55)'; }}
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
         <Search className="h-5 w-5 shrink-0 text-slate-400" />
@@ -363,16 +370,16 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
                 : 'bg-amber-500/10 text-amber-200 border-amber-400/30'
           }`}
           style={!isListening && voiceFeedback.includes('Heard') ? {
-            backgroundColor: 'var(--category-tint-10, rgba(34,211,238,0.1))',
-            color: 'var(--category-accent, #67E8F9)',
-            borderColor: 'var(--category-tint-20, rgba(34,211,238,0.3))',
+            backgroundColor: 'rgba(42,123,255,0.10)',
+            color: '#79A9FF',
+            borderColor: 'rgba(42,123,255,0.24)',
           } : undefined}
         >
           <div className="flex items-center gap-2">
             {isListening ? (
               <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" />
             ) : (
-              <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--category-accent, #22D3EE)' }} />
+              <Volume2 className="h-4 w-4 shrink-0" style={{ color: '#2A7BFF' }} />
             )}
             <span>{voiceFeedback}</span>
           </div>
@@ -395,18 +402,34 @@ const HERO_COPY: Record<string, { headline: string; subheadline: string }> = {
   pets: { headline: 'Care faster, stress less.', subheadline: 'Reserve a grooming or vet slot so your pet spends less time waiting.' },
 };
 
+export const LiveNowBadge: React.FC = () => (
+  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#FF3B30]/20 bg-[#FF3B30]/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#FF6B63]">
+    <span className="h-1.5 w-1.5 rounded-full bg-[#FF3B30] shadow-[0_0_8px_rgba(255,59,48,0.75)]" />
+    Live now
+  </span>
+);
+
 /**
  * Premium featured/hero card — glossy, category-themed, adapts headline and
  * color identity to whichever category is currently selected.
  */
-export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageSrc?: string; onCtaClick?: () => void }> = ({ category, imageSrc, onCtaClick }) => {
+export const PromotionalBanner: React.FC<{
+  category?: CategoryItemConfig;
+  featuredBusiness?: NearbySalon;
+  livePrimary?: string;
+  liveSecondary?: string;
+  onCtaClick?: () => void;
+}> = ({ category, featuredBusiness, livePrimary, liveSecondary, onCtaClick }) => {
   const themeKey = category?.themeKey || category?.id || 'salon';
   const theme = CATEGORY_THEME_MAP[themeKey] || CATEGORY_THEME_MAP.salon;
   const copy = HERO_COPY[themeKey] || HERO_COPY.salon;
-  const headline = category?.bannerHeadline || copy.headline;
-  const subheadline = category?.bannerSubheadline || copy.subheadline;
-  const ctaText = category?.bannerCtaText || `Explore ${category?.name || 'Chairs'}`;
+  const headline = featuredBusiness?.name || category?.bannerHeadline || copy.headline;
+  const subheadline = featuredBusiness
+    ? [livePrimary, liveSecondary].filter(Boolean).join(' · ') || deriveFeaturedLocation(featuredBusiness)
+    : category?.bannerSubheadline || copy.subheadline;
+  const ctaText = featuredBusiness ? 'Explore' : category?.bannerCtaText || `Explore ${category?.name || 'Businesses'}`;
   const IconComponent = getCategoryIcon(category?.iconName || 'Scissors');
+  const imageSrc = featuredBusiness?.coverImageUrl || featuredBusiness?.logoImageUrl || category?.bannerImageUrl;
 
   return (
     <section
@@ -417,14 +440,18 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
       <div className={`pointer-events-none absolute -right-10 -bottom-14 h-48 w-48 rounded-full bg-gradient-to-br ${theme.bannerGradient} blur-2xl`} />
 
-      {imageSrc ? (
-        <img src={imageSrc} alt="Featured offer" className="relative h-full w-full rounded-2xl object-cover" />
-      ) : (
-        <div className="relative flex items-center justify-between gap-4">
-          <div className="max-w-[70%]">
+      {imageSrc && (
+        <img src={imageSrc} alt="" className="absolute inset-0 h-full w-full object-cover opacity-35" />
+      )}
+      {imageSrc && <div className="absolute inset-0 bg-gradient-to-r from-[#0D1118]/95 via-[#0D1118]/78 to-[#0D1118]/20" />}
+      <div className="relative flex min-h-36 items-center justify-between gap-4">
+          <div className="max-w-[76%]">
+            <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-white backdrop-blur-md">
               <Sparkles className="h-3 w-3" style={{ color: theme.accent }} /> Featured {category?.name || 'Category'}
             </span>
+            {featuredBusiness && <LiveNowBadge />}
+            </div>
             <h2 className="mt-3 text-lg font-black leading-tight tracking-[-0.025em] text-white sm:text-2xl">
               {headline}
             </h2>
@@ -439,7 +466,7 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="relative shrink-0">
+          {!imageSrc && <div className="relative shrink-0">
             <div
               className="absolute inset-0 -m-3 rounded-[2rem] blur-xl"
               style={{ background: `radial-gradient(circle, ${theme.primary}3C, transparent 70%)` }}
@@ -450,12 +477,15 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
               <div className="absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/25 blur-[2px]" />
               <IconComponent className="relative h-10 w-10 drop-shadow" />
             </div>
-          </div>
+          </div>}
         </div>
-      )}
     </section>
   );
 };
+
+function deriveFeaturedLocation(business: NearbySalon): string {
+  return business.area || business.city || business.address || 'Nearby';
+}
 
 export type CategoryItemConfig = {
   id: string;
@@ -486,11 +516,62 @@ const categoryIconMap: Record<string, React.FC<{ className?: string }>> = {
   Utensils: (props) => <Utensils {...props} />,
   Store: (props) => <Store {...props} />,
   Sparkles: (props) => <Sparkles {...props} />,
+  Stethoscope: (props) => <Stethoscope {...props} />,
 };
 
 export function getCategoryIcon(iconName: string): React.FC<{ className?: string }> {
   return categoryIconMap[iconName] || categoryIconMap.Scissors;
 }
+
+export const CategoryGrid: React.FC<{
+  categories: CategoryItemConfig[];
+  selectedCategoryId: string;
+  onSelectCategory: (categoryId: string) => void;
+}> = ({ categories, selectedCategoryId, onSelectCategory }) => (
+  <section aria-label="Browse categories">
+    <div className="mb-3 flex items-end justify-between px-1">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Browse</p>
+        <h2 className="mt-0.5 text-lg font-black tracking-[-0.025em] text-[#E6E8F0]">What do you need?</h2>
+      </div>
+      <span className="text-[10px] font-semibold text-slate-500">{categories.length} categories</span>
+    </div>
+    <div className="grid grid-cols-3 gap-2.5">
+      {categories.map((category) => {
+        const selected = category.id.toLowerCase() === selectedCategoryId.toLowerCase();
+        const theme = resolveCategoryTheme(category.themeKey || category.id);
+        const Icon = getCategoryIcon(category.iconName);
+        return (
+          <button
+            key={category.id}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onSelectCategory(category.id)}
+            className="relative min-h-[88px] overflow-hidden rounded-2xl border p-3 text-left transition active:scale-[0.97]"
+            style={{
+              borderColor: selected ? `${theme.primary}8A` : 'rgba(255,255,255,0.07)',
+              background: selected
+                ? `linear-gradient(145deg, ${theme.primary}28 0%, #141922 72%)`
+                : '#141922',
+              boxShadow: selected ? `0 10px 26px -18px ${theme.primary}` : 'none',
+            }}
+          >
+            <div className="flex items-start justify-between gap-1">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl" style={{ color: theme.accent, backgroundColor: `${theme.primary}18` }}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-slate-400">
+                {category.businessCount ?? 0}
+              </span>
+            </div>
+            <p className="mt-2 truncate text-[11px] font-extrabold text-[#E6E8F0]">{category.name}</p>
+            <p className="mt-0.5 truncate text-[8px] font-semibold text-slate-500">{category.tagline || category.label}</p>
+          </button>
+        );
+      })}
+    </div>
+  </section>
+);
 
 const CATEGORY_TAGLINES: Record<string, string> = {
   salon: 'Live chairs nearby',
