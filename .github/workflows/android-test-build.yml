@@ -1,7 +1,7 @@
-name: NOQ Business Android build
+name: NOQ Android test builds
 
-# Produces a debug-signed universal NOQ Business APK for physical testing.
-# Credentials remain server-side; this APK contains no business-specific login data.
+# Produces debug-signed universal Customer and NOQ Business APKs for physical
+# testing. Credentials remain server-side; neither APK contains login data.
 
 on:
   push:
@@ -24,6 +24,71 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  noq-customer-debug-apk:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || 'https://no-wait-salon-web-test.onrender.com' }}
+
+    steps:
+      - name: Check out exact TEST source
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.19.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Type-check
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Confirm TEST API only
+        shell: bash
+        run: |
+          test "${VITE_API_BASE_URL}" = "https://no-wait-salon-web-test.onrender.com"
+          curl --fail --retry 4 --retry-all-errors --max-time 70 "${VITE_API_BASE_URL}/api/health"
+
+      - name: Build Customer TEST debug APK
+        env:
+          APP_VERSION_NAME: 0.2.0-customer-test.${{ github.run_number }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+        run: pnpm android:apk:customer
+
+      - name: Stage Customer TEST APK
+        shell: bash
+        run: |
+          mkdir -p android-artifacts
+          cp android-customer/app/build/outputs/apk/debug/app-debug.apk \
+            "android-artifacts/NOQ-Customer-TEST-0.2.0.${{ github.run_number }}.apk"
+          sha256sum android-artifacts/*.apk > android-artifacts/SHA256SUMS.txt
+
+      - name: Upload Customer TEST APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: noq-customer-test-apk-${{ github.run_number }}
+          path: android-artifacts/
+          retention-days: 14
+          if-no-files-found: error
+
   noq-business-debug-apk:
     runs-on: ubuntu-latest
     env:
