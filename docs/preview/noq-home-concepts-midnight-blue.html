@@ -1,0 +1,579 @@
+<title>Midnight Blue Concepts</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap');
+
+  :root{
+    --base:#0D1118;
+    --surface:#141922;
+    --surface-2:#1B212C;
+    --surface-3:#232B38;
+    --border:rgba(230,232,240,.09);
+    --border-soft:rgba(230,232,240,.05);
+    --text:#E6E8F0;
+    --text-2:#8891A6;
+    --text-3:#5B6376;
+    --accent:#2A7BFF;
+    --accent-soft:#7FADFF;
+    --font-display:'Sora',ui-sans-serif,system-ui,sans-serif;
+    --font-body:'Inter',ui-sans-serif,system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:
+      radial-gradient(1000px 560px at 15% -8%, rgba(42,123,255,.14), transparent 58%),
+      radial-gradient(800px 460px at 88% 4%, rgba(42,123,255,.06), transparent 55%),
+      var(--base);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:rgba(42,123,255,.32);}
+  .mono{font-family:var(--font-mono); font-variant-numeric:tabular-nums;}
+
+  .topbar{
+    position:sticky; top:0; z-index:80;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    padding:14px 26px; background:rgba(13,17,24,.78); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .brand-row{display:flex; align-items:center; gap:9px;}
+  .brand-mark{
+    width:26px;height:26px;border-radius:8px;
+    background:linear-gradient(155deg,var(--accent),#154C9E);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 6px 16px -6px rgba(42,123,255,.7), inset 0 1px 0 rgba(255,255,255,.25);
+    color:#fff; font-family:var(--font-display); font-weight:800; font-size:13px;
+  }
+  .brand-word{font-family:var(--font-display); font-weight:800; font-size:14.5px; letter-spacing:.02em;}
+  .topbar .sub{font-size:12px; color:var(--text-3);}
+  .preview-tag{
+    display:flex; align-items:center; gap:7px;
+    font:700 10.5px/1 var(--font-mono); letter-spacing:.07em; text-transform:uppercase;
+    color:#FFC94A; background:rgba(255,201,74,.1); border:1px solid rgba(255,201,74,.3);
+    padding:7px 12px; border-radius:999px;
+  }
+  .preview-tag .dot{width:6px;height:6px;border-radius:50%;background:#FFC94A; box-shadow:0 0 0 3px rgba(255,201,74,.18);}
+
+  .intro{max-width:1360px; margin:0 auto; padding:28px 26px 4px;}
+  .intro h1{font-family:var(--font-display); font-size:22px; font-weight:800; margin:0; text-wrap:balance;}
+  .intro p{margin:8px 0 0; color:var(--text-2); font-size:13.5px; max-width:74ch; line-height:1.6;}
+  .token-rail{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px;}
+  .token{
+    display:flex; align-items:center; gap:7px; background:var(--surface); border:1px solid var(--border);
+    padding:6px 11px; border-radius:10px; font:600 11px var(--font-body); color:var(--text-2);
+  }
+  .token .sw{width:12px;height:12px;border-radius:4px; flex-shrink:0;}
+  .token b{color:var(--text); font-weight:700;}
+
+  .stage{
+    display:grid; grid-template-columns:repeat(3, minmax(320px,1fr)); gap:34px;
+    max-width:1360px; margin:0 auto; padding:30px 26px 90px; align-items:start;
+  }
+  @media (max-width:1180px){ .stage{grid-template-columns:1fr; max-width:420px;} }
+
+  .concept{display:flex; flex-direction:column; align-items:center; gap:14px;}
+  .concept-head{width:100%; max-width:320px;}
+  .concept-head .tag{
+    display:inline-flex; font:800 9.5px var(--font-mono); letter-spacing:.08em; text-transform:uppercase;
+    color:var(--accent-soft); background:rgba(42,123,255,.12); border:1px solid rgba(42,123,255,.3);
+    padding:3px 8px; border-radius:6px;
+  }
+  .concept-head h2{font-family:var(--font-display); font-size:16.5px; font-weight:800; margin:9px 0 4px;}
+  .concept-head p{margin:0; font-size:12px; color:var(--text-2); line-height:1.55;}
+
+  .switcher{display:flex; gap:6px; flex-wrap:wrap; width:100%; max-width:320px;}
+  .switch-btn{
+    display:flex; align-items:center; gap:6px; flex:1;
+    padding:7px 8px; border-radius:9px; justify-content:center;
+    border:1px solid var(--border); background:var(--surface);
+    color:var(--text-2); font:700 10.5px var(--font-body); cursor:pointer;
+    transition:transform .15s ease, border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .switch-btn .sw{width:8px;height:8px;border-radius:50%; flex-shrink:0;}
+  .switch-btn:hover{transform:translateY(-1px);}
+  .switch-btn.is-active{color:#fff; border-color:var(--cat, var(--accent)); background:color-mix(in srgb, var(--cat, var(--accent)) 18%, var(--surface));}
+
+  /* ---------- phone ---------- */
+  .phone{
+    position:relative; width:300px; height:648px;
+    background:linear-gradient(180deg,#020304,#070A0F);
+    border-radius:46px; padding:12px;
+    box-shadow:0 2px 0 rgba(255,255,255,.05) inset, 0 40px 80px -28px rgba(0,0,0,.8), 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .phone-screen{
+    position:relative; width:100%; height:100%; border-radius:36px; overflow:hidden;
+    background:var(--base); display:flex; flex-direction:column;
+  }
+  .notch{position:absolute; top:8px; left:50%; transform:translateX(-50%); width:84px; height:20px; border-radius:12px; background:#000; z-index:40;}
+  .statusbar{display:flex; justify-content:space-between; align-items:center; padding:16px 20px 0; font:700 11px var(--font-body); color:#fff; flex-shrink:0;}
+  .screen-body{flex:1; overflow:hidden; padding:13px 15px 0; display:flex; flex-direction:column; gap:11px;}
+
+  .app-header{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .loc{display:flex; flex-direction:column; gap:1px;}
+  .loc .l1{display:flex; align-items:center; gap:4px; font:700 11.5px var(--font-body); color:#fff;}
+  .loc .l2{font:600 9px var(--font-body); color:var(--text-2);}
+  .head-actions{display:flex; align-items:center; gap:6px;}
+  .wallet-chip{
+    display:flex; align-items:center; gap:5px; background:var(--surface-2); border:1px solid var(--border);
+    padding:6px 9px; border-radius:10px; font:700 10px var(--font-mono); color:#fff;
+  }
+  .avatar{width:26px;height:26px;border-radius:9px; background:linear-gradient(155deg,var(--accent),#154C9E); flex-shrink:0; box-shadow:inset 0 1px 0 rgba(255,255,255,.3);}
+
+  .search-shell{
+    display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:13px; padding:9.5px 11px; color:var(--text-2); font:600 10.5px var(--font-body);
+  }
+  .search-shell svg{flex-shrink:0; opacity:.8;}
+  .search-shell .filt{margin-left:auto; width:24px; height:24px; border-radius:7px; background:var(--surface); display:flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid var(--border);}
+
+  .zone-label{display:flex; align-items:center; justify-content:space-between;}
+  .zone-label span:first-child{font:800 9px var(--font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--text-3);}
+  .zone-label span:last-child{font:600 9px var(--font-body); color:var(--text-2);}
+
+  /* A: grid */
+  .cat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .cat-card{
+    position:relative; border-radius:16px; padding:10px; overflow:hidden; height:80px;
+    background:var(--surface-2); border:1px solid var(--border); text-align:left; cursor:pointer;
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .cat-card .tile{width:26px;height:26px;border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--surface-3);}
+  .cat-card .tile svg{width:15px;height:15px;}
+  .cat-card .nm{font:800 11px var(--font-display); color:#fff;}
+  .cat-card .stat{font:700 8px var(--font-mono); color:var(--text-2);}
+  .cat-card.is-active{border-color:var(--cat); box-shadow:0 0 0 1px var(--cat), 0 10px 20px -10px var(--cat);}
+  .cat-card.is-active .tile{background:color-mix(in srgb, var(--cat) 30%, var(--surface-3));}
+  .cat-card.is-active .stat{color:var(--cat);}
+  .cat-card::after{content:''; position:absolute; top:0; left:0; right:0; height:2.5px; background:var(--cat); opacity:0; transition:opacity .15s;}
+  .cat-card.is-active::after{opacity:1;}
+
+  /* B: hybrid hero */
+  .hero-card{
+    position:relative; border-radius:22px; overflow:hidden; height:158px;
+    border:1px solid rgba(255,255,255,.14); box-shadow:0 22px 40px -16px var(--cat-shadow, rgba(42,123,255,.4));
+  }
+  .hero-card .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
+  .hero-card .scrim{position:absolute; inset:0; background:linear-gradient(185deg, rgba(6,7,10,0) 30%, rgba(6,7,10,.5) 62%, rgba(4,5,7,.92) 100%);}
+  .hero-content{position:absolute; left:0; right:0; bottom:0; padding:13px 14px 14px; z-index:2;}
+  .hero-eyebrow{display:inline-flex; align-items:center; gap:5px; font:800 8px var(--font-mono); letter-spacing:.06em; text-transform:uppercase; color:#0B0D12; background:rgba(255,255,255,.92); padding:3px 7px 3px 6px; border-radius:6px;}
+  .hero-eyebrow .dot{width:5px; height:5px; border-radius:50%; background:var(--cat);}
+  .hero-content .cname{font-family:var(--font-display); font-weight:800; font-size:17px; color:#fff; margin-top:7px;}
+  .hero-content .ctag{font-size:9.5px; color:rgba(255,255,255,.72); margin-top:3px;}
+  .hero-content .ccta{display:inline-flex; align-items:center; gap:5px; margin-top:9px; font:700 8.5px var(--font-body); color:#fff; border-bottom:1.5px solid var(--cat); padding-bottom:1px;}
+
+  .pill-row{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .pill-btn{
+    display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; padding:8px 4px 7px;
+    border-radius:13px; border:1px solid var(--border); background:var(--surface-2); cursor:pointer;
+  }
+  .pill-btn .ic{width:30px;height:30px;border-radius:9px; background:var(--surface-3); display:flex; align-items:center; justify-content:center;}
+  .pill-btn .ic svg{width:16px;height:16px;}
+  .pill-btn span.lbl{font:700 8px var(--font-body); color:var(--text-2);}
+  .pill-btn.is-active{border-color:var(--cat); background:color-mix(in srgb, var(--cat) 14%, var(--surface-2));}
+  .pill-btn.is-active .ic{background:color-mix(in srgb, var(--cat) 34%, var(--surface-3)); box-shadow:0 0 0 2px color-mix(in srgb, var(--cat) 45%, transparent);}
+  .pill-btn.is-active span.lbl{color:#fff;}
+
+  /* C: simplified deck */
+  .deck-wrap{display:flex; flex-direction:column; gap:8px;}
+  .deck-hint{align-self:center; display:flex; align-items:center; gap:6px; font:700 8.5px var(--font-body); color:var(--text-3); background:var(--surface-2); border:1px solid var(--border); padding:4px 10px; border-radius:999px;}
+  .deck-row{display:flex; align-items:center; justify-content:center; gap:10px;}
+  .deck-card{
+    position:relative; border-radius:18px; overflow:hidden; border:1px solid var(--border); cursor:pointer;
+    width:76px; height:104px; flex-shrink:0; background:var(--surface-2);
+    transition:width .18s ease, height .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .deck-card .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
+  .deck-card .scrim{position:absolute; inset:0; background:rgba(5,7,10,.34);}
+  .deck-card .side-chev{position:absolute; top:50%; transform:translateY(-50%); color:rgba(255,255,255,.8); z-index:2;}
+  .deck-card.side-l .side-chev{right:4px;}
+  .deck-card.side-r .side-chev{left:4px;}
+  .deck-card .dc-label{position:absolute; left:0; right:0; bottom:6px; text-align:center; z-index:2; font:800 8.5px var(--font-display); color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.6);}
+  .deck-card.is-front{
+    width:120px; height:132px; border-color:var(--cat); border-width:1.5px;
+    box-shadow:0 0 0 1.5px var(--cat), 0 18px 30px -12px var(--cat-shadow, rgba(42,123,255,.55));
+  }
+  .deck-card.is-front .scrim{background:linear-gradient(185deg, rgba(6,7,10,0) 40%, rgba(6,7,10,.68) 100%);}
+  .deck-card.is-front .active-chip{
+    position:absolute; top:7px; left:7px; z-index:2; font:800 7.5px var(--font-mono); letter-spacing:.05em; text-transform:uppercase;
+    color:#0B0D12; background:#fff; padding:2.5px 6px; border-radius:5px;
+  }
+  .deck-card.is-front .dc-label{bottom:9px; font-size:11px;}
+
+  /* banner */
+  .banner{position:relative; display:flex; border-radius:18px; background:var(--surface); border:1px solid var(--border); overflow:hidden; flex-shrink:0; height:108px;}
+  .banner-copy{width:57%; padding:11px 11px 11px 14px; display:flex; flex-direction:column; justify-content:center; gap:4px; position:relative; z-index:2;}
+  .banner-copy .badge{align-self:flex-start; font:800 7.5px var(--font-mono); letter-spacing:.05em; text-transform:uppercase; color:#0B0D12; background:#fff; padding:2.5px 6px; border-radius:5px;}
+  .banner-copy h4{font-family:var(--font-display); font-size:12.5px; font-weight:800; color:#fff; line-height:1.15; margin:0;}
+  .banner-copy p{font-size:8.5px; color:var(--text-2); line-height:1.4; margin:0;}
+  .banner-copy .cta{align-self:flex-start; margin-top:2px; display:inline-flex; align-items:center; gap:5px; background:linear-gradient(135deg, var(--cat) 0%, color-mix(in srgb, var(--cat) 60%, #fff) 150%); color:#0B0D12; font:800 8.5px var(--font-body); padding:6px 10px; border-radius:8px;}
+  .banner-art{width:43%; position:relative; overflow:hidden;}
+  .banner-art .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
+  .banner-art .scrim{position:absolute; inset:0; background:linear-gradient(90deg, var(--surface) 0%, rgba(20,25,34,0) 34%);}
+
+  .listings{display:flex; flex-direction:column; gap:7px; flex:1; min-height:0; overflow:hidden;}
+  .listing-card{display:flex; gap:9px; align-items:center; background:var(--surface); border:1px solid var(--border); border-left:2.5px solid var(--cat); border-radius:13px; padding:7px; flex-shrink:0;}
+  .listing-card .thumb{width:44px; height:44px; border-radius:9px; overflow:hidden; position:relative; flex-shrink:0; background:var(--surface-2);}
+  .listing-card .thumb .scene-svg{position:absolute; inset:0; width:100%; height:100%;}
+  .listing-info{min-width:0; flex:1; display:flex; flex-direction:column; gap:2px;}
+  .listing-info .lname{font:700 10.5px var(--font-body); color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .listing-info .lmeta{display:flex; align-items:center; gap:5px; font:600 8.5px var(--font-body); color:var(--text-2);}
+  .listing-info .lmeta .rate{display:flex; align-items:center; gap:2px; color:#FFC94A; font-weight:700;}
+
+  .bottom-nav{margin-top:auto; flex-shrink:0; display:flex; align-items:center; justify-content:space-around; background:var(--surface); border-top:1px solid var(--border); padding:10px 6px 13px;}
+  .nav-item{display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-3);}
+  .nav-item.active{color:var(--accent-soft);}
+  .nav-item span.lbl{font:700 7px var(--font-body);}
+  .nav-qr{width:34px; height:34px; border-radius:11px; background:linear-gradient(155deg,var(--accent),#154C9E); display:flex; align-items:center; justify-content:center; margin-top:-18px; color:#fff; box-shadow:0 9px 18px -4px rgba(42,123,255,.75), 0 0 0 4px var(--base);}
+
+  footer{text-align:center; padding:0 20px 46px; color:var(--text-3); font-size:11.5px;}
+  footer b{color:var(--text-2);}
+</style>
+
+<div class="topbar">
+  <div class="brand-row">
+    <div class="brand-mark">N</div>
+    <span class="brand-word">NOQ</span>
+    <span class="sub">&nbsp;· Home UI concepts — Midnight + Electric Blue</span>
+  </div>
+  <div class="preview-tag"><span class="dot"></span>Preview only · design validation</div>
+</div>
+
+<div class="intro">
+  <h1>Three ways to select a category, one fixed NOQ shell</h1>
+  <p>Header, search, bottom nav and the QR button stay locked to the Midnight + Electric Blue brand system in all three. Only the category-selection zone and its downstream banner/listings change. Tap a switcher pill under any phone to preview Salon, Gym, Shop or Clinic.</p>
+  <div class="token-rail" id="tokenRail"></div>
+</div>
+
+<div class="stage" id="stage"></div>
+
+<footer>Design-validation prototype only — <b>src/</b> and the live customer app are unchanged. No APK was built.</footer>
+
+<script>
+(function(){
+  "use strict";
+  let uid = 0;
+  const nextUid = () => 'u' + (uid++);
+  const esc = (s) => String(s);
+
+  const BRAND = { base:'#0D1118', accent:'#2A7BFF', surface:'#141922', text:'#E6E8F0' };
+
+  const CATS = [
+    {
+      key:'salon', name:'Salon', color:'#FF4FA8', deep:'#4A0F2E',
+      tagline:'Look good. Feel great.', stat:'12 chairs free',
+      offerBadge:'25% OFF', offerHead:'Styled to perfection', offerSub:'25% off your first salon visit',
+      ctaLabel:'Explore Salon', listLabel:'Top rated salons',
+      listings:[{n:'Glow Studio', rating:'4.9', meta:'1.2 km'},{n:'Bliss Hair Lounge', rating:'4.8', meta:'0.8 km'}],
+      scene:(u)=>salonScene(u),
+    },
+    {
+      key:'gym', name:'Gym', color:'#22C55E', deep:'#0B3320',
+      tagline:'Train. Transform. You.', stat:'Now open · low crowd',
+      offerBadge:'20% OFF', offerHead:'Stronger every day', offerSub:'20% off all gym sessions this month',
+      ctaLabel:'Explore Gym', listLabel:'Popular gyms nearby',
+      listings:[{n:'NOQ Elite Gym', rating:'4.8', meta:'0.6 km'},{n:'Iron Forge Fitness', rating:'4.6', meta:'1.5 km'}],
+      scene:(u)=>gymScene(u),
+    },
+    {
+      key:'shop', name:'Shop', color:'#FFC94A', deep:'#4A3608',
+      tagline:'Everything you need.', stat:'New arrivals today',
+      offerBadge:'15% OFF', offerHead:'Deals you will love', offerSub:'15% off selected items, today only',
+      ctaLabel:'Shop Now', listLabel:'Recommended for you',
+      listings:[{n:'Trend Mart', rating:'4.5', meta:'1.0 km'},{n:'Style Bazaar', rating:'4.6', meta:'1.8 km'}],
+      scene:(u)=>shopScene(u),
+    },
+    {
+      key:'clinic', name:'Clinic', color:'#29D3F0', deep:'#063542',
+      tagline:'Care. Trust. Health.', stat:'No wait · 2 doctors in',
+      offerBadge:'30% OFF', offerHead:'Better health, faster', offerSub:'30% off first consultations',
+      ctaLabel:'Book Visit', listLabel:'Top clinics nearby',
+      listings:[{n:'CarePlus Clinic', rating:'4.9', meta:'1.9 km'},{n:'Wellness Point', rating:'4.7', meta:'0.7 km'}],
+      scene:(u)=>clinicScene(u),
+    },
+  ];
+  const byKey = Object.fromEntries(CATS.map(c => [c.key, c]));
+
+  function sceneWrap(u, color, deep, inner){
+    return `<svg class="scene-svg" viewBox="0 0 200 200" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="bg-${u}" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity=".88"/>
+          <stop offset="55%" stop-color="${deep}"/>
+          <stop offset="100%" stop-color="#0D1118"/>
+        </linearGradient>
+        <radialGradient id="glow-${u}" cx="75%" cy="18%" r="55%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity=".32"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <rect width="200" height="200" fill="url(#bg-${u})"/>
+      <rect width="200" height="200" fill="url(#glow-${u})"/>
+      ${inner}
+    </svg>`;
+  }
+
+  function salonScene(u){
+    const inner = `
+      <path d="M132 198 C128 150 134 118 118 96 C108 83 108 66 122 55 C138 43 162 50 166 70 C169 84 161 94 152 100 C160 112 160 138 168 198 Z" fill="#050608" opacity=".85"/>
+      <g stroke="#fff" stroke-opacity=".5" stroke-width="1.6" fill="none" stroke-linecap="round">
+        <path d="M60 46 C74 62 70 84 52 96"/>
+        <path d="M50 40 C66 58 60 82 40 96"/>
+      </g>
+      <g transform="translate(38,100) rotate(-18)">
+        <circle cx="0" cy="0" r="7.5" fill="none" stroke="#fff" stroke-width="2.6"/>
+        <circle cx="0" cy="24" r="7.5" fill="none" stroke="#fff" stroke-width="2.6"/>
+        <line x1="5" y1="5" x2="34" y2="34" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+        <line x1="5" y1="19" x2="34" y2="-10" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/>
+      </g>
+      <circle cx="168" cy="46" r="2.4" fill="#fff" opacity=".8"/>
+      <circle cx="24" cy="40" r="1.8" fill="#fff" opacity=".55"/>
+    `;
+    return sceneWrap(u, byKey.salon.color, byKey.salon.deep, inner);
+  }
+  function gymScene(u){
+    const inner = `
+      <path d="M40 198 C42 160 56 140 60 118 C64 96 84 84 100 92 C96 104 100 112 112 116 C128 122 140 108 150 118 C160 128 156 146 168 198 Z" fill="#050608" opacity=".82"/>
+      <g transform="translate(96,86) rotate(28)">
+        <rect x="-58" y="-7" width="116" height="14" rx="6" fill="#fff" opacity=".92"/>
+        <rect x="-78" y="-19" width="18" height="38" rx="7" fill="#fff"/>
+        <rect x="60" y="-19" width="18" height="38" rx="7" fill="#fff"/>
+        <rect x="-92" y="-13" width="12" height="26" rx="5" fill="#fff" opacity=".85"/>
+        <rect x="80" y="-13" width="12" height="26" rx="5" fill="#fff" opacity=".85"/>
+      </g>
+      <circle cx="176" cy="40" r="2.4" fill="#fff" opacity=".8"/>
+      <circle cx="30" cy="52" r="1.8" fill="#fff" opacity=".5"/>
+    `;
+    return sceneWrap(u, byKey.gym.color, byKey.gym.deep, inner);
+  }
+  function shopScene(u){
+    const inner = `
+      <g transform="translate(58,150) rotate(-8)" opacity=".82">
+        <rect x="-30" y="-46" width="60" height="58" rx="8" fill="#050608"/>
+        <path d="M-16 -46 C-16 -58 16 -58 16 -46" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(112,158) rotate(6)">
+        <rect x="-34" y="-56" width="68" height="66" rx="9" fill="#050608" opacity=".94"/>
+        <path d="M-18 -56 C-18 -70 18 -70 18 -56" stroke="#fff" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+      </g>
+      <g transform="translate(150,120) rotate(-4)">
+        <rect x="-11" y="-16" width="42" height="30" rx="5" fill="#fff" opacity=".92"/>
+        <circle cx="20" cy="-16" r="4.2" fill="#fff" opacity=".92"/>
+      </g>
+      <circle cx="170" cy="52" r="2.4" fill="#fff" opacity=".8"/>
+    `;
+    return sceneWrap(u, byKey.shop.color, byKey.shop.deep, inner);
+  }
+  function clinicScene(u){
+    const inner = `
+      <g fill="#fff">
+        <rect x="86" y="46" width="20" height="70" rx="4"/>
+        <rect x="61" y="71" width="70" height="20" rx="4"/>
+      </g>
+      <path d="M20 150 L58 150 L68 130 L80 168 L92 142 L100 150 L180 150" stroke="#fff" stroke-opacity=".55" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="30" cy="46" r="2.2" fill="#fff" opacity=".7"/>
+      <circle cx="168" cy="176" r="2.4" fill="#fff" opacity=".8"/>
+    `;
+    return sceneWrap(u, byKey.clinic.color, byKey.clinic.deep, inner);
+  }
+
+  function catSvgIcon(key){
+    const glyphs = {
+      salon:`<g stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round"><circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="16" r="2.6"/><line x1="8" y1="7.6" x2="19" y2="18"/><line x1="8" y1="14.4" x2="19" y2="4"/></g>`,
+      gym:`<g fill="currentColor"><rect x="1" y="8" width="3" height="6" rx="1"/><rect x="20" y="8" width="3" height="6" rx="1"/><rect x="4.5" y="6.5" width="2.4" height="9" rx="1"/><rect x="17" y="6.5" width="2.4" height="9" rx="1"/><rect x="6.7" y="9.2" width="10.6" height="3.6" rx="1.4"/></g>`,
+      shop:`<g stroke="currentColor" stroke-width="2.1" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16l-1.2 12a1.6 1.6 0 0 1-1.6 1.4H6.8a1.6 1.6 0 0 1-1.6-1.4Z"/><path d="M7.5 8V6.6a4.5 4.5 0 0 1 9 0V8"/></g>`,
+      clinic:`<g fill="currentColor"><rect x="9.5" y="2" width="5" height="20" rx="1.4"/><rect x="2" y="9.5" width="20" height="5" rx="1.4"/></g>`,
+    };
+    return `<svg viewBox="0 0 24 24" style="color:#C6CCDA;">${glyphs[key] || ''}</svg>`;
+  }
+
+  function shellShare(cat){
+    return `--cat:${cat.color}; --cat-shadow:${cat.color}66;`;
+  }
+
+  function bannerHTML(cat){
+    return `
+      <div class="banner" style="${shellShare(cat)}">
+        <div class="banner-copy">
+          <span class="badge">${esc(cat.offerBadge)}</span>
+          <h4>${esc(cat.offerHead)}</h4>
+          <p>${esc(cat.offerSub)}</p>
+          <span class="cta">${esc(cat.ctaLabel)} →</span>
+        </div>
+        <div class="banner-art">${cat.scene(nextUid())}<div class="scrim"></div></div>
+      </div>`;
+  }
+
+  function listingsHTML(cat){
+    const rows = cat.listings.map(l => `
+      <div class="listing-card" style="${shellShare(cat)}">
+        <div class="thumb">${cat.scene(nextUid())}</div>
+        <div class="listing-info">
+          <div class="lname">${esc(l.n)}</div>
+          <div class="lmeta"><span class="rate">★ ${esc(l.rating)}</span><span>${esc(l.meta)}</span></div>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="zone-label"><span>${esc(cat.listLabel)}</span><span>See all</span></div>
+      <div class="listings">${rows}</div>`;
+  }
+
+  function shellChrome(bodyHTML){
+    return `
+      <div class="phone-screen">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span>📶 🔋</span></div>
+        <div class="screen-body">
+          <div class="app-header">
+            <div class="loc"><span class="l1">📍 DHA Phase 6, Lahore</span><span class="l2">Deliver to Home</span></div>
+            <div class="head-actions"><div class="wallet-chip">💳 Rs.1,250</div><div class="avatar"></div></div>
+          </div>
+          <div class="search-shell">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.2" y2="16.2"/></svg>
+            <span>Search services, salons, gyms&hellip;</span>
+            <div class="filt">≡</div>
+          </div>
+          ${bodyHTML}
+          <div class="bottom-nav">
+            <div class="nav-item active"><span>●</span><span class="lbl">Home</span></div>
+            <div class="nav-item"><span>▤</span><span class="lbl">Bookings</span></div>
+            <div class="nav-qr">▦</div>
+            <div class="nav-item"><span>◔</span><span class="lbl">Alerts</span></div>
+            <div class="nav-item"><span>▪</span><span class="lbl">More</span></div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  // ---------- Concept A: 2x2 grid ----------
+  function renderA(activeKey){
+    const cat = byKey[activeKey];
+    const grid = CATS.map(c => `
+      <button type="button" class="cat-card ${c.key===activeKey?'is-active':''}" style="--cat:${c.color}" data-concept="a" data-key="${c.key}">
+        <div class="tile">${catSvgIcon(c.key)}</div>
+        <div><div class="nm">${esc(c.name)}</div><div class="stat">${esc(c.stat)}</div></div>
+      </button>`).join('');
+    return shellChrome(`
+      <div class="zone-label"><span>Choose a category</span><span>4 available</span></div>
+      <div class="cat-grid">${grid}</div>
+      ${bannerHTML(cat)}
+      ${listingsHTML(cat)}
+    `);
+  }
+
+  // ---------- Concept B: hybrid hero + selector row ----------
+  function renderB(activeKey){
+    const cat = byKey[activeKey];
+    const pills = CATS.map(c => `
+      <button type="button" class="pill-btn ${c.key===activeKey?'is-active':''}" style="--cat:${c.color}" data-concept="b" data-key="${c.key}">
+        <span class="ic">${catSvgIcon(c.key)}</span>
+        <span class="lbl">${esc(c.name)}</span>
+      </button>`).join('');
+    return shellChrome(`
+      <div class="hero-card" style="${shellShare(cat)}">
+        ${cat.scene(nextUid())}
+        <div class="scrim"></div>
+        <div class="hero-content">
+          <span class="hero-eyebrow"><span class="dot"></span>NOQ ${esc(cat.name)}</span>
+          <div class="cname">${esc(cat.tagline)}</div>
+          <div class="ctag">${esc(cat.stat)}</div>
+          <div class="ccta">${esc(cat.ctaLabel)} →</div>
+        </div>
+      </div>
+      <div class="pill-row">${pills}</div>
+      ${bannerHTML(cat)}
+      ${listingsHTML(cat)}
+    `);
+  }
+
+  // ---------- Concept C: simplified 3-card deck ----------
+  function renderC(activeKey){
+    const cat = byKey[activeKey];
+    const idx = CATS.findIndex(c => c.key === activeKey);
+    const leftCat = CATS[(idx - 1 + CATS.length) % CATS.length];
+    const rightCat = CATS[(idx + 1) % CATS.length];
+    const sideCard = (c, side) => `
+      <button type="button" class="deck-card side-${side}" style="${shellShare(c)}" data-concept="c" data-key="${c.key}">
+        ${c.scene(nextUid())}<div class="scrim"></div>
+        <svg class="side-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="${side==='l' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'}"/></svg>
+        <div class="dc-label">${esc(c.name)}</div>
+      </button>`;
+    return shellChrome(`
+      <div class="deck-wrap">
+        <div class="deck-row">
+          ${sideCard(leftCat, 'l')}
+          <button type="button" class="deck-card is-front" style="${shellShare(cat)}" data-concept="c" data-key="${cat.key}">
+            ${cat.scene(nextUid())}<div class="scrim"></div>
+            <span class="active-chip">Active</span>
+            <div class="dc-label">${esc(cat.name)}</div>
+          </button>
+          ${sideCard(rightCat, 'r')}
+        </div>
+        <span class="deck-hint">⇆ Swipe, or tap a side card</span>
+      </div>
+      ${bannerHTML(cat)}
+      ${listingsHTML(cat)}
+    `);
+  }
+
+  const CONCEPTS = [
+    { id:'a', title:'2×2 Category Grid', desc:'Four clear tappable cards — no deck, no ambiguity. The most immediately understandable option for a first-time customer.', render:renderA, active:'salon' },
+    { id:'b', title:'Hybrid — Priority Version', desc:'One large hero for the active category plus a compact selector row below it. Tapping a selector swaps the hero’s mood.', render:renderB, active:'gym' },
+    { id:'c', title:'Simplified Floating Deck', desc:'The deck idea, cleaned up: 3 opaque cards max, real spacing, an obvious active card and a plain swipe/tap hint.', render:renderC, active:'shop' },
+  ];
+
+  const stage = document.getElementById('stage');
+  const state = {};
+
+  function paint(concept){
+    const phoneEl = document.getElementById('phone-' + concept.id);
+    phoneEl.innerHTML = concept.render(state[concept.id]);
+    const sw = document.getElementById('switch-' + concept.id);
+    sw.querySelectorAll('.switch-btn').forEach(b => b.classList.toggle('is-active', b.dataset.key === state[concept.id]));
+  }
+
+  CONCEPTS.forEach(concept => {
+    state[concept.id] = concept.active;
+    const col = document.createElement('div');
+    col.className = 'concept';
+    col.innerHTML = `
+      <div class="concept-head">
+        <span class="tag">Concept ${concept.id.toUpperCase()}</span>
+        <h2>${esc(concept.title)}</h2>
+        <p>${esc(concept.desc)}</p>
+      </div>
+      <div class="switcher" id="switch-${concept.id}">
+        ${CATS.map(c => `<button type="button" class="switch-btn" style="--cat:${c.color}" data-key="${c.key}"><span class="sw" style="background:${c.color}"></span>${esc(c.name)}</button>`).join('')}
+      </div>
+      <div class="phone">
+        <div id="phone-${concept.id}"></div>
+      </div>
+    `;
+    stage.appendChild(col);
+
+    col.querySelector('.switcher').addEventListener('click', (e) => {
+      const btn = e.target.closest('.switch-btn');
+      if (!btn) return;
+      state[concept.id] = btn.dataset.key;
+      paint(concept);
+    });
+    col.querySelector('.phone').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-key]');
+      if (!card || !card.dataset.concept) return;
+      state[concept.id] = card.dataset.key;
+      paint(concept);
+    });
+
+    paint(concept);
+  });
+
+  document.getElementById('tokenRail').innerHTML = `
+    <div class="token"><span class="sw" style="background:${BRAND.base}; border:1px solid #333"></span>Brand base <b>${BRAND.base}</b></div>
+    <div class="token"><span class="sw" style="background:${BRAND.accent}"></span>Brand accent <b>${BRAND.accent}</b></div>
+    <div class="token"><span class="sw" style="background:${BRAND.surface}; border:1px solid #333"></span>Surface <b>${BRAND.surface}</b></div>
+    ${CATS.map(c => `<div class="token"><span class="sw" style="background:${c.color}"></span>${c.name} <b>${c.color}</b></div>`).join('')}
+  `;
+})();
+</script>
