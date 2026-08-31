@@ -402,9 +402,11 @@ const HERO_COPY: Record<string, { headline: string; subheadline: string }> = {
   pets: { headline: 'Care faster, stress less.', subheadline: 'Reserve a grooming or vet slot so your pet spends less time waiting.' },
 };
 
+export const NOQ_LIVE_COLOR = '#FF3B30';
+
 export const LiveNowBadge: React.FC = () => (
-  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#FF3B30]/20 bg-[#FF3B30]/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#FF6B63]">
-    <span className="h-1.5 w-1.5 rounded-full bg-[#FF3B30] shadow-[0_0_8px_rgba(255,59,48,0.75)]" />
+  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#FF3B30]/20 bg-[#FF3B30]/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em]" style={{ color: NOQ_LIVE_COLOR }}>
+    <span className="h-1.5 w-1.5 rounded-full shadow-[0_0_8px_rgba(255,59,48,0.75)]" style={{ backgroundColor: NOQ_LIVE_COLOR }} />
     Live now
   </span>
 );

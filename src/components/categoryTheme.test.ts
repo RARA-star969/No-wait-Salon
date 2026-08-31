@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORY_THEME_MAP, categoryCssVars, resolveCategoryTheme } from './CustomerHomeComponents';
+import { CATEGORY_THEME_MAP, NOQ_LIVE_COLOR, categoryCssVars, resolveCategoryTheme } from './CustomerHomeComponents';
 
 const CATEGORY_KEYS = ['salon', 'gym', 'shop', 'moto', 'pets', 'mall', 'food', 'clinic'];
 const GLASS_TOKEN_KEYS = ['darkSurface', 'glassSurface', 'glassBorder', 'ctaGradient', 'selectedGlow', 'modalTint', 'subtleAccent'] as const;
@@ -30,6 +30,10 @@ test('approved category accents are exact and every category keeps the fixed mid
   for (const key of CATEGORY_KEYS) {
     assert.equal(CATEGORY_THEME_MAP[key].joinedBg, 'bg-[#0D1118]', `${key} must not recolor the NOQ shell`);
   }
+});
+
+test('LIVE NOW uses the one fixed semantic live red', () => {
+  assert.equal(NOQ_LIVE_COLOR, '#FF3B30');
 });
 
 test('categoryCssVars exposes every new token as a --category-* custom property', () => {
