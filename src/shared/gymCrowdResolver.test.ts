@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveGymCrowdLevel } from './gymCrowdResolver.ts';
+import { resolveGymCrowdLevel, resolveGymOccupancyPercentage } from './gymCrowdResolver.ts';
 
 test('Gym Crowd Level Resolver', async (t) => {
   await t.test('0-35% occupancy resolves to Low', () => {
@@ -27,6 +27,20 @@ test('Gym Crowd Level Resolver', async (t) => {
   await t.test('100%+ occupancy resolves to Full', () => {
     assert.equal(resolveGymCrowdLevel(100, 100).level, 'Full');
     assert.equal(resolveGymCrowdLevel(105, 100).level, 'Full');
+  });
+});
+
+test('Gym occupancy progress uses the real proportional values', async (t) => {
+  await t.test('0/80 keeps zero fill', () => {
+    assert.equal(resolveGymOccupancyPercentage(0, 80), 0);
+  });
+  await t.test('1/80 produces a small real fill without a fake minimum', () => {
+    assert.equal(resolveGymOccupancyPercentage(1, 80), 1.25);
+  });
+  await t.test('20/80, 40/80 and 80/80 are proportional', () => {
+    assert.equal(resolveGymOccupancyPercentage(20, 80), 25);
+    assert.equal(resolveGymOccupancyPercentage(40, 80), 50);
+    assert.equal(resolveGymOccupancyPercentage(80, 80), 100);
   });
 });
 

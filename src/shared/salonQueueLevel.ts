@@ -12,8 +12,8 @@ export interface SalonQueueSignal {
  * disagree about how "busy" a salon currently is.
  */
 export function resolveSalonQueueSignal(waitingCustomers: number): SalonQueueSignal {
-  if (waitingCustomers <= 0) return { color: 'green', label: 'Available' };
+  if (waitingCustomers <= 0) return { color: 'green', label: 'Low Wait' };
   if (waitingCustomers <= 2) return { color: 'yellow', label: 'Moderate' };
   if (waitingCustomers <= 5) return { color: 'orange', label: 'Busy' };
-  return { color: 'red', label: 'High wait' };
+  return { color: 'red', label: 'Busy' };
 }

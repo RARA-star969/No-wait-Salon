@@ -1256,10 +1256,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="customer-home-header"
               ref={setHomeHeaderNode}
-              className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden border-b px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+              className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
                 homeHeaderCollapsed
-                  ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
-                  : 'translate-y-0 border-white/[0.06] opacity-100'
+                  ? 'pointer-events-none -translate-y-full opacity-0'
+                  : 'translate-y-0 opacity-100'
               }`}
             >
               <div className="flex items-center justify-between gap-3">
@@ -1480,7 +1480,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   liveLine2 = '';
                   liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
                   signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
-                  signalLabel = signal.color === 'green' ? 'QUIET' : signal.color === 'yellow' ? 'MODERATE' : 'BUSY';
+                  signalLabel = signal.label.toUpperCase();
                 } else if (catId === 'salon') {
                   const waitingCustomers = salon.waitingCustomers;
                   const isNoWait = waitingCustomers === 0;
@@ -1491,7 +1491,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
                   const signal = resolveSalonQueueSignal(waitingCustomers);
                   signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
-                  signalLabel = signal.color === 'green' ? 'LOW WAIT' : signal.color === 'yellow' ? 'MODERATE' : 'BUSY';
+                  signalLabel = signal.label.toUpperCase();
                   positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
                 } else {
                   liveLine1 = salon.isOpen ? 'Open now' : 'Closed';

@@ -6,6 +6,12 @@ export interface GymCrowdMetrics {
   availableSlots: number;
 }
 
+/** Exact proportional fill used by every compact Gym occupancy meter. */
+export function resolveGymOccupancyPercentage(occupancy: number, maxCapacity: number): number {
+  if (maxCapacity <= 0) return 0;
+  return Math.min(100, Math.max(0, (occupancy / maxCapacity) * 100));
+}
+
 /**
  * Centralized Gym Crowd Level Resolver.
  * Resolves crowd status consistently across Customer UI and Staff Dashboard:
@@ -18,7 +24,7 @@ export interface GymCrowdMetrics {
 export function resolveGymCrowdLevel(occupancy: number, maxCapacity: number): GymCrowdMetrics {
   const cap = Math.max(1, maxCapacity);
   const occ = Math.max(0, occupancy);
-  const percentage = Math.round((occ / cap) * 100);
+  const percentage = Math.round(resolveGymOccupancyPercentage(occ, cap));
   const availableSlots = Math.max(0, cap - occ);
 
   let level: CrowdLevel = 'Low';

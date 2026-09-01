@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { resolveSalonQueueSignal } from './salonQueueLevel.ts';
 
 test('Salon Queue Signal Resolver', async (t) => {
-  await t.test('zero waiting resolves to green/Available', () => {
+  await t.test('zero waiting resolves to green/Low Wait', () => {
     const signal = resolveSalonQueueSignal(0);
     assert.equal(signal.color, 'green');
-    assert.equal(signal.label, 'Available');
+    assert.equal(signal.label, 'Low Wait');
   });
 
   await t.test('1-2 waiting resolves to yellow/Moderate', () => {
@@ -21,9 +21,9 @@ test('Salon Queue Signal Resolver', async (t) => {
     assert.equal(resolveSalonQueueSignal(5).label, 'Busy');
   });
 
-  await t.test('6+ waiting resolves to red/High wait', () => {
+  await t.test('6+ waiting resolves to red/Busy', () => {
     assert.equal(resolveSalonQueueSignal(6).color, 'red');
     assert.equal(resolveSalonQueueSignal(20).color, 'red');
-    assert.equal(resolveSalonQueueSignal(6).label, 'High wait');
+    assert.equal(resolveSalonQueueSignal(6).label, 'Busy');
   });
 });

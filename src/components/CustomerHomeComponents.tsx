@@ -2,6 +2,7 @@ import React from 'react';
 import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
+import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -318,8 +319,8 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
         }`}
-        style={isListening ? undefined : ({ '--tw-ring-color': 'var(--category-tint-20, rgba(34,211,238,0.15))' } as React.CSSProperties)}
-        onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--category-border, rgba(34,211,238,0.5))'; }}
+        style={isListening ? undefined : ({ '--tw-ring-color': 'rgba(42,123,255,.22)' } as React.CSSProperties)}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(106,165,255,.45)'; }}
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
         <Search className="h-[18px] w-[18px] shrink-0 text-[#77A9F8]" />
@@ -708,7 +709,7 @@ export const PremiumBusinessCard: React.FC<{
   const isSalon = categoryId === 'salon';
   const isGym = categoryId === 'gym';
   const occupancyPercent = liveFloorMeter
-    ? Math.min(100, Math.max(0, (liveFloorMeter.occupancy / Math.max(1, liveFloorMeter.maxCapacity)) * 100))
+    ? resolveGymOccupancyPercentage(liveFloorMeter.occupancy, liveFloorMeter.maxCapacity)
     : 0;
 
   return (
@@ -762,7 +763,16 @@ export const PremiumBusinessCard: React.FC<{
         {isGym && liveFloorMeter ? (
           <>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-wide" style={{ color: theme.accent }}><span className="text-[11px]">⌁</span> Live floor</span>
-            <span className="mx-auto h-1 w-[62px] overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} /></span>
+            <span
+              role="progressbar"
+              aria-label={`Gym occupancy ${liveFloorMeter.occupancy} of ${liveFloorMeter.maxCapacity}`}
+              aria-valuemin={0}
+              aria-valuemax={liveFloorMeter.maxCapacity}
+              aria-valuenow={liveFloorMeter.occupancy}
+              className="mx-auto h-1.5 w-[64px] overflow-hidden rounded-full bg-white/[0.16] ring-1 ring-inset ring-white/[0.09] shadow-[inset_0_1px_2px_rgba(0,0,0,.7)]"
+            >
+              <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} />
+            </span>
             <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : isSalon ? (

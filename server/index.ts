@@ -70,6 +70,12 @@ type QueueCommand =
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
 const dataDir = process.env.DATA_DIR || path.join(projectRoot, 'data');
+const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();
+const renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();
+const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
+  || dataDir.includes('no-wait-salon-test-data')
+  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
+  || renderServiceName === 'no-wait-salon-web-test';
 mkdirSync(dataDir, { recursive: true });
 const profilePhotoDir = path.join(dataDir, 'profile-photos');
 mkdirSync(profilePhotoDir, { recursive: true });
@@ -833,18 +839,21 @@ export async function safeBackfillSeeds(db: any, persistence: any) {
   }
 }
 await safeBackfillSeeds(db, postgresPersistence);
-// Idempotent business_code patch: rows seeded before the column was added
+// Idempotent TEST business_code patch: rows seeded before the column was added
 // have NULL there. ON CONFLICT(id) DO NOTHING in safeBackfillSeeds never
-// updates them. This UPDATE runs on every server start and is safe to repeat.
-{
+// updates them. The explicit TEST guard keeps production business data out of
+// scope; repeated TEST starts only fill missing codes and never duplicate rows.
+if (isExplicitTestDeployment) {
   const knownCodes: Array<[string, string]> = [
     ['gym-1', 'IRONHOUSE01'], ['gym-2', 'VELOCITY01'],
     ['salon-1', 'SALON-1'], ['salon-2', 'SALON-2'], ['shop-1', 'SHOP-1'],
     ['moto-1', 'MOTO-1'], ['pets-1', 'PETS-1'], ['mall-1', 'MALL-1'], ['food-1', 'FOOD-1'],
   ];
+  let repairedBusinessCodes = 0;
   for (const [id, code] of knownCodes) {
-    (db as any).prepare('UPDATE salon SET business_code = ? WHERE id = ? AND (business_code IS NULL OR business_code = \'\')').run(code, id);
+    repairedBusinessCodes += Number((db as any).prepare('UPDATE salon SET business_code = ? WHERE id = ? AND (business_code IS NULL OR business_code = \'\')').run(code, id).changes);
   }
+  if (repairedBusinessCodes) await postgresPersistence?.flushNow(['salon']);
 }
 
 // Diagnostic only: surfaces the active public QR token for each salon in the
@@ -931,12 +940,6 @@ if (isProduction) {
   }
 }
 
-const renderExternalHostname = String(process.env.RENDER_EXTERNAL_HOSTNAME || '').trim().toLowerCase();
-const renderServiceName = String(process.env.RENDER_SERVICE_NAME || '').trim().toLowerCase();
-const isExplicitTestDeployment = process.env.NO_WAIT_TEST_DEPLOYMENT === 'true'
-  || dataDir.includes('no-wait-salon-test-data')
-  || renderExternalHostname === 'no-wait-salon-web-test.onrender.com'
-  || renderServiceName === 'no-wait-salon-web-test';
 if (process.env.NODE_ENV !== 'production' || isExplicitTestDeployment) {
   const demoStaffAccounts = [
     { id: 'staff-acc-salon-1-owner', businessId: 'salon-1', email: 'sharpcut-owner@nowaitsalon.test', password: 'staff123', name: 'Arjun (Owner)', role: 'owner' },
@@ -1905,8 +1908,9 @@ app.post('/api/staff/test-login', (request, response) => {
   if (!account && testRole === 'trainer') return response.status(404).json({ error: 'No trainer test account exists for this business.' });
   if (!account) {
     const id = `staff_${randomUUID()}`;
+    const testOwnerKey = createHash('sha256').update(String(bRow.id)).digest('hex').slice(0, 12);
     db.prepare('INSERT INTO staff_account (id, business_id, email, password_hash, name, role, active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, bRow.id, 'test-owner@example.com', '', 'TEST Owner', 'owner', 1, Date.now(), Date.now());
+      .run(id, bRow.id, `test-owner+${testOwnerKey}@example.com`, '', 'TEST Owner', 'owner', 1, Date.now(), Date.now());
     account = db.prepare("SELECT * FROM staff_account WHERE id = ?").get(id);
   }
 

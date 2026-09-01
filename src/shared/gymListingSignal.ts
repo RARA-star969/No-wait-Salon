@@ -7,11 +7,11 @@ export interface GymListingSignal {
 }
 
 const GYM_SIGNAL_BY_LEVEL: Record<CrowdLevel, GymListingSignal> = {
-  Low: { color: 'green', label: 'Light Crowd' },
+  Low: { color: 'green', label: 'Quiet' },
   Moderate: { color: 'yellow', label: 'Moderate' },
-  Busy: { color: 'orange', label: 'Busy' },
-  'Very Busy': { color: 'red', label: 'Near Full' },
-  Full: { color: 'red', label: 'Full' },
+  Busy: { color: 'red', label: 'Busy' },
+  'Very Busy': { color: 'red', label: 'Busy' },
+  Full: { color: 'red', label: 'Busy' },
 };
 
 /**
