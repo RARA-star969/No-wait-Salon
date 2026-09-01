@@ -1,1 +1,592 @@
-m´ÎàßΩ©bu™‡∫gß∂ ‹˛)›{,±KÅÊ⁄±Ó∏ÿ[ûÈ¢äw‚ïÍ(∫◊‚ïÊ€≠Ê§n∑öëÈ‹°◊ù¢Îi∫€©ä{hñ)ﬁ≤áÂzx-Ü{¶◊^rá^uÁ(uËß¶ÎaÖÈiv+)ï¨≠Ü+&zÀÅË¢ûõ≠äznµ¯•y◊üjÈm~äÏµÿß¢ã≠¶Îh∫⁄nµ¯•y◊üjÈm~äÏµ⁄.
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-serif: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-natural-bg: #F4F7F6;
+  --color-natural-card: #FFFFFF;
+  --color-natural-sub: #F8FAFA;
+  --color-natural-text: #17201F;
+  --color-natural-muted: #6F7C7A;
+  --color-natural-border: #E1E7E6;
+  --color-natural-olive: #0F766E;
+  --color-natural-olive-hover: #0B665F;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  background-color: #F4F7F6;
+  color: #17201F;
+  margin: 0;
+}
+
+/* Category theme layer ‚Äî the active Customer App category (Salon, Gym, Shop,
+   Moto, Pets‚Ä¶) is the single source of truth for these, written onto
+   :root by CustomerApp whenever the active/authoritative category changes.
+   Defaults below (Salon teal) only cover first paint before that effect runs. */
+:root {
+  --category-primary: #22D3EE;
+  --category-accent: #2DD4BF;
+  --category-glow: rgba(34, 211, 238, 0.28);
+  --category-border: rgba(34, 211, 238, 0.25);
+  --category-soft: rgba(45, 212, 191, 0.7);
+  --category-surface: #050B0C;
+  --category-tint-10: rgba(34, 211, 238, 0.1);
+  --category-tint-20: rgba(34, 211, 238, 0.14);
+  --category-primary-dark: #0B4A44;
+  --category-primary-light: #5EEAD4;
+}
+
+/* Approved NOQ Customer Home material. The brand-blue aura is intentionally
+   independent of --category-* so switching categories cannot recolor the
+   shell; only elements carrying --home-accent receive a local category tint. */
+.customer-liquid-home {
+  color-scheme: dark;
+  background:
+    linear-gradient(180deg, rgba(42, 123, 255, .07) 0, transparent 35%),
+    #0D1118;
+}
+
+.customer-home-header {
+  background: linear-gradient(180deg, rgba(5, 12, 25, .96), rgba(7, 14, 26, .86));
+  box-shadow: 0 18px 38px -28px rgba(42, 123, 255, .6);
+}
+
+.customer-appearance-pill {
+  background: linear-gradient(145deg, rgba(13, 20, 32, .74), rgba(4, 10, 20, .64));
+}
+
+.customer-location-button {
+  border-color: rgba(106, 165, 255, .22);
+  background: linear-gradient(145deg, rgba(42, 123, 255, .24), rgba(42, 123, 255, .08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 12px 28px -16px rgba(42,123,255,.9);
+}
+
+.customer-search-glass {
+  border-color: rgba(148, 183, 238, .24);
+  background: linear-gradient(150deg, rgba(14, 21, 32, .88), rgba(3, 9, 18, .84));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.11), inset 0 -7px 20px rgba(0,0,0,.24), 0 12px 28px -22px rgba(42,123,255,.72);
+}
+
+.customer-category-tile {
+  border-color: rgba(147, 174, 214, .13);
+  background: linear-gradient(145deg, rgba(20,25,34,.84), rgba(5,11,21,.76));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 10px 22px -18px rgba(0,0,0,.95);
+}
+
+.customer-category-tile:focus {
+  outline: none;
+}
+
+.customer-category-tile.is-selected {
+  border-color: color-mix(in srgb, var(--home-accent) 52%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--home-accent) 20%, #141922), rgba(7,12,22,.88));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 12px 25px -18px var(--home-accent), 0 0 18px -12px var(--home-accent);
+}
+
+.customer-featured-hero {
+  border-color: color-mix(in srgb, var(--home-accent) 45%, rgba(255,255,255,.1));
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--home-accent) 18%, transparent), transparent 45%),
+    linear-gradient(135deg, rgba(20,25,34,.93), rgba(4,10,20,.94));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -18px 38px rgba(0,0,0,.2), 0 20px 45px -28px var(--home-accent);
+}
+
+.customer-hero-arcs span {
+  border-color: color-mix(in srgb, var(--home-accent) 43%, transparent);
+  box-shadow: inset 1px 0 0 rgba(255,255,255,.1), 0 0 18px -13px var(--home-accent);
+}
+
+.customer-home-business-card {
+  background: linear-gradient(145deg, rgba(13, 20, 31, .9), rgba(3, 9, 18, .88));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 12px 26px -22px rgba(0,0,0,.95);
+}
+
+.customer-bottom-dock {
+  background: linear-gradient(180deg, rgba(12,19,30,.9), rgba(2,7,14,.9));
+  box-shadow: inset 0 1px 0 rgba(139,184,255,.25), 0 14px 34px -14px rgba(0,0,0,.8);
+}
+
+.customer-more-sheet {
+  background: linear-gradient(165deg, rgba(20,25,34,.98), rgba(5,11,21,.98));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.11), 0 -24px 70px -30px rgba(42,123,255,.7);
+}
+
+/* Customer Home's signature category controller. The stage itself never
+   scrolls horizontally: pointer intent drives transform-only depth motion,
+   while touch-action: pan-y leaves vertical gestures native to CustomerApp. */
+.floating-category-deck {
+  position: relative;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.floating-category-stage {
+  position: relative;
+  height: 224px;
+  margin-inline: -1rem;
+  perspective: 900px;
+  perspective-origin: 50% 44%;
+  transform-style: preserve-3d;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+  /* The stage itself is the real gesture surface ‚Äî pointer/touch handlers
+     are attached here, so it must actually be hit-testable rather than
+     relying on events bubbling up from individually-`auto` children. That
+     fragile bubbling arrangement is what made touch unreliable on iOS
+     Safari: `touch-action` computed for the actual touch target (a card)
+     didn't reliably resolve from this ancestor, so WebKit could commit the
+     gesture to native scrolling before our JS ever saw a horizontal
+     pointermove. `touch-action: pan-y` is set both here and on
+     `.floating-glass-card` below for that reason. */
+  touch-action: pan-y;
+  pointer-events: auto;
+}
+
+.floating-category-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.floating-category-stage::before {
+  content: '';
+  position: absolute;
+  inset: 18px 7% 28px;
+  border-radius: 42%;
+  background:
+    radial-gradient(circle at 48% 35%, rgba(255, 255, 255, .12), transparent 25%),
+    radial-gradient(circle at 22% 58%, rgba(45, 212, 191, .2), transparent 34%),
+    radial-gradient(circle at 78% 54%, rgba(139, 92, 246, .2), transparent 36%);
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.floating-glass-card {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  height: 160px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .58);
+  border-radius: 30px;
+  transform-origin: 50% 55%;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  /* `will-change` is intentionally NOT set here for every card ‚Äî it's added
+     only on `.is-near`/`.is-active` below, so far cards (which never animate)
+     don't force a GPU layer they'll never use. */
+  transition-property: transform, opacity, filter, box-shadow;
+  /* Overridden inline with the single DECK_EASING token; kept here so a
+     card painted before hydration still settles on the same curve. */
+  transition-timing-function: cubic-bezier(.22, .84, .28, 1);
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Set explicitly on the actual touch target, not just inherited from the
+     stage ‚Äî see the note above on why the ancestor-only value was unreliable
+     in WebKit. */
+  touch-action: pan-y;
+  pointer-events: auto;
+}
+
+.floating-glass-card::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow: inset 0 -8px 20px rgba(0, 0, 0, .12);
+  pointer-events: none;
+}
+
+.floating-glass-card.is-active {
+  filter: saturate(1.09) brightness(1.04);
+}
+
+/* Ambient "floating in air" idle motion (Task 1). Deliberately animates the
+   standalone CSS `translate` property, never `transform` ‚Äî the drag/depth/
+   rotate/scale transform is driven inline from JS per frame of a gesture,
+   and `translate`/`rotate`/`scale`/`transform` all composite independently,
+   so this idle drift layers on top of that without ever touching it or
+   fighting over the same property. Compositor-only (translate), no JS timer,
+   no React state. Only cards close enough to matter get `.is-near`, so far
+   cards never carry a running animation or an extra GPU layer. `!important`
+   on the reduced-motion rule further down still wins over this regardless of
+   specificity, so reduced-motion users get zero motion. */
+@keyframes deck-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 var(--float-amp, -3px); }
+}
+
+.floating-glass-card.is-near {
+  animation: deck-float var(--float-duration, 4.2s) ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+  will-change: transform, opacity, translate;
+}
+
+/* A real drag or an in-flight open/settle both fully own the card's motion
+   for their duration ‚Äî the float must not compete visually or for frame
+   budget while either is happening. */
+.floating-category-stage.is-dragging .floating-glass-card.is-near {
+  animation-play-state: paused;
+}
+
+.floating-glass-card.is-settling {
+  /* Higher-priority than `.is-near` by source order (equal specificity):
+     this fully replaces `animation` for the settle's duration, which is
+     what stops the float rather than fighting it for the same property. */
+  animation: glass-card-settle 260ms cubic-bezier(.22, .84, .28, 1) both;
+}
+
+/* Elastic edge physics (Task 4). Released past the first/last category: a
+   one-shot spring-back with a small opposite-direction overshoot, amplitude
+   and duration set per-release via --edge-amp/--edge-duration (computed from
+   overscroll distance + release speed in the component). Same technique as
+   the ambient float ‚Äî the standalone `translate` property, never the JS
+   `transform` ‚Äî and, by source order after `.is-near`, this fully takes over
+   `animation` for its short duration and the float simply resumes once the
+   class is removed. Transient only; never a running/looping animation. */
+@keyframes edge-bounce {
+  0% { translate: 0 0; }
+  50% { translate: var(--edge-amp, 10px) 0; }
+  100% { translate: 0 0; }
+}
+
+.floating-glass-card.is-edge-bouncing {
+  animation: edge-bounce var(--edge-duration, 320ms) cubic-bezier(.22, .84, .28, 1) both;
+}
+
+/* High-speed reaction (Task 5): a restrained, one-shot cue on the card that
+   becomes active from a genuinely hard flick ‚Äî a tiny scale kick using the
+   standalone `scale` property, which composites with (never replaces) the
+   inline transform's own scale. `.is-fast-snap` lives on the stage and is
+   cleared automatically a moment after the flick, alongside a slightly
+   shorter settle transition set inline for that one render. */
+@keyframes fast-snap-kick {
+  0% { scale: 1.035; }
+  100% { scale: 1; }
+}
+
+.floating-category-stage.is-fast-snap .floating-glass-card.is-active {
+  animation: fast-snap-kick 260ms cubic-bezier(.22, .84, .28, 1) both;
+}
+
+.floating-glass-reflection {
+  position: absolute;
+  inset: -42% 35% 34% -24%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255,255,255,.78), rgba(255,255,255,.04) 68%);
+  filter: blur(1px);
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+
+.floating-glass-caustic {
+  position: absolute;
+  right: -18%;
+  bottom: -54%;
+  width: 78%;
+  height: 100%;
+  border-radius: 50%;
+  border: 12px solid rgba(255, 255, 255, .13);
+  filter: blur(5px);
+  transform: rotate(-28deg);
+  pointer-events: none;
+}
+
+/* Rear-card material for the floating category deck (Task 6 polish): a
+   translucent wash + soft mirror blur that thickens with distance from the
+   active card, so cards behind it read as recognizable colored glass
+   silhouettes instead of competing with the front card's text/icons. */
+.floating-glass-frost {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Same 460ms / cubic-bezier(.22,.84,.28,1) settle system the card's own
+     transform uses (DECK_SETTLE_MS / DECK_EASING in FloatingCategoryDeck.tsx)
+     so the frost never resolves on a different clock than the card. */
+  transition: background-color 460ms cubic-bezier(.22, .84, .28, 1), backdrop-filter 460ms cubic-bezier(.22, .84, .28, 1);
+}
+
+.category-content-transition {
+  animation: category-content-in 360ms cubic-bezier(.22, 1, .36, 1) both;
+}
+
+@keyframes category-content-in {
+  from { opacity: 0; transform: translate3d(0, 9px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Tap-to-open acknowledgement. Deliberately animates ONLY the standalone
+   `scale` and `filter` properties ‚Äî never `transform`, which is driven inline
+   from JS and carries the card's real deck position, depth and rotation.
+   The previous version replaced `transform` outright, which discarded the
+   card's depth/rotation for the duration of the settle and read as a small
+   teleport. Composing instead of replacing removes that entirely. */
+@keyframes glass-card-settle {
+  0% { scale: 1; filter: brightness(1.04); }
+  55% { scale: 1.06; filter: brightness(1.14); }
+  100% { scale: 1.02; filter: brightness(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-glass-card,
+  .category-content-transition,
+  #customer-home-header {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Phase 1. The scanner renders in a portal on <body>, outside #root, so Home
+   can be hidden the moment the scanner opens - before any camera work or
+   WebView transparency begins. Nothing can composite Home through the shell. */
+body.scanner-open #root {
+  visibility: hidden;
+}
+
+body.scanner-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* Phase 3. While the native ML Kit preview runs the WebView must be
+   see-through so the camera plane behind it is visible. */
+body.barcode-scanner-active,
+body.barcode-scanner-active #root {
+  background: transparent !important;
+}
+
+/* The dimming scrim would otherwise hide the native camera plane entirely. */
+body.barcode-scanner-active #qr-scanner-scrim {
+  background: transparent !important;
+}
+
+/* Scanner opens as a dedicated surface: fade the dark field in, then let the
+   transparency swap happen once the native preview is live. */
+@keyframes qr-shell-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes qr-scan-sweep {
+  0% {
+    transform: translateY(0.75rem);
+    opacity: 0;
+  }
+  15%,
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(17.25rem);
+    opacity: 0;
+  }
+}
+
+/* Live queue hero card: a looping waveform, translated by exactly half its
+   doubled width so the seam is invisible and no JS has to drive it per frame. */
+@keyframes queue-waveform {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Live Queue card: a broad, soft light band drifting across the card
+   periodically ‚Äî subtle premium sheen, not a loading shimmer. Used by the
+   default (public QR) variant via the animate-[...] utility below. */
+@keyframes queue-light-sweep {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  55%, 100% {
+    transform: translateX(400%);
+  }
+}
+
+/* Live scoreboard capsule: a slow breathing scale + glow drift so the
+   sticky "signature" summary reads as alive without being distracting. */
+@keyframes scoreboard-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.015); }
+}
+
+@keyframes scoreboard-glow-drift {
+  0%, 100% { opacity: 0.7; transform: translate(0, 0); }
+  50% { opacity: 1; transform: translate(-6px, 4px); }
+}
+
+.live-scoreboard {
+  animation: scoreboard-breathe 3.6s ease-in-out infinite;
+}
+
+.live-scoreboard-glow {
+  animation: scoreboard-glow-drift 4.2s ease-in-out infinite;
+}
+
+/* Salon Detail live-queue card background: a faint scrolling line-graph,
+   reusing the queue-waveform keyframe above ‚Äî GPU-only transform. */
+.queue-waveform-line {
+  animation: queue-waveform 9s linear infinite;
+}
+
+/* A gentle breathing emphasis for "Your Turn"/"Now" ‚Äî noticeable without
+   being a flashy attention-grab. Opacity + scale only. */
+@keyframes attention-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.74; transform: scale(1.035); }
+}
+
+.attention-pulse {
+  animation: attention-pulse 1.9s ease-in-out infinite;
+}
+
+/* Live chip: a soft pulsing ring so the LIVE indicator reads as truly live.
+   Shared by the Salon Detail card and its scoreboard capsule. */
+@keyframes live-chip-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+.live-chip-pulse {
+  animation: live-chip-pulse 2.2s ease-out infinite;
+}
+
+/* Salon Detail sticky dock: a quick micro-bounce whenever the selection
+   changes, so adding/removing a service reads as the dock "catching" it. */
+@keyframes dock-bounce {
+  0%, 100% { transform: scale(1); }
+  35% { transform: scale(1.03); }
+  65% { transform: scale(0.99); }
+}
+
+.dock-bounce {
+  animation: dock-bounce 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Service "Add" tap: a quick rise + fade near the tapped card, hinting the
+   item just flew into the sticky dock below. */
+@keyframes add-to-dock-ping {
+  0% { opacity: 0; transform: translateY(2px) scale(0.85); }
+  30% { opacity: 1; transform: translateY(-4px) scale(1); }
+  100% { opacity: 0; transform: translateY(-16px) scale(1); }
+}
+
+.add-to-dock-ping {
+  animation: add-to-dock-ping 560ms ease-out forwards;
+}
+
+/* Salon hero "open now" dot: a small ball-like bounce so an open salon
+   reads as alive at a glance, not just a static coloured dot. */
+@keyframes open-dot-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-2.5px) scale(1.08); }
+  55% { transform: translateY(0) scale(0.96); }
+  75% { transform: translateY(-1px) scale(1.03); }
+}
+
+.open-dot-bounce {
+  animation: open-dot-bounce 1.8s ease-in-out infinite;
+}
+
+/* Salon name: a gentle letter-by-letter wave, left to right, once on
+   mount ‚Äî a subtle premium flourish, never a distracting loop. */
+@keyframes name-wave-in {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.name-wave-letter {
+  display: inline-block;
+  opacity: 0;
+  animation: name-wave-in 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: var(--wave-delay, 0ms);
+}
+
+/* Floating live scoreboard capsule: settles in with a soft lift/drop plus a
+   brief blur, so it reads as condensing into place, not a plain slide-in. */
+@keyframes capsule-melt-in {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.85); filter: blur(3px); }
+  60% { opacity: 1; transform: translateY(1px) scale(1.02); filter: blur(0.5px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+.capsule-melt-in {
+  animation: capsule-melt-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Salon Detail live-queue card: a broad, blurred white light sweep crossing
+   the surface every few seconds, like light catching a lens ‚Äî not a
+   metallic shimmer stripe. */
+@keyframes light-sweep {
+  0%   { transform: translateX(-70%); opacity: 0; }
+  8%   { opacity: 0; }
+  20%  { opacity: 0.9; }
+  40%  { opacity: 0.9; }
+  55%  { transform: translateX(70%); opacity: 0; }
+  100% { transform: translateX(70%); opacity: 0; }
+}
+
+.light-sweep {
+  background: linear-gradient(100deg, transparent 38%, rgba(255,255,255,0.16) 48%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.16) 52%, transparent 62%);
+  filter: blur(14px);
+  animation: light-sweep 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[qr-scan-sweep_2\.4s_ease-in-out_infinite\],
+  .animate-\[qr-shell-in_220ms_ease-out\],
+  .animate-\[queue-light-sweep_6s_ease-in-out_infinite\],
+  .animate-\[queue-waveform_3\.2s_linear_infinite\],
+  .live-scoreboard,
+  .live-scoreboard-glow,
+  .live-chip-pulse,
+  .dock-bounce,
+  .add-to-dock-ping,
+  .open-dot-bounce,
+  .capsule-melt-in,
+  .light-sweep,
+  .queue-waveform-line,
+  .attention-pulse {
+    animation: none;
+  }
+
+  .name-wave-letter {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  #sticky-scan-qr,
+  #sticky-scan-qr * {
+    transition: none !important;
+  }
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #0F766E;
+  outline-offset: 2px;
+}
