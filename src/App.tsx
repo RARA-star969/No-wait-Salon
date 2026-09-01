@@ -744,7 +744,7 @@ export default function App() {
   }
 
   return (
-    <div className={`flex flex-col justify-between bg-[#F4F7F6] font-sans text-[#17201F] selection:bg-[#0F766E]/20 selection:text-[#17201F] ${
+    <div className={`noq-customer-theme flex flex-col justify-between bg-[var(--noq-base)] font-sans text-[var(--noq-ink)] selection:bg-[var(--noq-tint-20)] selection:text-[var(--noq-ink)] ${
       PACKAGED_MODE === 'customer' ? 'h-[100dvh] min-h-0 overflow-hidden' : 'min-h-screen'
     }`}>
       {testSwitcherBanner}

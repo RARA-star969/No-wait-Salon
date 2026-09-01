@@ -74,8 +74,8 @@ export const GymActivityScreen: React.FC<{
   };
 
   return (
-    <div id="gym-activity-screen" className="min-h-full bg-[#F8FAFA] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-center gap-3 bg-gradient-to-b from-[#DFF1EE] to-[#F8FAFA] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))]">
+    <div id="gym-activity-screen" className="min-h-full bg-[var(--noq-base)] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex items-center gap-3 bg-gradient-to-b from-[#DFF1EE] to-[var(--noq-base)] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))]">
         <button onClick={onBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/80" aria-label="Back">
           <ArrowLeft className="h-4 w-4" />
         </button>
@@ -92,11 +92,11 @@ export const GymActivityScreen: React.FC<{
           <>
             {(active.length > 0 || recent.length > 0) && (
               <div className="space-y-2 rounded-2xl border border-[#E0E7E6] bg-white p-4">
-                <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6F7C7A]">Gym activity</p>
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--noq-muted)]">Gym activity</p>
                 {active.map((entry) => (
                   <div key={entry.visit.id} className="rounded-xl border border-[var(--category-primary-dark)]/35 bg-[#F2FAF8] p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-bold text-[#17201F]">{entry.gymName}</span>
+                      <span className="text-xs font-bold text-[var(--noq-ink)]">{entry.gymName}</span>
                       <span className="rounded-md bg-[var(--category-primary-dark)] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
                         {activeAccessHeading(entry.visit)}
                       </span>
@@ -155,7 +155,7 @@ export const GymActivityScreen: React.FC<{
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-[var(--category-primary-dark)]" />
-                        <span className="truncate text-xs font-bold text-[#17201F]">{entry.gymName}</span>
+                        <span className="truncate text-xs font-bold text-[var(--noq-ink)]">{entry.gymName}</span>
                       </div>
                       <p className="mt-0.5 truncate text-[11px] text-[#71807E]">{entry.membership.planName}</p>
                       <div className="mt-1 flex items-center gap-1.5">

@@ -146,7 +146,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                   onClick={() => setLabel(lbl)}
                   className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-extrabold transition ${
                     label === lbl
-                      ? 'bg-teal-600 text-white shadow-sm'
+                      ? 'bg-[var(--noq-accent)] text-white shadow-sm'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
@@ -167,7 +167,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                 value={buildingName}
                 onChange={(e) => setBuildingName(e.target.value)}
                 placeholder="e.g. #402, Apex Regency"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
               />
             </div>
 
@@ -181,7 +181,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
                 placeholder="e.g. 100ft Road, Indiranagar"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
               />
             </div>
 
@@ -195,7 +195,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="e.g. Bengaluru"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
               />
             </div>
 
@@ -208,7 +208,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                 value={pinCode}
                 onChange={(e) => setPinCode(e.target.value)}
                 placeholder="e.g. 560038"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
               />
             </div>
 
@@ -221,7 +221,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
                 value={landmark}
                 onChange={(e) => setLandmark(e.target.value)}
                 placeholder="e.g. Opposite Metro Station Gate 2"
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-teal-600 focus:bg-white focus:ring-2 focus:ring-teal-100"
+                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
               />
             </div>
           </div>
@@ -232,7 +232,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
               type="checkbox"
               checked={isDefault}
               onChange={(e) => setIsDefault(e.target.checked)}
-              className="h-4.5 w-4.5 rounded-lg border-slate-300 text-teal-600 focus:ring-teal-500"
+              className="h-4.5 w-4.5 rounded-lg border-slate-300 text-[var(--noq-accent)] focus:ring-[var(--noq-accent)]"
             />
             <span className="text-xs font-bold text-slate-700">Set as my default active location</span>
           </label>
@@ -248,7 +248,7 @@ export const AddAddressScreen: React.FC<AddAddressProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="flex items-center gap-2 rounded-2xl bg-teal-600 px-6 py-3 text-xs font-extrabold text-white shadow-md shadow-teal-600/20 hover:bg-teal-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-2xl bg-[var(--noq-accent)] px-6 py-3 text-xs font-extrabold text-white shadow-md shadow-[var(--noq-glow)] hover:bg-[var(--noq-accent-hover)] disabled:opacity-50"
             >
               <CheckCircle2 className="h-4 w-4" />
               {busy ? 'Saving...' : 'Save & Set Active'}

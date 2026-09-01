@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMetricFlash } from '../shared/useMetricFlash';
-import { LIVE_QUEUE_FILL_CAPSULE, LIVE_QUEUE_RIM_CAPSULE } from '../shared/liveQueueVisual';
+import { NOQ_CUSTOMER_LIVE_QUEUE_FILL_CAPSULE, NOQ_CUSTOMER_LIVE_QUEUE_RIM_CAPSULE } from '../shared/liveQueueVisual';
 import { LiveStatusChip } from './LiveStatusChip';
 
 /**
@@ -41,7 +41,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
       </p>
       <p
         className={`mt-0.5 whitespace-nowrap text-[15px] font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
-          flashing ? 'scale-[1.15] text-[#7DEFC6]' : ''
+          flashing ? 'scale-[1.15] text-[var(--noq-accent-light)]' : ''
         }`}
       >
         {metric.value}
@@ -52,8 +52,8 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
 
 export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette, premiumLive = false }) => {
   const Wrapper = onTap ? 'button' : 'div';
-  const fill = palette?.fill ?? LIVE_QUEUE_FILL_CAPSULE;
-  const rim = palette?.rim ?? LIVE_QUEUE_RIM_CAPSULE;
+  const fill = palette?.fill ?? NOQ_CUSTOMER_LIVE_QUEUE_FILL_CAPSULE;
+  const rim = palette?.rim ?? NOQ_CUSTOMER_LIVE_QUEUE_RIM_CAPSULE;
   const glow = palette?.glow ?? '#5EE0B4';
   return (
     <Wrapper

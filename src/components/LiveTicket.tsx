@@ -327,7 +327,7 @@ export const LiveTicket: React.FC<Props> = ({
             <div key={step.key} role="listitem" className="relative flex flex-1 flex-col items-center gap-1">
               {index > 0 && (
                 <span
-                  className={`absolute left-[-50%] top-[5px] h-0.5 w-full ${done || active ? 'bg-[var(--category-primary-dark)]' : 'bg-[#E1E7E6]'}`}
+                  className={`absolute left-[-50%] top-[5px] h-0.5 w-full ${done || active ? 'bg-[var(--category-primary-dark)]' : 'bg-[var(--noq-border)]'}`}
                   aria-hidden="true"
                 />
               )}
@@ -337,10 +337,10 @@ export const LiveTicket: React.FC<Props> = ({
                     ? 'h-[13px] w-[13px] bg-[var(--category-primary-dark)] shadow-[0_0_0_4px_var(--category-glow)] animate-pulse'
                     : done
                       ? 'h-[11px] w-[11px] bg-[var(--category-primary-dark)] shadow-[0_0_0_1px_var(--category-primary-dark)]'
-                      : 'h-[11px] w-[11px] bg-[#E1E7E6] shadow-[0_0_0_1px_#E1E7E6]'
+                      : 'h-[11px] w-[11px] bg-[var(--noq-border)] shadow-[0_0_0_1px_var(--noq-border)]'
                 }`}
               />
-              <span className={`text-center text-[9px] font-bold uppercase tracking-wide ${active ? 'text-[#17201F]' : done ? 'text-[var(--category-primary-dark)]' : 'text-[#6F7C7A]'}`}>
+              <span className={`text-center text-[9px] font-bold uppercase tracking-wide ${active ? 'text-[var(--noq-ink)]' : done ? 'text-[var(--category-primary-dark)]' : 'text-[var(--noq-muted)]'}`}>
                 {step.label}
               </span>
               {step.key === 'joined' && joinedAtTimeLabel && (
@@ -361,7 +361,7 @@ export const LiveTicket: React.FC<Props> = ({
             </span>
             <span className="text-[11px] font-black uppercase tracking-wider">Salon is calling you</span>
           </div>
-          <p className="mt-1 text-center text-xs font-bold text-[#17201F]">It&rsquo;s time to head in</p>
+          <p className="mt-1 text-center text-xs font-bold text-[var(--noq-ink)]">It&rsquo;s time to head in</p>
 
           {callExpired ? (
             <p className="mt-2 rounded-lg bg-rose-50 px-3 py-1.5 text-center text-[11px] font-semibold text-rose-700">
@@ -383,7 +383,7 @@ export const LiveTicket: React.FC<Props> = ({
             </span>
             <span className="text-[11px] font-black uppercase tracking-wider">You&rsquo;re Almost Up</span>
           </div>
-          <p className="mt-1 text-center text-xs font-bold text-[#17201F]">
+          <p className="mt-1 text-center text-xs font-bold text-[var(--noq-ink)]">
             {upcomingPeopleAhead <= 1 ? 'Next in line' : `${upcomingPeopleAhead} people ahead`} &middot; Approx. {upcomingApproxTimeLabel}
           </p>
           <div className="mt-2.5 rounded-xl bg-white/80 px-3 py-2 text-center text-[11px] font-semibold text-[var(--category-primary-dark)] shadow-sm backdrop-blur-sm">
@@ -410,7 +410,7 @@ export const LiveTicket: React.FC<Props> = ({
               className={`flex h-11 w-full items-center justify-center gap-2 rounded-[13px] text-[12.5px] font-bold transition-all ${
                 acknowledgeEnabled
                   ? 'bg-[var(--category-primary-dark)] text-white shadow-[0_14px_26px_-10px_var(--category-glow)] active:scale-[0.98] cursor-pointer'
-                  : 'bg-[#E1E7E6] text-[#6F7C7A] opacity-55 cursor-not-allowed'
+                  : 'bg-[var(--noq-border)] text-[var(--noq-muted)] opacity-55 cursor-not-allowed'
               }`}
             >
               {acknowledgeBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
@@ -431,7 +431,7 @@ export const LiveTicket: React.FC<Props> = ({
       {/* Service & Billing Module OR People Around You */}
       {isServingState ? (
         <div id="service-billing-module" className="mt-6 w-full space-y-3 rounded-[20px] border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-[var(--category-primary-dark)]/10 via-white to-white p-4 shadow-[0_14px_30px_-10px_var(--category-glow)]">
-          <div className="flex items-center justify-between border-b border-[#E1E7E6] pb-2.5">
+          <div className="flex items-center justify-between border-b border-[var(--noq-border)] pb-2.5">
             <div className="flex items-center gap-2 text-[var(--category-primary-dark)]">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -445,7 +445,7 @@ export const LiveTicket: React.FC<Props> = ({
           </div>
 
           {/* Service & Breakdown */}
-          <div className="space-y-1.5 text-xs text-[#17201F]">
+          <div className="space-y-1.5 text-xs text-[var(--noq-ink)]">
             <div className="flex items-center justify-between font-medium">
               <span className="text-[#5E6C6A]">Services</span>
               <span className="font-bold">{servicesList.length ? servicesList.join(' + ') : 'Haircut'}</span>
@@ -456,8 +456,8 @@ export const LiveTicket: React.FC<Props> = ({
                 <span>-₹{discountInr}</span>
               </div>
             )}
-            <div className="flex items-center justify-between pt-2 border-t border-[#E1E7E6]">
-              <span className="font-bold text-[#17201F]">Total Payable</span>
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--noq-border)]">
+              <span className="font-bold text-[var(--noq-ink)]">Total Payable</span>
               <span className="text-xl font-black text-[var(--category-primary-dark)] font-mono">₹{totalPriceInr}</span>
             </div>
           </div>
@@ -491,7 +491,7 @@ export const LiveTicket: React.FC<Props> = ({
                   id="pay-cash-btn"
                   type="button"
                   onClick={onPayCash}
-                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[13px] border border-[#E1E7E6] bg-white text-[11.5px] font-bold text-[#5E6C6A] hover:bg-[#F8FAFA] transition cursor-pointer"
+                  className="flex h-10 w-full items-center justify-center gap-2 rounded-[13px] border border-[var(--noq-border)] bg-white text-[11.5px] font-bold text-[#5E6C6A] hover:bg-[var(--noq-base)] transition cursor-pointer"
                 >
                   💵 Paid Cash to Salon
                 </button>
@@ -502,7 +502,7 @@ export const LiveTicket: React.FC<Props> = ({
       ) : (
         peopleAround.length > 0 && (
           <div className="mt-6 w-full">
-            <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">People around you in queue</p>
+            <p className="mb-3 text-center text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">People around you in queue</p>
             <div className="flex items-center justify-center gap-2.5 overflow-x-auto py-2">
               {peopleAround.map((person) => (
                 <div
@@ -510,7 +510,7 @@ export const LiveTicket: React.FC<Props> = ({
                   className={`flex flex-col items-center justify-center rounded-[16px] p-2.5 transition-all ${
                     person.isMe
                       ? 'min-w-[88px] border-2 border-[var(--category-primary-dark)] bg-gradient-to-b from-[var(--category-primary-dark)]/15 via-white to-white shadow-[0_10px_22px_-8px_var(--category-glow)] scale-105 z-[2]'
-                      : 'min-w-[72px] border border-[#E1E7E6] bg-white/90 shadow-sm'
+                      : 'min-w-[72px] border border-[var(--noq-border)] bg-white/90 shadow-sm'
                   }`}
                 >
                   <span className={`text-[9px] font-extrabold uppercase ${person.isMe ? 'text-[var(--category-primary-dark)]' : 'text-[#8A9694]'}`}>
@@ -528,17 +528,17 @@ export const LiveTicket: React.FC<Props> = ({
                         className={`flex items-center justify-center rounded-full font-bold ${
                           person.isMe
                             ? 'h-[44px] w-[44px] bg-[var(--category-primary-dark)] text-sm text-white shadow-[0_4px_12px_var(--category-glow)]'
-                            : 'h-[34px] w-[34px] bg-[#E1E7E6] text-xs text-[#6F7C7A]'
+                            : 'h-[34px] w-[34px] bg-[var(--noq-border)] text-xs text-[var(--noq-muted)]'
                         }`}
                       >
                         {person.isMe ? 'You' : person.label.slice(0, 1).toUpperCase()}
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[var(--category-primary-dark)]' : 'text-[#17201F]'}`}>
+                  <span className={`text-[10px] font-extrabold ${person.isMe ? 'text-[var(--category-primary-dark)]' : 'text-[var(--noq-ink)]'}`}>
                     {person.isMe ? 'YOU' : person.label}
                   </span>
-                  <span className="text-[8px] font-bold text-[#6F7C7A]">
+                  <span className="text-[8px] font-bold text-[var(--noq-muted)]">
                     {person.relLabel || (person.isMe ? 'Current token' : 'In queue')}
                   </span>
                 </div>

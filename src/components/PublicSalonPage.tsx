@@ -429,7 +429,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   // Handle Load Errors / Deactivated State
   if (loadError) {
     return (
-      <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
+      <div className="min-h-dvh bg-[#F6F9F8] text-[var(--noq-ink)]">
         <TopBar onOpenApp={openApp} />
         <main className="mx-auto max-w-md p-6 text-center">
           <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
@@ -439,7 +439,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           <p className="mt-2 text-sm text-slate-600 leading-relaxed">{loadError}</p>
           <button
             onClick={() => window.location.reload()}
-            className="mt-6 rounded-xl bg-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0D5E5E]"
+            className="mt-6 rounded-xl bg-[var(--noq-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0D5E5E]"
           >
             Retry
           </button>
@@ -450,10 +450,10 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
   if (!business || !salonProfile) {
     return (
-      <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
+      <div className="min-h-dvh bg-[#F6F9F8] text-[var(--noq-ink)]">
         <TopBar onOpenApp={openApp} />
         <main className="mx-auto max-w-md py-20 text-center">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-[#0F766E]" />
+          <LoaderCircle className="mx-auto h-8 w-8 animate-spin text-[var(--noq-accent)]" />
           <p className="mt-3 text-sm font-medium text-slate-500">Loading business queue…</p>
         </main>
       </div>
@@ -511,7 +511,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
   })();
 
   return (
-    <div className="min-h-dvh bg-[#F6F9F8] text-[#17201F]">
+    <div className="min-h-dvh bg-[#F6F9F8] text-[var(--noq-ink)]">
       <TopBar onOpenApp={openApp} />
 
       {isQueued && entry && completed && (
@@ -561,7 +561,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       {/* ---------------- ONBOARDING STEPS (Phone, OTP, Profile) ---------------- */}
       {step === 'phone' && (
         <main className="mx-auto max-w-md px-4 py-8">
-          <div className="rounded-3xl border border-[#E2EAE9] bg-white p-6 shadow-sm">
+          <div className="rounded-3xl border border-[var(--noq-border)] bg-white p-6 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">Verification</p>
             <h1 className="mt-1 text-[20px] font-extrabold">Enter your phone number</h1>
             <p className="mt-1 text-xs text-[#667371]">We'll send a code to verify your booking.</p>
@@ -573,14 +573,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="e.g. 9876543210"
-                  className="h-12 rounded-2xl border border-[#DDE7E5] px-4 text-base font-semibold outline-none focus:border-[#0F766E]"
+                  className="h-12 rounded-2xl border border-[var(--noq-border)] px-4 text-base font-semibold outline-none focus:border-[var(--noq-accent)]"
                 />
               </label>
               {error && <p className="text-xs text-rose-600">{error}</p>}
               <button
                 disabled={busy || phone.trim().length < 8}
                 onClick={() => void requestOtp()}
-                className="h-12 w-full rounded-2xl bg-[#0F766E] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
+                className="h-12 w-full rounded-2xl bg-[var(--noq-accent)] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
               >
                 {busy ? 'Sending code…' : 'Send verification code'}
               </button>
@@ -591,7 +591,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
       {step === 'otp' && (
         <main className="mx-auto max-w-md px-4 py-8">
-          <div className="rounded-3xl border border-[#E2EAE9] bg-white p-6 shadow-sm">
+          <div className="rounded-3xl border border-[var(--noq-border)] bg-white p-6 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">Verification</p>
             <h1 className="mt-1 text-[20px] font-extrabold">Enter verification code</h1>
             <p className="mt-1 text-xs text-[#667371]">Code sent to {phone}. {demoCode ? `(Demo code: ${demoCode})` : ''}</p>
@@ -601,13 +601,13 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="6-digit code"
-                className="h-12 w-full rounded-2xl border border-[#DDE7E5] px-4 text-center font-mono text-xl font-bold tracking-widest outline-none focus:border-[#0F766E]"
+                className="h-12 w-full rounded-2xl border border-[var(--noq-border)] px-4 text-center font-mono text-xl font-bold tracking-widest outline-none focus:border-[var(--noq-accent)]"
               />
               {error && <p className="text-xs text-rose-600">{error}</p>}
               <button
                 disabled={busy || code.trim().length < 4}
                 onClick={() => void verifyOtp()}
-                className="h-12 w-full rounded-2xl bg-[#0F766E] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
+                className="h-12 w-full rounded-2xl bg-[var(--noq-accent)] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
               >
                 {busy ? 'Verifying…' : 'Verify & Continue'}
               </button>
@@ -618,7 +618,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
 
       {step === 'profile' && (
         <main className="mx-auto max-w-md px-4 py-8">
-          <div className="rounded-3xl border border-[#E2EAE9] bg-white p-6 shadow-sm">
+          <div className="rounded-3xl border border-[var(--noq-border)] bg-white p-6 shadow-sm">
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#8B9795]">Customer Details</p>
             <h1 className="mt-1 text-[20px] font-extrabold">A couple of quick details</h1>
             <p className="mt-1 text-xs text-[#667371]">Name and gender are required so staff can identify your booking. Email stays optional.</p>
@@ -630,7 +630,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Rahul Sharma"
-                  className="h-12 rounded-2xl border border-[#DDE7E5] px-4 text-base font-semibold outline-none focus:border-[#0F766E]"
+                  className="h-12 rounded-2xl border border-[var(--noq-border)] px-4 text-base font-semibold outline-none focus:border-[var(--noq-accent)]"
                 />
               </label>
               <label className="grid gap-1.5 text-xs font-bold uppercase tracking-wider text-[#536966]">
@@ -639,7 +639,7 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   id="qr-profile-gender"
                   value={gender}
                   onChange={(e) => { setGender(e.target.value); setError(''); }}
-                  className="h-12 rounded-2xl border border-[#DDE7E5] bg-white px-4 text-base font-semibold outline-none focus:border-[#0F766E]"
+                  className="h-12 rounded-2xl border border-[var(--noq-border)] bg-white px-4 text-base font-semibold outline-none focus:border-[var(--noq-accent)]"
                 >
                   <option value="" disabled>Select gender</option>
                   <option value="Woman">Woman</option>
@@ -655,14 +655,14 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. rahul@gmail.com"
-                  className="h-12 rounded-2xl border border-[#DDE7E5] px-4 text-base outline-none focus:border-[#0F766E]"
+                  className="h-12 rounded-2xl border border-[var(--noq-border)] px-4 text-base outline-none focus:border-[var(--noq-accent)]"
                 />
               </label>
               {error && <p className="text-xs text-rose-600">{error}</p>}
               <button
                 disabled={busy || name.trim().length < 2 || !gender}
                 onClick={() => void saveProfileAndJoin()}
-                className="h-12 w-full rounded-2xl bg-[#0F766E] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
+                className="h-12 w-full rounded-2xl bg-[var(--noq-accent)] font-bold text-white shadow-sm hover:bg-[#0D5E5E] disabled:opacity-50"
               >
                 {busy ? 'Saving…' : 'Continue to Queue'}
               </button>
@@ -675,20 +675,20 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
       {isQueued && entry && !completed && (
         <main id="qr-live-ticket-screen" className="mx-auto max-w-md space-y-4 px-5 pb-12 pt-4">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">Live Ticket</div>
-            <h1 className="text-2xl font-bold tracking-tight text-[#17201F]">Your live queue</h1>
-            <p className="mt-0.5 text-xs text-[#6F7C7A]">{business.name} · {entry.service}</p>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--noq-muted)]">Live Ticket</div>
+            <h1 className="text-2xl font-bold tracking-tight text-[var(--noq-ink)]">Your live queue</h1>
+            <p className="mt-0.5 text-xs text-[var(--noq-muted)]">{business.name} · {entry.service}</p>
           </div>
 
           {cancelled || noShow ? (
-            <div className="rounded-2xl border border-[#E1E7E6] bg-white p-6 text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#0F766E]/10 text-[#0F766E]">
+            <div className="rounded-2xl border border-[var(--noq-border)] bg-white p-6 text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--noq-accent)]/10 text-[var(--noq-accent)]">
                 <CheckCircle2 className="h-7 w-7" />
               </div>
-              <h2 className="mt-3 text-lg font-extrabold text-[#17201F]">
+              <h2 className="mt-3 text-lg font-extrabold text-[var(--noq-ink)]">
                 {cancelledByStaff ? 'The salon cancelled your booking' : cancelledByCustomer ? 'Booking cancelled' : 'You missed your turn'}
               </h2>
-              <button type="button" onClick={rejoin} className="mt-5 rounded-xl bg-[#0F766E] px-5 py-2.5 text-xs font-bold text-white">
+              <button type="button" onClick={rejoin} className="mt-5 rounded-xl bg-[var(--noq-accent)] px-5 py-2.5 text-xs font-bold text-white">
                 Book another service
               </button>
             </div>
@@ -737,24 +737,24 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
           )}
 
           {!cancelled && !noShow && (
-            <div id="qr-live-alert-card" className="space-y-2.5 rounded-2xl border border-[#E1E7E6] bg-white p-4">
+            <div id="qr-live-alert-card" className="space-y-2.5 rounded-2xl border border-[var(--noq-border)] bg-white p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <BellRing className="h-4 w-4 text-[#0F766E]" />
-                  <span className="text-xs font-bold text-[#17201F]">Live Queue Alerts</span>
+                  <BellRing className="h-4 w-4 text-[var(--noq-accent)]" />
+                  <span className="text-xs font-bold text-[var(--noq-ink)]">Live Queue Alerts</span>
                 </div>
-                <span className="rounded-full bg-[#E7F5F2] px-2 py-0.5 text-[10px] font-bold uppercase text-[#0F766E]">
+                <span className="rounded-full bg-[#E7F5F2] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--noq-accent)]">
                   {notifyState === 'granted' ? 'Alerts Enabled' : 'Live Updates Active'}
                 </span>
               </div>
-              <p className="text-[11px] leading-relaxed text-[#6F7C7A]">
+              <p className="text-[11px] leading-relaxed text-[var(--noq-muted)]">
                 Keep this page available for real-time queue changes. We will alert you when your turn is called.
               </p>
               {notifyState === 'default' && (
                 <button
                   type="button"
                   onClick={() => void requestTurnNotifications().then(setNotifyState)}
-                  className="w-full rounded-xl bg-[#0F766E] px-3 py-2 text-[11px] font-bold text-white"
+                  className="w-full rounded-xl bg-[var(--noq-accent)] px-3 py-2 text-[11px] font-bold text-white"
                 >
                   Enable Browser Alerts
                 </button>
@@ -767,13 +767,13 @@ export const PublicSalonPage: React.FC<{ token: string }> = ({ token }) => {
               href={`https://maps.google.com/?q=${encodeURIComponent(business.name + ' ' + business.address)}`}
               target="_blank"
               rel="noreferrer"
-              className="rounded-2xl border border-[#E1E7E6] bg-white p-3 text-center text-xs font-semibold text-[#17201F]"
+              className="rounded-2xl border border-[var(--noq-border)] bg-white p-3 text-center text-xs font-semibold text-[var(--noq-ink)]"
             >
               Get Directions
             </a>
             <a
               href={business.phoneNumber ? `tel:${business.phoneNumber}` : undefined}
-              className="rounded-2xl border border-[#E1E7E6] bg-white p-3 text-center text-xs font-semibold text-[#17201F]"
+              className="rounded-2xl border border-[var(--noq-border)] bg-white p-3 text-center text-xs font-semibold text-[var(--noq-ink)]"
             >
               Call Salon
             </a>

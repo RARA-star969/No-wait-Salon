@@ -111,7 +111,7 @@ export const SafeAreaHeader: React.FC<SafeAreaHeaderProps> = ({
   return (
     <header
       className={`safe-area-header sticky top-0 z-30 shrink-0 border-b px-4 pb-3 backdrop-blur-xl ${
-        dark ? 'border-white/[0.07] bg-[#050B0C]/85 text-slate-100' : 'border-[#E2E8E7] bg-white/95 text-[#17201F]'
+        dark ? 'border-white/[0.07] bg-[#050B0C]/85 text-slate-100' : 'border-[#E2E8E7] bg-white/95 text-[var(--noq-ink)]'
       }`}
       style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
     >
@@ -122,7 +122,7 @@ export const SafeAreaHeader: React.FC<SafeAreaHeaderProps> = ({
             onClick={onBack}
             aria-label={backLabel}
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition active:scale-95 ${
-              dark ? 'border-white/10 bg-white/[0.06]' : 'border-[#DCE5E3] bg-white'
+              dark ? 'border-white/10 bg-white/[0.06]' : 'border-[var(--noq-border)] bg-white'
             }`}
           >
             <ArrowLeft className="h-4 w-4" />

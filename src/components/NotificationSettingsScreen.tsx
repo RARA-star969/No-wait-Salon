@@ -36,7 +36,7 @@ const Toggle: React.FC<{
   onChange?: (next: boolean) => void;
 }> = ({ label, description, icon, checked, disabled, lockedNote, onChange }) => (
   <div className="flex items-start gap-3 border-b border-white/[0.06] px-4 py-4 last:border-0">
-    <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-[color:var(--category-accent,#22D3EE)] [&>svg]:h-4 [&>svg]:w-4">
+    <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))] [&>svg]:h-4 [&>svg]:w-4">
       {icon}
     </span>
     <div className="min-w-0 flex-1">
@@ -57,7 +57,7 @@ const Toggle: React.FC<{
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
       className={`mt-1 flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${
-        checked ? 'bg-[color:var(--category-accent,#22D3EE)]' : 'bg-white/15'
+        checked ? 'bg-[color:var(--category-accent,var(--noq-accent))]' : 'bg-white/15'
       } ${disabled ? 'opacity-50' : ''}`}
     >
       <span className={`h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -129,7 +129,7 @@ export const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProp
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-[color:var(--category-accent,#22D3EE)]" />
+            <Clock className="h-4 w-4 text-[color:var(--category-accent,var(--noq-accent))]" />
             <p className="text-sm font-semibold text-white">Quiet hours</p>
           </div>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-400">

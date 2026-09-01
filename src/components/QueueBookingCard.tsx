@@ -42,7 +42,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
       id={`queue-entry-${item.id}`}
       data-state={kind}
       className={`rounded-2xl border p-3.5 transition-colors ${CARD_TONE[kind]} ${
-        item.isUser && kind === 'waiting' ? 'ring-1 ring-[#0F766E]/20' : ''
+        item.isUser && kind === 'waiting' ? 'ring-1 ring-[var(--noq-accent)]/20' : ''
       }`}
     >
       {/* One column on narrow dashboards, identity | status+actions on wide. */}
@@ -55,23 +55,23 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-              <b className="min-w-0 max-w-full truncate font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
+              <b className="min-w-0 max-w-full truncate font-sans text-sm font-bold text-[var(--noq-ink)]">{item.name}</b>
               {item.token && (
-                <span className="shrink-0 rounded-md bg-[#0F766E]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#0F766E]">
+                <span className="shrink-0 rounded-md bg-[var(--noq-accent)]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--noq-accent)]">
                   {item.token}
                 </span>
               )}
-              <span className="shrink-0 rounded bg-[#EEF3F2] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#4E625F]">
+              <span className="shrink-0 rounded bg-[var(--noq-surface-soft)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#4E625F]">
                 {sourceBadge(item)}
               </span>
               {maskedPhone(item.phone) && (
-                <span className="shrink-0 font-mono text-[10px] text-[#6F7C7A]">{maskedPhone(item.phone)}</span>
+                <span className="shrink-0 font-mono text-[10px] text-[var(--noq-muted)]">{maskedPhone(item.phone)}</span>
               )}
             </div>
 
-            <p className="mt-1 truncate text-[11px] font-medium text-[#17201F]">{item.service}</p>
+            <p className="mt-1 truncate text-[11px] font-medium text-[var(--noq-ink)]">{item.service}</p>
 
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-[#6F7C7A]">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-semibold text-[var(--noq-muted)]">
               {item.createdAt && (
                 <span>Joined {new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
               )}
@@ -80,7 +80,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
               )}
               {item.status === 'Called' && (
                 item.acknowledgedAt ? (
-                  <span className="font-bold text-[#0F766E]">&middot; Customer acknowledged &middot; On the way &check;</span>
+                  <span className="font-bold text-[var(--noq-accent)]">&middot; Customer acknowledged &middot; On the way &check;</span>
                 ) : (
                   <span className="font-semibold text-amber-700">&middot; Waiting for response</span>
                 )
@@ -89,10 +89,10 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 
             {/* Serving Billing & Payment Module */}
             {item.status === 'Serving' && (
-              <div className="mt-2.5 rounded-xl border border-[#0F766E]/25 bg-white p-2.5 shadow-sm space-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between font-bold text-[#17201F]">
+              <div className="mt-2.5 rounded-xl border border-[var(--noq-accent)]/25 bg-white p-2.5 shadow-sm space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between font-bold text-[var(--noq-ink)]">
                   <span className="text-[#5E6C6A]">Bill Total</span>
-                  <span className="font-mono text-sm font-black text-[#0F766E]">₹{item.totalPriceInr || 250}</span>
+                  <span className="font-mono text-sm font-black text-[var(--noq-accent)]">₹{item.totalPriceInr || 250}</span>
                 </div>
                 {item.discountInr ? (
                   <div className="flex items-center justify-between text-[10px] text-emerald-700 font-semibold">
@@ -100,7 +100,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
                     <span>-₹{item.discountInr}</span>
                   </div>
                 ) : null}
-                <div className="flex items-center justify-between pt-1.5 border-t border-[#E1E7E6]">
+                <div className="flex items-center justify-between pt-1.5 border-t border-[var(--noq-border)]">
                   <span className="font-bold text-[#5E6C6A]">Payment</span>
                   {item.paymentStatus === 'cash_pending' ? (
                     <span id={`cash-pending-pill-${item.id}`} className="flex items-center gap-1 font-extrabold text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full text-[9.5px]">
@@ -112,7 +112,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
                       ✓ PAID ({item.paymentMethod === 'online' ? 'Online' : 'Cash'})
                     </span>
                   ) : (
-                    <span className="font-semibold text-[#6F7C7A] bg-[#E1E7E6] px-2 py-0.5 rounded-full text-[9.5px]">
+                    <span className="font-semibold text-[var(--noq-muted)] bg-[var(--noq-border)] px-2 py-0.5 rounded-full text-[9.5px]">
                       UNPAID
                     </span>
                   )}
@@ -185,7 +185,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
                 onClick={() => run(action)}
                 title={action.title}
                 aria-label={action.title}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[#6F7C7A] transition hover:bg-rose-50 hover:text-rose-700"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-[var(--noq-muted)] transition hover:bg-rose-50 hover:text-rose-700"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -198,35 +198,35 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 };
 
 const CARD_TONE: Record<CardKind, string> = {
-  serving: 'border-[#0F766E]/40 bg-[#E7F5F2]/70',
+  serving: 'border-[var(--noq-accent)]/40 bg-[#E7F5F2]/70',
   called_active: 'border-[#A66020]/40 bg-[#FAF0E6] ring-1 ring-[#A66020]/30',
   call_expired: 'border-[#A66020]/50 bg-[#FBF3E9] ring-1 ring-[#A66020]/35',
-  reserved: 'border-[#0F766E]/30 bg-white',
-  waiting: 'border-[#E1E7E6] bg-white',
+  reserved: 'border-[var(--noq-accent)]/30 bg-white',
+  waiting: 'border-[var(--noq-border)] bg-white',
 };
 
 const BADGE_TONE: Record<CardKind, string> = {
-  serving: 'bg-[#0F766E] text-white',
+  serving: 'bg-[var(--noq-accent)] text-white',
   called_active: 'bg-[#A66020] text-white',
   call_expired: 'bg-[#A66020] text-white',
-  reserved: 'bg-[#0F766E]/10 text-[#0F766E]',
-  waiting: 'bg-[#E1E7E6] text-[#17201F]',
+  reserved: 'bg-[var(--noq-accent)]/10 text-[var(--noq-accent)]',
+  waiting: 'bg-[var(--noq-border)] text-[var(--noq-ink)]',
 };
 
 const STATUS_TONE: Record<CardKind, string> = {
-  serving: 'border border-[#0F766E]/30 bg-[#E7F5F2] text-[#0F766E]',
+  serving: 'border border-[var(--noq-accent)]/30 bg-[#E7F5F2] text-[var(--noq-accent)]',
   called_active: 'border border-[#A66020]/30 bg-[#FFF6EA] text-[#A66020]',
   // Informational, not an alarm: the action row carries the urgency here.
   call_expired: 'border border-[#C9A227]/40 bg-[#FFF8E7] text-[#8A6516]',
-  reserved: 'bg-[#0F766E]/10 text-[#0F766E]',
-  waiting: 'bg-[#E1E7E6]/60 text-[#5E6C6A]',
+  reserved: 'bg-[var(--noq-accent)]/10 text-[var(--noq-accent)]',
+  waiting: 'bg-[var(--noq-border)]/60 text-[#5E6C6A]',
 };
 
 const ACTION_TONE: Record<CardAction['tone'], string> = {
-  primary: 'bg-[#0F766E] text-white hover:bg-[#0B665F]',
+  primary: 'bg-[var(--noq-accent)] text-white hover:bg-[var(--noq-accent-hover)]',
   secondary: 'border border-[#EBD2CD] bg-white text-[#8A3E35] hover:bg-[#FDF6F5]',
   destructive: 'border border-rose-200/70 bg-rose-50 text-rose-700 hover:bg-rose-100',
-  ghost: 'text-[#6F7C7A] hover:bg-[#F1F5F4]',
+  ghost: 'text-[var(--noq-muted)] hover:bg-[#F1F5F4]',
 };
 
 const ACTION_ICON: Partial<Record<CardAction['id'], React.ReactNode>> = {

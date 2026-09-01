@@ -66,13 +66,13 @@ export const PublicReviewsSection: React.FC<{
   };
 
   const dark = tone === 'dark';
-  const cardClass = dark ? 'border-white/10 bg-white/[0.04]' : 'border-[#DDE5E3] bg-white';
+  const cardClass = dark ? 'border-white/10 bg-white/[0.04]' : 'border-[var(--noq-border)] bg-white';
   const headingClass = dark ? 'text-white/50' : 'text-[#5C6E6B]';
   const textClass = dark ? 'text-white/85' : 'text-[#3A4644]';
   const mutedClass = dark ? 'text-white/40' : 'text-[#8A9997]';
   const inputClass = dark
     ? 'border-white/10 bg-white/[0.05] text-white placeholder:text-white/30'
-    : 'border-[#DDE5E3] bg-white text-[#17201F] placeholder:text-[#8A9997]';
+    : 'border-[var(--noq-border)] bg-white text-[var(--noq-ink)] placeholder:text-[#8A9997]';
 
   return (
     <div className={`rounded-2xl border p-4 shadow-sm ${cardClass}`}>
@@ -92,7 +92,7 @@ export const PublicReviewsSection: React.FC<{
             <div>
               <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <Star key={n} className={`h-3.5 w-3.5 ${Number.isFinite(overallRating) && n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[#DDE5E3]'}`} />
+                  <Star key={n} className={`h-3.5 w-3.5 ${Number.isFinite(overallRating) && n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[var(--noq-border)]'}`} />
                 ))}
               </div>
               <p className={`text-[11px] ${mutedClass}`}>{totalReviews} review{totalReviews === 1 ? '' : 's'}</p>
@@ -102,7 +102,7 @@ export const PublicReviewsSection: React.FC<{
           {reviews.length > 0 && (
             <div className="mt-3 space-y-3">
               {reviews.slice(0, 5).map((review) => (
-                <div key={review.id} className={`rounded-xl border p-3 ${dark ? 'border-white/[0.06] bg-black/20' : 'border-[#EEF2F1] bg-[#F8FAFA]'}`}>
+                <div key={review.id} className={`rounded-xl border p-3 ${dark ? 'border-white/[0.06] bg-black/20' : 'border-[#EEF2F1] bg-[var(--noq-base)]'}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
                       <span className={`text-xs font-bold ${textClass}`}>{review.reviewerName}</span>
@@ -116,7 +116,7 @@ export const PublicReviewsSection: React.FC<{
                   </div>
                   <div className="mt-1 flex items-center gap-0.5">
                     {[1, 2, 3, 4, 5].map((n) => (
-                      <Star key={n} className={`h-3 w-3 ${n <= review.rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[#DDE5E3]'}`} />
+                      <Star key={n} className={`h-3 w-3 ${n <= review.rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[var(--noq-border)]'}`} />
                     ))}
                   </div>
                   {review.reviewText && <p className={`mt-1.5 text-xs leading-5 ${textClass}`}>{review.reviewText}</p>}
@@ -136,7 +136,7 @@ export const PublicReviewsSection: React.FC<{
             <div className="mt-2 flex items-center gap-1">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star${n === 1 ? '' : 's'}`}>
-                  <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/20' : 'text-[#DDE5E3]'}`} />
+                  <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/20' : 'text-[var(--noq-border)]'}`} />
                 </button>
               ))}
             </div>

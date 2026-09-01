@@ -112,7 +112,7 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
                   value={areaName}
                   onChange={(e) => setAreaName(e.target.value)}
                   placeholder="e.g. HSR Layout Sector 1"
-                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-100"
+                  className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
                 />
               </div>
 
@@ -123,7 +123,7 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="e.g. Bengaluru"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-100"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
                   />
                 </div>
 
@@ -133,7 +133,7 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
                     value={pinCode}
                     onChange={(e) => setPinCode(e.target.value)}
                     placeholder="e.g. 560102"
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-100"
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
                   />
                 </div>
               </div>
@@ -147,7 +147,7 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
                   onChange={(e) => setComments(e.target.value)}
                   placeholder="Mention favorite salons or landmarks in your area..."
                   rows={3}
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-sm font-semibold text-slate-900 outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-100"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-sm font-semibold text-slate-900 outline-none focus:border-[var(--noq-accent)] focus:bg-white focus:ring-2 focus:ring-[var(--noq-tint-10)]"
                 />
               </div>
             </div>
@@ -163,7 +163,7 @@ export const RequestAddressScreen: React.FC<RequestAddressProps> = ({
               <button
                 type="submit"
                 disabled={busy}
-                className="flex items-center gap-2 rounded-2xl bg-amber-600 px-6 py-3 text-xs font-extrabold text-white shadow-md shadow-amber-600/20 hover:bg-amber-700 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-2xl bg-[var(--noq-accent)] px-6 py-3 text-xs font-extrabold text-white shadow-md shadow-[var(--noq-glow)] hover:bg-[var(--noq-accent-hover)] disabled:opacity-50"
               >
                 <Send className="h-4 w-4" />
                 {busy ? 'Submitting...' : 'Submit Request'}

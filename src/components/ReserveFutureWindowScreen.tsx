@@ -25,7 +25,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
   const { ref: unlocksRef, revealed: unlocksRevealed } = useRevealOnView<HTMLDivElement>();
 
   return (
-    <div id="reserve-future-window-screen" className="min-h-full bg-[#F8FAFA] pb-10 animate-in fade-in duration-150">
+    <div id="reserve-future-window-screen" className="min-h-full bg-[var(--noq-base)] pb-10 animate-in fade-in duration-150">
       {/* Branded hero, same colour language as the salon profile page, so the
           reservation flow reads as one continuous premium surface. */}
       <div className="relative overflow-hidden bg-[#173B38] px-5 pb-6 pt-[max(1rem,env(safe-area-inset-top))] text-white">
@@ -61,7 +61,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
       <div className="space-y-4 p-5">
       {/* Calendar: Today/Tomorrow toggle + a gold calendar control with a lock badge overlapping its outside edge. */}
       <div className="flex items-center gap-2.5">
-        <div className="flex flex-1 rounded-xl border border-[#E1E7E6] bg-white p-1">
+        <div className="flex flex-1 rounded-xl border border-[var(--noq-border)] bg-white p-1">
           {(['today', 'tomorrow'] as const).map((option) => (
             <button
               key={option}
@@ -69,7 +69,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
               type="button"
               onClick={() => setDay(option)}
               className={`flex-1 rounded-lg py-2 text-xs font-bold capitalize transition ${
-                day === option ? 'bg-[#0F766E] text-white' : 'text-[#5C6B68]'
+                day === option ? 'bg-[var(--noq-accent)] text-white' : 'text-[#5C6B68]'
               }`}
             >
               {option}
@@ -93,19 +93,19 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
         id="view-package-btn"
         type="button"
         onClick={() => setPackageOpen(true)}
-        className="flex w-full items-center justify-between rounded-2xl border border-[#E1E7E6] bg-white px-4 py-3.5 text-left"
+        className="flex w-full items-center justify-between rounded-2xl border border-[var(--noq-border)] bg-white px-4 py-3.5 text-left"
       >
         <span className="min-w-0">
-          <span className="block text-xs font-bold text-[#17201F]">
+          <span className="block text-xs font-bold text-[var(--noq-ink)]">
             {services.length} {services.length === 1 ? 'service' : 'services'} selected
           </span>
-          <span className="mt-0.5 block text-sm font-bold text-[#0F766E]">₹{totalPriceInr}</span>
+          <span className="mt-0.5 block text-sm font-bold text-[var(--noq-accent)]">₹{totalPriceInr}</span>
         </span>
-        <span className="shrink-0 text-[11px] font-bold text-[#0F766E] underline underline-offset-4">View package</span>
+        <span className="shrink-0 text-[11px] font-bold text-[var(--noq-accent)] underline underline-offset-4">View package</span>
       </button>
 
       {/* Available windows: a compact expandable selector instead of a wall of cards. */}
-      <div className="overflow-hidden rounded-2xl border border-[#E1E7E6] bg-white">
+      <div className="overflow-hidden rounded-2xl border border-[var(--noq-border)] bg-white">
         <button
           id="available-windows-accordion-btn"
           type="button"
@@ -113,11 +113,11 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
           aria-expanded={windowsOpen}
           className="flex w-full items-center justify-between px-4 py-3.5"
         >
-          <span className="flex items-center gap-2 text-xs font-bold text-[#17201F]">
-            <Clock className="h-4 w-4 text-[#0F766E]" />
+          <span className="flex items-center gap-2 text-xs font-bold text-[var(--noq-ink)]">
+            <Clock className="h-4 w-4 text-[var(--noq-accent)]" />
             Available windows {day === 'today' ? 'today' : 'tomorrow'}
           </span>
-          <ChevronDown className={`h-4 w-4 text-[#6F7C7A] transition-transform ${windowsOpen ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-4 w-4 text-[var(--noq-muted)] transition-transform ${windowsOpen ? 'rotate-180' : ''}`} />
         </button>
         {windowsOpen && (
           <div className="space-y-1.5 border-t border-[#EEF2F1] p-2">
@@ -129,12 +129,12 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
                 className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-[#F0F9F7]"
               >
                 <span className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F0F5F4] text-[#0F766E]">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--noq-surface-soft)] text-[var(--noq-accent)]">
                     <Clock className="h-3.5 w-3.5" />
                   </span>
-                  <span className="text-sm font-bold text-[#17201F]">{slot}</span>
+                  <span className="text-sm font-bold text-[var(--noq-ink)]">{slot}</span>
                   {slot === BEST_TIME_SLOT && (
-                    <span className="rounded-full bg-[#E7F5F2] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#0F766E]">Best time</span>
+                    <span className="rounded-full bg-[#E7F5F2] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[var(--noq-accent)]">Best time</span>
                   )}
                 </span>
               </button>
@@ -185,14 +185,14 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
           no-ops and never pretends to book a specific future date. */}
       {calendarComingSoonOpen && (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) setCalendarComingSoonOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-label="Premium calendar booking" className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+          <section role="dialog" aria-modal="true" aria-label="Premium calendar booking" className="w-full rounded-t-3xl bg-[var(--noq-base)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <LockedCalendarIcon size="sm" className="!h-9 !w-9" />
-                <h2 className="text-lg font-bold text-[#17201F]">Premium calendar booking</h2>
+                <h2 className="text-lg font-bold text-[var(--noq-ink)]">Premium calendar booking</h2>
               </div>
-              <button id="close-calendar-modal-btn" onClick={() => setCalendarComingSoonOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+              <button id="close-calendar-modal-btn" onClick={() => setCalendarComingSoonOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[var(--noq-border)]"><X className="h-4 w-4" /></button>
             </div>
             <p className="mt-3 text-xs leading-5 text-[#657471]">
               Choosing a specific future date is a premium feature that isn't live yet — coming soon. For now, Today and Tomorrow hold your place in the live queue.

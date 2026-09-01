@@ -3,15 +3,16 @@ import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingB
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
+import { NOQ_BRAND, NOQ_BRAND_CSS_VARS } from '../shared/noqBrand';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
     type="button"
     onClick={onClick}
     aria-label={`Wallet balance ${balance}`}
-    className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-slate-100 backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
+    className="flex h-10 items-center gap-2 rounded-xl border border-[var(--noq-glass-border)] bg-white/70 px-3 text-[var(--noq-ink)] backdrop-blur-md transition hover:border-[var(--noq-accent)]/30 hover:bg-white/90 active:scale-[0.98]"
   >
-    <WalletCards className="h-4 w-4" style={{ color: 'var(--category-accent, #22D3EE)' }} />
+    <WalletCards className="h-4 w-4" style={{ color: 'var(--category-accent, var(--noq-accent))' }} />
     <span className="text-xs font-bold">{balance}</span>
   </button>
 );
@@ -22,7 +23,7 @@ export const ProfileButton: React.FC<{ onClick?: () => void }> = ({ onClick }) =
     onClick={onClick}
     aria-label="Open customer profile"
     className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-md transition hover:border-white/20 hover:bg-white/[0.1] active:scale-[0.98]"
-    style={{ color: 'var(--category-accent, #22D3EE)' }}
+    style={{ color: 'var(--category-accent, var(--noq-accent))' }}
   >
     <UserRound className="h-[18px] w-[18px]" />
   </button>
@@ -78,172 +79,52 @@ type CategoryThemeBase = Omit<
   'darkSurface' | 'glassSurface' | 'glassBorder' | 'ctaGradient' | 'selectedGlow' | 'modalTint' | 'subtleAccent'
 >;
 
+const createUnifiedCategoryTheme = (key: string): CategoryThemeBase => ({
+  key,
+  primary: NOQ_BRAND.accent,
+  accent: NOQ_BRAND.accent,
+  gradientFrom: 'from-[#7890FF]',
+  gradientTo: 'to-[#3454FD]',
+  badgeBg: 'bg-[#3454FD]/10',
+  badgeText: 'text-[#3454FD]',
+  joinedBg: 'bg-[#FDFFFF]',
+  bannerGradient: 'from-[#3454FD]/16 via-[#7890FF]/8 to-transparent',
+  glow: 'shadow-[0_0_32px_-9px_rgba(52,84,253,0.30)]',
+  ring: 'ring-[#3454FD]/45',
+  chip: 'bg-[#3454FD] text-white',
+  cardBg: 'from-[#FFFFFF] to-[#F5F7FF]',
+  softText: 'text-[#6F7B99]',
+});
+
 export const CATEGORY_THEME_MAP = {
-  salon: {
-    key: 'salon',
-    primary: '#22D3EE',
-    accent: '#2DD4BF',
-    gradientFrom: 'from-cyan-400',
-    gradientTo: 'to-teal-600',
-    badgeBg: 'bg-cyan-500/15',
-    badgeText: 'text-cyan-200',
-    joinedBg: 'bg-[#050B0C]',
-    bannerGradient: 'from-cyan-500/18 via-teal-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(34,211,238,0.45)]',
-    ring: 'ring-cyan-400/50',
-    chip: 'bg-cyan-400 text-slate-950',
-    cardBg: 'from-[#0B3033] to-[#061B1D]',
-    softText: 'text-cyan-100/70',
-  },
-  gym: {
-    key: 'gym',
-    primary: '#A855F7',
-    accent: '#C084FC',
-    gradientFrom: 'from-fuchsia-500',
-    gradientTo: 'to-purple-700',
-    badgeBg: 'bg-purple-500/15',
-    badgeText: 'text-purple-200',
-    joinedBg: 'bg-[#0A0713]',
-    bannerGradient: 'from-purple-500/18 via-fuchsia-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(168,85,247,0.45)]',
-    ring: 'ring-purple-400/50',
-    chip: 'bg-purple-400 text-slate-950',
-    cardBg: 'from-[#251035] to-[#150A20]',
-    softText: 'text-purple-100/70',
-  },
-  shop: {
-    key: 'shop',
-    primary: '#F59E0B',
-    accent: '#FBBF24',
-    gradientFrom: 'from-amber-400',
-    gradientTo: 'to-orange-600',
-    badgeBg: 'bg-amber-500/15',
-    badgeText: 'text-amber-200',
-    joinedBg: 'bg-[#0C0904]',
-    bannerGradient: 'from-amber-500/18 via-orange-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(245,158,11,0.42)]',
-    ring: 'ring-amber-400/50',
-    chip: 'bg-amber-400 text-slate-950',
-    cardBg: 'from-[#332008] to-[#1C1204]',
-    softText: 'text-amber-100/70',
-  },
-  moto: {
-    key: 'moto',
-    primary: '#3B82F6',
-    accent: '#60A5FA',
-    gradientFrom: 'from-sky-400',
-    gradientTo: 'to-blue-700',
-    badgeBg: 'bg-blue-500/15',
-    badgeText: 'text-blue-200',
-    joinedBg: 'bg-[#050813]',
-    bannerGradient: 'from-blue-500/18 via-sky-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(59,130,246,0.42)]',
-    ring: 'ring-blue-400/50',
-    chip: 'bg-blue-400 text-slate-950',
-    cardBg: 'from-[#0C2038] to-[#071120]',
-    softText: 'text-blue-100/70',
-  },
-  pets: {
-    key: 'pets',
-    primary: '#EC4899',
-    accent: '#F472B6',
-    gradientFrom: 'from-pink-400',
-    gradientTo: 'to-rose-600',
-    badgeBg: 'bg-pink-500/15',
-    badgeText: 'text-pink-200',
-    joinedBg: 'bg-[#0C0409]',
-    bannerGradient: 'from-pink-500/18 via-rose-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(236,72,153,0.42)]',
-    ring: 'ring-pink-400/50',
-    chip: 'bg-pink-400 text-slate-950',
-    cardBg: 'from-[#341123] to-[#1D0A13]',
-    softText: 'text-pink-100/70',
-  },
-  mall: {
-    key: 'mall',
-    primary: '#6366F1',
-    accent: '#818CF8',
-    gradientFrom: 'from-indigo-400',
-    gradientTo: 'to-indigo-700',
-    badgeBg: 'bg-indigo-500/15',
-    badgeText: 'text-indigo-200',
-    joinedBg: 'bg-[#07071A]',
-    bannerGradient: 'from-indigo-500/18 via-violet-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(99,102,241,0.42)]',
-    ring: 'ring-indigo-400/50',
-    chip: 'bg-indigo-400 text-slate-950',
-    cardBg: 'from-[#181246] to-[#0D0A28]',
-    softText: 'text-indigo-100/70',
-  },
-  food: {
-    key: 'food',
-    primary: '#F43F5E',
-    accent: '#FB7185',
-    gradientFrom: 'from-rose-400',
-    gradientTo: 'to-red-700',
-    badgeBg: 'bg-rose-500/15',
-    badgeText: 'text-rose-200',
-    joinedBg: 'bg-[#0C0507]',
-    bannerGradient: 'from-rose-500/18 via-red-600/7 to-transparent',
-    glow: 'shadow-[0_0_32px_-9px_rgba(244,63,94,0.42)]',
-    ring: 'ring-rose-400/50',
-    chip: 'bg-rose-400 text-slate-950',
-    cardBg: 'from-[#360F17] to-[#1E0A0F]',
-    softText: 'text-rose-100/70',
-  },
+  salon: createUnifiedCategoryTheme('salon'),
+  gym: createUnifiedCategoryTheme('gym'),
+  shop: createUnifiedCategoryTheme('shop'),
+  moto: createUnifiedCategoryTheme('moto'),
+  pets: createUnifiedCategoryTheme('pets'),
+  mall: createUnifiedCategoryTheme('mall'),
+  food: createUnifiedCategoryTheme('food'),
+  clinic: createUnifiedCategoryTheme('clinic'),
+  spa: createUnifiedCategoryTheme('spa'),
+  more: createUnifiedCategoryTheme('more'),
 } satisfies Record<string, CategoryThemeBase> as unknown as Record<string, CategoryTheme>;
-// The cast above is safe only because the derivation loop immediately below
-// fills in every field CategoryTheme adds beyond CategoryThemeBase,
-// synchronously, before any importer can observe the map.
-
-/**
- * Semantic CSS custom properties that carry the active category's identity
- * onto the customer app root. Every category-sensitive surface (scanner,
- * wallet, profile, chips, listings, detail pages…) reads these instead of a
- * hardcoded Tailwind color, so switching category re-themes the whole app
- * from a single write site. `--category-*-tint` are pre-mixed translucent
- * variants for borders/backgrounds where a flat alpha hex is enough;
- * anything needing a live alpha blend can use `color-mix(in srgb, var(--category-primary) X%, transparent)`.
- */
-function shadeHex(hex: string, percent: number): string {
-  const match = /^#([0-9A-Fa-f]{6})$/.exec(hex);
-  if (!match) return hex;
-  const num = parseInt(match[1], 16);
-  const clamp = (value: number) => Math.max(0, Math.min(255, value));
-  const r = clamp(((num >> 16) & 0xff) + Math.round(255 * percent));
-  const g = clamp(((num >> 8) & 0xff) + Math.round(255 * percent));
-  const b = clamp((num & 0xff) + Math.round(255 * percent));
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-}
-
-// Fills the glass/CTA/glow tokens for every category from its own
-// primary/accent — one formula, run for all 7, so none of them is a
-// second hand-authored palette. Gym's real values (below) then override
-// the formula with the exact, already-shipped hex constants pulled out of
-// GymFloatingCapsule/GymLiveCard/GymDetailPage's quick-action tile, so
-// consolidating the source changes nothing about how Gym already looks.
+// Complete every compatibility theme object from the same canonical NOQ
+// material tokens. Category keys remain for routing and content only; they
+// no longer alter the customer palette.
 for (const theme of Object.values(CATEGORY_THEME_MAP)) {
-  theme.darkSurface = shadeHex(theme.primary, -0.55);
-  theme.glassSurface = `${theme.primary}14`;
-  theme.glassBorder = `${theme.accent}29`;
-  theme.ctaGradient = `linear-gradient(160deg, ${shadeHex(theme.primary, -0.15)} 0%, ${shadeHex(theme.primary, -0.7)} 75%)`;
-  theme.selectedGlow = theme.primary;
-  theme.modalTint = `linear-gradient(180deg, ${theme.primary}1F 0%, ${shadeHex(theme.primary, -0.55)}F2 60%)`;
-  theme.subtleAccent = shadeHex(theme.accent, 0.35);
+  theme.darkSurface = NOQ_BRAND.surfaceSoft;
+  theme.glassSurface = NOQ_BRAND.glass;
+  theme.glassBorder = NOQ_BRAND.glassBorder;
+  theme.ctaGradient = NOQ_BRAND.ctaGradient;
+  theme.selectedGlow = NOQ_BRAND.accent;
+  theme.modalTint = NOQ_BRAND.glassGradient;
+  theme.subtleAccent = NOQ_BRAND.accentLight;
 }
-Object.assign(CATEGORY_THEME_MAP.gym, {
-  darkSurface: '#241539',
-  glassSurface: 'rgba(46,27,74,0.88)',
-  glassBorder: 'rgba(192,132,252,0.16)',
-  ctaGradient: 'linear-gradient(160deg, #5B21B6 0%, #2E1065 75%)',
-  selectedGlow: '#8B5CF6',
-  modalTint: 'linear-gradient(160deg,#180F28 0%,#241539 55%,#2E1B4A 100%)',
-  subtleAccent: '#E9D5FF',
-} satisfies Partial<CategoryTheme>);
 
 export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
   const surfaceMatch = theme.joinedBg.match(/#[0-9A-Fa-f]{3,8}/);
   return {
+    ...NOQ_BRAND_CSS_VARS,
     '--category-primary': theme.primary,
     '--category-accent': theme.accent,
     // Glow/tint alphas are tuned ~30% down from their original values —
@@ -252,11 +133,11 @@ export function categoryCssVars(theme: CategoryTheme): Record<string, string> {
     '--category-glow': `${theme.primary}47`,
     '--category-border': `${theme.primary}40`,
     '--category-soft': `${theme.accent}B3`,
-    '--category-surface': surfaceMatch ? surfaceMatch[0] : '#050B0C',
-    '--category-tint-10': `${theme.primary}1A`,
-    '--category-tint-20': `${theme.primary}24`,
-    '--category-primary-dark': shadeHex(theme.primary, -0.35),
-    '--category-primary-light': shadeHex(theme.primary, 0.3),
+    '--category-surface': surfaceMatch ? surfaceMatch[0] : NOQ_BRAND.base,
+    '--category-tint-10': NOQ_BRAND.tint10,
+    '--category-tint-20': NOQ_BRAND.tint20,
+    '--category-primary-dark': NOQ_BRAND.accentDeep,
+    '--category-primary-light': NOQ_BRAND.accentLight,
     '--category-dark-surface': theme.darkSurface,
     '--category-glass-surface': theme.glassSurface,
     '--category-glass-border': theme.glassBorder,
@@ -275,17 +156,13 @@ export function resolveCategoryTheme(themeKeyOrId?: string | null): CategoryThem
 /** Approved Customer Home accents. These are deliberately separate from the
  * legacy/detail theme tokens: the NOQ shell stays brand blue while only Home's
  * selected tile, featured hero and category-owned listing accents use these. */
-export const CUSTOMER_HOME_ACCENTS: Record<string, string> = {
-  salon: '#FF5CC8',
-  gym: '#23E08D',
-  shop: '#FFD166',
-  clinic: '#4DB7FF',
-  spa: '#C77DFF',
-};
+export const CUSTOMER_HOME_ACCENTS: Record<string, string> = Object.fromEntries(
+  Object.keys(CATEGORY_THEME_MAP).map((key) => [key, NOQ_BRAND.accent]),
+);
 
 export function customerHomeAccent(category?: Pick<CategoryItemConfig, 'id' | 'themeKey' | 'primaryColor'> | null): string {
   const key = (category?.themeKey || category?.id || '').toLowerCase();
-  return CUSTOMER_HOME_ACCENTS[key] || category?.primaryColor || '#2A7BFF';
+  return CUSTOMER_HOME_ACCENTS[key] || NOQ_BRAND.accent;
 }
 
 type SearchProps = {
@@ -319,11 +196,11 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
         }`}
-        style={isListening ? undefined : ({ '--tw-ring-color': 'rgba(42,123,255,.22)' } as React.CSSProperties)}
-        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(106,165,255,.45)'; }}
+        style={isListening ? undefined : ({ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties)}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(120,144,255,.45)'; }}
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
-        <Search className="h-[18px] w-[18px] shrink-0 text-[#77A9F8]" />
+        <Search className="h-[18px] w-[18px] shrink-0 text-[var(--noq-accent-light)]" />
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -331,13 +208,13 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
           enterKeyHint="search"
           aria-label="Search businesses"
           placeholder={placeholderText}
-          className="h-[52px] min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-slate-100 outline-none placeholder:font-medium placeholder:text-slate-500"
+          className="h-[52px] min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
         />
         {value && (
           <button
             type="button"
             onClick={() => onChange('')}
-            className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-slate-300 hover:bg-white/20"
+            className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
             aria-label="Clear search"
           >
             <X className="h-3.5 w-3.5" />
@@ -364,7 +241,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             {isListening ? (
               <span className="flex h-2 w-2 rounded-full bg-red-400 animate-pulse" />
             ) : (
-              <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--category-accent, #22D3EE)' }} />
+              <Volume2 className="h-4 w-4 shrink-0" style={{ color: 'var(--category-accent, var(--noq-accent))' }} />
             )}
             <span>{voiceFeedback}</span>
           </div>
@@ -420,11 +297,11 @@ export const PromotionalBanner: React.FC<{
       )}
       <div className="relative z-10 flex h-full min-w-0 max-w-[73%] flex-col">
         <span className="text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: accent }}>Featured {category?.name || 'business'}</span>
-        <h2 className="mt-2 truncate text-[18px] font-black leading-tight tracking-[-0.03em] text-[#E6E8F0]">{headline}</h2>
-        <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-[14px] text-slate-300/70">{subheadline}</p>
-        {operationalLabel && <span className="mt-auto min-w-0 truncate pr-3 text-[10px] font-bold text-slate-200">{operationalLabel}</span>}
+        <h2 className="mt-2 truncate text-[18px] font-black leading-tight tracking-[-0.03em] text-[var(--noq-ink)]">{headline}</h2>
+        <p className="mt-1 line-clamp-2 text-[10px] font-medium leading-[14px] text-[var(--noq-muted)]/70">{subheadline}</p>
+        {operationalLabel && <span className="mt-auto min-w-0 truncate pr-3 text-[10px] font-bold text-[var(--noq-muted)]">{operationalLabel}</span>}
       </div>
-      <button type="button" onClick={onCtaClick} className="absolute bottom-3.5 right-3.5 z-20 inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-[10px] font-black text-[#07101D] shadow-lg transition active:translate-y-0.5 active:scale-[0.97]" style={{ backgroundColor: accent, boxShadow: `0 10px 24px -10px ${accent}` }}>
+      <button type="button" onClick={onCtaClick} className="absolute bottom-3.5 right-3.5 z-20 inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-[10px] font-black text-white shadow-lg transition active:translate-y-0.5 active:scale-[0.97]" style={{ backgroundColor: accent, boxShadow: `0 10px 24px -10px ${accent}` }}>
         Explore <ChevronRight className="h-3 w-3" />
       </button>
     </section>
@@ -500,8 +377,8 @@ export const CustomerCategoryGrid: React.FC<{
           >
             <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? accent : '#97A3B7' }} />
             <span className="min-w-0">
-              <b className="block truncate text-[11px] font-extrabold" style={{ color: active ? accent : '#E6E8F0' }}>{category.name}</b>
-              <span className="mt-0.5 block truncate text-[8px] font-semibold text-slate-500">{category.businessCount ?? 0} nearby</span>
+              <b className="block truncate text-[11px] font-extrabold" style={{ color: active ? accent : 'var(--noq-ink)' }}>{category.name}</b>
+              <span className="mt-0.5 block truncate text-[8px] font-semibold text-[var(--noq-muted)]">{category.businessCount ?? 0} nearby</span>
             </span>
           </button>
         );
@@ -512,8 +389,8 @@ export const CustomerCategoryGrid: React.FC<{
         aria-label={hasMore ? 'Explore all categories' : 'View categories'}
         className="customer-category-tile relative flex h-[66px] items-center gap-2.5 rounded-[16px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
       >
-        <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-slate-400" />
-        <span><b className="block text-[11px] font-extrabold text-[#E6E8F0]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-slate-500">Explore all</span></span>
+        <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-[var(--noq-muted)]" />
+        <span><b className="block text-[11px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>
       </button>
     </section>
   );
@@ -546,13 +423,13 @@ export const CategoryLandingState: React.FC<{
   const theme = CATEGORY_THEME_MAP[category.themeKey || category.id] || CATEGORY_THEME_MAP.salon;
   const IconComponent = getCategoryIcon(category.iconName);
   return (
-    <section className={`relative mt-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b ${theme.cardBg} p-6 text-center`}>
+    <section className={`relative mt-4 overflow-hidden rounded-3xl border border-[var(--noq-glass-border)] bg-gradient-to-b ${theme.cardBg} p-6 text-center`}>
       <div className="pointer-events-none absolute -left-10 -top-16 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
       <div className={`relative mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-lg ${theme.glow}`}>
         <IconComponent className="h-8 w-8" />
       </div>
 
-      <h3 className="relative mt-4 text-xl font-black text-white">
+      <h3 className="relative mt-4 text-xl font-black text-[var(--noq-ink)]">
         No {category.name} businesses nearby yet
       </h3>
 
@@ -564,7 +441,7 @@ export const CategoryLandingState: React.FC<{
         <button
           type="button"
           onClick={onExploreSalons}
-          className="h-11 rounded-xl border border-white/15 bg-white/[0.06] px-5 text-xs font-bold text-slate-100 hover:bg-white/[0.1] transition active:scale-[0.98]"
+          className="h-11 rounded-xl border border-[var(--noq-glass-border)] bg-white/70 px-5 text-xs font-bold text-[var(--noq-accent)] hover:bg-white transition active:scale-[0.98]"
         >
           Explore Live Salons
         </button>
@@ -648,7 +525,7 @@ const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
 
   return (
     <div className="min-w-0 shrink-0">
-      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Live Floor</p>
+      <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">Live Floor</p>
       <div
         role="img"
         aria-label={`${occupancy} of ${capacity} occupied, ${available} spaces free`}
@@ -666,7 +543,7 @@ const LiveFloorMeter: React.FC<{ data: LiveFloorMeterData }> = ({ data }) => {
           <div className="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.55),inset_0_-3px_5px_rgba(0,0,0,0.3)]" />
         </div>
         <span
-          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold tabular-nums transition-all duration-700 ease-out ${valueFits ? 'text-slate-300' : 'text-white'}`}
+          className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[9px] font-bold tabular-nums transition-all duration-700 ease-out ${valueFits ? 'text-[var(--noq-muted)]' : 'text-white'}`}
           style={valueFits ? { right: 6 } : { right: `calc(${100 - percentage}% + 5px)` }}
         >
           {valueLabel}
@@ -718,8 +595,8 @@ export const PremiumBusinessCard: React.FC<{
       onClick={onClick}
       className={`customer-home-business-card group relative w-full overflow-hidden rounded-[18px] border text-left transition-all duration-200 ${
         isSelected
-          ? 'border-white/[0.13] bg-white/[0.045] shadow-[0_13px_30px_-24px_var(--home-accent)]'
-          : 'border-white/[0.075] bg-white/[0.035] hover:border-white/15 hover:bg-white/[0.055]'
+          ? 'border-[var(--noq-accent)]/35 bg-white/90 shadow-[0_13px_30px_-24px_var(--home-accent)]'
+          : 'border-[var(--noq-glass-border)] bg-white/75 hover:border-[var(--noq-accent)]/25 hover:bg-white/90'
       }`}
       style={{ '--home-accent': theme.accent } as React.CSSProperties}
     >
@@ -735,31 +612,31 @@ export const PremiumBusinessCard: React.FC<{
             <img src={salon.logoImageUrl || salon.coverImageUrl} alt="" className="h-full w-full object-cover" />
           </div>
         ) : (
-          <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-[14px] text-white shadow-md" style={{ background: `linear-gradient(145deg, ${theme.primary}E6, ${theme.primary}73 62%, #07101D)` }}>
+          <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-[14px] text-white shadow-md" style={{ background: `linear-gradient(145deg, ${theme.primary}E6, ${theme.primary}73 62%, var(--noq-accent-deep))` }}>
             <IconComponent className="h-5 w-5" />
           </div>
         )}
         <div className="min-w-0 flex-1 self-center">
-          <b className="block truncate text-[13px] font-bold leading-4 text-[#E6E8F0]">{salon.name}</b>
-          <span className="mt-0.5 block truncate text-[9px] font-medium text-slate-400">{salon.category || localityLabel} · {salon.distanceKm} km</span>
-          <span className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-medium text-slate-400">
+          <b className="block truncate text-[13px] font-bold leading-4 text-[var(--noq-ink)]">{salon.name}</b>
+          <span className="mt-0.5 block truncate text-[9px] font-medium text-[var(--noq-muted)]">{salon.category || localityLabel} · {salon.distanceKm} km</span>
+          <span className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-medium text-[var(--noq-muted)]">
             <Star className="h-2.5 w-2.5 shrink-0 fill-[#FFD166] text-[#FFD166]" />
-            <span className="shrink-0 text-slate-300">{salon.rating}</span>
+            <span className="shrink-0 text-[var(--noq-muted)]">{salon.rating}</span>
             <span className="truncate">· {salon.reviewCount} {isMember ? '· Member access' : 'reviews'}</span>
           </span>
         </div>
         <div className="w-[74px] shrink-0 self-start pt-1 text-right">
           {isGym && liveFloorMeter ? (
-            <><b className="block text-[13px] font-black tabular-nums text-[#E6E8F0]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-slate-500">inside now</span></>
+            <><b className="block text-[13px] font-black tabular-nums text-[var(--noq-ink)]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">inside now</span></>
           ) : isSalon ? (
-            <><b className="block text-[13px] font-black text-[#E6E8F0]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-slate-500">{salon.waitingCustomers === 0 ? 'walk in' : 'estimated wait'}</span></>
+            <><b className="block text-[13px] font-black text-[var(--noq-ink)]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">{salon.waitingCustomers === 0 ? 'walk in' : 'estimated wait'}</span></>
           ) : (
-            <><b className="block text-[12px] font-black text-[#E6E8F0]">{salon.isOpen ? 'Open now' : 'Closed'}</b>{salon.openingHours && <span className="block truncate text-[8px] font-semibold text-slate-500">{salon.openingHours}</span>}</>
+            <><b className="block text-[12px] font-black text-[var(--noq-ink)]">{salon.isOpen ? 'Open now' : 'Closed'}</b>{salon.openingHours && <span className="block truncate text-[8px] font-semibold text-[var(--noq-muted)]">{salon.openingHours}</span>}</>
           )}
         </div>
       </div>
 
-      <div className="flex h-[34px] items-center justify-between gap-3 border-t border-white/[0.055] bg-black/20 px-3">
+      <div className="flex h-[34px] items-center justify-between gap-3 border-t border-[var(--noq-border)] bg-[var(--noq-surface-soft)] px-3">
         {isGym && liveFloorMeter ? (
           <>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-wide" style={{ color: theme.accent }}><span className="text-[11px]">⌁</span> Live floor</span>
@@ -777,18 +654,18 @@ export const PremiumBusinessCard: React.FC<{
           </>
         ) : isSalon ? (
           <>
-            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[8px] font-semibold text-slate-400"><UsersRound className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine1}</span>
-            {positionLabel && <span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-slate-400"><CalendarDays className="mr-1 inline h-3 w-3" />{positionLabel}</span>}
+            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><UsersRound className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine1}</span>
+            {positionLabel && <span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><CalendarDays className="mr-1 inline h-3 w-3" />{positionLabel}</span>}
             <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : categoryId === 'shop' ? (
           <>
-            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-slate-400"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>
+            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>
             <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : (
           <>
-            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-slate-400"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>
+            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>
           </>
         )}
       </div>

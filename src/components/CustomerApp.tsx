@@ -930,7 +930,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           onLogin={openLoginGate}
         />
         {showLoginGate && loginGateReadiness.kind === 'onboarding_required' && (
-          <div className="fixed inset-0 z-[100] bg-[#F8FAFA]">
+          <div className="fixed inset-0 z-[100] bg-[var(--noq-base)]">
             <AccountOnboarding
               gate={loginGateReadiness}
               onVerified={onIdentityVerified}
@@ -949,8 +949,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   }
   if (stage === 'loading') {
     return (
-      <div className="grid min-h-full place-items-center bg-[#F8FAFA]">
-        <LoaderCircle className="h-6 w-6 animate-spin text-[#0F766E]" />
+      <div className="grid min-h-full place-items-center bg-[var(--noq-base)]">
+        <LoaderCircle className="h-6 w-6 animate-spin text-[var(--noq-accent)]" />
       </div>
     );
   }
@@ -1229,18 +1229,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     <div
       ref={homeScrollRef}
       onScroll={handleHomeScroll}
-      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#0D1118] text-slate-100 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[var(--noq-base)] text-[var(--noq-ink)] [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
     >
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className="customer-liquid-home relative min-h-full overflow-x-clip bg-[#0D1118] animate-in fade-in">
+        <div id="customer-home-screen" className="customer-liquid-home relative min-h-full overflow-x-clip bg-[var(--noq-base)] animate-in fade-in">
           {/* Futuristic ambient glow backdrop */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="absolute -top-28 left-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[#2A7BFF] opacity-[28%] blur-[82px]"
+              className="absolute -top-28 left-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[var(--noq-accent)] opacity-[28%] blur-[82px]"
             />
             <div
-              className="absolute top-72 -right-24 h-72 w-72 rounded-full bg-[#2A7BFF] opacity-[8%] blur-[90px]"
+              className="absolute top-72 -right-24 h-72 w-72 rounded-full bg-[var(--noq-accent)] opacity-[8%] blur-[90px]"
             />
           </div>
 
@@ -1263,10 +1263,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                <div aria-label="NOQ" className="flex items-center gap-1 text-[23px] font-black tracking-[0.18em] text-[#E6E8F0]">
-                  NOQ<span className="h-1.5 w-1.5 rounded-full bg-[#2A7BFF] shadow-[0_0_12px_#2A7BFF]" />
+                <div aria-label="NOQ" className="flex items-center gap-1 text-[23px] font-black tracking-[0.18em] text-[var(--noq-ink)]">
+                  NOQ<span className="h-1.5 w-1.5 rounded-full bg-[var(--noq-accent)] shadow-[0_0_12px_var(--noq-accent)]" />
                 </div>
-                <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[#6AA5FF] transition active:translate-y-0.5 active:scale-95">
+                <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
                   <MapPin className="h-[18px] w-[18px]" />
                 </button>
               </div>
@@ -1305,7 +1305,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               onClick={revealHomeHeader}
               tabIndex={homeHeaderCollapsed ? 0 : -1}
               aria-hidden={!homeHeaderCollapsed}
-              className={`flex h-8 w-8 items-center justify-center rounded-full border bg-black/40 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-90 ${
+              className={`flex h-8 w-8 items-center justify-center rounded-full border bg-white/80 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-90 ${
                 homeHeaderCollapsed
                   ? 'pointer-events-auto translate-y-0 opacity-100'
                   : 'pointer-events-none -translate-y-2 opacity-0'
@@ -1370,7 +1370,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="active-queue-banner"
               onClick={() => { setTicketOrigin('home'); setScreen('tracking'); }}
-              className="flex cursor-pointer items-center justify-between rounded-2xl border p-4 text-white backdrop-blur-md transition"
+              className="flex cursor-pointer items-center justify-between rounded-2xl border p-4 text-[var(--noq-ink)] backdrop-blur-md transition"
               style={{
                 borderColor: 'var(--category-tint-20)',
                 backgroundColor: 'var(--category-tint-10)',
@@ -1384,7 +1384,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--category-soft)' }}>
                     Active Queue Status
                   </div>
-                  <div className="text-sm font-bold text-white">
+                  <div className="text-sm font-bold text-[var(--noq-ink)]">
                     {callPhase(userEntry, nowTick) === 'called'
                       ? `Your turn! Arrive within ${formatCountdown(remainingMs(userEntry, nowTick))}`
                       : callPhase(userEntry, nowTick) === 'call_again'
@@ -1401,42 +1401,42 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
           <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition">
             <div className="mb-2.5 flex items-center justify-between gap-4 px-0.5">
-              <h2 className="truncate text-[15px] font-black tracking-[-0.02em] text-[#E6E8F0]">
+              <h2 className="truncate text-[15px] font-black tracking-[-0.02em] text-[var(--noq-ink)]">
                 {homeSectionHeading[activeCategoryId.toLowerCase()] || `${activeCategoryObj.name} businesses near you`}
               </h2>
-              <button type="button" onClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="shrink-0 text-[10px] font-bold text-[#2A7BFF]">See all</button>
+              <button type="button" onClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="shrink-0 text-[10px] font-bold text-[var(--noq-accent)]">See all</button>
             </div>
 
             <div className="space-y-2.5">
               {nearbySalons.length === 0 && isRestoringLocation && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center">
+                <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/75 px-5 py-8 text-center">
                   <LoaderCircle className="mx-auto h-6 w-6 animate-spin" style={{ color: 'var(--category-accent)' }} />
-                  <p className="mt-3 text-xs leading-5 text-slate-400">Refreshing businesses near {locationLabel || 'you'}…</p>
+                  <p className="mt-3 text-xs leading-5 text-[var(--noq-muted)]">Refreshing businesses near {locationLabel || 'you'}…</p>
                 </div>
               )}
 
               {nearbySalons.length === 0 && !isRestoringLocation && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center">
-                  <MapPin className="mx-auto h-6 w-6 text-slate-500" />
-                  <h3 className="mt-3 text-sm font-bold text-white">No businesses available in your area yet.</h3>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">Try another city or area as we onboard more partners.</p>
+                <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/75 px-5 py-8 text-center">
+                  <MapPin className="mx-auto h-6 w-6 text-[var(--noq-muted)]" />
+                  <h3 className="mt-3 text-sm font-bold text-[var(--noq-ink)]">No businesses available in your area yet.</h3>
+                  <p className="mt-1 text-xs leading-5 text-[var(--noq-muted)]">Try another city or area as we onboard more partners.</p>
                   <button type="button" onClick={() => setIsChangingLocation(true)} className="mt-4 text-xs font-bold" style={{ color: 'var(--category-accent)' }}>Change location</button>
                 </div>
               )}
 
               {nearbySalons.length > 0 && salonSearch.trim() !== '' && categoryFilteredSalons.length === 0 && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-8 text-center space-y-2">
+                <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/75 px-5 py-8 text-center space-y-2">
                   <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06]" style={{ color: 'var(--category-accent)' }}>
                     <Search className="h-6 w-6" />
                   </div>
-                  <h3 className="text-sm font-bold text-white">No matching {activeCategoryObj.name} listings found</h3>
-                  <p className="text-xs leading-5 text-slate-400 max-w-xs mx-auto">
+                  <h3 className="text-sm font-bold text-[var(--noq-ink)]">No matching {activeCategoryObj.name} listings found</h3>
+                  <p className="text-xs leading-5 text-[var(--noq-muted)] max-w-xs mx-auto">
                     No results found for &ldquo;{salonSearch}&rdquo; under {activeCategoryObj.name}. Try another term or switch categories.
                   </p>
                   <button
                     type="button"
                     onClick={() => setSalonSearch('')}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/[0.08] px-4 py-2 text-xs font-bold hover:bg-white/[0.14] transition"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--noq-tint-10)] px-4 py-2 text-xs font-bold hover:bg-[var(--noq-tint-20)] transition"
                     style={{ color: 'var(--category-accent)' }}
                   >
                     Clear search
@@ -1539,13 +1539,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
               <AlertTriangle className="h-8 w-8" />
             </div>
-            <h2 className="mt-4 text-xl font-bold text-[#17201F]">Business Currently Unavailable</h2>
-            <p className="mt-2 max-w-sm text-sm text-[#6F7C7A]">
+            <h2 className="mt-4 text-xl font-bold text-[var(--noq-ink)]">Business Currently Unavailable</h2>
+            <p className="mt-2 max-w-sm text-sm text-[var(--noq-muted)]">
               {selectedSalon.name} is temporarily unavailable or deactivated on No-Wait Salon.
             </p>
             <button
               onClick={() => setScreen('home')}
-              className="mt-6 rounded-xl bg-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0D645E]"
+              className="mt-6 rounded-xl bg-[var(--noq-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--noq-accent-hover)]"
             >
               Back to Home
             </button>
@@ -1612,11 +1612,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {currentScreen === 'home' && isMoreCategoriesOpen && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsMoreCategoriesOpen(false); }}>
-          <section className="customer-more-sheet relative w-full max-w-md rounded-t-[30px] border border-white/10 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[#E6E8F0] shadow-2xl">
+          <section className="customer-more-sheet relative w-full max-w-md rounded-t-[30px] border border-[var(--noq-glass-border)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[var(--noq-ink)] shadow-2xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">
-              <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6AA5FF]">All categories</p><h2 className="mt-1 text-xl font-black">Explore more nearby</h2></div>
-              <button type="button" onClick={() => setIsMoreCategoriesOpen(false)} aria-label="Close categories" className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-slate-300 active:scale-95"><X className="h-4 w-4" /></button>
+              <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--noq-accent-light)]">All categories</p><h2 className="mt-1 text-xl font-black">Explore more nearby</h2></div>
+              <button type="button" onClick={() => setIsMoreCategoriesOpen(false)} aria-label="Close categories" className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-[var(--noq-muted)] active:scale-95"><X className="h-4 w-4" /></button>
             </div>
             {moreCategories.length ? (
               <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1624,14 +1624,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   const Icon = getCategoryIcon(category.iconName);
                   const accent = customerHomeAccent(category);
                   return (
-                    <button key={category.id} type="button" onClick={() => { setActiveCategoryId(category.id); setIsMoreCategoriesOpen(false); revealHomeHeader(); }} className="customer-more-category flex min-h-16 items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 text-left transition active:translate-y-0.5 active:scale-[0.98]">
+                    <button key={category.id} type="button" onClick={() => { setActiveCategoryId(category.id); setIsMoreCategoriesOpen(false); revealHomeHeader(); }} className="customer-more-category flex min-h-16 items-center gap-3 rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 px-4 text-left transition active:translate-y-0.5 active:scale-[0.98]">
                       <Icon className="h-5 w-5 shrink-0" style={{ color: accent }} />
-                      <span className="min-w-0"><b className="block truncate text-sm">{category.name}</b><span className="block text-[10px] font-semibold text-slate-500">{category.businessCount ?? 0} nearby</span></span>
+                      <span className="min-w-0"><b className="block truncate text-sm">{category.name}</b><span className="block text-[10px] font-semibold text-[var(--noq-muted)]">{category.businessCount ?? 0} nearby</span></span>
                     </button>
                   );
                 })}
               </div>
-            ) : <p className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-sm text-slate-400">All currently supported categories are already visible on Home.</p>}
+            ) : <p className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-sm text-[var(--noq-muted)]">All currently supported categories are already visible on Home.</p>}
           </section>
         </div>
       )}
@@ -1661,20 +1661,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           <button
             id="back-to-home-btn"
             onClick={() => setScreen(ticketOrigin === 'bookings' ? 'bookings' : 'home')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#6F7C7A] hover:text-[#17201F] transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--noq-muted)] hover:text-[var(--noq-ink)] transition cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>{ticketOrigin === 'bookings' ? 'Back to My Bookings' : 'Find another salon'}</span>
           </button>
 
           <div>
-            <div className="text-[10px] uppercase tracking-widest font-bold text-[#6F7C7A]">
+            <div className="text-[10px] uppercase tracking-widest font-bold text-[var(--noq-muted)]">
               Live Ticket
             </div>
-            <h1 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
+            <h1 className="font-sans text-2xl font-bold text-[var(--noq-ink)] tracking-tight">
               Your live queue
             </h1>
-            <p className="text-xs text-[#6F7C7A] mt-0.5">
+            <p className="text-xs text-[var(--noq-muted)] mt-0.5">
               {selectedSalon.name} · {userEntry?.service || selectedService}
             </p>
           </div>
@@ -1683,20 +1683,20 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               original status card — the token ticket is for an active live
               queue position, which a Reserved entry does not hold yet. */}
           {userEntry?.status === 'Reserved' ? (
-            <div className="p-6 rounded-2xl bg-white border border-[#E1E7E6] space-y-4">
+            <div className="p-6 rounded-2xl bg-white border border-[var(--noq-border)] space-y-4">
               <div className="flex items-center gap-4">
-                <div id="tracking-position-badge" className="w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 bg-[#0F766E]/10 text-[#0F766E]">
+                <div id="tracking-position-badge" className="w-16 h-16 rounded-2xl flex items-center justify-center font-sans font-bold text-2xl shrink-0 bg-[var(--noq-accent)]/10 text-[var(--noq-accent)]">
                   ✓
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#6F7C7A]">RESERVED WINDOW</span>
-                  <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[#17201F] mt-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--noq-muted)]">RESERVED WINDOW</span>
+                  <b id="tracking-main-status" className="block font-sans text-xl font-bold text-[var(--noq-ink)] mt-0.5">
                     Reserved for {userEntry.reservedFor}
                   </b>
                 </div>
               </div>
-              <div id="tracking-notice-box" className="p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 bg-[#F8FAFA] text-[#0F766E] border border-[#E1E7E6]">
-                <CheckCircle2 className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
+              <div id="tracking-notice-box" className="p-3.5 rounded-2xl text-xs font-medium leading-relaxed flex items-start gap-2.5 bg-[var(--noq-base)] text-[var(--noq-accent)] border border-[var(--noq-border)]">
+                <CheckCircle2 className="w-4 h-4 text-[var(--noq-accent)] shrink-0 mt-0.5" />
                 <span>Your slot at <b>{userEntry.reservedFor}</b> is held. We will update you with live notifications.</span>
               </div>
               {userEntry && canCancel(userEntry.status) && (
@@ -1764,21 +1764,21 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               the device has not decided yet. */}
           <div
             id="tracking-push-notification-card"
-            className="p-4 rounded-2xl bg-white border border-[#E1E7E6] space-y-2.5"
+            className="p-4 rounded-2xl bg-white border border-[var(--noq-border)] space-y-2.5"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BellRing className="w-4 h-4 text-[#0F766E]" />
-                <span className="text-xs font-bold text-[#17201F]">Queue alerts</span>
+                <BellRing className="w-4 h-4 text-[var(--noq-accent)]" />
+                <span className="text-xs font-bold text-[var(--noq-ink)]">Queue alerts</span>
               </div>
               {permissionStatus === 'granted' && (
-                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#E7F5F2] text-[#0F766E]">
+                <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-[#E7F5F2] text-[var(--noq-accent)]">
                   Device alerts on
                 </span>
               )}
             </div>
 
-            <p className="text-[11px] text-[#6F7C7A] leading-relaxed">
+            <p className="text-[11px] text-[var(--noq-muted)] leading-relaxed">
               {userEntry?.status === 'Reserved'
                 ? `We'll alert you ahead of your reserved arrival window (${userEntry.reservedFor}), and every update is saved to your Notifications inbox.`
                 : "We'll alert you when one person is ahead of you and when it's your turn. Every update is saved to your Notifications inbox."}
@@ -1789,7 +1789,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 <button
                   id="tracking-enable-push-btn"
                   onClick={onRequestPermission}
-                  className="flex-1 py-2 px-3 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  className="flex-1 py-2 px-3 rounded-xl bg-[var(--noq-accent)] hover:bg-[var(--noq-accent-hover)] text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
                 >
                   <Bell className="w-3 h-3" />
                   <span>Enable device notifications</span>
@@ -1798,7 +1798,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               <button
                 id="tracking-open-notifications-btn"
                 onClick={() => setScreen('notifications')}
-                className="py-2 px-3 rounded-xl bg-[#F8FAFA] hover:bg-[#E1E7E6] border border-[#E1E7E6] text-[#0F766E] text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
+                className="py-2 px-3 rounded-xl bg-[var(--noq-base)] hover:bg-[var(--noq-border)] border border-[var(--noq-border)] text-[var(--noq-accent)] text-[11px] font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ml-auto"
               >
                 <span>Open Notifications</span>
               </button>
@@ -1812,17 +1812,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               href={`https://maps.google.com/?q=${encodeURIComponent(selectedSalon.name + ' ' + selectedSalon.address)}`}
               target="_blank"
               rel="noreferrer"
-              className="p-3 rounded-2xl border border-[#E1E7E6] bg-white hover:bg-[#F8FAFA] text-[#17201F] font-semibold text-xs flex items-center justify-center gap-1.5 transition"
+              className="p-3 rounded-2xl border border-[var(--noq-border)] bg-white hover:bg-[var(--noq-base)] text-[var(--noq-ink)] font-semibold text-xs flex items-center justify-center gap-1.5 transition"
             >
-              <Navigation className="w-3.5 h-3.5 text-[#0F766E]" />
+              <Navigation className="w-3.5 h-3.5 text-[var(--noq-accent)]" />
               <span>Get Directions</span>
             </a>
             <button
               id="call-salon-action-btn"
               onClick={() => setIsCallModalOpen(true)}
-              className="p-3 rounded-2xl border border-[#E1E7E6] bg-white hover:bg-[#F8FAFA] text-[#17201F] font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+              className="p-3 rounded-2xl border border-[var(--noq-border)] bg-white hover:bg-[var(--noq-base)] text-[var(--noq-ink)] font-semibold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
             >
-              <PhoneCall className="w-3.5 h-3.5 text-[#6F7C7A]" />
+              <PhoneCall className="w-3.5 h-3.5 text-[var(--noq-muted)]" />
               <span>Call Salon</span>
             </button>
           </div>
@@ -1831,7 +1831,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
       {/* 5. NEW SERVICE COMPLETE & THANK YOU EXPERIENCE */}
       {currentScreen === 'complete' && (
-        <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[#F8FAFA] animate-in fade-in duration-200">
+        <div id="customer-complete-screen" className="flex min-h-full flex-col justify-center bg-[var(--noq-base)] animate-in fade-in duration-200">
           <ThankYouScreen
             item={completedEntry || userEntry || {
               id: 'demo-completed',

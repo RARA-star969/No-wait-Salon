@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, ChevronRight, Clock, LoaderCircle, Sparkles, Star, Tag, Ticket, X } from 'lucide-react';
 import type { Barber, QueueItem, Salon, SalonOffer, ServiceItem } from '../types';
-import { LIVE_QUEUE_GRADIENT, LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
+import { NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT, NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { PriceBreakdownSheet } from './PriceBreakdownSheet';
 import { StaffProfileSheet } from './StaffProfileSheet';
@@ -106,14 +106,14 @@ export const QueueJoinSheet: React.FC<Props> = ({
         aria-modal="true"
         aria-label="Join the queue"
         id="queue-join-sheet"
-        className={`relative flex max-h-[calc(100dvh-5.5rem)] w-full flex-col rounded-t-3xl bg-[#F8FAFA] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:max-h-[85vh] sm:max-w-md sm:rounded-3xl sm:pb-4 motion-reduce:transition-none motion-reduce:transform-none ${
+        className={`relative flex max-h-[calc(100dvh-5.5rem)] w-full flex-col rounded-t-3xl bg-[var(--noq-base)] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] sm:max-h-[85vh] sm:max-w-md sm:rounded-3xl sm:pb-4 motion-reduce:transition-none motion-reduce:transform-none ${
           active ? 'translate-y-0 opacity-100 sm:scale-100' : 'translate-y-full opacity-90 sm:translate-y-4 sm:scale-95'
         }`}
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#0F766E]">Join the queue</p>
-            <h2 className="mt-1 truncate text-xl font-bold tracking-[-0.03em] text-[#17201F]">{salon.name}</h2>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--noq-accent)]">Join the queue</p>
+            <h2 className="mt-1 truncate text-xl font-bold tracking-[-0.03em] text-[var(--noq-ink)]">{salon.name}</h2>
             {customerName && (
               <p className="mt-1 truncate text-xs text-[#667371]">Booking as {customerName}</p>
             )}
@@ -123,7 +123,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
             type="button"
             onClick={handleClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[#E2EAE9] transition hover:bg-[#F0F6F5]"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[var(--noq-border)] transition hover:bg-[#F0F6F5]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -135,19 +135,19 @@ export const QueueJoinSheet: React.FC<Props> = ({
               selected. Live queue facts (people ahead/position/wait) already
               live on the salon page's Live Queue card, directly above this
               sheet's trigger — repeating them here was redundant. */}
-          <section className="rounded-2xl border border-[#E1E7E6] bg-white p-4">
+          <section className="rounded-2xl border border-[var(--noq-border)] bg-white p-4">
             <div className="flex items-start justify-between gap-3">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#73827F]">To pay</p>
             </div>
-            <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.02em] text-[#17201F]">₹{totalPriceInr}</p>
+            <p className="mt-1 text-[26px] font-bold leading-none tracking-[-0.02em] text-[var(--noq-ink)]">₹{totalPriceInr}</p>
             {discountInr > 0 && appliedOffer && (
-              <p id="to-pay-discount-note" className="mt-1 flex items-center gap-1 text-[11px] font-bold text-[#0F766E]">
+              <p id="to-pay-discount-note" className="mt-1 flex items-center gap-1 text-[11px] font-bold text-[var(--noq-accent)]">
                 <Tag className="h-3 w-3" /> {appliedOffer.title} applied · saved ₹{discountInr}
               </p>
             )}
             {totalDurationMin > 0 && (
               <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[#E7EEEC] bg-[#F6FAF9] px-2.5 py-2">
-                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[#0F766E] to-[#0B4A44] text-white shadow-[0_1px_3px_rgba(11,61,56,0.35)]">
+                <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[var(--noq-accent-light)] to-[var(--noq-accent-deep)] text-white shadow-[0_1px_3px_rgba(52,84,253,0.24)]">
                   <Clock className="h-3.5 w-3.5" />
                 </span>
                 <span className="flex items-baseline gap-1.5">
@@ -160,10 +160,10 @@ export const QueueJoinSheet: React.FC<Props> = ({
               type="button"
               id="view-services-btn"
               onClick={() => setBreakdownOpen(true)}
-              className="mt-3 flex w-full items-center justify-between gap-3 border-t border-[#EEF3F2] pt-3 text-left"
+              className="mt-3 flex w-full items-center justify-between gap-3 border-t border-[var(--noq-surface-soft)] pt-3 text-left"
             >
               <span className="text-[11px] font-semibold text-[#4C5A58]">{services.length} {services.length === 1 ? 'service' : 'services'} selected</span>
-              <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-[#0F766E]">
+              <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-[var(--noq-accent)]">
                 View services
                 <ChevronRight className="h-3.5 w-3.5" />
               </span>
@@ -173,8 +173,8 @@ export const QueueJoinSheet: React.FC<Props> = ({
           {/* Stylist choice. */}
           <section className="mt-4">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-[#0F766E]" />
-              <h3 className="text-sm font-bold tracking-[-0.02em] text-[#17201F]">Choose your stylist</h3>
+              <Sparkles className="h-3.5 w-3.5 text-[var(--noq-accent)]" />
+              <h3 className="text-sm font-bold tracking-[-0.02em] text-[var(--noq-ink)]">Choose your stylist</h3>
             </div>
             <p className="mt-1 text-[11px] text-[#788582]">Pick a favourite, or let the salon seat you sooner.</p>
 
@@ -192,7 +192,7 @@ export const QueueJoinSheet: React.FC<Props> = ({
                 />
               ))}
               {selectable.length === 0 && (
-                <p className="rounded-2xl border border-[#E1E7E6] bg-white p-4 text-center text-xs text-[#788582]">
+                <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-center text-xs text-[#788582]">
                   No stylists are on duty right now. You can still join and the salon will seat you.
                 </p>
               )}
@@ -216,12 +216,12 @@ export const QueueJoinSheet: React.FC<Props> = ({
             disabled={busy}
             onClick={() => onConfirm(stylist)}
             className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-2xl text-[15px] font-bold text-white shadow-[0_16px_32px_-16px_rgba(6,44,40,0.6)] transition active:scale-[0.99] disabled:opacity-60"
-            style={{ background: LIVE_QUEUE_GRADIENT }}
+            style={{ background: NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT }}
           >
             <span
               className="pointer-events-none absolute inset-0 rounded-2xl p-px"
               style={{
-                background: LIVE_QUEUE_RIM_FULL,
+                background: NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL,
                 WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
                 WebkitMaskComposite: 'xor',
                 maskComposite: 'exclude',
@@ -280,15 +280,15 @@ const AnyStylistCard: React.FC<{ selected: boolean; onSelect: () => void }> = ({
     onClick={onSelect}
     aria-pressed={selected}
     className={`flex w-full items-center gap-2 rounded-2xl border px-3.5 py-2.5 text-left transition ${
-      selected ? 'border-[#0F766E] bg-[#F1FAF9] shadow-sm ring-1 ring-[#0F766E]' : 'border-[#E2EAE9] bg-white'
+      selected ? 'border-[var(--noq-accent)] bg-[#F1FAF9] shadow-sm ring-1 ring-[var(--noq-accent)]' : 'border-[var(--noq-border)] bg-white'
     }`}
   >
-    <Sparkles className={`h-3.5 w-3.5 shrink-0 ${selected ? 'text-[#0F766E]' : 'text-[#788582]'}`} />
-    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[#17201F]">
+    <Sparkles className={`h-3.5 w-3.5 shrink-0 ${selected ? 'text-[var(--noq-accent)]' : 'text-[#788582]'}`} />
+    <span className="min-w-0 flex-1 truncate text-[13px] font-bold text-[var(--noq-ink)]">
       Any available stylist <span className="font-semibold text-[#788582]">· Fastest option</span>
     </span>
     {selected ? (
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#0F766E] text-white">
+      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--noq-accent)] text-white">
         <Check className="h-3 w-3" />
       </span>
     ) : (
@@ -298,11 +298,11 @@ const AnyStylistCard: React.FC<{ selected: boolean; onSelect: () => void }> = ({
 );
 
 const STATUS_LABEL: Record<Barber['status'], string> = { available: 'Available', busy: 'In chair', unavailable: 'Off duty' };
-const STATUS_DOT: Record<Barber['status'], string> = { available: 'bg-[#0F766E]', busy: 'bg-[#A66020]', unavailable: 'bg-[#9AA6A3]' };
+const STATUS_DOT: Record<Barber['status'], string> = { available: 'bg-[var(--noq-accent)]', busy: 'bg-[#A66020]', unavailable: 'bg-[#9AA6A3]' };
 const STATUS_PILL: Record<Barber['status'], string> = {
-  available: 'bg-[#E7F5F2] text-[#0F766E] border border-[#0F766E]/20',
+  available: 'bg-[#E7F5F2] text-[var(--noq-accent)] border border-[var(--noq-accent)]/20',
   busy: 'bg-[#FAF0E6] text-[#A66020] border border-[#A66020]/20',
-  unavailable: 'bg-[#EEF3F2] text-[#6F7C7A] border border-[#6F7C7A]/20',
+  unavailable: 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)] border border-[var(--noq-muted)]/20',
 };
 
 const StylistCard: React.FC<{
@@ -337,10 +337,10 @@ const StylistCard: React.FC<{
       aria-disabled={!selectable}
       className={`relative w-full rounded-2xl border p-3 text-left transition-all duration-200 cursor-pointer select-none ${
         selected
-          ? 'border-[#0F766E] bg-[#F1FAF9] shadow-[0_4px_16px_-8px_rgba(15,118,110,0.4)] ring-1 ring-[#0F766E]'
+          ? 'border-[var(--noq-accent)] bg-[#F1FAF9] shadow-[0_4px_16px_-8px_rgba(52,84,253,0.30)] ring-1 ring-[var(--noq-accent)]'
           : selectable
-            ? 'border-[#E2EAE9] bg-white hover:border-[#BFD5D2]'
-            : 'border-[#E2EAE9] bg-[#FAFCFC] opacity-65 cursor-not-allowed'
+            ? 'border-[var(--noq-border)] bg-white hover:border-[#BFD5D2]'
+            : 'border-[var(--noq-border)] bg-[#FAFCFC] opacity-65 cursor-not-allowed'
       }`}
     >
       <div className="flex items-start gap-3">
@@ -362,7 +362,7 @@ const StylistCard: React.FC<{
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="truncate text-sm font-bold text-[#17201F]">{barber.name}</span>
+                <span className="truncate text-sm font-bold text-[var(--noq-ink)]">{barber.name}</span>
                 <span className="inline-flex items-center gap-0.5 rounded-md bg-[#FEF9C3] px-1.5 py-0.5 text-[10px] font-bold text-[#854D0E]">
                   <Star className="h-2.5 w-2.5 fill-[#CA8A04] text-[#CA8A04]" />
                   {rating.toFixed(1)}
@@ -378,7 +378,7 @@ const StylistCard: React.FC<{
                 {STATUS_LABEL[barber.status]}
               </span>
               {selected ? (
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-[#0F766E] text-white shadow-sm ring-2 ring-white">
+                <span className="grid h-5 w-5 place-items-center rounded-full bg-[var(--noq-accent)] text-white shadow-sm ring-2 ring-white">
                   <Check className="h-3 w-3" />
                 </span>
               ) : (
@@ -391,7 +391,7 @@ const StylistCard: React.FC<{
           {skills.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {skills.map((skill) => (
-                <span key={skill} className="rounded-md bg-[#F0F5F4] px-1.5 py-0.5 text-[9px] font-semibold text-[#536966]">
+                <span key={skill} className="rounded-md bg-[var(--noq-surface-soft)] px-1.5 py-0.5 text-[9px] font-semibold text-[#536966]">
                   {skill}
                 </span>
               ))}
@@ -400,7 +400,7 @@ const StylistCard: React.FC<{
 
           {/* Bottom Row: Live Status on left, Clickable 'View profile' on right */}
           <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-[#E8EFEB] pt-2">
-            <span className="flex items-center gap-1 text-[10.5px] font-semibold text-[#0F766E]">
+            <span className="flex items-center gap-1 text-[10.5px] font-semibold text-[var(--noq-accent)]">
               <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[barber.status]}`} />
               {barber.status === 'available'
                 ? 'Free now'
@@ -417,7 +417,7 @@ const StylistCard: React.FC<{
                 onViewProfile(barber);
               }}
               aria-label={`View profile for ${barber.name}`}
-              className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-[#0F766E] transition hover:bg-[#E6F4F1] active:scale-95"
+              className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-[var(--noq-accent)] transition hover:bg-[#E6F4F1] active:scale-95"
             >
               View profile
               <ChevronRight className="h-3 w-3" />

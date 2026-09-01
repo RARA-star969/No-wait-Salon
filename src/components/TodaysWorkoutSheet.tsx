@@ -9,13 +9,13 @@ import { workoutDayLabel, type WorkoutDay } from '../services/workoutPlanService
  */
 export const TodaysWorkoutSheet: React.FC<{ day: WorkoutDay; onClose: () => void }> = ({ day, onClose }) => (
   <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/60 sm:items-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-label={day.label} className="w-full max-h-[80vh] overflow-y-auto rounded-t-3xl bg-[#170F24] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-white sm:max-w-sm sm:rounded-3xl sm:pb-6">
+    <section role="dialog" aria-modal="true" aria-label={day.label} className="w-full max-h-[80vh] overflow-y-auto rounded-t-3xl bg-[var(--noq-surface-soft)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-white sm:max-w-sm sm:rounded-3xl sm:pb-6">
       <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#2B1B45] text-[#C89CFA]"><Dumbbell className="h-4 w-4" /></span>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--noq-tint-10)] text-[var(--noq-accent)]"><Dumbbell className="h-4 w-4" /></span>
           <div className="min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-[#C89CFA]">{workoutDayLabel(day.dayOfWeek)}</p>
+            <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--noq-accent)]">{workoutDayLabel(day.dayOfWeek)}</p>
             <h2 className="truncate text-lg font-bold text-white">{day.label}</h2>
           </div>
         </div>
@@ -30,7 +30,7 @@ export const TodaysWorkoutSheet: React.FC<{ day: WorkoutDay; onClose: () => void
               {exercise.note && <p className="mt-0.5 text-[10px] text-white/50">{exercise.note}</p>}
             </div>
             <div className="shrink-0 text-right">
-              <p className="text-sm font-extrabold text-[#C89CFA]">{exercise.sets} × {exercise.reps}</p>
+              <p className="text-sm font-extrabold text-[var(--noq-accent)]">{exercise.sets} × {exercise.reps}</p>
               {exercise.targetWeight && <p className="text-[10px] text-white/50">{exercise.targetWeight}</p>}
             </div>
           </div>

@@ -89,7 +89,7 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div className="min-w-0">
-            <h2 className="text-base font-bold tracking-[-0.01em] text-[#17201F]">Change location</h2>
+            <h2 className="text-base font-bold tracking-[-0.01em] text-[var(--noq-ink)]">Change location</h2>
             <p className="mt-1 text-xs leading-5 text-[#667371]">Pick where you want to find salons.</p>
           </div>
           <button
@@ -109,26 +109,26 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
             disabled={loading !== null}
             className="flex w-full items-center gap-3 rounded-2xl border border-[#CDE3E0] bg-[#F3FAF9] px-4 py-3 text-left transition active:scale-[0.99] disabled:opacity-60"
           >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#0F766E] text-white">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--noq-accent)] text-white">
               {loading === 'gps' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-bold text-[#17201F]">Use my current location</span>
+              <span className="block text-sm font-bold text-[var(--noq-ink)]">Use my current location</span>
               <span className="block text-[11px] leading-4 text-[#667371]">Find salons closest to you right now</span>
             </span>
-            {usingGps && <Check className="h-4 w-4 shrink-0 text-[#0F766E]" />}
+            {usingGps && <Check className="h-4 w-4 shrink-0 text-[var(--noq-accent)]" />}
           </button>
 
           {!usingGps && currentLabel && (
-            <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[#DCE5E3] bg-white px-4 py-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[#0F766E]">
+            <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[var(--noq-border)] bg-white px-4 py-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[var(--noq-accent)]">
                 <MapPin className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">Currently selected</span>
                 <span className="block truncate text-sm font-semibold text-[#25302F]">{currentLabel}</span>
               </span>
-              <Check className="h-4 w-4 shrink-0 text-[#0F766E]" />
+              <Check className="h-4 w-4 shrink-0 text-[var(--noq-accent)]" />
             </div>
           )}
 
@@ -137,7 +137,7 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
               Search city or area
             </label>
             <div className="mt-2 flex gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#D7E2E0] bg-[#F8FAFA] px-3 focus-within:border-[#62AAA3]">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--noq-border)] bg-[var(--noq-base)] px-3 focus-within:border-[#62AAA3]">
                 <Search className="h-4 w-4 shrink-0 text-[#78908D]" />
                 <input
                   id="change-location-area"

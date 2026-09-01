@@ -43,20 +43,20 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
   return (
     // Fixed to the real viewport (not the parent's padded/card-framed demo
     // shell) so this always measures against the actual screen, not an
-    // ancestor's constrained box. The dark backdrop fills every pixel; the
+    // ancestor's constrained box. The NOQ base fills every pixel; the
     // "stage" inside it is the only part that resizes, always keeping the
     // artwork's exact aspect ratio.
-    <div id="customer-landing-screen" className="fixed inset-0 z-40 flex items-center justify-center bg-[#050B0F]">
+    <div id="customer-landing-screen" className="fixed inset-0 z-40 flex items-center justify-center bg-[var(--noq-base)]">
       <div id="customer-landing-stage" className="relative overflow-hidden text-white" style={stageStyle}>
         <img
           src={landingHero}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 h-full w-full object-contain"
+          className="absolute inset-0 h-full w-full object-contain hue-rotate-[48deg] saturate-[1.05]"
         />
         {/* Light scrim: mostly clear over the artwork's own text, just enough
             extra contrast at the very top (menu button) and bottom (CTAs). */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#050B0F]/90 via-transparent to-[#050B0F]/20" aria-hidden="true" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--noq-ink)]/90 via-transparent to-[var(--noq-ink)]/20" aria-hidden="true" />
 
         {/* Every overlay below is a child of the SAME stage, so it holds the
             same position relative to the logo/headline/subtitle/illustration
@@ -83,7 +83,7 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
                   <div
                     role="menu"
                     id="landing-menu-panel"
-                    className="absolute right-0 top-12 z-20 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[#0E1A20]/95 py-1.5 shadow-2xl backdrop-blur-md"
+                    className="absolute right-0 top-12 z-20 w-56 overflow-hidden rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-glass-strong)] py-1.5 text-[var(--noq-ink)] shadow-2xl backdrop-blur-md"
                   >
                     {MENU_ITEMS.map(({ label, icon: Icon, href }) => (
                       <a
@@ -91,9 +91,9 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
                         role="menuitem"
                         href={href}
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-white/90 transition hover:bg-white/10"
+                        className="flex items-center gap-3 px-4 py-3 text-sm font-semibold text-[var(--noq-ink)] transition hover:bg-[var(--noq-tint-10)]"
                       >
-                        <Icon className="h-4 w-4 text-[#5EEAD4]" />
+                        <Icon className="h-4 w-4 text-[var(--noq-accent)]" />
                         {label}
                       </a>
                     ))}
@@ -112,7 +112,7 @@ export const LandingScreen: React.FC<Props> = ({ onExploreNearby, onLogin }) => 
               type="button"
               id="landing-explore-nearby-btn"
               onClick={onExploreNearby}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#14B8A6] text-[15px] font-bold text-[#02201B] shadow-[0_12px_30px_-8px_rgba(20,184,166,0.55)] transition active:scale-[0.99]"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[var(--noq-accent)] text-[15px] font-bold text-white shadow-[0_12px_30px_-8px_var(--noq-glow)] transition active:scale-[0.99]"
             >
               <MapPin className="h-4.5 w-4.5" />
               Explore Nearby

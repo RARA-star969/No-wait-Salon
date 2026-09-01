@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMetricFlash } from '../shared/useMetricFlash';
-import { LIVE_QUEUE_GRADIENT, LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
+import { NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT, NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
 import { LiveStatusChip } from './LiveStatusChip';
 
 export interface CategoryMetric {
@@ -65,11 +65,11 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
   palette,
   premiumLive = false,
 }) => {
-  const gradient = palette?.gradient ?? LIVE_QUEUE_GRADIENT;
-  const rim = palette?.rim ?? LIVE_QUEUE_RIM_FULL;
-  const glowColorA = palette?.glowColorA ?? '#5EE0B4';
-  const glowColorB = palette?.glowColorB ?? '#0AA88C';
-  const flashColor = palette?.flashColor ?? '#7DEFC6';
+  const gradient = palette?.gradient ?? NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT;
+  const rim = palette?.rim ?? NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL;
+  const glowColorA = palette?.glowColorA ?? '#7890FF';
+  const glowColorB = palette?.glowColorB ?? '#3454FD';
+  const flashColor = palette?.flashColor ?? '#DCE4FF';
   return (
     <section
       id={id}

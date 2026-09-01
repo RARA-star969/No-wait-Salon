@@ -109,8 +109,8 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
   };
 
   if (!auth) return (
-    <div id="customer-profile-screen" className="min-h-full bg-[#F8FAFA] px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))]">
-      <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3] bg-white" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
+    <div id="customer-profile-screen" className="min-h-full bg-[var(--noq-base)] px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))]">
+      <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--noq-border)] bg-white" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
       <div className="mx-auto flex max-w-sm flex-col items-center px-3 pt-16 text-center">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#E2F2EF] text-[var(--category-primary-dark)]"><CircleUserRound className="h-9 w-9" /></div>
         <h1 className="mt-5 text-2xl font-bold tracking-[-0.035em]">Your personal salon account</h1>
@@ -120,16 +120,16 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
     </div>
   );
 
-  if (loading || !profile) return <div className="flex min-h-full items-center justify-center bg-[#F8FAFA]"><LoaderCircle className="h-6 w-6 animate-spin text-[var(--category-primary-dark)]" /></div>;
+  if (loading || !profile) return <div className="flex min-h-full items-center justify-center bg-[var(--noq-base)]"><LoaderCircle className="h-6 w-6 animate-spin text-[var(--category-primary-dark)]" /></div>;
 
   if (mode === 'edit') return (
     <form
       id="customer-edit-profile-screen"
       onSubmit={submit}
-      className="min-h-full bg-[#F8FAFA]"
+      className="min-h-full bg-[var(--noq-base)]"
     >
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E2E8E7] bg-white/95 px-4 py-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur">
-        <button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3]" aria-label="Back to profile"><ArrowLeft className="h-4 w-4" /></button>
+        <button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--noq-border)]" aria-label="Back to profile"><ArrowLeft className="h-4 w-4" /></button>
         <div><h1 className="text-lg font-bold">Edit profile</h1><p className="text-[10px] text-[#71807E]">Keep your details up to date</p></div>
       </div>
       <div className="mx-auto max-w-md space-y-5 px-4 py-6">
@@ -146,7 +146,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
           <ProfileInput label="Date of birth" value={form.dateOfBirth} onChange={(value) => setForm({ ...form, dateOfBirth: value })} icon={<CalendarDays />} type="date" max={maxBirthDate} />
           <div>
             <label className="mb-1.5 block text-xs font-semibold">Gender <span className="font-normal text-[#8A9694]">(optional)</span></label>
-            <select value={form.gender} onChange={(event) => setForm({ ...form, gender: event.target.value })} className="h-12 w-full rounded-xl border border-[#DCE5E3] bg-white px-3 text-sm outline-none focus:border-[#62AAA3]">
+            <select value={form.gender} onChange={(event) => setForm({ ...form, gender: event.target.value })} className="h-12 w-full rounded-xl border border-[var(--noq-border)] bg-white px-3 text-sm outline-none focus:border-[#62AAA3]">
               <option value="">Prefer not to say</option><option value="Woman">Woman</option><option value="Man">Man</option><option value="Non-binary">Non-binary</option>
             </select>
           </div>
@@ -172,8 +172,8 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
     // plus the gesture-nav inset, so Log out is always reachable rather than
     // sitting under the bar. Same 6.25rem reserve the SafeAreaScreen shell
     // uses for `bottomInset="nav"`.
-    <div id="customer-profile-screen" className="min-h-full bg-[#F8FAFA] pb-[calc(env(safe-area-inset-bottom)_+_7.5rem)]">
-      <div className="bg-gradient-to-b from-[#DFF1EE] to-[#F8FAFA] px-4 pb-7 pt-[max(1rem,env(safe-area-inset-top))]">
+    <div id="customer-profile-screen" className="min-h-full bg-[var(--noq-base)] pb-[calc(env(safe-area-inset-bottom)_+_7.5rem)]">
+      <div className="bg-gradient-to-b from-[#DFF1EE] to-[var(--noq-base)] px-4 pb-7 pt-[max(1rem,env(safe-area-inset-top))]">
         <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/80 bg-white/80" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
         <div className="mt-5 flex flex-col items-center text-center">
           <Avatar profile={profile} />
@@ -209,5 +209,5 @@ const ProfileRow: React.FC<{ icon: React.ReactElement; label: string; secondary?
 
 type InputProps = { label: string; value: string; onChange?: (value: string) => void; placeholder?: string; icon: React.ReactElement; type?: string; disabled?: boolean; helper?: string; autoComplete?: string; max?: string };
 const ProfileInput: React.FC<InputProps> = ({ label, value, onChange, placeholder, icon, type = 'text', disabled, helper, autoComplete, max }) => (
-  <div><label className="mb-1.5 block text-xs font-semibold">{label}</label><div className={`flex min-h-12 items-center gap-2.5 rounded-xl border border-[#DCE5E3] px-3 ${disabled ? 'bg-[#F3F6F5]' : 'bg-white focus-within:border-[#62AAA3]'}`}><span className="text-[#71908C] [&>svg]:h-4 [&>svg]:w-4">{icon}</span><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} type={type} disabled={disabled} autoComplete={autoComplete} max={max} className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA6A4] disabled:text-[#60706E]" /></div>{helper && <p className="mt-1 text-[10px] leading-4 text-[#7A8785]">{helper}</p>}</div>
+  <div><label className="mb-1.5 block text-xs font-semibold">{label}</label><div className={`flex min-h-12 items-center gap-2.5 rounded-xl border border-[var(--noq-border)] px-3 ${disabled ? 'bg-[#F3F6F5]' : 'bg-white focus-within:border-[#62AAA3]'}`}><span className="text-[#71908C] [&>svg]:h-4 [&>svg]:w-4">{icon}</span><input value={value} onChange={(event) => onChange?.(event.target.value)} placeholder={placeholder} type={type} disabled={disabled} autoComplete={autoComplete} max={max} className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA6A4] disabled:text-[#60706E]" /></div>{helper && <p className="mt-1 text-[10px] leading-4 text-[#7A8785]">{helper}</p>}</div>
 );

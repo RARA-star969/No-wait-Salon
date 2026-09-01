@@ -31,14 +31,14 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
       className="fixed top-4 right-4 sm:right-6 z-50 max-w-md w-[calc(100vw-2rem)] sm:w-96 animate-in slide-in-from-top-4 fade-in duration-300 pointer-events-auto"
     >
       <div
-        className={`rounded-2xl border bg-white/95 p-4 text-[#17201F] shadow-xl backdrop-blur-md transition-all ${isUrgent ? 'border-[#62AAA3] ring-1 ring-[#62AAA3]' : 'border-[#E1E7E6]'}`}
+        className={`rounded-2xl border bg-white/95 p-4 text-[var(--noq-ink)] shadow-xl backdrop-blur-md transition-all ${isUrgent ? 'border-[#62AAA3] ring-1 ring-[#62AAA3]' : 'border-[var(--noq-border)]'}`}
       >
         {/* Header meta */}
         <div className="mb-2 flex items-center justify-between border-b border-[#E8EDEC] pb-2">
           <div className="flex items-center gap-2">
             <div
               className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs ${
-                isUrgent ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-[#0F766E]/10 text-[#0F766E]'
+                isUrgent ? 'bg-[#E7F5F2] text-[var(--noq-accent)]' : 'bg-[var(--noq-accent)]/10 text-[var(--noq-accent)]'
               }`}
             >
               {notification.type === 'reserved_nearing' ? (
@@ -48,7 +48,7 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
               )}
             </div>
             <span
-              className="text-[11px] font-bold uppercase tracking-wider text-[#6F7C7A]"
+              className="text-[11px] font-bold uppercase tracking-wider text-[var(--noq-muted)]"
             >
               {notification.salonName || 'No-Wait Salon'} · PUSH ALERT
             </span>
@@ -63,7 +63,7 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
               id="push-toast-dismiss-btn"
               onClick={onDismiss}
               aria-label="Dismiss alert"
-              className="cursor-pointer rounded-md p-1 text-[#6F7C7A] transition hover:bg-[#E1E7E6] hover:text-[#17201F]"
+              className="cursor-pointer rounded-md p-1 text-[var(--noq-muted)] transition hover:bg-[var(--noq-border)] hover:text-[var(--noq-ink)]"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -74,12 +74,12 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
         <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <h4
-              className="font-sans text-sm font-bold leading-tight text-[#17201F]"
+              className="font-sans text-sm font-bold leading-tight text-[var(--noq-ink)]"
             >
               {notification.title}
             </h4>
             <p
-              className="mt-1 text-xs leading-relaxed text-[#6F7C7A]"
+              className="mt-1 text-xs leading-relaxed text-[var(--noq-muted)]"
             >
               {notification.body}
             </p>
@@ -93,10 +93,10 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
               notification.type === 'called'
                 ? 'bg-amber-500/20 text-amber-300'
                 : notification.type === 'approaching'
-                  ? 'bg-[#E7F5F2] text-[#0F766E]'
+                  ? 'bg-[#E7F5F2] text-[var(--noq-accent)]'
                   : notification.type === 'reserved_nearing'
                     ? 'bg-sky-50 text-sky-700'
-                    : 'bg-[#0F766E]/15 text-[#0F766E]'
+                    : 'bg-[var(--noq-accent)]/15 text-[var(--noq-accent)]'
             }`}
           >
             {notification.type === 'called'
@@ -116,8 +116,8 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({
             }}
             className={`text-xs font-bold flex items-center gap-1 px-3 py-1.5 rounded-xl transition cursor-pointer ${
               isUrgent
-                ? 'bg-[#0F766E] text-white hover:bg-[#0B665F]'
-                : 'bg-[#0F766E] text-white hover:bg-[#0B665F]'
+                ? 'bg-[var(--noq-accent)] text-white hover:bg-[var(--noq-accent-hover)]'
+                : 'bg-[var(--noq-accent)] text-white hover:bg-[var(--noq-accent-hover)]'
             }`}
           >
             <span>View Ticket</span>

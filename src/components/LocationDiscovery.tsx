@@ -88,7 +88,7 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onBack }) => {
   };
 
   return (
-    <div id="location-discovery-screen" className="flex min-h-full flex-col bg-[#F8FAFA] text-[#17201F]">
+    <div id="location-discovery-screen" className="flex min-h-full flex-col bg-[var(--noq-base)] text-[var(--noq-ink)]">
       {onBack && (
         <div className="px-5 pt-[max(1rem,env(safe-area-inset-top))]">
           <button
@@ -96,24 +96,24 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onBack }) => {
             id="location-back-btn"
             onClick={onBack}
             aria-label="Back to landing"
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#DCE5E3] bg-white text-[#17201F] transition active:scale-95"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--noq-border)] bg-white text-[var(--noq-ink)] transition active:scale-95"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
         </div>
       )}
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-5 pb-7 pt-6">
-        <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
+        <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
           <MapPin className="h-7 w-7" />
         </div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#0F766E]">Nearby salons</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--noq-accent)]">Nearby salons</p>
         <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Find your closest chair.</h1>
         <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
           Use your location to see onboarded salons ordered by distance, with travel and live waiting times.
         </p>
 
         <button type="button" onClick={useLocation} disabled={loading !== null}
-          className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60">
+          className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] px-4 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60">
           {loading === 'gps' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
           {loading === 'gps'
             ? 'Finding nearby salons…'
@@ -123,16 +123,16 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onBack }) => {
         </button>
 
         <button type="button" onClick={() => { setManualMode(true); setError(''); }}
-          className="mt-3 h-11 w-full rounded-xl border border-[#D7E2E0] bg-white text-sm font-semibold text-[#35504D] transition hover:border-[#9CCBC6]">
+          className="mt-3 h-11 w-full rounded-xl border border-[var(--noq-border)] bg-white text-sm font-semibold text-[#35504D] transition hover:border-[#9CCBC6]">
           Choose city or area manually
         </button>
 
 
         {manualMode && (
-          <form onSubmit={searchArea} className="mt-5 rounded-2xl border border-[#DCE5E3] bg-white p-4">
+          <form onSubmit={searchArea} className="mt-5 rounded-2xl border border-[var(--noq-border)] bg-white p-4">
             <label htmlFor="location-area" className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#6E7B79]">City or area</label>
             <div className="mt-2 flex gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#D7E2E0] bg-[#F8FAFA] px-3 focus-within:border-[#62AAA3]">
+              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--noq-border)] bg-[var(--noq-base)] px-3 focus-within:border-[#62AAA3]">
                 <Search className="h-4 w-4 shrink-0 text-[#78908D]" />
                 <input id="location-area" value={area} onChange={(event) => setArea(event.target.value)}
                   placeholder="e.g. Indiranagar" autoComplete="address-level2"
@@ -151,7 +151,7 @@ export const LocationDiscovery: React.FC<Props> = ({ onLocated, onBack }) => {
           </div>
         )}
         <div className="mt-6 flex items-start gap-2 text-[11px] leading-5 text-[#788582]">
-          <LocateFixed className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#0F766E]" />
+          <LocateFixed className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--noq-accent)]" />
           Your precise location is used only to calculate nearby results and is not stored.
         </div>
       </div>

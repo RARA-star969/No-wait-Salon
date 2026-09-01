@@ -21,7 +21,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
     disabled={disabled}
     className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center transition ${
       isGymGlass
-        ? 'border border-white/[0.08] bg-[#170F24]/80 shadow-[0_10px_22px_-16px_rgba(0,0,0,0.75)] backdrop-blur-sm'
+        ? 'border border-white/[0.08] bg-[var(--noq-surface-soft)]/80 shadow-[0_10px_22px_-16px_rgba(0,0,0,0.75)] backdrop-blur-sm'
         : 'shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06]'
     } ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
     style={isGymGlass ? undefined : { background: surfaceGradient }}
@@ -33,7 +33,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
         goldIcon
           ? 'bg-white [&>svg]:fill-[#F3D584] [&>svg]:text-[#8A6316] [&>svg]:stroke-[1.75]'
           : isGymGlass
-          ? 'bg-[#2B1B45] text-[#C89CFA]'
+          ? 'bg-[var(--noq-tint-10)] text-[var(--noq-accent)]'
           : active
           ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]'
           : 'bg-white text-[var(--category-primary-dark)]'
@@ -60,17 +60,17 @@ export const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?
 /** Generic bottom-sheet shell shared by the quick-action placeholder sheets below. */
 export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }> = ({ icon, eyebrow, title, onClose, children }) => (
   <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-label={title} className="w-full rounded-t-3xl bg-[#F8FAFA] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
+    <section role="dialog" aria-modal="true" aria-label={title} className="w-full rounded-t-3xl bg-[var(--noq-base)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
       <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]">{icon}</span>
           <div className="min-w-0">
             <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--category-primary-dark)]">{eyebrow}</p>
-            <h2 className="truncate text-lg font-bold text-[#17201F]">{title}</h2>
+            <h2 className="truncate text-lg font-bold text-[var(--noq-ink)]">{title}</h2>
           </div>
         </div>
-        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E2EAE9]"><X className="h-4 w-4" /></button>
+        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[var(--noq-border)]"><X className="h-4 w-4" /></button>
       </div>
       {children}
     </section>
@@ -81,12 +81,12 @@ export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow
 export const AddressSheet: React.FC<{ name: string; address: string; locationLabel: string; phoneNumber?: string; directionsUrl: string; eyebrow?: string; onClose: () => void }> = ({ name, address, locationLabel, phoneNumber, directionsUrl, eyebrow = 'Store location', onClose }) => (
   <QuickActionSheetShell icon={<MapPin className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
     <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--category-primary-dark)]"><MapPin className="h-3.5 w-3.5 shrink-0" />{locationLabel}</p>
-    <p className="mt-2 rounded-2xl border border-[#E1E7E6] bg-white p-4 text-xs leading-5 text-[#4C5A58] shadow-[0_2px_10px_-6px_rgba(15,40,37,0.15)] [overflow-wrap:anywhere]">{address}</p>
+    <p className="mt-2 rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-xs leading-5 text-[#4C5A58] shadow-[0_2px_10px_-6px_rgba(15,40,37,0.15)] [overflow-wrap:anywhere]">{address}</p>
     <div className="mt-4 grid grid-cols-2 gap-2.5">
       {phoneNumber ? (
-        <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#DDE7E5] bg-white text-xs font-bold text-[#17201F]"><PhoneCall className="h-4 w-4 text-[var(--category-primary-dark)]" />Call</a>
+        <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--noq-border)] bg-white text-xs font-bold text-[var(--noq-ink)]"><PhoneCall className="h-4 w-4 text-[var(--category-primary-dark)]" />Call</a>
       ) : (
-        <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-[#F1F4F3] text-xs font-semibold text-[#9AA6A3]"><PhoneCall className="h-4 w-4" />No number listed</span>
+        <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--noq-border)] bg-[#F1F4F3] text-xs font-semibold text-[#9AA6A3]"><PhoneCall className="h-4 w-4" />No number listed</span>
       )}
       <a href={directionsUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Directions</a>
     </div>
@@ -99,10 +99,10 @@ export const OpenHoursSheet: React.FC<{ name: string; isOpen: boolean; openingHo
   return (
     <QuickActionSheetShell icon={<Clock3 className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
       <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-[#BFE0DC] bg-[#EDF8F6] text-[var(--category-primary-dark)]' : 'border-[#F0D6D1] bg-[#FFF7F5] text-[#8A3E35]'}`}>
-        <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-[#14B8A6]' : 'bg-[#E58C82]'}`} />
+        <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-[var(--noq-accent)]' : 'bg-[#E58C82]'}`} />
         {isOpen ? 'Open right now' : 'Closed right now'} · {openingHours}
       </div>
-      <div className="mt-3 space-y-1 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+      <div className="mt-3 space-y-1 rounded-2xl border border-[var(--noq-border)] bg-white p-3.5">
         {days.map((day) => (
           <div key={day} className="flex items-center justify-between text-xs">
             <span className="font-semibold text-[#4C5A58]">{day}</span>
@@ -129,13 +129,13 @@ export const BranchesSheet: React.FC<{ branches: NearbySalon[]; onClose: () => v
   <QuickActionSheetShell icon={<Store className="h-4 w-4" />} eyebrow="Same brand" title="Other branches" onClose={onClose}>
     <div className="mt-4 space-y-2">
       {branches.map((branch) => (
-        <div key={branch.id} className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
-          <p className="text-sm font-bold text-[#17201F]">{branch.name}</p>
+        <div key={branch.id} className="rounded-2xl border border-[var(--noq-border)] bg-white p-3.5">
+          <p className="text-sm font-bold text-[var(--noq-ink)]">{branch.name}</p>
           <p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p>
         </div>
       ))}
       {branches.length === 0 && (
-        <p className="rounded-2xl border border-[#E1E7E6] bg-white p-4 text-center text-xs text-[#788582]">No other branches nearby yet.</p>
+        <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-center text-xs text-[#788582]">No other branches nearby yet.</p>
       )}
     </div>
   </QuickActionSheetShell>

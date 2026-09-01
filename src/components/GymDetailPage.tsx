@@ -610,7 +610,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const dockExpanded = bottomCtaState === 'selected' || bottomCtaState === 'checked_in' || bottomCtaState === 'awaiting_payment';
 
   return (
-    <div id="gym-detail-page" className="min-h-full bg-[#0A0714] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-white">
+    <div id="gym-detail-page" className="min-h-full bg-[var(--noq-base)] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)]">
       {/* Bottom padding matches the Salon page: enough clearance for the
           shared sticky dock at its tallest (expanded summary + action row)
           plus the device safe area, so the last section is never hidden
@@ -635,13 +635,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           photo stays the visually dominant element — only a short gradient
           right behind the logo/name seam darkens for legibility, never a
           flat opaque rectangle across the whole identity area. */}
-      <div className="relative bg-[#120B1D] text-white">
+      <div className="relative bg-[var(--noq-base)] text-[var(--noq-ink)]">
         <div className="relative">
           <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
           {/* Tiny seam only, just enough for the logo to land on where it
               overlaps the photo — the cover photo itself must stay clearly
               visible at its natural brightness across ~90%+ of its height. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[#120B1D]/70 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[var(--noq-base)]/70 to-transparent" />
           {/* Top Bar Navigation */}
           <div className="pointer-events-none absolute inset-0">
             <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
@@ -680,23 +680,23 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             itself. */}
         <div className="relative px-5 pb-5 pt-0">
           <div className="flex items-end gap-3">
-            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[#120B1D] bg-[var(--category-dark-surface,#241536)] text-[var(--category-accent,#C084FC)] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
+            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[var(--noq-base)] bg-[var(--category-dark-surface,#241536)] text-[var(--category-accent,var(--noq-accent))] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
               <div className="flex items-center gap-2">
                 <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--noq-muted)]">{salon.isOpen ? 'Open now' : 'Closed'}</span>
               </div>
 
-              <AnimatedSalonName name={salon.name} className="mt-1 text-[22px] font-bold leading-tight tracking-[-0.03em] text-white [overflow-wrap:anywhere]" />
+              <AnimatedSalonName name={salon.name} className="mt-1 text-[22px] font-bold leading-tight tracking-[-0.03em] text-[var(--noq-ink)] [overflow-wrap:anywhere]" />
 
-              <p className="mt-0.5 text-xs font-medium text-[var(--category-accent,#C084FC)]">
+              <p className="mt-0.5 text-xs font-medium text-[var(--category-accent,var(--noq-accent))]">
                 Fitness & Strength Center · {salon.distanceKm} km away
               </p>
 
               <div className="mt-1">
-                <RatingSummaryBadge businessId={salon.id} tone="dark" />
+                <RatingSummaryBadge businessId={salon.id} tone="light" />
               </div>
             </div>
           </div>
@@ -706,7 +706,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             id="gym-address-row"
             onClick={() => setAddressSheetOpen(true)}
             aria-label="View gym address and contact"
-            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-white/75 underline decoration-white/25 underline-offset-2 transition active:text-white"
+            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-[var(--noq-muted)] underline decoration-white/25 underline-offset-2 transition active:text-[var(--noq-ink)]"
           >
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
@@ -788,7 +788,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           {isActiveMember && membership ? (
             <div
               className="relative overflow-hidden rounded-2xl border p-4 shadow-[0_14px_28px_-18px_rgba(0,0,0,0.7)]"
-              style={{ borderColor: 'color-mix(in srgb, var(--category-selected-glow) 25%, transparent)', background: 'linear-gradient(160deg, var(--category-dark-surface) 0%, #170F24 75%)' }}
+              style={{ borderColor: 'color-mix(in srgb, var(--category-selected-glow) 25%, transparent)', background: 'linear-gradient(160deg, var(--category-dark-surface) 0%, var(--noq-surface-soft) 75%)' }}
             >
               <div
                 className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-3xl"
@@ -803,7 +803,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 <button
                   onClick={() => setAttendanceSheetOpen(true)}
                   aria-label="View membership and attendance calendar"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition active:scale-95"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-white/75 text-[var(--noq-muted)] transition active:scale-95"
                 >
                   <CalendarDays className="h-3.5 w-3.5" />
                 </button>
@@ -811,28 +811,28 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
               <div className="relative mt-3">
                 {!workoutPlanLoaded ? (
-                  <div className="h-14 animate-pulse rounded-xl bg-white/[0.04]" />
+                  <div className="h-14 animate-pulse rounded-xl bg-white/70" />
                 ) : todaysDay ? (
                   <button
                     type="button"
                     onClick={() => setWorkoutSheetDay(todaysDay)}
-                    className="block w-full rounded-xl border border-white/10 bg-white/[0.04] p-3 text-left transition active:scale-[0.99]"
+                    className="block w-full rounded-xl border border-[var(--noq-glass-border)] bg-white/70 p-3 text-left transition active:scale-[0.99]"
                   >
-                    <p className="text-[9px] font-bold uppercase tracking-wider text-[#C89CFA]">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--noq-accent)]">
                       {todaysDay.isRest ? 'Today · Recovery day' : `Today · ${todaysDay.label}`}
                     </p>
                     {todaysDay.isRest ? (
-                      <p className="mt-0.5 text-xs text-white/60">
+                      <p className="mt-0.5 text-xs text-[var(--noq-muted)]">
                         {upcomingDay ? `Next: ${upcomingDay.day.label} · ${upcomingDay.inDays === 1 ? 'Tomorrow' : `in ${upcomingDay.inDays} days`}` : 'Rest and recover.'}
                       </p>
                     ) : (
                       <>
-                        <p className="mt-0.5 text-sm font-extrabold text-white">{todaysDay.label}</p>
-                        <p className="mt-0.5 text-[11px] text-white/50">{todaysDay.exercises.length} exercise{todaysDay.exercises.length === 1 ? '' : 's'}</p>
+                        <p className="mt-0.5 text-sm font-extrabold text-[var(--noq-ink)]">{todaysDay.label}</p>
+                        <p className="mt-0.5 text-[11px] text-[var(--noq-muted)]">{todaysDay.exercises.length} exercise{todaysDay.exercises.length === 1 ? '' : 's'}</p>
                       </>
                     )}
                     {!todaysDay.isRest && (
-                      <span className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[#6B21A8] px-2.5 py-1.5 text-[10px] font-bold text-white">
+                      <span className="mt-2 inline-flex items-center gap-1 rounded-lg bg-[var(--noq-accent-deep)] px-2.5 py-1.5 text-[10px] font-bold text-white">
                         View Workout
                       </span>
                     )}
@@ -841,14 +841,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   <button
                     type="button"
                     onClick={() => setWorkoutPlanEditorOpen(true)}
-                    className="block w-full rounded-xl border border-dashed border-white/15 bg-white/[0.02] p-3 text-center text-xs font-bold text-white/60 transition active:scale-[0.99]"
+                    className="block w-full rounded-xl border border-dashed border-[var(--noq-glass-border)] bg-white/60 p-3 text-center text-xs font-bold text-[var(--noq-muted)] transition active:scale-[0.99]"
                   >
                     Set up your workout plan
                   </button>
                 )}
               </div>
 
-              <p className="relative mt-3 text-[11px] text-white/45">
+              <p className="relative mt-3 text-[11px] text-[var(--noq-muted)]">
                 Member since {new Date(membership.joinedDate).toLocaleDateString()} · Valid till {new Date(membership.expiryDate).toLocaleDateString()}
               </p>
             </div>
@@ -856,24 +856,24 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4">
               <div className="flex items-center gap-2">
                 <BadgeCheck className="h-4 w-4 text-rose-300" />
-                <h2 className="text-xs font-extrabold text-white">{membership.planName}</h2>
+                <h2 className="text-xs font-extrabold text-[var(--noq-ink)]">{membership.planName}</h2>
                 <span className="rounded-md bg-rose-500/15 px-2 py-0.5 text-[9px] font-extrabold uppercase text-rose-300">Expired</span>
               </div>
-              <p className="mt-1 text-[11px] text-white/50">Expired on {new Date(membership.expiryDate).toLocaleDateString()}. Renew to unlock check-in again.</p>
+              <p className="mt-1 text-[11px] text-[var(--noq-muted)]">Expired on {new Date(membership.expiryDate).toLocaleDateString()}. Renew to unlock check-in again.</p>
             </div>
           ) : myMembership?.pendingClaim ? (
             <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-xs font-semibold text-amber-200">
               Your membership claim is pending gym approval. You'll see your member status here once the front desk verifies it.
             </div>
           ) : (
-            <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
+            <div className="flex items-center justify-between rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
               <div>
-                <h2 className="text-xs font-extrabold text-white">Already a member here?</h2>
-                <p className="mt-0.5 text-[11px] text-white/50">Link your existing membership for a "Scan to Check In" pass.</p>
+                <h2 className="text-xs font-extrabold text-[var(--noq-ink)]">Already a member here?</h2>
+                <p className="mt-0.5 text-[11px] text-[var(--noq-muted)]">Link your existing membership for a "Scan to Check In" pass.</p>
               </div>
               <button
                 onClick={() => requireReady('claim', () => setClaimModalOpen(true))}
-                className="shrink-0 rounded-xl border border-[var(--category-primary-dark)]/30 bg-white/[0.06] px-3.5 py-2 text-[11px] font-bold text-[var(--category-accent)] transition active:scale-95"
+                className="shrink-0 rounded-xl border border-[var(--category-primary-dark)]/30 bg-white/75 px-3.5 py-2 text-[11px] font-bold text-[var(--category-accent)] transition active:scale-95"
               >
                 I'm Already a Member
               </button>
@@ -885,8 +885,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         <div id="gym-classes-section" className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-white">Today's Scheduled Classes</h2>
-              <p className="text-[11px] text-white/50">Book group workout sessions</p>
+              <h2 className="text-sm font-bold text-[var(--noq-ink)]">Today's Scheduled Classes</h2>
+              <p className="text-[11px] text-[var(--noq-muted)]">Book group workout sessions</p>
             </div>
             <span className="text-[11px] font-bold text-[var(--category-accent)]">
               {(overview?.classesToday || []).length} Available Today
@@ -897,10 +897,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             {(overview?.classesToday ?? []).map((c) => {
               const seatsLeft = c.maxCapacity - c.enrolled;
               return (
-                <div key={c.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
+                <div key={c.id} className="flex items-center justify-between rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
                   <div>
-                    <h3 className="text-xs font-extrabold text-white">{c.title}</h3>
-                    <div className="mt-1 flex items-center gap-2 text-[11px] text-white/50">
+                    <h3 className="text-xs font-extrabold text-[var(--noq-ink)]">{c.title}</h3>
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--noq-muted)]">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-[var(--category-accent)]" />
                         {c.time}
@@ -924,7 +924,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               );
             })}
             {!loading && (overview?.classesToday ?? []).length === 0 && (
-              <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center text-xs text-white/40">No classes scheduled today.</p>
+              <p className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 text-center text-xs text-[var(--noq-muted)]">No classes scheduled today.</p>
             )}
           </div>
         </div>
@@ -933,17 +933,17 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         <div id="gym-trainers-section" className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-white">Certified Coaches & Trainers</h2>
-              <p className="text-[11px] text-white/50">1-on-1 personal training experts</p>
+              <h2 className="text-sm font-bold text-[var(--noq-ink)]">Certified Coaches & Trainers</h2>
+              <p className="text-[11px] text-[var(--noq-muted)]">1-on-1 personal training experts</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {(overview?.trainers ?? []).map((t) => (
-              <div key={t.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
+              <div key={t.id} className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-xs font-extrabold text-white">{t.name}</h3>
+                    <h3 className="text-xs font-extrabold text-[var(--noq-ink)]">{t.name}</h3>
                     <p className="text-[11px] font-semibold text-[var(--category-accent)]">{t.role}</p>
                   </div>
                   <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold ${
@@ -953,7 +953,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   </span>
                 </div>
 
-                <div className="mt-2.5 flex items-center justify-between text-[11px] text-white/50">
+                <div className="mt-2.5 flex items-center justify-between text-[11px] text-[var(--noq-muted)]">
                   <span className="flex items-center gap-1 font-bold text-amber-400">
                     ★ {t.rating} ({t.reviewCount})
                   </span>
@@ -965,7 +965,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     setSelectedTrainer(t);
                     setPtBookingModalOpen(true);
                   }}
-                  className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/30 bg-white/[0.06] py-2 text-xs font-bold text-[var(--category-accent)] transition hover:bg-[var(--category-tint-10)] active:scale-98"
+                  className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/30 bg-white/75 py-2 text-xs font-bold text-[var(--category-accent)] transition hover:bg-[var(--category-tint-10)] active:scale-98"
                 >
                   Book 1-on-1 PT
                 </button>
@@ -973,15 +973,15 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             ))}
           </div>
           {!loading && (overview?.trainers ?? []).length === 0 && (
-            <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center text-xs text-white/40">No trainers listed yet.</p>
+            <p className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 text-center text-xs text-[var(--noq-muted)]">No trainers listed yet.</p>
           )}
         </div>
 
         {/* 6. SERVICES & PASSES — real owner-defined offerings, not mock services. */}
         <div id="gym-passes-section" className="space-y-3">
           <div>
-            <h2 className="text-sm font-bold text-white">Gym Passes & Memberships</h2>
-            <p className="text-[11px] text-white/50">Buy a visitor pass or membership</p>
+            <h2 className="text-sm font-bold text-[var(--noq-ink)]">Gym Passes & Memberships</h2>
+            <p className="text-[11px] text-[var(--noq-muted)]">Buy a visitor pass or membership</p>
           </div>
 
           <div className="space-y-2.5">
@@ -1014,12 +1014,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               return (
               <div
                 key={offering.id}
-                className={`rounded-2xl border bg-white/[0.04] p-4 transition ${
+                className={`rounded-2xl border bg-white/70 p-4 transition ${
                   isActivePass || isMine
                     ? 'border-[var(--category-primary-dark)] shadow-[0_10px_28px_-18px_var(--category-glow)]'
                     : isSelected
                     ? 'border-[var(--category-primary-dark)]/60 shadow-[0_8px_22px_-16px_var(--category-glow)]'
-                    : 'border-white/10'
+                    : 'border-[var(--noq-glass-border)]'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
@@ -1028,9 +1028,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                       <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass || isMine ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-tint-10)] text-[var(--category-accent)]'}`}>
                         {isActivePass ? 'Checked in' : isMine ? 'Activated' : offering.type.replace('_', ' ')}
                       </span>
-                      <h3 className="text-xs font-extrabold text-white">{offering.name}</h3>
+                      <h3 className="text-xs font-extrabold text-[var(--noq-ink)]">{offering.name}</h3>
                     </div>
-                    <p className="mt-1 text-[11px] text-white/50">
+                    <p className="mt-1 text-[11px] text-[var(--noq-muted)]">
                       {isActivePass
                         ? `Inside · ${activeDurationLabel}`
                         : isMine
@@ -1039,8 +1039,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     </p>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-extrabold text-white">₹{offering.priceInr}</div>
-                    <div className="text-[10px] font-semibold text-white/50">{durationText(offering)}</div>
+                    <div className="text-sm font-extrabold text-[var(--noq-ink)]">₹{offering.priceInr}</div>
+                    <div className="text-[10px] font-semibold text-[var(--noq-muted)]">{durationText(offering)}</div>
                   </div>
                 </div>
                 {isActivePass ? (
@@ -1056,7 +1056,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 ) : showUpgrade ? (
                   <button
                     onClick={() => openDirectUpgradePayment(offering)}
-                    className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/35 bg-white/[0.06] py-2 text-xs font-bold text-[var(--category-accent)] transition active:scale-95"
+                    className="mt-3 w-full rounded-xl border border-[var(--category-primary-dark)]/35 bg-white/75 py-2 text-xs font-bold text-[var(--category-accent)] transition active:scale-95"
                   >
                     Upgrade
                   </button>
@@ -1081,7 +1081,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               );
             })}
             {!loading && offerings.length === 0 && (
-              <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-center text-xs text-white/40">No passes published yet. Check back soon.</p>
+              <p className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 text-center text-xs text-[var(--noq-muted)]">No passes published yet. Check back soon.</p>
             )}
           </div>
         </div>
@@ -1091,9 +1091,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             Salon Detail hierarchy) so the real description still has a
             home, just not crammed above the fold. */}
         {salon.description && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-white/50">About {salon.name}</h2>
-            <p className={`mt-2 text-xs leading-5 text-white/70 ${aboutExpanded ? '' : 'line-clamp-3'}`}>{salon.description}</p>
+          <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--noq-muted)]">About {salon.name}</h2>
+            <p className={`mt-2 text-xs leading-5 text-[var(--noq-muted)] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{salon.description}</p>
             <button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-accent)]">
               Read {aboutExpanded ? 'less' : 'more'}
             </button>
@@ -1101,8 +1101,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         )}
 
         {/* 7. FACILITIES / AMENITIES */}
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-white/50">Gym Facilities & Amenities</h2>
+        <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--noq-muted)]">Gym Facilities & Amenities</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {(salon.amenityDetails && salon.amenityDetails.length ? salon.amenityDetails.filter((a) => a.active) : [
               { id: 'd1', name: 'Strength Zone', iconKey: 'Dumbbell' as const },
@@ -1115,7 +1115,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             ]).map((amenity) => {
               const AmenityIcon = gymProfileIcon(amenity.iconKey);
               return (
-                <span key={amenity.id} className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-semibold text-white">
+                <span key={amenity.id} className="flex items-center gap-1.5 rounded-xl border border-[var(--noq-glass-border)] bg-[var(--noq-surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--noq-ink)]">
                   <AmenityIcon className="h-3.5 w-3.5 text-[var(--category-accent)]" />
                   {amenity.name}
                 </span>
@@ -1127,8 +1127,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         {/* 7b. SOCIAL & LINKS — Detail page only, never the Home listing card.
             Only owner-enabled, resolvable links ever appear here. */}
         {salon.socialLinks && salon.socialLinks.length > 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 shadow-sm">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-white/50">Social & Links</h2>
+          <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 p-4 shadow-sm">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--noq-muted)]">Social & Links</h2>
             <div className="mt-3 flex flex-wrap gap-2">
               {salon.socialLinks.map((link) => {
                 const SocialIcon = socialPlatformIcon(link.platform);
@@ -1138,7 +1138,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-semibold text-white transition active:scale-[0.97]"
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--noq-glass-border)] bg-[var(--noq-surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--noq-ink)] transition active:scale-[0.97]"
                   >
                     <SocialIcon className="h-3.5 w-3.5 text-[var(--category-accent)]" />
                     {link.label}
@@ -1168,24 +1168,24 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {classBookingModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="text-base font-bold text-[#17201F]">Confirm Class Seat</h3>
-            <p className="mt-1 text-xs text-[#6F7C7A]">
-              Reserve your seat for <strong className="text-[#17201F]">{classBookingModalOpen.title}</strong> with {classBookingModalOpen.trainer}.
+            <h3 className="text-base font-bold text-[var(--noq-ink)]">Confirm Class Seat</h3>
+            <p className="mt-1 text-xs text-[var(--noq-muted)]">
+              Reserve your seat for <strong className="text-[var(--noq-ink)]">{classBookingModalOpen.title}</strong> with {classBookingModalOpen.trainer}.
             </p>
-            <div className="mt-4 rounded-xl bg-[#F8FAFA] p-3 text-xs space-y-1">
+            <div className="mt-4 rounded-xl bg-[var(--noq-base)] p-3 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Time</span>
-                <span className="font-bold text-[#17201F]">{classBookingModalOpen.time}</span>
+                <span className="text-[var(--noq-muted)]">Time</span>
+                <span className="font-bold text-[var(--noq-ink)]">{classBookingModalOpen.time}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Capacity</span>
+                <span className="text-[var(--noq-muted)]">Capacity</span>
                 <span className="font-bold text-[var(--category-primary-dark)]">{classBookingModalOpen.enrolled}/{classBookingModalOpen.maxCapacity} Enrolled</span>
               </div>
             </div>
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setClassBookingModalOpen(null)}
-                className="flex-1 rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F]"
+                className="flex-1 rounded-xl border border-[var(--noq-border)] py-2.5 text-xs font-bold text-[var(--noq-ink)]"
               >
                 Cancel
               </button>
@@ -1204,24 +1204,24 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {ptBookingModalOpen && selectedTrainer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="text-base font-bold text-[#17201F]">Book Personal Training</h3>
-            <p className="mt-1 text-xs text-[#6F7C7A]">
-              1-on-1 Session with <strong className="text-[#17201F]">{selectedTrainer.name}</strong> ({selectedTrainer.role})
+            <h3 className="text-base font-bold text-[var(--noq-ink)]">Book Personal Training</h3>
+            <p className="mt-1 text-xs text-[var(--noq-muted)]">
+              1-on-1 Session with <strong className="text-[var(--noq-ink)]">{selectedTrainer.name}</strong> ({selectedTrainer.role})
             </p>
-            <div className="mt-4 rounded-xl bg-[#F8FAFA] p-3 text-xs space-y-2">
+            <div className="mt-4 rounded-xl bg-[var(--noq-base)] p-3 text-xs space-y-2">
               <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Next Slot</span>
+                <span className="text-[var(--noq-muted)]">Next Slot</span>
                 <span className="font-bold text-[var(--category-primary-dark)]">{selectedTrainer.nextSlot || 'Today 04:00 PM'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#6F7C7A]">Fee</span>
-                <span className="font-bold text-[#17201F]">₹800 / Session</span>
+                <span className="text-[var(--noq-muted)]">Fee</span>
+                <span className="font-bold text-[var(--noq-ink)]">₹800 / Session</span>
               </div>
             </div>
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setPtBookingModalOpen(false)}
-                className="flex-1 rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F]"
+                className="flex-1 rounded-xl border border-[var(--noq-border)] py-2.5 text-xs font-bold text-[var(--noq-ink)]"
               >
                 Cancel
               </button>
@@ -1334,10 +1334,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         }
       >
         <div className="flex min-w-0 flex-col justify-center py-0.5 pl-1 pr-1">
-          <div className={`text-[9px] font-bold uppercase tracking-[0.11em] sm:text-[10px] ${dockExpanded ? 'text-[#4A5D5A]' : 'text-white/60'}`}>
+          <div className={`text-[9px] font-bold uppercase tracking-[0.11em] sm:text-[10px] ${dockExpanded ? 'text-[#4A5D5A]' : 'text-[var(--noq-muted)]'}`}>
             {accessBarCopy.eyebrow}
           </div>
-          <div id="gym-access-copy" className={`mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] sm:text-xs ${dockExpanded ? 'text-[#12332E]' : 'text-white'}`}>
+          <div id="gym-access-copy" className={`mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] sm:text-xs ${dockExpanded ? 'text-[#12332E]' : 'text-[var(--noq-ink)]'}`}>
             {accessBarCopy.main}
           </div>
         </div>
@@ -1352,7 +1352,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className={`relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-3.5 text-[11px] font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs ${
+          className={`relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-3.5 text-[11px] font-extrabold text-[var(--noq-ink)] shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs ${
             bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[var(--category-primary-dark)]'
           }`}
         >
@@ -1374,7 +1374,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         const gate = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
         if (gate.kind !== 'onboarding_required') return null;
         return (
-          <div className="fixed inset-0 z-[95] bg-[#F8FAFA]">
+          <div className="fixed inset-0 z-[95] bg-[var(--noq-base)]">
             <AccountOnboarding
               gate={gate}
               onVerified={(auth) => onIdentityVerified?.(auth)}
@@ -1408,17 +1408,17 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in">
           <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-base font-bold text-[#17201F]">I'm Already a Member</h3>
+              <h3 className="text-base font-bold text-[var(--noq-ink)]">I'm Already a Member</h3>
               <button onClick={() => setClaimModalOpen(false)} aria-label="Close" className="shrink-0">
-                <X className="h-4 w-4 text-[#6F7C7A]" />
+                <X className="h-4 w-4 text-[var(--noq-muted)]" />
               </button>
             </div>
             <p className="mt-1 text-xs font-semibold text-[#3B4644]">Claim your existing membership at {salon.name}.</p>
-            <p className="mt-1.5 text-[11px] text-[#6F7C7A]">Enter the details registered with this gym. Staff will verify them.</p>
+            <p className="mt-1.5 text-[11px] text-[var(--noq-muted)]">Enter the details registered with this gym. Staff will verify them.</p>
 
             <div className="mt-4 space-y-3.5">
               <div>
-                <label className="text-[11px] font-bold text-[#17201F]">
+                <label className="text-[11px] font-bold text-[var(--noq-ink)]">
                   Full name <span className="text-rose-500">*</span>
                 </label>
                 <p className="mt-0.5 text-[10px] text-[#8A9694]">Name registered at the gym</p>
@@ -1426,12 +1426,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   value={claimName}
                   onChange={(e) => setClaimName(e.target.value)}
                   placeholder="e.g. Rohit Sharma"
-                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                  className="mt-1.5 w-full rounded-xl border border-[var(--noq-border)] px-3 py-2.5 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                 />
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-[#17201F]">
+                <label className="text-[11px] font-bold text-[var(--noq-ink)]">
                   Registered mobile number <span className="text-rose-500">*</span>
                 </label>
                 <p className="mt-0.5 text-[10px] text-[#8A9694]">Mobile number given to the gym</p>
@@ -1440,13 +1440,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   onChange={(e) => setClaimMobile(e.target.value)}
                   placeholder="e.g. 98765 43210"
                   inputMode="tel"
-                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                  className="mt-1.5 w-full rounded-xl border border-[var(--noq-border)] px-3 py-2.5 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="text-[11px] font-bold text-[#17201F]">
+                  <label className="text-[11px] font-bold text-[var(--noq-ink)]">
                     Membership started <span className="text-rose-500">*</span>
                   </label>
                   <p className="mt-0.5 text-[10px] text-[#8A9694]">Joining date</p>
@@ -1454,11 +1454,11 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     type="date"
                     value={claimJoinDate}
                     onChange={(e) => setClaimJoinDate(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                    className="mt-1.5 w-full rounded-xl border border-[var(--noq-border)] px-3 py-2.5 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-[#17201F]">
+                  <label className="text-[11px] font-bold text-[var(--noq-ink)]">
                     Membership valid until <span className="text-rose-500">*</span>
                   </label>
                   <p className="mt-0.5 text-[10px] text-[#8A9694]">Expiry date</p>
@@ -1466,19 +1466,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     type="date"
                     value={claimExpiryDate}
                     onChange={(e) => setClaimExpiryDate(e.target.value)}
-                    className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                    className="mt-1.5 w-full rounded-xl border border-[var(--noq-border)] px-3 py-2.5 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-bold text-[#17201F]">Membership plan</label>
+                <label className="text-[11px] font-bold text-[var(--noq-ink)]">Membership plan</label>
                 <p className="mt-0.5 text-[10px] text-[#8A9694]">Optional · e.g. Monthly, Quarterly, 6 Months, Annual</p>
                 <input
                   value={claimPlanText}
                   onChange={(e) => setClaimPlanText(e.target.value)}
                   placeholder="e.g. Quarterly"
-                  className="mt-1.5 w-full rounded-xl border border-[#DDE5E3] px-3 py-2.5 text-xs text-[#17201F] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
+                  className="mt-1.5 w-full rounded-xl border border-[var(--noq-border)] px-3 py-2.5 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[#9AA6A4] focus:border-[var(--category-primary-dark)]"
                 />
               </div>
 
@@ -1486,7 +1486,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             </div>
 
             <div className="mt-5 flex gap-2">
-              <button onClick={() => setClaimModalOpen(false)} className="flex-1 rounded-xl border border-[#DDE5E3] py-2.5 text-xs font-bold text-[#17201F]">
+              <button onClick={() => setClaimModalOpen(false)} className="flex-1 rounded-xl border border-[var(--noq-border)] py-2.5 text-xs font-bold text-[var(--noq-ink)]">
                 Cancel
               </button>
               <button
@@ -1524,35 +1524,35 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 setPaymentSheetOpen(true);
               }
             }}
-            className="flex w-full items-start justify-between gap-3 rounded-2xl border border-[#DDE5E3] bg-white p-3.5 text-left transition active:scale-[0.99]"
+            className="flex w-full items-start justify-between gap-3 rounded-2xl border border-[var(--noq-border)] bg-white p-3.5 text-left transition active:scale-[0.99]"
           >
             <span className="min-w-0">
-              <span className="block text-xs font-extrabold text-[#17201F]">{offering.name}</span>
-              <span className="mt-0.5 block text-[11px] text-[#6F7C7A]">
+              <span className="block text-xs font-extrabold text-[var(--noq-ink)]">{offering.name}</span>
+              <span className="mt-0.5 block text-[11px] text-[var(--noq-muted)]">
                 {offering.description || `Valid for ${durationText(offering)}`}
               </span>
             </span>
             <span className="shrink-0 text-right">
-              <span className="block text-sm font-extrabold text-[#17201F]">₹{offering.priceInr}</span>
-              <span className="block text-[10px] font-semibold text-[#6F7C7A]">{durationText(offering)}</span>
+              <span className="block text-sm font-extrabold text-[var(--noq-ink)]">₹{offering.priceInr}</span>
+              <span className="block text-[10px] font-semibold text-[var(--noq-muted)]">{durationText(offering)}</span>
             </span>
           </button>
         );
         return (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-            <div className="w-full max-w-md rounded-t-[28px] bg-[#F8FAFA] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom duration-300">
+            <div className="w-full max-w-md rounded-t-[28px] bg-[var(--noq-base)] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-in slide-in-from-bottom duration-300">
               <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-[#D4DEDC]" />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#6F7C7A]">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">
                     {upgradeMode ? 'Upgrade your access' : 'Gym access'}
                   </p>
-                  <h3 className="text-base font-extrabold text-[#17201F]">
+                  <h3 className="text-base font-extrabold text-[var(--noq-ink)]">
                     {upgradeMode ? 'Move up to a bigger plan' : 'Choose your access'}
                   </h3>
                 </div>
                 <button onClick={() => { setOfferingPickerOpen(false); setUpgradeMode(false); }} aria-label="Close">
-                  <X className="h-4 w-4 text-[#6F7C7A]" />
+                  <X className="h-4 w-4 text-[var(--noq-muted)]" />
                 </button>
               </div>
               <div className="mt-4 max-h-[55vh] space-y-4 overflow-y-auto">
@@ -1564,14 +1564,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 )}
                 {sections.others.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#6F7C7A]">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--noq-muted)]">
                       {sections.recommended.length > 0 ? 'Other options' : 'Available access'}
                     </p>
                     {sections.others.map((offering) => <Card key={offering.id} offering={offering} />)}
                   </div>
                 )}
                 {sections.recommended.length === 0 && sections.others.length === 0 && (
-                  <p className="rounded-2xl border border-[#DDE5E3] bg-white p-4 text-center text-xs text-[#788582]">
+                  <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-center text-xs text-[#788582]">
                     {upgradeMode
                       ? 'No other access options are published right now.'
                       : 'This gym has not published any access options yet.'}
@@ -1594,26 +1594,26 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         <CategoryGlassSheet onClose={() => setPaymentSheetOpen(false)} variant="sheet">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Payment</p>
-              <h3 className="text-base font-extrabold text-white">{selectedOffering.name}</h3>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">Payment</p>
+              <h3 className="text-base font-extrabold text-[var(--noq-ink)]">{selectedOffering.name}</h3>
             </div>
             <button onClick={() => setPaymentSheetOpen(false)} aria-label="Close">
-              <X className="h-4 w-4 text-white/60" />
+              <X className="h-4 w-4 text-[var(--noq-muted)]" />
             </button>
           </div>
 
-          <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs">
+          <div className="mt-4 space-y-2 rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-surface-soft)] p-4 text-xs">
             <div className="flex justify-between">
-              <span className="text-white/60">Selected access</span>
-              <span className="font-bold text-white">{selectedOffering.name}</span>
+              <span className="text-[var(--noq-muted)]">Selected access</span>
+              <span className="font-bold text-[var(--noq-ink)]">{selectedOffering.name}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/60">Validity</span>
-              <span className="font-bold text-white">{durationText(selectedOffering)}</span>
+              <span className="text-[var(--noq-muted)]">Validity</span>
+              <span className="font-bold text-[var(--noq-ink)]">{durationText(selectedOffering)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/60">Original price</span>
-              <span className="font-bold text-white">₹{paymentSubtotalInr}</span>
+              <span className="text-[var(--noq-muted)]">Original price</span>
+              <span className="font-bold text-[var(--noq-ink)]">₹{paymentSubtotalInr}</span>
             </div>
             {discountInr > 0 && paymentOffer && (
               <div className="flex justify-between text-[var(--category-accent)]">
@@ -1625,22 +1625,22 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 </button>
               </div>
             )}
-            <div className="mt-1 flex justify-between border-t border-white/10 pt-2">
-              <span className="font-bold text-white">Final amount</span>
+            <div className="mt-1 flex justify-between border-t border-[var(--noq-glass-border)] pt-2">
+              <span className="font-bold text-[var(--noq-ink)]">Final amount</span>
               <span className="text-sm font-extrabold text-[var(--category-accent)]">₹{finalAmountInr}</span>
             </div>
           </div>
 
           {/* Apply coupon + auto-fetched owner offers, scoped to THIS
               business + THIS selected offering. */}
-          <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Apply coupon</p>
+          <div className="mt-3 rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-surface-soft)] p-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">Apply coupon</p>
             <div className="mt-2 flex gap-2">
               <input
                 value={gymCouponInput}
                 onChange={(e) => { setGymCouponInput(e.target.value); setGymCouponError(''); }}
                 placeholder="Enter code"
-                className="min-w-0 flex-1 rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-xs text-white outline-none placeholder:text-white/30 focus:border-[var(--category-primary-dark)]"
+                className="min-w-0 flex-1 rounded-xl border border-[var(--noq-glass-border)] bg-white/75 px-3 py-2 text-xs text-[var(--noq-ink)] outline-none placeholder:text-[var(--noq-muted)] focus:border-[var(--category-primary-dark)]"
               />
               <button
                 onClick={applyGymCouponCode}
@@ -1653,18 +1653,18 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
 
             {offersForSelectedOffering.length > 0 && (
               <div className="mt-3 space-y-2">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">Offers for you</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">Offers for you</p>
                 {offersForSelectedOffering.map(({ offer, result }) => {
                   const isApplied = appliedGymOfferId === offer.id;
                   return (
-                    <div key={offer.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                    <div key={offer.id} className="rounded-xl border border-[var(--noq-glass-border)] bg-white/70 p-3">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-bold text-white">{offer.title}</p>
+                          <p className="truncate text-xs font-bold text-[var(--noq-ink)]">{offer.title}</p>
                           <p className="mt-0.5 text-[11px] text-[var(--category-accent)]">
                             {offerDiscountLabel(offer)}{offer.code ? ` · ${offer.code}` : ''}
                           </p>
-                          {result.eligible === false && <p className="mt-1 text-[10px] text-white/40">{result.reason}</p>}
+                          {result.eligible === false && <p className="mt-1 text-[10px] text-[var(--noq-muted)]">{result.reason}</p>}
                         </div>
                         <button
                           disabled={result.eligible === false}
@@ -1683,7 +1683,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             )}
           </div>
 
-          <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-white/50">Payment method</p>
+          <p className="mt-4 text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">Payment method</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {(['online', 'cash'] as const).map((method) => {
               const offered = selectedOffering.paymentOptions.includes(method);
@@ -1696,7 +1696,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   className={`rounded-xl border px-3 py-2.5 text-[11px] font-bold transition disabled:opacity-40 ${
                     paymentMethod === method
                       ? 'border-[var(--category-primary-dark)] bg-[var(--category-tint-10)] text-[var(--category-accent)]'
-                      : 'border-white/15 bg-white/[0.04] text-white'
+                      : 'border-[var(--noq-glass-border)] bg-white/70 text-[var(--noq-ink)]'
                   }`}
                 >
                   {method === 'online' ? 'ONLINE' : 'CASH AT GYM'}
@@ -1709,7 +1709,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               Online payment is not live at this gym yet — no card or UPI gateway is connected, so we won't pretend a payment went through. Choose "Cash at gym".
             </p>
           )}
-          <p className="mt-3 text-[10px] leading-4 text-white/40">
+          <p className="mt-3 text-[10px] leading-4 text-[var(--noq-muted)]">
             Paying reserves your access. It does not check you in — your visit starts, and the gym's Inside count changes, only once the front desk confirms you're here.
           </p>
           {purchaseError && <p className="mt-3 text-[11px] font-semibold text-rose-300">{purchaseError}</p>}
@@ -1731,8 +1731,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       {purchaseResult && (
         <CategoryGlassSheet onClose={() => setPurchaseResult(null)} variant="modal">
           <CheckCircle2 className="mx-auto h-9 w-9 text-[var(--category-accent)]" />
-          <p className="mt-3 text-sm font-extrabold text-white">{purchaseResult.offeringName} reserved</p>
-          <p className="mt-2 text-xs leading-5 text-white/70">
+          <p className="mt-3 text-sm font-extrabold text-[var(--noq-ink)]">{purchaseResult.offeringName} reserved</p>
+          <p className="mt-2 text-xs leading-5 text-[var(--noq-muted)]">
             {purchaseResult.method === 'cash' ? `Pay ₹${purchaseResult.amountInr} at the front desk.` : `₹${purchaseResult.amountInr} paid online.`}
             <br />
             {purchaseResult.isMembership ? 'Membership' : 'Access'} activates after gym confirmation.

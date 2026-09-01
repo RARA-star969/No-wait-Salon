@@ -196,7 +196,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   };
 
   return (
-    <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[#17201F] animate-in fade-in duration-200">
+    <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)] animate-in fade-in duration-200">
       {/* Signature floating capsule: a top-center notch/island, content-hugging
           rather than a full-width bar, that stays visible — including through
           the whole Join Queue flow — until the main live-queue card scrolls
@@ -321,7 +321,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-white via-[#F2FAF8] to-[#DEF3EF] shadow-[inset_0_1.5px_0_rgba(255,255,255,1),inset_0_-1px_2px_var(--category-glow),0_3px_8px_-2px_var(--category-glow)] transition-transform duration-200 group-hover:scale-105">
                   {CATEGORY_ICONS[category] || <HairCare3DIcon className="h-6 w-6" />}
                 </span>
-                <span className="mt-2 text-[11px] font-bold text-[#17201F]">{category}</span>
+                <span className="mt-2 text-[11px] font-bold text-[var(--noq-ink)]">{category}</span>
               </a>
             ))}
           </div>
@@ -335,7 +335,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 key={filter}
                 type="button"
                 onClick={() => setServiceFilter(filter)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[var(--category-primary-dark)] bg-[var(--category-primary-dark)] text-white' : 'border-[#DDE7E5] bg-white text-[#536966]'}`}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[var(--category-primary-dark)] bg-[var(--category-primary-dark)] text-white' : 'border-[var(--noq-border)] bg-white text-[#536966]'}`}
               >
                 {filter}
               </button>
@@ -356,7 +356,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
 
         {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-primary-dark)]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[#F0F5F4] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
+        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-primary-dark)]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--noq-surface-soft)] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
 
         <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[var(--category-primary-dark)]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
@@ -374,7 +374,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         const gate = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
         if (gate.kind !== 'onboarding_required') return null;
         return (
-          <div className="fixed inset-0 z-[95] bg-[#F8FAFA]">
+          <div className="fixed inset-0 z-[95] bg-[var(--noq-base)]">
             <AccountOnboarding
               gate={gate}
               onVerified={(auth) => onIdentityVerified?.(auth)}
@@ -542,7 +542,7 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
       }`}
     >
       <div className="min-w-0 flex-1">
-        <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
+        <span className="block text-sm font-bold text-[var(--noq-ink)]">{service.name}</span>
         {service.description && (
           <p className="mt-1 text-[10px] leading-4 text-[#788582]">
             {descExpanded || !isLong ? service.description : (
@@ -559,7 +559,7 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
         </span>
       </div>
       <div className="relative shrink-0 self-start text-right">
-        <span className="block text-sm font-bold text-[#17201F]">₹{service.priceInr}</span>
+        <span className="block text-sm font-bold text-[var(--noq-ink)]">₹{service.priceInr}</span>
         {hasSaving && (
           <span className="mt-0.5 flex items-center justify-end gap-1">
             <span className="text-[10px] text-[#A3ADAB] line-through">₹{service.originalPriceInr}</span>

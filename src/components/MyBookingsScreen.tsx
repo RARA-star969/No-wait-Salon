@@ -39,7 +39,7 @@ export interface MyBookingsScreenProps {
 }
 
 const TONE_CLASS: Record<string, string> = {
-  live: 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,#22D3EE)]',
+  live: 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,var(--noq-accent))]',
   good: 'bg-emerald-500/15 text-emerald-300',
   warn: 'bg-amber-500/15 text-amber-300',
   bad: 'bg-rose-500/15 text-rose-300',
@@ -158,7 +158,7 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
     return (
       <SafeAreaScreen id="customer-bookings-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
         <div className="mx-auto flex max-w-sm flex-col items-center px-6 pt-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,#22D3EE)]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
             <CalendarCheck className="h-7 w-7" />
           </div>
           <h2 className="mt-5 text-xl font-bold text-white">Sign in to see your bookings</h2>
@@ -168,7 +168,7 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
           <button
             type="button"
             onClick={onLogin}
-            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,#22D3EE)] text-sm font-bold text-slate-950"
+            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
           >
             Verify mobile number
           </button>
@@ -188,13 +188,13 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
 
         {loading && !merged.length && (
           <div className="grid place-items-center py-16">
-            <LoaderCircle className="h-6 w-6 animate-spin text-[color:var(--category-accent,#22D3EE)]" />
+            <LoaderCircle className="h-6 w-6 animate-spin text-[color:var(--category-accent,var(--noq-accent))]" />
           </div>
         )}
 
         {!loading && grouped.isEmpty && !error && (
           <div id="bookings-empty-state" className="mx-auto flex max-w-sm flex-col items-center px-4 pt-14 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,#22D3EE)]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
               <CalendarCheck className="h-7 w-7" />
             </div>
             <h2 className="mt-5 text-xl font-bold text-white">No bookings yet</h2>
@@ -204,7 +204,7 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
             <button
               type="button"
               onClick={onExplore}
-              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--category-accent,#22D3EE)] text-sm font-bold text-slate-950"
+              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
             >
               <Compass className="h-4 w-4" />
               Explore businesses

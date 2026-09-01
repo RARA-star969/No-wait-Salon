@@ -10,14 +10,14 @@ export const HairCare3DIcon: React.FC<{ className?: string }> = ({ className = '
   <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="hc-blade-1" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#2DD4BF" />
-        <stop offset="0.4" stopColor="#0F766E" />
+        <stop stopColor="var(--noq-accent)" />
+        <stop offset="0.4" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="#042F2C" />
       </linearGradient>
       <linearGradient id="hc-blade-2" x1="26" y1="6" x2="6" y2="26" gradientUnits="userSpaceOnUse">
         <stop stopColor="#5EEAD4" />
-        <stop offset="0.45" stopColor="#0D9488" />
-        <stop offset="1" stopColor="#0F766E" />
+        <stop offset="0.45" stopColor="var(--noq-accent)" />
+        <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <linearGradient id="hc-sheen" x1="8" y1="4" x2="24" y2="28" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FFFFFF" stopOpacity="0.9" />
@@ -46,7 +46,7 @@ export const HairCare3DIcon: React.FC<{ className?: string }> = ({ className = '
       <path
         d="M12.5 19.5L25.5 6C26.2 5.3 27.2 6 26.8 7L15 19"
         fill="url(#hc-blade-1)"
-        stroke="#0F766E"
+        stroke="var(--noq-accent)"
         strokeWidth="0.8"
       />
 
@@ -61,7 +61,7 @@ export const HairCare3DIcon: React.FC<{ className?: string }> = ({ className = '
       <path
         d="M19.5 19.5L6.5 6C5.8 5.3 4.8 6 5.2 7L17 19"
         fill="url(#hc-blade-2)"
-        stroke="#0D9488"
+        stroke="var(--noq-accent)"
         strokeWidth="0.8"
       />
 
@@ -77,8 +77,8 @@ export const Beard3DIcon: React.FC<{ className?: string }> = ({ className = 'h-7
     <defs>
       <linearGradient id="bd-handle" x1="6" y1="26" x2="20" y2="12" gradientUnits="userSpaceOnUse">
         <stop stopColor="#042F2C" />
-        <stop offset="0.45" stopColor="#0F766E" />
-        <stop offset="1" stopColor="#14B8A6" />
+        <stop offset="0.45" stopColor="var(--noq-accent)" />
+        <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <linearGradient id="bd-blade" x1="12" y1="4" x2="28" y2="20" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FFFFFF" />
@@ -87,8 +87,8 @@ export const Beard3DIcon: React.FC<{ className?: string }> = ({ className = 'h-7
         <stop offset="1" stopColor="#334155" />
       </linearGradient>
       <linearGradient id="bd-edge" x1="14" y1="4" x2="27" y2="17" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#2DD4BF" />
-        <stop offset="0.5" stopColor="#0F766E" />
+        <stop stopColor="var(--noq-accent)" />
+        <stop offset="0.5" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="#042F2C" />
       </linearGradient>
       <radialGradient id="bd-pivot" cx="16.5" cy="15.5" r="3" gradientUnits="userSpaceOnUse">
@@ -130,7 +130,7 @@ export const Beard3DIcon: React.FC<{ className?: string }> = ({ className = 'h-7
       />
 
       {/* Blade Cutout Slot */}
-      <rect x="20.5" y="7.5" width="4.5" height="1.2" rx="0.6" transform="rotate(45 20.5 7.5)" fill="#0F766E" opacity="0.75" />
+      <rect x="20.5" y="7.5" width="4.5" height="1.2" rx="0.6" transform="rotate(45 20.5 7.5)" fill="var(--noq-accent)" opacity="0.75" />
     </g>
   </svg>
 );
@@ -140,18 +140,18 @@ export const MassageSpa3DIcon: React.FC<{ className?: string }> = ({ className =
     <defs>
       <linearGradient id="ms-base" x1="8" y1="19" x2="24" y2="28" gradientUnits="userSpaceOnUse">
         <stop stopColor="#042F2C" />
-        <stop offset="0.5" stopColor="#0F766E" />
+        <stop offset="0.5" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="#115E59" />
       </linearGradient>
       <linearGradient id="ms-mid" x1="10" y1="13" x2="22" y2="21" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#0F766E" />
-        <stop offset="0.5" stopColor="#14B8A6" />
-        <stop offset="1" stopColor="#0D9488" />
+        <stop stopColor="var(--noq-accent)" />
+        <stop offset="0.5" stopColor="var(--noq-accent)" />
+        <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <linearGradient id="ms-essence" x1="16" y1="3" x2="16" y2="15" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FEF08A" />
-        <stop offset="0.4" stopColor="#2DD4BF" />
-        <stop offset="1" stopColor="#0F766E" />
+        <stop offset="0.4" stopColor="var(--noq-accent)" />
+        <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <filter id="ms-shadow" x="-30%" y="-30%" width="160%" height="160%">
         <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
@@ -185,7 +185,7 @@ export const HairColour3DIcon: React.FC<{ className?: string }> = ({ className =
     <defs>
       <linearGradient id="hc-pal-base" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FDE68A" />
-        <stop offset="0.5" stopColor="#F59E0B" />
+        <stop offset="0.5" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="#B45309" />
       </linearGradient>
       <filter id="hc-pal-shadow" x="-30%" y="-30%" width="160%" height="160%">
@@ -199,8 +199,8 @@ export const HairColour3DIcon: React.FC<{ className?: string }> = ({ className =
         stroke="#FFFFFF"
         strokeWidth="0.9"
       />
-      <circle cx="10.5" cy="13.5" r="1.6" fill="#0F766E" />
-      <circle cx="14.5" cy="10.5" r="1.6" fill="#2DD4BF" />
+      <circle cx="10.5" cy="13.5" r="1.6" fill="var(--noq-accent)" />
+      <circle cx="14.5" cy="10.5" r="1.6" fill="var(--noq-accent)" />
       <circle cx="19.5" cy="11.5" r="1.6" fill="#EF4444" />
     </g>
   </svg>
@@ -210,8 +210,8 @@ export const Facial3DIcon: React.FC<{ className?: string }> = ({ className = 'h-
   <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="fc-glow" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#2DD4BF" />
-        <stop offset="0.6" stopColor="#0F766E" />
+        <stop stopColor="var(--noq-accent)" />
+        <stop offset="0.6" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="#042F2C" />
       </linearGradient>
       <filter id="fc-glow-shadow" x="-30%" y="-30%" width="160%" height="160%">

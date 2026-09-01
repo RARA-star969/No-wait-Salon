@@ -29,7 +29,7 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
   return (
     <div id="onboarding-notifications-step" className={`flex min-h-full flex-col px-5 pb-7 pt-10 ${ui.page}`}>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-        <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
+        <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
           <BellRing className="h-7 w-7" />
         </div>
         <p className={ui.eyebrow}>Turn alerts</p>
@@ -43,7 +43,7 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
           id="onboarding-enable-notifications-btn"
           onClick={() => void enable()}
           disabled={busy}
-          className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
+          className="mt-7 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] px-4 text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
           Enable notifications

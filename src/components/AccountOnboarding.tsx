@@ -117,7 +117,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
           id="onboarding-cancel-btn"
           onClick={onCancel}
           aria-label="Close"
-          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] grid h-9 w-9 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[#E2EAE9]"
+          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] grid h-9 w-9 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[var(--noq-border)]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -125,7 +125,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         {step === 'phone' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
+            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
               <Smartphone className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>{intro?.eyebrow || 'Verify your mobile'}</p>
@@ -137,8 +137,8 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
             <label htmlFor="onboarding-phone-input" className={`mt-7 ${ui.label}`}>
               Mobile number
             </label>
-            <div className="flex overflow-hidden rounded-xl border border-[#DCE5E3] bg-white transition focus-within:border-[#62AAA3] focus-within:ring-2 focus-within:ring-[#0F766E]/10">
-              <span className="flex items-center px-3.5 text-xs font-bold text-[#0F766E] border-r border-[#E1E7E6] bg-[#F8FAFA]">+91</span>
+            <div className="flex overflow-hidden rounded-xl border border-[var(--noq-border)] bg-white transition focus-within:border-[#62AAA3] focus-within:ring-2 focus-within:ring-[var(--noq-accent)]/10">
+              <span className="flex items-center px-3.5 text-xs font-bold text-[var(--noq-accent)] border-r border-[var(--noq-border)] bg-[var(--noq-base)]">+91</span>
               <input
                 id="onboarding-phone-input"
                 type="tel"
@@ -148,14 +148,14 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
                 value={phone}
                 onChange={(event) => { setPhone(event.target.value.replace(/\D/g, '')); setPhoneError(''); }}
                 onKeyDown={(event) => { if (event.key === 'Enter') void sendCode(); }}
-                className="h-12 w-full min-w-0 flex-1 bg-transparent px-3.5 text-sm text-[#17201F] outline-none placeholder:text-[#879391]"
+                className="h-12 w-full min-w-0 flex-1 bg-transparent px-3.5 text-sm text-[var(--noq-ink)] outline-none placeholder:text-[#879391]"
               />
             </div>
             {phoneError && <p role="alert" className="mt-1.5 text-xs font-semibold text-rose-600">{phoneError}</p>}
 
-            <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#0F766E]" />
-              <p className="text-[11px] leading-5 text-[#17201F]">No spam. Used only to verify it's really you.</p>
+            <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-[var(--noq-border)] bg-white p-3.5">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[var(--noq-accent)]" />
+              <p className="text-[11px] leading-5 text-[var(--noq-ink)]">No spam. Used only to verify it's really you.</p>
             </div>
 
             <button
@@ -163,7 +163,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
               id="onboarding-send-code-btn"
               onClick={() => void sendCode()}
               disabled={busy}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >
               {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               Send verification code
@@ -173,13 +173,13 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
 
         {step === 'code' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
+            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
               <ShieldCheck className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Enter the code</p>
             <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Sent to {phone}</h1>
             {demoCode && (
-              <p className="mt-3 rounded-xl bg-[#F1FAF9] p-3 text-center text-xs font-bold text-[#0F766E]">Demo code: {demoCode}</p>
+              <p className="mt-3 rounded-xl bg-[#F1FAF9] p-3 text-center text-xs font-bold text-[var(--noq-accent)]">Demo code: {demoCode}</p>
             )}
 
             <input
@@ -190,7 +190,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="4-digit code"
-              className="mt-5 h-12 w-full rounded-xl border border-[#D7E2E0] bg-white px-4 text-center text-lg font-bold tracking-[0.4em] outline-none focus:border-[#62AAA3]"
+              className="mt-5 h-12 w-full rounded-xl border border-[var(--noq-border)] bg-white px-4 text-center text-lg font-bold tracking-[0.4em] outline-none focus:border-[#62AAA3]"
             />
             {codeError && <p role="alert" className="mt-1.5 text-center text-xs font-semibold text-rose-600">{codeError}</p>}
 
@@ -199,7 +199,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
               id="onboarding-verify-code-btn"
               onClick={() => void verifyCode()}
               disabled={busy}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >
               {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               Verify
@@ -218,7 +218,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
 
         {step === 'details' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[#0F766E]">
+            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
               <UserRound className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Almost there</p>
@@ -274,7 +274,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
               id="onboarding-save-details-btn"
               onClick={() => void saveDetails()}
               disabled={busy}
-              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white transition active:scale-[0.99] disabled:opacity-60"
             >
               {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
               Continue to No-Wait Salon

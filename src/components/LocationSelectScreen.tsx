@@ -143,7 +143,7 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
       >
         {/* Search Input */}
         <div className="relative">
-          <div className="flex h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-teal-600 focus-within:ring-2 focus-within:ring-teal-100">
+          <div className="flex h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm focus-within:border-[var(--noq-accent)] focus-within:ring-2 focus-within:ring-[var(--noq-tint-10)]">
             <Search className="h-5 w-5 shrink-0 text-slate-400" />
             <input
               value={searchQuery}
@@ -164,9 +164,9 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
               onUseGps();
               onBack();
             }}
-            className="group flex flex-col items-start justify-between rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-500/10 via-teal-500/5 to-white p-4 text-left shadow-xs transition hover:border-teal-400 hover:shadow-md active:scale-[0.98]"
+            className="group flex flex-col items-start justify-between rounded-2xl border border-[var(--noq-glass-border)] bg-gradient-to-br from-[var(--noq-tint-10)] via-[var(--noq-tint-10)] to-white p-4 text-left shadow-xs transition hover:border-[var(--noq-accent-light)] hover:shadow-md active:scale-[0.98]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-600/20 group-hover:scale-105 transition-transform">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--noq-accent)] text-white shadow-md shadow-[var(--noq-glow)] group-hover:scale-105 transition-transform">
               <LocateFixed className="h-5 w-5" />
             </div>
             <div className="mt-4">
@@ -179,9 +179,9 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
           <button
             type="button"
             onClick={onNavigateAddAddress}
-            className="group flex flex-col items-start justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:border-teal-500 hover:shadow-md active:scale-[0.98]"
+            className="group flex flex-col items-start justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:border-[var(--noq-accent)] hover:shadow-md active:scale-[0.98]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-teal-50 group-hover:text-teal-700 transition-colors">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-[var(--noq-tint-10)] group-hover:text-[var(--noq-accent)] transition-colors">
               <PlusCircle className="h-5 w-5" />
             </div>
             <div className="mt-4">
@@ -194,9 +194,9 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
           <button
             type="button"
             onClick={onNavigateRequestAddress}
-            className="group flex flex-col items-start justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:border-amber-400 hover:shadow-md active:scale-[0.98]"
+            className="group flex flex-col items-start justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-xs transition hover:border-[var(--noq-accent-light)] hover:shadow-md active:scale-[0.98]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-amber-50 group-hover:text-amber-700 transition-colors">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 group-hover:bg-[var(--noq-tint-10)] group-hover:text-[var(--noq-accent)] transition-colors">
               <MapPinPlus className="h-5 w-5" />
             </div>
             <div className="mt-4">
@@ -214,7 +214,7 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAllSaved(!showAllSaved)}
-                className="flex items-center gap-1 text-xs font-bold text-teal-700 hover:text-teal-800"
+                className="flex items-center gap-1 text-xs font-bold text-[var(--noq-accent)] hover:text-[var(--noq-accent-deep)]"
               >
                 {showAllSaved ? (
                   <>Show less <ChevronUp className="h-3.5 w-3.5" /></>
@@ -237,13 +237,13 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
                   onClick={() => handleSelectDefault(addr)}
                   className={`group relative flex cursor-pointer items-start justify-between gap-3 rounded-2xl border p-4 transition-all active:scale-[0.99] ${
                     isSelected
-                      ? 'border-teal-500 bg-white ring-2 ring-teal-500/20 shadow-md'
+                      ? 'border-[var(--noq-accent)] bg-white ring-2 ring-[var(--noq-accent)]/20 shadow-md'
                       : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-sm'
                   }`}
                 >
                   <div className="flex items-start gap-3.5 min-w-0">
                     <div className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-bold ${
-                      isSelected ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'
+                      isSelected ? 'bg-[var(--noq-accent)] text-white shadow-sm' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {addr.label.includes('Work') || addr.label.includes('Office') ? (
                         <Briefcase className="h-5 w-5" />
@@ -255,7 +255,7 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm font-black text-slate-900">{addr.label}</span>
                         {isSelected && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-teal-600 px-2.5 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--noq-accent)] px-2.5 py-0.5 text-[9px] font-black tracking-wider text-white uppercase">
                             <Check className="h-3 w-3" /> SELECTED
                           </span>
                         )}
@@ -288,9 +288,9 @@ export const LocationSelectScreen: React.FC<LocationSelectProps> = ({
                         <button
                           type="button"
                           onClick={() => handleSelectDefault(addr)}
-                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-teal-50 hover:text-teal-800"
+                          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-slate-700 hover:bg-[var(--noq-tint-10)] hover:text-[var(--noq-accent-deep)]"
                         >
-                          <CheckCircle2 className="h-4 w-4 text-teal-600" /> Set as Default
+                          <CheckCircle2 className="h-4 w-4 text-[var(--noq-accent)]" /> Set as Default
                         </button>
                         {onEditAddress && (
                           <button

@@ -158,14 +158,14 @@ export const OtpModal: React.FC<OtpModalProps> = ({
   return (
     <div
       id="otp-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#17201F]/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--noq-ink)]/60 backdrop-blur-xs p-4 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
         id="otp-modal-dialog"
-        className="relative w-full max-w-sm rounded-2xl bg-[#F8FAFA] p-6 sm:p-7 shadow-xl border border-[#E1E7E6] text-[#17201F] transition-all transform scale-100"
+        className="relative w-full max-w-sm rounded-2xl bg-[var(--noq-base)] p-6 sm:p-7 shadow-xl border border-[var(--noq-border)] text-[var(--noq-ink)] transition-all transform scale-100"
         role="dialog"
         aria-modal="true"
       >
@@ -173,20 +173,20 @@ export const OtpModal: React.FC<OtpModalProps> = ({
           id="otp-close-btn"
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute right-4 top-4 rounded-full p-1.5 text-[#6F7C7A] hover:bg-[#E1E7E6] hover:text-[#17201F] transition cursor-pointer"
+          className="absolute right-4 top-4 rounded-full p-1.5 text-[var(--noq-muted)] hover:bg-[var(--noq-border)] hover:text-[var(--noq-ink)] transition cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
         <div className="flex flex-col items-center text-center mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-[#0F766E]/10 border border-[#0F766E]/20 flex items-center justify-center text-[#0F766E] mb-3">
+          <div className="w-12 h-12 rounded-2xl bg-[var(--noq-accent)]/10 border border-[var(--noq-accent)]/20 flex items-center justify-center text-[var(--noq-accent)] mb-3">
             <Smartphone className="w-6 h-6" />
           </div>
-          <h2 className="font-sans text-2xl font-bold text-[#17201F] tracking-tight">
+          <h2 className="font-sans text-2xl font-bold text-[var(--noq-ink)] tracking-tight">
             {step === 'phone' ? 'Verify Mobile' : 'Enter 4-Digit Code'}
           </h2>
-          <p className="text-xs text-[#6F7C7A] mt-1 max-w-[260px] leading-relaxed">
+          <p className="text-xs text-[var(--noq-muted)] mt-1 max-w-[260px] leading-relaxed">
             {step === 'phone'
               ? pendingAction?.type === 'profile'
                 ? 'Verify once to securely access your personal profile.'
@@ -200,11 +200,11 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         {step === 'phone' ? (
           <div className="space-y-4">
             <div>
-              <label htmlFor="otp-phone-input" className="block text-xs font-semibold text-[#17201F] mb-1.5">
+              <label htmlFor="otp-phone-input" className="block text-xs font-semibold text-[var(--noq-ink)] mb-1.5">
                 Mobile Number
               </label>
-              <div className="flex overflow-hidden rounded-xl border border-[#DCE5E3] bg-white transition focus-within:border-[#62AAA3] focus-within:ring-2 focus-within:ring-[#0F766E]/10">
-                <span className="flex items-center px-3.5 text-xs font-bold text-[#0F766E] border-r border-[#E1E7E6] bg-[#F8FAFA]">
+              <div className="flex overflow-hidden rounded-xl border border-[var(--noq-border)] bg-white transition focus-within:border-[#62AAA3] focus-within:ring-2 focus-within:ring-[var(--noq-accent)]/10">
+                <span className="flex items-center px-3.5 text-xs font-bold text-[var(--noq-accent)] border-r border-[var(--noq-border)] bg-[var(--noq-base)]">
                   +91
                 </span>
                 <input
@@ -223,7 +223,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSendOtp();
                   }}
-                  className="w-full px-3.5 py-3 text-sm text-[#17201F] bg-transparent outline-none placeholder:text-[#6F7C7A] font-medium"
+                  className="w-full px-3.5 py-3 text-sm text-[var(--noq-ink)] bg-transparent outline-none placeholder:text-[var(--noq-muted)] font-medium"
                 />
               </div>
               {phoneError && (
@@ -233,9 +233,9 @@ export const OtpModal: React.FC<OtpModalProps> = ({
               )}
             </div>
 
-            <div className="p-3.5 bg-white border border-[#E1E7E6] rounded-2xl flex items-start gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-[#0F766E] shrink-0 mt-0.5" />
-              <p className="text-[11px] text-[#17201F] leading-relaxed">
+            <div className="p-3.5 bg-white border border-[var(--noq-border)] rounded-2xl flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-[var(--noq-accent)] shrink-0 mt-0.5" />
+              <p className="text-[11px] text-[var(--noq-ink)] leading-relaxed">
                 No spam. You'll only receive live alerts when 1 person is ahead of you.
               </p>
             </div>
@@ -253,10 +253,10 @@ export const OtpModal: React.FC<OtpModalProps> = ({
         ) : (
           <div className="space-y-4">
             {/* Demo Helper Banner */}
-            <div className="p-3.5 bg-[#0F766E]/10 border border-[#0F766E]/20 rounded-2xl flex items-center justify-between">
+            <div className="p-3.5 bg-[var(--noq-accent)]/10 border border-[var(--noq-accent)]/20 rounded-2xl flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-[#0F766E]">Demo Code:</span>
-                <span className="text-sm font-mono font-bold text-[#17201F] tracking-widest bg-white px-2 py-0.5 rounded-lg border border-[#E1E7E6]">
+                <span className="text-xs font-semibold text-[var(--noq-accent)]">Demo Code:</span>
+                <span className="text-sm font-mono font-bold text-[var(--noq-ink)] tracking-widest bg-white px-2 py-0.5 rounded-lg border border-[var(--noq-border)]">
                   {generatedOtp}
                 </span>
               </div>
@@ -264,14 +264,14 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 type="button"
                 id="otp-autofill-btn"
                 onClick={handleAutoFill}
-                className="text-[11px] font-bold text-[#0F766E] bg-white hover:bg-[#F8FAFA] px-3 py-1 rounded-xl border border-[#E1E7E6] transition cursor-pointer"
+                className="text-[11px] font-bold text-[var(--noq-accent)] bg-white hover:bg-[var(--noq-base)] px-3 py-1 rounded-xl border border-[var(--noq-border)] transition cursor-pointer"
               >
                 Auto-fill
               </button>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#17201F] mb-2 text-center">
+              <label className="block text-xs font-semibold text-[var(--noq-ink)] mb-2 text-center">
                 Enter 4-Digit Code
               </label>
               <div className="flex justify-center gap-2.5" onPaste={handlePaste}>
@@ -292,8 +292,8 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                       codeError
                         ? 'border-rose-400 bg-rose-50/50 text-rose-900'
                         : digit
-                          ? 'border-[#0F766E] bg-white text-[#17201F]'
-                          : 'border-[#E1E7E6] bg-white text-[#17201F] focus:border-[#0F766E]'
+                          ? 'border-[var(--noq-accent)] bg-white text-[var(--noq-ink)]'
+                          : 'border-[var(--noq-border)] bg-white text-[var(--noq-ink)] focus:border-[var(--noq-accent)]'
                     }`}
                   />
                 ))}
@@ -320,7 +320,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 type="button"
                 id="otp-change-number-btn"
                 onClick={() => setStep('phone')}
-                className="text-[#6F7C7A] hover:text-[#17201F] font-medium transition cursor-pointer"
+                className="text-[var(--noq-muted)] hover:text-[var(--noq-ink)] font-medium transition cursor-pointer"
               >
                 Change number
               </button>
@@ -329,7 +329,7 @@ export const OtpModal: React.FC<OtpModalProps> = ({
                 id="otp-resend-btn"
                 onClick={handleResend}
                 disabled={isResending || resendTimer > 0}
-                className="flex items-center gap-1 text-[#0F766E] hover:text-[#0B665F] font-semibold transition disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1 text-[var(--noq-accent)] hover:text-[var(--noq-accent-hover)] font-semibold transition disabled:opacity-50 cursor-pointer"
               >
                 <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
                 <span>{resendTimer > 0 ? `Resend in 0:${String(resendTimer).padStart(2, '0')}` : 'Resend OTP'}</span>

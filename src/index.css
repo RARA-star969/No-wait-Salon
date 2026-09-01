@@ -3,57 +3,84 @@
 @theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-serif: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --color-natural-bg: #F4F7F6;
+  --color-natural-bg: #FDFFFF;
   --color-natural-card: #FFFFFF;
-  --color-natural-sub: #F8FAFA;
-  --color-natural-text: #17201F;
-  --color-natural-muted: #6F7C7A;
-  --color-natural-border: #E1E7E6;
-  --color-natural-olive: #0F766E;
-  --color-natural-olive-hover: #0B665F;
+  --color-natural-sub: #F5F7FF;
+  --color-natural-text: #17213D;
+  --color-natural-muted: #6F7B99;
+  --color-natural-border: #DCE4FF;
+  --color-natural-olive: #3454FD;
+  --color-natural-olive-hover: #2746EA;
 }
 
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  background-color: #F4F7F6;
-  color: #17201F;
+  background-color: #FDFFFF;
+  color: #17213D;
   margin: 0;
 }
 
-/* Category theme layer — the active Customer App category (Salon, Gym, Shop,
-   Moto, Pets…) is the single source of truth for these, written onto
-   :root by CustomerApp whenever the active/authoritative category changes.
-   Defaults below (Salon teal) only cover first paint before that effect runs. */
+/* Canonical NOQ customer palette. Category variables are retained as
+   compatibility aliases so existing components keep their architecture while
+   every category resolves to the same brand system. */
 :root {
-  --category-primary: #22D3EE;
-  --category-accent: #2DD4BF;
-  --category-glow: rgba(34, 211, 238, 0.28);
-  --category-border: rgba(34, 211, 238, 0.25);
-  --category-soft: rgba(45, 212, 191, 0.7);
-  --category-surface: #050B0C;
-  --category-tint-10: rgba(34, 211, 238, 0.1);
-  --category-tint-20: rgba(34, 211, 238, 0.14);
-  --category-primary-dark: #0B4A44;
-  --category-primary-light: #5EEAD4;
+  --noq-base: #FDFFFF;
+  --noq-accent: #3454FD;
+  --noq-accent-hover: #2746EA;
+  --noq-accent-deep: #1D36C9;
+  --noq-accent-light: #7890FF;
+  --noq-ink: #17213D;
+  --noq-muted: #6F7B99;
+  --noq-border: #DCE4FF;
+  --noq-surface: #FFFFFF;
+  --noq-surface-soft: #F5F7FF;
+  --noq-glass: rgba(253,255,255,.78);
+  --noq-glass-strong: rgba(253,255,255,.92);
+  --noq-glass-border: rgba(52,84,253,.18);
+  --noq-tint-10: rgba(52,84,253,.10);
+  --noq-tint-20: rgba(52,84,253,.16);
+  --noq-glow: rgba(52,84,253,.30);
+  --noq-soft-reflection: rgba(120,144,255,.30);
+  --noq-cta-gradient: linear-gradient(145deg,#7890FF 0%,#3454FD 52%,#1D36C9 100%);
+  --noq-glass-gradient: linear-gradient(145deg,rgba(255,255,255,.96) 0%,rgba(245,247,255,.84) 58%,rgba(220,228,255,.72) 100%);
+  --category-primary: var(--noq-accent);
+  --category-accent: var(--noq-accent);
+  --category-glow: var(--noq-glow);
+  --category-border: var(--noq-tint-20);
+  --category-soft: var(--noq-accent-light);
+  --category-surface: var(--noq-base);
+  --category-tint-10: var(--noq-tint-10);
+  --category-tint-20: var(--noq-tint-20);
+  --category-primary-dark: var(--noq-accent-deep);
+  --category-primary-light: var(--noq-accent-light);
+  --category-dark-surface: var(--noq-surface-soft);
+  --category-glass-surface: var(--noq-glass);
+  --category-glass-border: var(--noq-glass-border);
+  --category-cta-gradient: var(--noq-cta-gradient);
+  --category-selected-glow: var(--noq-accent);
+  --category-modal-tint: var(--noq-glass-gradient);
+  --category-subtle-accent: var(--noq-accent-light);
 }
 
 /* Approved NOQ Customer Home material. The brand-blue aura is intentionally
    independent of --category-* so switching categories cannot recolor the
    shell; only elements carrying --home-accent receive a local category tint. */
 .customer-liquid-home {
-  color-scheme: dark;
+  color-scheme: light;
   background:
-    linear-gradient(180deg, rgba(42, 123, 255, .07) 0, transparent 35%),
-    #0D1118;
+    radial-gradient(circle at 84% 4%, rgba(52,84,253,.12), transparent 28%),
+    linear-gradient(180deg, rgba(120,144,255,.08) 0, transparent 38%),
+    var(--noq-base);
 }
 
 .customer-home-header {
   isolation: isolate;
   background:
-    radial-gradient(ellipse 72% 92% at 88% 4%, rgba(42, 123, 255, .28), rgba(42, 123, 255, .075) 45%, transparent 76%),
-    radial-gradient(ellipse 90% 72% at 56% -18%, rgba(42, 123, 255, .13), transparent 70%),
-    linear-gradient(180deg, rgba(8, 15, 27, .96), rgba(8, 14, 24, .89));
-  box-shadow: inset 0 1px 0 rgba(106, 165, 255, .05);
+    radial-gradient(ellipse 72% 92% at 88% 4%, rgba(52,84,253,.16), rgba(120,144,255,.055) 45%, transparent 76%),
+    radial-gradient(ellipse 90% 72% at 56% -18%, rgba(120,144,255,.12), transparent 70%),
+    linear-gradient(180deg, rgba(253,255,255,.96), rgba(245,247,255,.90));
+  border-bottom: 1px solid var(--noq-glass-border);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 16px 38px -30px var(--noq-glow);
 }
 
 .customer-home-header::before {
@@ -66,26 +93,26 @@ body {
   right: -2.5rem;
   top: -3.5rem;
   border-radius: 999px;
-  background: rgba(42, 123, 255, .18);
+  background: var(--noq-tint-20);
   filter: blur(42px);
 }
 
 .customer-location-button {
-  border-color: rgba(106, 165, 255, .22);
-  background: linear-gradient(145deg, rgba(42, 123, 255, .24), rgba(42, 123, 255, .08));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 12px 28px -16px rgba(42,123,255,.9);
+  border-color: var(--noq-glass-border);
+  background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(220,228,255,.66));
+  box-shadow: inset 0 1px 0 #fff, 0 12px 28px -18px var(--noq-glow);
 }
 
 .customer-search-glass {
-  border-color: rgba(148, 183, 238, .24);
-  background: linear-gradient(150deg, rgba(14, 21, 32, .88), rgba(3, 9, 18, .84));
-  box-shadow: inset 0 1px 0 rgba(106,165,255,.15), inset 0 -7px 20px rgba(0,0,0,.24), 0 9px 24px -22px rgba(42,123,255,.58);
+  border-color: var(--noq-glass-border);
+  background: var(--noq-glass-gradient);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -7px 20px rgba(52,84,253,.035), 0 12px 28px -22px var(--noq-glow);
 }
 
 .customer-category-tile {
-  border-color: rgba(147, 174, 214, .13);
-  background: linear-gradient(145deg, rgba(20,25,34,.84), rgba(5,11,21,.76));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 10px 22px -18px rgba(0,0,0,.95);
+  border-color: var(--noq-glass-border);
+  background: var(--noq-glass-gradient);
+  box-shadow: inset 0 1px 0 #fff, 0 10px 24px -20px var(--noq-glow);
 }
 
 .customer-category-tile:focus {
@@ -94,16 +121,16 @@ body {
 
 .customer-category-tile.is-selected {
   border-color: color-mix(in srgb, var(--home-accent) 52%, transparent);
-  background: linear-gradient(145deg, color-mix(in srgb, var(--home-accent) 20%, #141922), rgba(7,12,22,.88));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 12px 25px -18px var(--home-accent), 0 0 18px -12px var(--home-accent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--home-accent) 12%, white), rgba(238,242,255,.92));
+  box-shadow: inset 0 1px 0 #fff, 0 12px 25px -18px var(--home-accent), 0 0 18px -12px var(--home-accent);
 }
 
 .customer-featured-hero {
-  border-color: color-mix(in srgb, var(--home-accent) 45%, rgba(255,255,255,.1));
+  border-color: color-mix(in srgb, var(--home-accent) 42%, transparent);
   background:
-    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--home-accent) 18%, transparent), transparent 45%),
-    linear-gradient(135deg, rgba(20,25,34,.93), rgba(4,10,20,.94));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -18px 38px rgba(0,0,0,.2), 0 20px 45px -28px var(--home-accent);
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--home-accent) 13%, transparent), transparent 45%),
+    var(--noq-glass-gradient);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -18px 38px rgba(52,84,253,.035), 0 20px 45px -28px var(--home-accent);
 }
 
 .customer-hero-arcs span {
@@ -112,8 +139,8 @@ body {
 }
 
 .customer-home-business-card {
-  background: linear-gradient(145deg, rgba(13, 20, 31, .9), rgba(3, 9, 18, .88));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 12px 26px -22px rgba(0,0,0,.95);
+  background: var(--noq-glass-gradient);
+  box-shadow: inset 0 1px 0 #fff, 0 12px 28px -24px var(--noq-glow);
 }
 
 .customer-operational-pill {
@@ -121,13 +148,15 @@ body {
 }
 
 .customer-bottom-dock {
-  background: linear-gradient(180deg, rgba(12,19,30,.9), rgba(2,7,14,.9));
-  box-shadow: inset 0 1px 0 rgba(139,184,255,.25), 0 14px 34px -14px rgba(0,0,0,.8);
+  background: linear-gradient(180deg, rgba(255,255,255,.94), rgba(245,247,255,.92));
+  border-color: var(--noq-glass-border);
+  box-shadow: inset 0 1px 0 #fff, 0 14px 34px -20px var(--noq-glow);
 }
 
 .customer-more-sheet {
-  background: linear-gradient(165deg, rgba(20,25,34,.98), rgba(5,11,21,.98));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.11), 0 -24px 70px -30px rgba(42,123,255,.7);
+  background: linear-gradient(165deg, rgba(255,255,255,.98), rgba(245,247,255,.98));
+  border-color: var(--noq-glass-border);
+  box-shadow: inset 0 1px 0 #fff, 0 -24px 70px -34px var(--noq-glow);
 }
 
 /* Customer Home's signature category controller. The stage itself never
@@ -175,8 +204,8 @@ body {
   border-radius: 42%;
   background:
     radial-gradient(circle at 48% 35%, rgba(255, 255, 255, .12), transparent 25%),
-    radial-gradient(circle at 22% 58%, rgba(45, 212, 191, .2), transparent 34%),
-    radial-gradient(circle at 78% 54%, rgba(139, 92, 246, .2), transparent 36%);
+    radial-gradient(circle at 22% 58%, rgba(52,84,253,.16), transparent 34%),
+    radial-gradient(circle at 78% 54%, rgba(120,144,255,.18), transparent 36%);
   filter: blur(10px);
   pointer-events: none;
 }

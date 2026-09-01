@@ -85,7 +85,7 @@ const NotificationRow: React.FC<{
     >
       <span
         className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-          unread ? 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,#22D3EE)]' : 'bg-white/[0.06] text-slate-400'
+          unread ? 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,var(--noq-accent))]' : 'bg-white/[0.06] text-slate-400'
         }`}
       >
         <Icon className="h-4 w-4" />
@@ -94,7 +94,7 @@ const NotificationRow: React.FC<{
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
-            {isAdmin && <ShieldCheck className="h-3 w-3 shrink-0 text-[color:var(--category-accent,#22D3EE)]" />}
+            {isAdmin && <ShieldCheck className="h-3 w-3 shrink-0 text-[color:var(--category-accent,var(--noq-accent))]" />}
             <span className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">
               {isAdmin ? 'NOQ Admin' : notification.sourceName}
             </span>
@@ -102,7 +102,7 @@ const NotificationRow: React.FC<{
           <span className="ml-auto shrink-0 text-[10px] font-medium text-slate-500">
             {relativeTimeLabel(notification.createdAt)}
           </span>
-          {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--category-accent,#22D3EE)]" />}
+          {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--category-accent,var(--noq-accent))]" />}
         </span>
         <span className={`mt-1 block text-sm leading-snug ${unread ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
           {notification.title}
@@ -110,7 +110,7 @@ const NotificationRow: React.FC<{
         {notification.body && (
           <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{notification.body}</span>
         )}
-        <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--category-accent,#22D3EE)]">
+        <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--category-accent,var(--noq-accent))]">
           {notificationCtaLabel(route)}
           <ChevronRight className="h-3 w-3" />
         </span>
@@ -170,7 +170,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
     return (
       <SafeAreaScreen id="customer-notifications-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
         <div className="mx-auto flex max-w-sm flex-col items-center px-6 pt-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,#22D3EE)]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
             <BellRing className="h-7 w-7" />
           </div>
           <h2 className="mt-5 text-xl font-bold text-white">Sign in for your alerts</h2>
@@ -180,7 +180,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
           <button
             type="button"
             onClick={onLogin}
-            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,#22D3EE)] text-sm font-bold text-slate-950"
+            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
           >
             Verify mobile number
           </button>
@@ -203,7 +203,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
                 aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition ${
                   active
-                    ? 'border-transparent bg-[color:var(--category-accent,#22D3EE)] text-slate-950'
+                    ? 'border-transparent bg-[color:var(--category-accent,var(--noq-accent))] text-slate-950'
                     : 'border-white/10 bg-white/[0.05] text-slate-300'
                 }`}
               >
@@ -226,7 +226,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 
         {loading && !notifications.length && (
           <div className="grid place-items-center py-16">
-            <LoaderCircle className="h-6 w-6 animate-spin text-[color:var(--category-accent,#22D3EE)]" />
+            <LoaderCircle className="h-6 w-6 animate-spin text-[color:var(--category-accent,var(--noq-accent))]" />
           </div>
         )}
 

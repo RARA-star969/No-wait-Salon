@@ -19,7 +19,7 @@ test('Customer Home approved header and operational presentation stay locked', a
       cssSource.indexOf('.customer-home-header'),
       cssSource.indexOf('.customer-location-button'),
     );
-    assert.match(headerCss, /#2A7BFF|42, 123, 255/);
+    assert.match(headerCss, /#3454FD|52,84,253/);
     assert.doesNotMatch(headerCss, /customer-home-header::after/);
     assert.doesNotMatch(headerCss, /height:\s*1px/);
     assert.doesNotMatch(headerCss, /--category-/);
@@ -31,7 +31,7 @@ test('Customer Home approved header and operational presentation stay locked', a
       componentsSource.indexOf('export const SalonSearchBar'),
       componentsSource.indexOf('const HERO_COPY'),
     );
-    assert.match(searchSource, /rgba\(42,123,255/);
+    assert.match(searchSource, /rgba\(52,84,253/);
     assert.doesNotMatch(searchSource, /--category-border/);
   });
 

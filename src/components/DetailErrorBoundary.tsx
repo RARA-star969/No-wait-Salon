@@ -45,13 +45,13 @@ export class DetailErrorBoundary extends React.Component<DetailErrorBoundaryProp
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
             <AlertTriangle className="h-8 w-8" />
           </div>
-          <h2 className="mt-4 text-xl font-bold text-[#17201F]">Something went wrong</h2>
-          <p className="mt-2 max-w-sm text-sm text-[#6F7C7A]">
+          <h2 className="mt-4 text-xl font-bold text-[var(--noq-ink)]">Something went wrong</h2>
+          <p className="mt-2 max-w-sm text-sm text-[var(--noq-muted)]">
             We couldn&apos;t open {this.props.businessName}. Nothing was lost — you can go back and try again.
           </p>
           <button
             onClick={this.props.onBackToHome}
-            className="mt-6 rounded-xl bg-[#0F766E] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#0D645E]"
+            className="mt-6 rounded-xl bg-[var(--noq-accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[var(--noq-accent-hover)]"
           >
             Back to Home
           </button>

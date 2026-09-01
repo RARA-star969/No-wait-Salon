@@ -55,7 +55,7 @@ export const AttendanceCalendarSheet: React.FC<{ gymId: string; onClose: () => v
 
   return (
     <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/60 sm:items-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <section role="dialog" aria-modal="true" aria-label="Attendance calendar" className="max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-[#170F24] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-white sm:max-w-sm sm:rounded-3xl sm:pb-6">
+      <section role="dialog" aria-modal="true" aria-label="Attendance calendar" className="max-h-[86vh] w-full overflow-y-auto rounded-t-3xl bg-[var(--noq-surface-soft)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 text-white sm:max-w-sm sm:rounded-3xl sm:pb-6">
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15 sm:hidden" />
         <div className="flex items-start justify-between gap-3">
           <h2 className="text-lg font-bold text-white">Membership & attendance</h2>
@@ -78,7 +78,7 @@ export const AttendanceCalendarSheet: React.FC<{ gymId: string; onClose: () => v
                 </div>
                 <div className="col-span-2 rounded-xl bg-white/[0.04] p-3 text-center">
                   <p className="text-[9px] font-bold uppercase tracking-wide text-white/45">{membership.displayStatus === 'expired' ? 'Expired' : 'Days remaining'}</p>
-                  <p className="mt-0.5 text-sm font-extrabold text-[#C89CFA]">{membership.displayStatus === 'expired' ? 'Renew to continue' : `${membership.daysRemaining} day${membership.daysRemaining === 1 ? '' : 's'} left`}</p>
+                  <p className="mt-0.5 text-sm font-extrabold text-[var(--noq-accent)]">{membership.displayStatus === 'expired' ? 'Renew to continue' : `${membership.daysRemaining} day${membership.daysRemaining === 1 ? '' : 's'} left`}</p>
                 </div>
               </div>
             )}
@@ -97,7 +97,7 @@ export const AttendanceCalendarSheet: React.FC<{ gymId: string; onClose: () => v
                 <span
                   key={dayKey || `blank-${index}`}
                   className={`flex h-7 items-center justify-center rounded-lg text-[10px] font-semibold ${
-                    !dayKey ? '' : attendedSet.has(dayKey) ? 'bg-[#6B21A8] text-white' : 'text-white/40'
+                    !dayKey ? '' : attendedSet.has(dayKey) ? 'bg-[var(--noq-accent-deep)] text-white' : 'text-white/40'
                   }`}
                 >
                   {dayKey ? Number(dayKey.slice(-2)) : ''}
@@ -111,11 +111,11 @@ export const AttendanceCalendarSheet: React.FC<{ gymId: string; onClose: () => v
                 <div className="text-[9px] font-semibold text-white/45">Visits</div>
               </div>
               <div className="rounded-xl bg-white/[0.04] p-2.5">
-                <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[#C89CFA]"><Flame className="h-3.5 w-3.5" />{data?.currentStreak ?? 0}</div>
+                <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-[var(--noq-accent)]"><Flame className="h-3.5 w-3.5" />{data?.currentStreak ?? 0}</div>
                 <div className="text-[9px] font-semibold text-white/45">Streak</div>
               </div>
               <div className="rounded-xl bg-white/[0.04] p-2.5">
-                <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-white"><TrendingUp className="h-3.5 w-3.5 text-[#C89CFA]" />{data?.bestStreak ?? 0}</div>
+                <div className="flex items-center justify-center gap-1 text-sm font-extrabold text-white"><TrendingUp className="h-3.5 w-3.5 text-[var(--noq-accent)]" />{data?.bestStreak ?? 0}</div>
                 <div className="text-[9px] font-semibold text-white/45">Best</div>
               </div>
             </div>
