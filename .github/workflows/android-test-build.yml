@@ -29,7 +29,8 @@ jobs:
     # dedicated job below — never a second Business artifact alongside it.
     if: >-
       github.ref_name != 'fix/customer-final-physical-glitches' &&
-      github.ref_name != 'fix/customer-navigation-notifications-polish'
+      github.ref_name != 'fix/customer-navigation-notifications-polish' &&
+      github.ref_name != 'feat/customer-liquid-glass-3d-v1'
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
@@ -94,7 +95,8 @@ jobs:
   customer-final-physical-apk:
     if: >-
       github.ref_name == 'fix/customer-final-physical-glitches' ||
-      github.ref_name == 'fix/customer-navigation-notifications-polish'
+      github.ref_name == 'fix/customer-navigation-notifications-polish' ||
+      github.ref_name == 'feat/customer-liquid-glass-3d-v1'
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: https://no-wait-salon-web-test.onrender.com
@@ -109,7 +111,7 @@ jobs:
         shell: bash
         run: |
           case "${GITHUB_REF_NAME}" in
-            fix/customer-final-physical-glitches|fix/customer-navigation-notifications-polish) ;;
+            fix/customer-final-physical-glitches|fix/customer-navigation-notifications-polish|feat/customer-liquid-glass-3d-v1) ;;
             *) echo "Unexpected branch for the Customer APK job: ${GITHUB_REF_NAME}" >&2; exit 1 ;;
           esac
           ACTUAL_SHA="$(git rev-parse HEAD)"

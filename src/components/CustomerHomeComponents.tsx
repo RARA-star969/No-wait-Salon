@@ -601,14 +601,11 @@ const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
   );
 };
 
-/** Traffic-light live-status chip shared by Salon and Gym listing cards —
- *  always icon + text together, never color alone. Sized down ~15-20% from
- *  its first pass so it reads as a small status marker, not a headline. */
+/** Compact resolver-driven operational pill shared by Home listing cards. */
 export const SignalStatusChip: React.FC<{ color: SignalColor; label: string }> = ({ color, label }) => {
   const style = SIGNAL_STYLES[color];
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[9px] font-bold ${style.bg} ${style.text}`}>
-      <SignalBars color={color} />
+    <span className={`customer-operational-pill inline-flex items-center whitespace-nowrap rounded-full px-2 py-[3px] text-[8px] font-black uppercase tracking-[0.04em] ${style.bg} ${style.text}`}>
       {label}
     </span>
   );
@@ -765,15 +762,18 @@ export const PremiumBusinessCard: React.FC<{
         {isGym && liveFloorMeter ? (
           <>
             <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-wide" style={{ color: theme.accent }}><span className="text-[11px]">⌁</span> Live floor</span>
-            <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-              <span className="h-1 w-[62px] overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} /></span>
-              <span className="w-[45px] text-right text-[8px] font-semibold text-slate-400">{signalLabel}</span>
-            </div>
+            <span className="mx-auto h-1 w-[62px] overflow-hidden rounded-full bg-white/10"><span className="block h-full rounded-full" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} /></span>
+            <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : isSalon ? (
           <>
             <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[8px] font-semibold text-slate-400"><UsersRound className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine1}</span>
             {positionLabel && <span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-slate-400"><CalendarDays className="mr-1 inline h-3 w-3" />{positionLabel}</span>}
+            <SignalStatusChip color={signalColor} label={signalLabel} />
+          </>
+        ) : categoryId === 'shop' ? (
+          <>
+            <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-slate-400"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>
             <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : (

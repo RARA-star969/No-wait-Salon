@@ -1262,13 +1262,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   : 'translate-y-0 border-white/[0.06] opacity-100'
               }`}
             >
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div className="flex items-center justify-between gap-3">
                 <div aria-label="NOQ" className="flex items-center gap-1 text-[23px] font-black tracking-[0.18em] text-[#E6E8F0]">
                   NOQ<span className="h-1.5 w-1.5 rounded-full bg-[#2A7BFF] shadow-[0_0_12px_#2A7BFF]" />
-                </div>
-                <div aria-label="Liquid Glass appearance selected" className="customer-appearance-pill flex h-8 items-center rounded-full border border-white/[0.09] p-[3px] text-[8px] font-bold text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,.08)]">
-                  <span className="px-2">✦ Midnight</span>
-                  <span className="rounded-full border border-[#6AA5FF]/25 bg-[#2A7BFF]/15 px-2 py-1.5 text-[#A8C8FF] shadow-[inset_0_1px_0_rgba(255,255,255,.12)]">✧ Liquid Glass</span>
                 </div>
                 <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[#6AA5FF] transition active:translate-y-0.5 active:scale-95">
                   <MapPin className="h-[18px] w-[18px]" />
@@ -1483,8 +1479,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   liveLine1 = '';
                   liveLine2 = '';
                   liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
-                  signalColor = signal.color;
-                  signalLabel = signal.label;
+                  signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
+                  signalLabel = signal.color === 'green' ? 'QUIET' : signal.color === 'yellow' ? 'MODERATE' : 'BUSY';
                 } else if (catId === 'salon') {
                   const waitingCustomers = salon.waitingCustomers;
                   const isNoWait = waitingCustomers === 0;
@@ -1494,14 +1490,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   liveLine1 = isNoWait ? 'No wait' : `${waitingCustomers} ahead`;
                   liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
                   const signal = resolveSalonQueueSignal(waitingCustomers);
-                  signalColor = signal.color;
-                  signalLabel = signal.label;
+                  signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
+                  signalLabel = signal.color === 'green' ? 'LOW WAIT' : signal.color === 'yellow' ? 'MODERATE' : 'BUSY';
                   positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
                 } else {
                   liveLine1 = salon.isOpen ? 'Open now' : 'Closed';
                   liveLine2 = salon.openingHours || 'Hours unavailable';
-                  signalColor = salon.isOpen ? 'green' : 'red';
-                  signalLabel = salon.isOpen ? 'Open' : 'Closed';
+                  signalColor = catId === 'shop' ? 'yellow' : salon.isOpen ? 'green' : 'red';
+                  signalLabel = catId === 'shop' ? 'FAST PICKUP' : salon.isOpen ? 'Open' : 'Closed';
                 }
 
                 return (
