@@ -21,6 +21,7 @@ import {
   Search,
   AlertTriangle,
   ArrowUp,
+  X,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -30,15 +31,14 @@ import { AddressManagementModal } from './AddressManagementModal';
 import { LocationSelectScreen } from './LocationSelectScreen';
 import { AddAddressScreen } from './AddAddressScreen';
 import { RequestAddressScreen } from './RequestAddressScreen';
-import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon, categoryCssVars, resolveCategoryTheme } from './CustomerHomeComponents';
+import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon, categoryCssVars, resolveCategoryTheme, CustomerCategoryGrid, customerHomeAccent } from './CustomerHomeComponents';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
-import { FloatingCategoryDeck } from './FloatingCategoryDeck';
+import { PromotionalBanner, SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -84,6 +84,10 @@ import type { BookingRoute, CustomerBookingView } from '../shared/customerBookin
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
+const APPROVED_EMPTY_HOME_CATEGORIES: CategoryItemConfig[] = [
+  { id: 'clinic', name: 'Clinic', iconName: 'Stethoscope', label: 'Clinic', description: 'No supported clinic listings are available in this area yet.', themeKey: 'clinic' },
+  { id: 'spa', name: 'Spa', iconName: 'Sparkles', label: 'Spa', description: 'No supported spa listings are available in this area yet.', themeKey: 'spa' },
+];
 
 /**
  * Background discovery refresh for an already-configured location. Uses GPS
@@ -383,6 +387,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       .catch(() => {});
   }, []);
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
+  const [isMoreCategoriesOpen, setIsMoreCategoriesOpen] = useState(false);
   // Per-gym Member Hub overlay (Profile → Gym Activity → this gym) and its
   // nested Workout Plan editor — both lifted here, alongside the other
   // overlay booleans, so Android hardware back can close the deepest one
@@ -688,14 +693,43 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     const catId = (salon.mainCategoryId || 'salon').toLowerCase();
     return catId === activeCategoryId.toLowerCase();
   });
-  const activeCategoryObj = mainCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
+  const homeBrowsableCategories = [
+    ...mainCategories,
+    ...APPROVED_EMPTY_HOME_CATEGORIES.filter((placeholder) => !mainCategories.some((category) => category.id.toLowerCase() === placeholder.id)),
+  ];
+  const activeCategoryObj = homeBrowsableCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
 
   // Live per-category counts derived from the same nearby-salons data already
   // loaded for the list — no invented backend field, just a client-side tally.
-  const categoriesWithLiveCounts = mainCategories.map((cat) => ({
+  const categoriesWithLiveCounts = homeBrowsableCategories.map((cat) => ({
     ...cat,
     businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
+  const homeCategoryPreference = ['salon', 'gym', 'shop', 'clinic', 'spa'];
+  const homeCategoryOrder = [
+    ...homeCategoryPreference.map((id) => categoriesWithLiveCounts.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
+    ...categoriesWithLiveCounts.filter((category) => !homeCategoryPreference.includes(category.id.toLowerCase())),
+  ] as CategoryItemConfig[];
+  const homeGridCategories = homeCategoryOrder.slice(0, 5);
+  const moreCategories = mainCategories
+    .map((category) => categoriesWithLiveCounts.find((counted) => counted.id === category.id) || category)
+    .filter((category) => !homeGridCategories.some((visible) => visible.id === category.id));
+  const featuredBusiness = categoryFilteredSalons[0] || null;
+  const featuredOperationalLabel = (() => {
+    if (!featuredBusiness) return null;
+    const categoryId = (featuredBusiness.mainCategoryId || 'salon').toLowerCase();
+    if (categoryId === 'gym') {
+      return featuredBusiness.maxCapacity && featuredBusiness.maxCapacity > 0
+        ? `${featuredBusiness.currentOccupancy ?? 0} / ${featuredBusiness.maxCapacity} inside`
+        : null;
+    }
+    if (categoryId === 'salon') {
+      return featuredBusiness.waitingCustomers === 0
+        ? 'Ready now'
+        : `${featuredBusiness.waitingCustomers} ahead · ~${featuredBusiness.liveWaitMinutes} min`;
+    }
+    return `${featuredBusiness.isOpen ? 'Open now' : 'Closed'}${featuredBusiness.openingHours ? ` · ${featuredBusiness.openingHours}` : ''}`;
+  })();
 
   // The browse theme follows the customer's chosen category everywhere they
   // explore (Home, Profile, scanner) and never resets to Salon just because
@@ -789,13 +823,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     window.setTimeout(finish, 800);
   }, []);
 
-  const openCategoryExploration = useCallback((_categoryId: string) => {
-    setHomeHeaderCollapsed(true);
-    const target = document.getElementById('category-exploration-anchor');
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    target?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-  }, []);
-
   // The single authoritative pre-Home sequence: landing, then permissions
   // (location, notifications) — only then is the guest-accessible Home
   // reachable. Identity (OTP + profile) is deliberately not part of this
@@ -818,6 +845,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // order; nothing here decides it locally any more.
   const overlays: CustomerOverlayState = {
     qrScanner: isQrScannerOpen,
+    moreCategories: isMoreCategoriesOpen,
     locationSheet: isChangingLocation,
     cancelSheet: cancelSheetOpen,
     callModal: isCallModalOpen,
@@ -828,6 +856,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   const closeOverlay = useCallback((overlay: keyof CustomerOverlayState) => {
     if (overlay === 'qrScanner') setIsQrScannerOpen(false);
+    else if (overlay === 'moreCategories') setIsMoreCategoriesOpen(false);
     else if (overlay === 'locationSheet') setIsChangingLocation(false);
     else if (overlay === 'cancelSheet') setCancelSheetOpen(false);
     else if (overlay === 'callModal') setIsCallModalOpen(false);
@@ -861,7 +890,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     }
   }, [
     stage, showLandingOverride, currentScreen, ticketOrigin,
-    overlays.qrScanner, overlays.locationSheet, overlays.cancelSheet, overlays.callModal,
+    overlays.qrScanner, overlays.moreCategories, overlays.locationSheet, overlays.cancelSheet, overlays.callModal,
     overlays.loginGate, overlays.memberHubWorkoutPlan, overlays.memberHub,
     closeOverlay, backToLanding, setScreen,
   ]);
@@ -1189,22 +1218,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     <div
       ref={homeScrollRef}
       onScroll={handleHomeScroll}
-      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#050B0C] text-slate-100 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[#0D1118] text-slate-100 [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
     >
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
-        <div id="customer-home-screen" className={`relative min-h-full overflow-x-clip transition-colors duration-500 animate-in fade-in ${
-          (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).joinedBg
-        }`}>
+        <div id="customer-home-screen" className="customer-liquid-home relative min-h-full overflow-x-clip bg-[#0D1118] animate-in fade-in">
           {/* Futuristic ambient glow backdrop */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="absolute -top-24 -left-16 h-72 w-72 rounded-full blur-[72px] opacity-[28%] transition-colors duration-700"
-              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).primary }}
+              className="absolute -top-28 left-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[#2A7BFF] opacity-[28%] blur-[82px]"
             />
             <div
-              className="absolute top-64 -right-20 h-80 w-80 rounded-full blur-[80px] opacity-[17%] transition-colors duration-700"
-              style={{ background: (CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon).accent }}
+              className="absolute top-72 -right-24 h-72 w-72 rounded-full bg-[#2A7BFF] opacity-[8%] blur-[90px]"
             />
           </div>
 
@@ -1220,34 +1245,19 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <div
               id="customer-home-header"
               ref={setHomeHeaderNode}
-              className={`absolute inset-x-0 top-0 overflow-hidden border-b bg-black/20 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+              className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden border-b px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
                 homeHeaderCollapsed
                   ? 'pointer-events-none -translate-y-full border-transparent opacity-0'
                   : 'translate-y-0 border-white/[0.06] opacity-100'
               }`}
             >
               <div className="flex items-center justify-between gap-3">
-                {/* LEFT: Address Title + Short Address */}
-                <button
-                  type="button"
-                  onClick={() => setScreen('location-select')}
-                  className="group flex min-w-0 flex-col text-left active:scale-[0.98] transition-transform"
-                  aria-label="Open address management"
-                >
-                  <div className="flex items-center gap-1.5 text-white">
-                    <MapPin className="h-4 w-4 shrink-0 text-[var(--category-accent)]" />
-                    <span className="truncate text-base font-black tracking-tight">{selectedAddressLabel} ›</span>
-                  </div>
-                  <p className="truncate text-[11px] font-semibold text-slate-400 max-w-[220px] sm:max-w-xs">
-                    {locationLabel || 'Indiranagar, Bengaluru'}
-                  </p>
-                </button>
-
-                {/* RIGHT: Compact 3D Wallet + Profile controls ONLY */}
-                <div className="flex shrink-0 items-center gap-2">
-                  <WalletButton />
-                  <ProfileButton onClick={() => setScreen('profile')} />
+                <div aria-label="NOQ" className="flex items-center gap-1.5 text-[27px] font-black tracking-[0.18em] text-[#E6E8F0]">
+                  NOQ<span className="h-2 w-2 rounded-full bg-[#2A7BFF] shadow-[0_0_14px_#2A7BFF]" />
                 </div>
+                <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button grid h-12 w-12 place-items-center rounded-[17px] border text-[#6AA5FF] transition active:translate-y-0.5 active:scale-95">
+                  <MapPin className="h-5 w-5" />
+                </button>
               </div>
 
               {/* Large Search Box with rotating placeholder & inner mic button */}
@@ -1255,7 +1265,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 <SalonSearchBar
                   value={salonSearch}
                   onChange={setSalonSearch}
-                  categories={mainCategories}
+                  categories={categoriesWithLiveCounts}
                   activeCategoryName={activeCategoryObj.name}
                   isListening={isListening}
                   onVoiceSearch={handleVoiceSearch}
@@ -1305,20 +1315,29 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             }`}
           >
 
-          {/* Physical floating glass deck; this is the only Home category interaction. */}
-          <FloatingCategoryDeck
+          <CustomerCategoryGrid
             categories={categoriesWithLiveCounts}
             selectedCategoryId={activeCategoryId}
-            onSelectCategory={setActiveCategoryId}
-            onOpenCategory={openCategoryExploration}
-            onExploreStart={() => setHomeHeaderCollapsed(true)}
+            onSelect={setActiveCategoryId}
+            onMore={() => setIsMoreCategoriesOpen(true)}
           />
 
           {/* Premium hero / featured card — adapts to the selected category */}
           <div id="category-exploration-anchor" key={`banner-${activeCategoryId}`} className="scroll-mt-3 category-content-transition">
             <PromotionalBanner
               category={activeCategoryObj}
-              onCtaClick={() => listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              featuredBusiness={featuredBusiness}
+              operationalLabel={featuredOperationalLabel}
+              onCtaClick={() => {
+                if (!featuredBusiness) {
+                  listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  return;
+                }
+                setSelectedSalon(featuredBusiness);
+                markLastViewed(activeCategoryId, featuredBusiness.id);
+                onQrContextChange(null);
+                setScreen('salon');
+              }}
             />
           </div>
 
@@ -1379,8 +1398,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   {activeCategoryId === 'salon' ? 'Choose your chair' : `Explore ${activeCategoryObj.name}`}
                 </h2>
               </div>
-              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold" style={{ color: 'var(--category-accent)' }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--category-accent)', boxShadow: '0 0 8px 2px var(--category-tint-20)' }} />
+              <span className="mb-1 flex shrink-0 items-center gap-1.5 text-[10px] font-bold text-[#FF6B63]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#FF3B30] shadow-[0_0_8px_2px_rgba(255,59,48,.25)]" />
                 Live now
               </span>
             </div>
@@ -1438,7 +1457,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 // MEMBER outranks Last viewed — an active member never also
                 // shows the last-viewed badge for that same business.
                 const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
-                const theme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
+                const baseTheme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
+                const homeAccent = customerHomeAccent(activeCategoryObj);
+                const theme = { ...baseTheme, primary: homeAccent, accent: homeAccent };
 
                 let liveLine1: string;
                 let liveLine2: string;
@@ -1457,7 +1478,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
                   signalColor = signal.color;
                   signalLabel = signal.label;
-                } else {
+                } else if (catId === 'salon') {
                   const waitingCustomers = salon.waitingCustomers;
                   const isNoWait = waitingCustomers === 0;
                   // Compact form — no "Live queue:"/"Est. wait:" prefixes,
@@ -1469,6 +1490,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   signalColor = signal.color;
                   signalLabel = signal.label;
                   positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
+                } else {
+                  liveLine1 = salon.isOpen ? 'Open now' : 'Closed';
+                  liveLine2 = salon.openingHours || 'Hours unavailable';
+                  signalColor = salon.isOpen ? 'green' : 'red';
+                  signalLabel = salon.isOpen ? 'Open' : 'Closed';
                 }
 
                 return (
@@ -1579,6 +1605,32 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           onMore={() => setScreen('profile')}
           unreadCount={inbox.unreadCount}
         />
+      )}
+
+      {currentScreen === 'home' && isMoreCategoriesOpen && (
+        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsMoreCategoriesOpen(false); }}>
+          <section className="customer-more-sheet relative w-full max-w-md rounded-t-[30px] border border-white/10 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[#E6E8F0] shadow-2xl">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
+            <div className="flex items-start justify-between gap-4">
+              <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6AA5FF]">All categories</p><h2 className="mt-1 text-xl font-black">Explore more nearby</h2></div>
+              <button type="button" onClick={() => setIsMoreCategoriesOpen(false)} aria-label="Close categories" className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-slate-300 active:scale-95"><X className="h-4 w-4" /></button>
+            </div>
+            {moreCategories.length ? (
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                {moreCategories.map((category) => {
+                  const Icon = getCategoryIcon(category.iconName);
+                  const accent = customerHomeAccent(category);
+                  return (
+                    <button key={category.id} type="button" onClick={() => { setActiveCategoryId(category.id); setIsMoreCategoriesOpen(false); revealHomeHeader(); }} className="customer-more-category flex min-h-16 items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 text-left transition active:translate-y-0.5 active:scale-[0.98]">
+                      <Icon className="h-5 w-5 shrink-0" style={{ color: accent }} />
+                      <span className="min-w-0"><b className="block truncate text-sm">{category.name}</b><span className="block text-[10px] font-semibold text-slate-500">{category.businessCount ?? 0} nearby</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : <p className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-sm text-slate-400">All currently supported categories are already visible on Home.</p>}
+          </section>
+        </div>
       )}
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />

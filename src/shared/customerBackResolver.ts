@@ -16,6 +16,7 @@ import type { CustomerScreen } from '../types';
  *  in the natural reading order below. */
 export interface CustomerOverlayState {
   qrScanner: boolean;
+  moreCategories: boolean;
   locationSheet: boolean;
   cancelSheet: boolean;
   callModal: boolean;
@@ -26,6 +27,7 @@ export interface CustomerOverlayState {
 
 export const NO_OVERLAYS: CustomerOverlayState = {
   qrScanner: false,
+  moreCategories: false,
   locationSheet: false,
   cancelSheet: false,
   callModal: false,
@@ -64,6 +66,7 @@ export type BackAction =
  */
 const OVERLAY_ORDER: Array<keyof CustomerOverlayState> = [
   'qrScanner',
+  'moreCategories',
   'locationSheet',
   'cancelSheet',
   'callModal',

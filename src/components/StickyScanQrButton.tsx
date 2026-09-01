@@ -1,5 +1,5 @@
 import React from 'react';
-import { QrCode, House, CalendarCheck, Bell, Menu } from 'lucide-react';
+import { QrCode, House, CalendarCheck, Bell, UserRound } from 'lucide-react';
 
 export type BottomTab = 'home' | 'bookings' | 'notifications' | 'more';
 
@@ -38,7 +38,7 @@ const NavIcon: React.FC<{
     <span className="relative flex h-6 w-6 items-center justify-center">
       <Icon
         className="h-[19px] w-[19px]"
-        style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
+        style={{ color: active ? '#2A7BFF' : 'rgba(148,163,184,0.85)' } as React.CSSProperties}
       />
       {Boolean(badge) && (
         <span
@@ -51,7 +51,7 @@ const NavIcon: React.FC<{
     </span>
     <span
       className="text-[9px] font-bold uppercase tracking-wide"
-      style={{ color: active ? 'var(--category-accent, #22D3EE)' : 'rgba(148,163,184,0.75)' }}
+      style={{ color: active ? '#2A7BFF' : 'rgba(148,163,184,0.75)' }}
     >
       {label}
     </span>
@@ -60,13 +60,12 @@ const NavIcon: React.FC<{
 
 /**
  * Persistent bottom navigation: Home | Bookings | Scan QR | Notifications |
- * More, with Scan raised as a fixed-size floating center CTA. All four side
+ * Profile, with Scan raised as a fixed-size floating center CTA. All four side
  * items route through screens/modals CustomerApp and App.tsx already own
  * (tracking, NotificationCenterModal, profile) — no new routes are added.
  * The bar and the Scan CTA are both a constant size at all times; neither
- * reacts to Home's scroll position, matching the "stays stable while
- * scrolling" requirement. The Scan CTA's fill/glow/ring read the active
- * category's CSS variables, so it recolors with the selected category.
+ * reacts to Home's scroll position. The dock is part of the fixed NOQ brand
+ * shell, so category switching never recolors it.
  */
 export const StickyScanQrButton: React.FC<Props> = ({
   activeTab = 'home',
@@ -89,7 +88,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
           {/* Reserves the center slot the raised Scan CTA floats above. */}
           <span className="w-16 shrink-0" aria-hidden />
           <NavIcon icon={Bell} label="Alerts" active={activeTab === 'notifications'} onClick={onNotifications} badge={unreadCount} />
-          <NavIcon icon={Menu} label="More" active={activeTab === 'more'} onClick={onMore} />
+          <NavIcon icon={UserRound} label="Profile" active={activeTab === 'more'} onClick={onMore} />
         </div>
 
         {/* Raised Scan QR CTA — fixed size always, never shrinks/expands with
@@ -101,7 +100,7 @@ export const StickyScanQrButton: React.FC<Props> = ({
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 -m-1 rounded-full blur-[14px]"
-            style={{ backgroundColor: 'var(--category-tint-20, rgba(34,211,238,0.28))' }}
+            style={{ backgroundColor: 'rgba(42,123,255,.34)' }}
           />
           <button
             type="button"
@@ -109,14 +108,15 @@ export const StickyScanQrButton: React.FC<Props> = ({
             aria-label="Scan QR"
             className="pointer-events-auto relative flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-slate-950 ring-2 transition-transform duration-150 ease-out active:scale-90"
             style={{
-              backgroundImage: 'linear-gradient(to bottom right, var(--category-primary, #22D3EE), var(--category-accent, #2DD4BF), var(--category-primary, #22D3EE))',
-              boxShadow: '0 8px 20px -7px var(--category-glow, rgba(34,211,238,0.45))',
-              ['--tw-ring-color' as any]: 'var(--category-tint-20, rgba(103,232,249,0.2))',
+              backgroundImage: 'linear-gradient(145deg, #6AA5FF 0%, #2A7BFF 52%, #1356CC 100%)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,.55), 0 12px 26px -8px rgba(42,123,255,.85)',
+              ['--tw-ring-color' as any]: 'rgba(106,165,255,.22)',
             }}
           >
             <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />
             <QrCode className="relative h-7 w-7 drop-shadow-sm" />
           </button>
+          <span className="pointer-events-none absolute left-1/2 top-[66px] -translate-x-1/2 whitespace-nowrap text-[9px] font-bold uppercase tracking-wide text-slate-300">Scan QR</span>
         </div>
       </div>
     </div>

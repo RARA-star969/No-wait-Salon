@@ -37,6 +37,69 @@ body {
   --category-primary-light: #5EEAD4;
 }
 
+/* Approved NOQ Customer Home material. The brand-blue aura is intentionally
+   independent of --category-* so switching categories cannot recolor the
+   shell; only elements carrying --home-accent receive a local category tint. */
+.customer-liquid-home {
+  color-scheme: dark;
+  background:
+    linear-gradient(180deg, rgba(42, 123, 255, .07) 0, transparent 35%),
+    #0D1118;
+}
+
+.customer-home-header {
+  background: linear-gradient(180deg, rgba(6, 13, 26, .94), rgba(8, 14, 25, .78));
+  box-shadow: 0 20px 42px -28px rgba(42, 123, 255, .55);
+}
+
+.customer-location-button {
+  border-color: rgba(106, 165, 255, .22);
+  background: linear-gradient(145deg, rgba(42, 123, 255, .24), rgba(42, 123, 255, .08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.13), 0 12px 28px -16px rgba(42,123,255,.9);
+}
+
+.customer-search-glass {
+  border-color: rgba(148, 183, 238, .18);
+  background: linear-gradient(150deg, rgba(20, 25, 34, .82), rgba(4, 10, 20, .76));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.09), inset 0 -8px 24px rgba(0,0,0,.2), 0 14px 34px -23px rgba(42,123,255,.65);
+}
+
+.customer-category-tile {
+  border-color: rgba(147, 174, 214, .13);
+  background: linear-gradient(145deg, rgba(20,25,34,.84), rgba(5,11,21,.76));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 10px 22px -18px rgba(0,0,0,.95);
+}
+
+.customer-category-tile.is-selected {
+  border-color: color-mix(in srgb, var(--home-accent) 52%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--home-accent) 20%, #141922), rgba(7,12,22,.88));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 14px 30px -17px var(--home-accent), 0 0 0 1px color-mix(in srgb, var(--home-accent) 10%, transparent);
+}
+
+.customer-featured-hero {
+  border-color: color-mix(in srgb, var(--home-accent) 45%, rgba(255,255,255,.1));
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--home-accent) 18%, transparent), transparent 45%),
+    linear-gradient(135deg, rgba(20,25,34,.93), rgba(4,10,20,.94));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), inset 0 -18px 38px rgba(0,0,0,.2), 0 20px 45px -28px var(--home-accent);
+}
+
+.customer-hero-orbit {
+  border-color: color-mix(in srgb, var(--home-accent) 45%, transparent);
+  box-shadow: 0 0 0 18px color-mix(in srgb, var(--home-accent) 5%, transparent), 0 0 0 36px color-mix(in srgb, var(--home-accent) 3%, transparent);
+}
+
+.customer-hero-art {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--home-accent) 22%, #141922), #050B14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 17px 32px -17px var(--home-accent);
+  transform: translateZ(12px) rotate(1deg);
+}
+
+.customer-more-sheet {
+  background: linear-gradient(165deg, rgba(20,25,34,.98), rgba(5,11,21,.98));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.11), 0 -24px 70px -30px rgba(42,123,255,.7);
+}
+
 /* Customer Home's signature category controller. The stage itself never
    scrolls horizontally: pointer intent drives transform-only depth motion,
    while touch-action: pan-y leaves vertical gestures native to CustomerApp. */

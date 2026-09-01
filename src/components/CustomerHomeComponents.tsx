@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, Crown, ChevronRight, Clock, Stethoscope, Grid2X2 } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 
@@ -271,6 +271,22 @@ export function resolveCategoryTheme(themeKeyOrId?: string | null): CategoryThem
   return CATEGORY_THEME_MAP[themeKeyOrId.toLowerCase()] || CATEGORY_THEME_MAP.salon;
 }
 
+/** Approved Customer Home accents. These are deliberately separate from the
+ * legacy/detail theme tokens: the NOQ shell stays brand blue while only Home's
+ * selected tile, featured hero and category-owned listing accents use these. */
+export const CUSTOMER_HOME_ACCENTS: Record<string, string> = {
+  salon: '#FF5CC8',
+  gym: '#23E08D',
+  shop: '#FFD166',
+  clinic: '#4DB7FF',
+  spa: '#C77DFF',
+};
+
+export function customerHomeAccent(category?: Pick<CategoryItemConfig, 'id' | 'themeKey' | 'primaryColor'> | null): string {
+  const key = (category?.themeKey || category?.id || '').toLowerCase();
+  return CUSTOMER_HOME_ACCENTS[key] || category?.primaryColor || '#2A7BFF';
+}
+
 type SearchProps = {
   value: string;
   onChange: (value: string) => void;
@@ -290,24 +306,14 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   onVoiceSearch,
   voiceFeedback,
 }) => {
-  const [placeholderIndex, setPlaceholderIndex] = React.useState(0);
-  const activeList = categories.length ? categories : DEFAULT_MAIN_CATEGORIES;
-
-  React.useEffect(() => {
-    if (!activeList.length) return;
-    const timer = setInterval(() => {
-      setPlaceholderIndex((prev) => (prev + 1) % activeList.length);
-    }, 3000);
-    return () => clearInterval(timer);
-  }, [activeList]);
-
-  const activeCategory = activeList[placeholderIndex] || activeList[0] || { name: activeCategoryName };
-  const placeholderText = `Search for ‘${activeCategory.name}’...`;
+  void categories;
+  void activeCategoryName;
+  const placeholderText = 'Search salons, gyms, shops...';
 
   return (
     <div className="relative w-full space-y-2">
       <div
-        className={`flex min-h-14 w-full items-center gap-3 rounded-2xl border bg-white/[0.06] px-4 backdrop-blur-md transition-all duration-200 ${
+        className={`customer-search-glass flex min-h-14 w-full items-center gap-3 rounded-[20px] border px-4 backdrop-blur-xl transition-all duration-200 ${
           isListening
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
@@ -336,21 +342,6 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             <X className="h-3.5 w-3.5" />
           </button>
         )}
-        <button
-          type="button"
-          onClick={onVoiceSearch}
-          aria-label={isListening ? "Stop listening" : "Start voice search"}
-          className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200 active:scale-95 ${
-            isListening
-              ? 'bg-red-500 text-white shadow-md shadow-red-500/30'
-              : 'bg-white/10 text-slate-200 hover:bg-white/20'
-          }`}
-        >
-          {isListening && (
-            <span className="absolute inset-0 rounded-xl bg-red-400 opacity-75 animate-ping" />
-          )}
-          <Mic className={`relative h-4.5 w-4.5 ${isListening ? 'animate-bounce' : ''}`} />
-        </button>
       </div>
 
       {voiceFeedback && (
@@ -399,60 +390,51 @@ const HERO_COPY: Record<string, { headline: string; subheadline: string }> = {
  * Premium featured/hero card — glossy, category-themed, adapts headline and
  * color identity to whichever category is currently selected.
  */
-export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageSrc?: string; onCtaClick?: () => void }> = ({ category, imageSrc, onCtaClick }) => {
+export const PromotionalBanner: React.FC<{
+  category?: CategoryItemConfig;
+  featuredBusiness?: NearbySalon | null;
+  operationalLabel?: string | null;
+  onCtaClick?: () => void;
+}> = ({ category, featuredBusiness, operationalLabel, onCtaClick }) => {
   const themeKey = category?.themeKey || category?.id || 'salon';
-  const theme = CATEGORY_THEME_MAP[themeKey] || CATEGORY_THEME_MAP.salon;
+  const accent = customerHomeAccent(category);
   const copy = HERO_COPY[themeKey] || HERO_COPY.salon;
-  const headline = category?.bannerHeadline || copy.headline;
-  const subheadline = category?.bannerSubheadline || copy.subheadline;
-  const ctaText = category?.bannerCtaText || `Explore ${category?.name || 'Chairs'}`;
+  const headline = featuredBusiness?.name || category?.bannerHeadline || copy.headline;
+  const subheadline = featuredBusiness?.shortDescription || featuredBusiness?.description || category?.bannerSubheadline || copy.subheadline;
   const IconComponent = getCategoryIcon(category?.iconName || 'Scissors');
+  const imageSrc = featuredBusiness?.coverImageUrl || featuredBusiness?.logoImageUrl || category?.bannerImageUrl;
 
   return (
     <section
-      className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br ${theme.cardBg} p-5 sm:p-6 transition-all duration-500 ${theme.glow}`}
+      className="customer-featured-hero relative min-h-[196px] overflow-hidden rounded-[28px] border p-5 transition-[transform,box-shadow] duration-300 active:scale-[0.992] sm:p-6"
+      style={{ '--home-accent': accent } as React.CSSProperties}
     >
-      {/* Glossy top highlight */}
-      <div className="pointer-events-none absolute -left-10 -top-16 h-40 w-56 rounded-full bg-white/10 blur-3xl" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent" />
-      <div className={`pointer-events-none absolute -right-10 -bottom-14 h-48 w-48 rounded-full bg-gradient-to-br ${theme.bannerGradient} blur-2xl`} />
-
-      {imageSrc ? (
-        <img src={imageSrc} alt="Featured offer" className="relative h-full w-full rounded-2xl object-cover" />
-      ) : (
-        <div className="relative flex items-center justify-between gap-4">
-          <div className="max-w-[70%]">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-white backdrop-blur-md">
-              <Sparkles className="h-3 w-3" style={{ color: theme.accent }} /> Featured {category?.name || 'Category'}
-            </span>
-            <h2 className="mt-3 text-lg font-black leading-tight tracking-[-0.025em] text-white sm:text-2xl">
-              {headline}
-            </h2>
-            <p className={`mt-1.5 text-[11px] leading-4 font-medium sm:text-xs ${theme.softText}`}>{subheadline}</p>
-            <button
-              type="button"
-              onClick={onCtaClick}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-bold text-slate-950 shadow-lg transition active:scale-[0.97]"
-              style={{ backgroundColor: theme.accent, boxShadow: `0 6px 16px -6px ${theme.primary}5F` }}
-            >
-              {ctaText}
-              <ChevronRight className="h-3.5 w-3.5" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/[0.08] via-transparent to-black/30" />
+      <div className="customer-hero-orbit pointer-events-none absolute -right-16 -top-10 h-64 w-64 rounded-full border" />
+      <div className="relative z-10 flex min-h-[154px] items-stretch justify-between gap-4">
+        <div className="flex min-w-0 max-w-[72%] flex-col">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: accent }}>Featured {category?.name || 'business'}</span>
+            {featuredBusiness?.isOpen && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#FF3B30]/45 bg-[#FF3B30]/15 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#FF6B63]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#FF3B30]" /> Live now
+              </span>
+            )}
+          </div>
+          <h2 className="mt-3 truncate text-xl font-black leading-tight tracking-[-0.03em] text-[#E6E8F0] sm:text-2xl">{headline}</h2>
+          <p className="mt-1.5 line-clamp-2 text-[11px] font-medium leading-4 text-slate-300/75 sm:text-xs">{subheadline}</p>
+          <div className="mt-auto flex items-end gap-3 pt-4">
+            {operationalLabel && <span className="min-w-0 truncate text-[11px] font-bold text-slate-200">{operationalLabel}</span>}
+            <button type="button" onClick={onCtaClick} className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-4 py-2 text-[11px] font-black text-[#07101D] shadow-lg transition active:translate-y-0.5 active:scale-[0.97]" style={{ backgroundColor: accent, boxShadow: `0 10px 24px -10px ${accent}` }}>
+              Explore <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="relative shrink-0">
-            <div
-              className="absolute inset-0 -m-3 rounded-[2rem] blur-xl"
-              style={{ background: `radial-gradient(circle, ${theme.primary}3C, transparent 70%)` }}
-            />
-            <div
-              className={`relative flex h-20 w-20 items-center justify-center rounded-[1.75rem] border border-white/20 bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-2xl sm:h-24 sm:w-24`}
-            >
-              <div className="absolute inset-x-2 top-1.5 h-1/3 rounded-full bg-white/25 blur-[2px]" />
-              <IconComponent className="relative h-10 w-10 drop-shadow" />
-            </div>
-          </div>
         </div>
-      )}
+        <div className="customer-hero-art relative my-auto flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[26px] border border-white/15 sm:h-28 sm:w-28">
+          {imageSrc ? <img src={imageSrc} alt="" className="h-full w-full object-cover" /> : <IconComponent className="h-11 w-11" style={{ color: accent }} />}
+          <span className="pointer-events-none absolute inset-x-3 top-2 h-1/3 rounded-full bg-white/20 blur-md" />
+        </div>
+      </div>
     </section>
   );
 };
@@ -486,11 +468,63 @@ const categoryIconMap: Record<string, React.FC<{ className?: string }>> = {
   Utensils: (props) => <Utensils {...props} />,
   Store: (props) => <Store {...props} />,
   Sparkles: (props) => <Sparkles {...props} />,
+  Stethoscope: (props) => <Stethoscope {...props} />,
+  Grid2X2: (props) => <Grid2X2 {...props} />,
 };
 
 export function getCategoryIcon(iconName: string): React.FC<{ className?: string }> {
   return categoryIconMap[iconName] || categoryIconMap.Scissors;
 }
+
+export const CustomerCategoryGrid: React.FC<{
+  categories: CategoryItemConfig[];
+  selectedCategoryId: string;
+  onSelect: (categoryId: string) => void;
+  onMore: () => void;
+}> = ({ categories, selectedCategoryId, onSelect, onMore }) => {
+  const preferred = ['salon', 'gym', 'shop', 'clinic', 'spa'];
+  const ordered = [
+    ...preferred.map((id) => categories.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
+    ...categories.filter((category) => !preferred.includes(category.id.toLowerCase())),
+  ] as CategoryItemConfig[];
+  const visible = ordered.slice(0, 5);
+  const hasMore = categories.some((category) => !visible.some((item) => item.id === category.id));
+
+  return (
+    <section aria-label="Business categories" className="grid grid-cols-3 gap-2.5">
+      {visible.map((category) => {
+        const active = category.id.toLowerCase() === selectedCategoryId.toLowerCase();
+        const Icon = getCategoryIcon(category.iconName);
+        const accent = customerHomeAccent(category);
+        return (
+          <button
+            key={category.id}
+            type="button"
+            onClick={() => onSelect(category.id)}
+            aria-pressed={active}
+            className={`customer-category-tile relative flex min-h-[78px] items-center gap-2.5 overflow-hidden rounded-[19px] border px-3 text-left transition-[transform,border-color,box-shadow,background] duration-200 active:translate-y-0.5 active:scale-[0.975] ${active ? 'is-selected -translate-y-0.5' : ''}`}
+            style={{ '--home-accent': accent } as React.CSSProperties}
+          >
+            <Icon className="h-5 w-5 shrink-0" style={{ color: active ? accent : '#97A3B7' }} />
+            <span className="min-w-0">
+              <b className="block truncate text-[12px] font-extrabold" style={{ color: active ? accent : '#E6E8F0' }}>{category.name}</b>
+              <span className="mt-0.5 block truncate text-[9px] font-semibold text-slate-500">{category.businessCount ?? 0} nearby</span>
+            </span>
+          </button>
+        );
+      })}
+      <button
+        type="button"
+        onClick={onMore}
+        aria-label={hasMore ? 'Explore all categories' : 'View categories'}
+        className="customer-category-tile relative flex min-h-[78px] items-center gap-2.5 rounded-[19px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
+      >
+        <Grid2X2 className="h-5 w-5 shrink-0 text-slate-400" />
+        <span><b className="block text-[12px] font-extrabold text-[#E6E8F0]">More</b><span className="mt-0.5 block text-[9px] font-semibold text-slate-500">Explore all</span></span>
+      </button>
+    </section>
+  );
+};
 
 const CATEGORY_TAGLINES: Record<string, string> = {
   salon: 'Live chairs nearby',
@@ -518,8 +552,6 @@ export const CategoryLandingState: React.FC<{
 }> = ({ category, onExploreSalons }) => {
   const theme = CATEGORY_THEME_MAP[category.themeKey || category.id] || CATEGORY_THEME_MAP.salon;
   const IconComponent = getCategoryIcon(category.iconName);
-  const [notified, setNotified] = React.useState(false);
-
   return (
     <section className={`relative mt-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b ${theme.cardBg} p-6 text-center`}>
       <div className="pointer-events-none absolute -left-10 -top-16 h-40 w-40 rounded-full bg-white/10 blur-3xl" />
@@ -527,33 +559,15 @@ export const CategoryLandingState: React.FC<{
         <IconComponent className="h-8 w-8" />
       </div>
 
-      <div className="relative mt-4 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-400/10 px-3 py-1 text-[11px] font-bold text-amber-200">
-        <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-        <span>EXPANDING TO {category.name.toUpperCase()}</span>
-      </div>
-
-      <h3 className="relative mt-3 text-xl font-black text-white">
-        {category.name} Services Coming Soon
+      <h3 className="relative mt-4 text-xl font-black text-white">
+        No {category.name} businesses nearby yet
       </h3>
 
       <p className={`relative mt-2 text-xs leading-relaxed max-w-sm mx-auto ${theme.softText}`}>
-        {category.description || `We are onboarding premier ${category.name.toLowerCase()} businesses and service providers near Indiranagar, Bengaluru.`}
+        {category.description || `There are no supported ${category.name.toLowerCase()} listings in the selected area right now.`}
       </p>
 
       <div className="relative mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-        <button
-          type="button"
-          onClick={() => setNotified(!notified)}
-          className={`h-11 rounded-xl px-5 text-xs font-bold transition active:scale-[0.98] ${
-            notified
-              ? 'bg-emerald-500 text-slate-950'
-              : 'text-slate-950 shadow-md'
-          }`}
-          style={notified ? undefined : { backgroundColor: theme.accent, boxShadow: `0 6px 16px -6px ${theme.primary}5F` }}
-        >
-          {notified ? '✓ You will be notified' : `Notify Me When ${category.name} Launches`}
-        </button>
-
         <button
           type="button"
           onClick={onExploreSalons}
@@ -729,7 +743,7 @@ export const PremiumBusinessCard: React.FC<{
             </span>
           </div>
         ) : (
-          <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-md`}>
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl text-white shadow-md" style={{ background: `linear-gradient(145deg, ${theme.primary}E6, ${theme.primary}73 62%, #07101D)` }}>
             <IconComponent className="h-6 w-6" />
           </div>
         )}
