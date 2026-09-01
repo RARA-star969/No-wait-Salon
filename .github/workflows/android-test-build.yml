@@ -33,7 +33,7 @@ jobs:
       github.ref_name != 'feat/customer-liquid-glass-3d-v1'
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-api.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
+      VITE_API_BASE_URL: ${{ github.event.inputs.api_base_url || (github.ref == 'refs/heads/main' && 'https://no-wait-salon-web-test.onrender.com' || 'https://no-wait-salon-web-test.onrender.com') }}
 
     steps:
       - name: Check out source
@@ -171,7 +171,7 @@ jobs:
           for tree in dist "${ASSETS}"; do
             grep -R --binary-files=text -Fq "https://no-wait-salon-web-test.onrender.com" "${tree}"
             grep -R --binary-files=text -Fq "/api/gym/" "${tree}"
-            if grep -R --binary-files=text -Fq "https://no-wait-salon-api.onrender.com" "${tree}"; then
+            if grep -R --binary-files=text -Fq "https://no-wait-salon-web-test.onrender.com" "${tree}"; then
               echo "Production API was found in ${tree}" >&2
               exit 1
             fi

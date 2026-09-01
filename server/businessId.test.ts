@@ -221,3 +221,29 @@ test('Business ID Integration Tests', async (t) => {
   });
 
 });
+
+test('IRONHOUSE01 resolves to Iron House Gym', async () => {
+  const r = await api('GET', '/api/staff/resolve-business/IRONHOUSE01');
+  assert.equal(r.status, 200, `IRONHOUSE01 resolve failed: ${JSON.stringify(r.data)}`);
+  assert.ok(r.data.id, 'Should return business id');
+  assert.equal(r.data.businessCode, 'IRONHOUSE01', 'businessCode mismatch');
+  assert.equal(r.data.mainCategoryId, 'gym', 'mainCategoryId should be gym');
+});
+
+test('IRONHOUSE01 is case-insensitive (lowercase resolves)', async () => {
+  const r = await api('GET', '/api/staff/resolve-business/ironhouse01');
+  assert.equal(r.status, 200, `lowercase IRONHOUSE01 failed: ${JSON.stringify(r.data)}`);
+  assert.equal(r.data.businessCode, 'IRONHOUSE01');
+});
+
+test('test-login with IRONHOUSE01 succeeds', async () => {
+  const r = await api('POST', '/api/staff/test-login', { businessCode: 'IRONHOUSE01' });
+  assert.equal(r.status, 200, `test-login IRONHOUSE01 failed: ${JSON.stringify(r.data)}`);
+  assert.ok(r.data.token, 'Should return a session token');
+  assert.equal(r.data.business.businessCode, 'IRONHOUSE01');
+});
+
+test('unknown business code returns 404', async () => {
+  const r = await api('GET', '/api/staff/resolve-business/NOTAREALCODE999');
+  assert.equal(r.status, 404, `Expected 404 for unknown code`);
+});

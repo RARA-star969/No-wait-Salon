@@ -833,6 +833,19 @@ export async function safeBackfillSeeds(db: any, persistence: any) {
   }
 }
 await safeBackfillSeeds(db, postgresPersistence);
+// Idempotent business_code patch: rows seeded before the column was added
+// have NULL there. ON CONFLICT(id) DO NOTHING in safeBackfillSeeds never
+// updates them. This UPDATE runs on every server start and is safe to repeat.
+{
+  const knownCodes: Array<[string, string]> = [
+    ['gym-1', 'IRONHOUSE01'], ['gym-2', 'VELOCITY01'],
+    ['salon-1', 'SALON-1'], ['salon-2', 'SALON-2'], ['shop-1', 'SHOP-1'],
+    ['moto-1', 'MOTO-1'], ['pets-1', 'PETS-1'], ['mall-1', 'MALL-1'], ['food-1', 'FOOD-1'],
+  ];
+  for (const [id, code] of knownCodes) {
+    (db as any).prepare('UPDATE salon SET business_code = ? WHERE id = ? AND (business_code IS NULL OR business_code = \'\')').run(code, id);
+  }
+}
 
 // Diagnostic only: surfaces the active public QR token for each salon in the
 // boot log, since a fresh ephemeral SQLite file (no persistent disk) means
