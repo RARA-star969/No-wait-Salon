@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bookmark, Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, MapPin, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
+import { Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { resolveAppReadiness } from '../shared/profileReadiness';
@@ -10,15 +10,15 @@ import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
 import { evaluateCoupon } from '../shared/couponPricing';
 import { LiveQueueCard } from './LiveQueueCard';
 import { LiveQueueScoreboard } from './LiveQueueScoreboard';
-import { AnimatedSalonName } from './AnimatedSalonName';
 import { TimeValue } from './TimeValue';
 import { PriceBreakdownSheet } from './PriceBreakdownSheet';
 import { filterServices, selectionTotals, SERVICE_FILTERS, type ServiceFilter } from '../shared/serviceSelection';
 import { formatDurationLabel } from '../shared/durationFormat';
 import { LockedCalendarIcon } from './LockedCalendarIcon';
 import { HairCare3DIcon, Beard3DIcon, MassageSpa3DIcon, HairColour3DIcon, Facial3DIcon } from './ExploreService3DIcons';
-import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
+import { SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
 import { CategoryActionBar } from './CategoryActionBar';
+import { BusinessDetailHero } from './BusinessDetailHero';
 
 /**
  * Recovered to match APK build #45's source (commit 434289e, workflow run
@@ -79,6 +79,8 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
   'Hair Colour': <HairColour3DIcon className="h-7 w-7" />,
   'Facial': <Facial3DIcon className="h-7 w-7" />,
 };
+
+const SALON_FALLBACK_COVER = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1000&auto=format&fit=crop';
 
 export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen, customerAuth = null, customerProfile = null, profileLoading = false, onIdentityVerified, onProfileSaved }) => {
   const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
@@ -214,55 +216,33 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         </div>
       </div>
 
-      <section className="relative min-h-[270px] overflow-hidden bg-[var(--noq-accent-deep)] text-white">
-        {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#7890FF_0,transparent_38%),linear-gradient(145deg,#17213D,#3454FD_58%,#1D36C9)]" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#17213D]/35 via-transparent to-[#17213D]/95" />
-        <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
-          <button onClick={onBack} id="back-to-salons-btn" aria-label="Back to nearby salons" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><ArrowLeft className="h-5 w-5" /></button>
-          <div className="flex gap-2">
-            <button onClick={() => setSaved((value) => !value)} aria-label={saved ? 'Remove saved salon' : 'Save salon'} className={`flex h-10 w-10 items-center justify-center rounded-full backdrop-blur-md ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/35 text-white'}`}><Bookmark className={`h-[18px] w-[18px] ${saved ? 'fill-current' : ''}`} /></button>
-            <button onClick={shareSalon} aria-label="Share salon" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><Share2 className="h-[18px] w-[18px]" /></button>
-          </div>
-        </div>
-        <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-5">
-          <div className="flex items-end gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[var(--noq-surface-soft)] text-[var(--category-primary-dark)] shadow-lg">
-              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
-            </div>
-            <div className="min-w-0 flex-1 pb-0.5">
-              <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">{salon.isOpen ? 'Open now' : 'Closed'}</span>
-              </div>
-              <AnimatedSalonName name={salon.name} className="mt-1 text-[26px] font-bold leading-tight tracking-[-0.04em] [overflow-wrap:anywhere]" />
-              <div className="mt-1">
-                <RatingSummaryBadge businessId={salon.id} tone="dark" />
-              </div>
-              <p className="mt-1 text-xs font-medium text-white/75">{salon.category || 'Salon & grooming'} · {salon.distanceKm} km away</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            id="salon-address-row"
-            onClick={() => setAddressSheetOpen(true)}
-            aria-label="View salon address and contact"
-            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-white/75 underline decoration-white/25 underline-offset-2 transition active:text-white"
-          >
-            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
-          </button>
-        </div>
-      </section>
+      <BusinessDetailHero
+        businessId={salon.id}
+        businessType="salon"
+        name={salon.name}
+        category={salon.category || 'Salon'}
+        subcategory="Grooming & personal care"
+        address={salon.address}
+        distanceKm={salon.distanceKm}
+        isOpen={salon.isOpen}
+        saved={saved}
+        onBack={onBack}
+        onToggleSaved={() => setSaved((value) => !value)}
+        onShare={shareSalon}
+        onAddress={() => setAddressSheetOpen(true)}
+        cover={<img src={salon.coverImageUrl || salon.gallery?.[0]?.imageUrl || SALON_FALLBACK_COVER} alt={`${salon.name} interior`} className="h-full w-full object-cover" />}
+        logo={salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-9 w-9" />}
+        rating={<RatingSummaryBadge businessId={salon.id} tone="light" />}
+        actions={[
+          { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
+          { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
+          { id: 'share', label: 'Share', icon: <Share2 />, onClick: shareSalon },
+          { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
+          { id: 'primary', label: userEntry ? 'View Queue' : 'Join Queue', icon: <Timer />, onClick: onJoin, primary: true },
+        ]}
+      />
 
-      <div className="space-y-5 px-4 py-4">
-        <section className="grid grid-cols-4 gap-2.5">
-          <QuickAction icon={<CalendarDays />} label="Schedule" onClick={() => setOpenHoursSheetOpen(true)} />
-          <QuickAction icon={<Navigation />} label="Directions" onClick={() => setDirectionsSheetOpen(true)} />
-          <QuickAction icon={<Store />} label="Branches" secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} />
-          <QuickAction icon={<Check />} label={visited ? 'Visited' : 'Been here'} onClick={() => setBeenHereSheetOpen(true)} active={visited} />
-        </section>
+      <div className="space-y-5 px-4 pb-4 pt-1">
 
         <section ref={liveQueueSectionRef} className="relative">
           <LiveQueueCard
@@ -452,7 +432,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <button
           id="join-live-queue-btn"
           onClick={onJoin}
-          className={`relative flex min-h-13 min-w-0 items-center justify-center overflow-hidden rounded-2xl bg-[var(--category-primary-dark)] px-3 text-xs font-bold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] sm:text-sm ${dockBounce ? 'dock-bounce' : ''}`}
+          className={`relative flex min-h-14 min-w-0 items-center justify-center overflow-hidden rounded-[18px] bg-[var(--noq-accent)] px-4 text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition active:scale-[0.98] ${dockBounce ? 'dock-bounce' : ''}`}
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
           <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
@@ -462,7 +442,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           type="button"
           onClick={onReserve}
           aria-label="Reserve a future queue window"
-          className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-tint-10)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_-12px_var(--noq-glow)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
+          className="relative flex min-h-14 w-14 shrink-0 items-center justify-center rounded-[18px] border border-[var(--noq-glass-border)] bg-white/80 shadow-[inset_0_1px_0_white,0_8px_18px_-12px_var(--noq-glow)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
         >
           <CalendarDays className="relative h-4.5 w-4.5 text-[var(--noq-accent)]" />
           <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[var(--noq-accent)] text-white shadow-sm">

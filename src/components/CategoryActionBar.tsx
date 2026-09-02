@@ -39,17 +39,17 @@ export const CategoryActionBar: React.FC<{
   return (
   <div id={id} className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
     <div
-      className={`relative mx-auto max-w-xl overflow-hidden rounded-[22px] p-2.5 transition-all duration-300 ${
+      className={`relative mx-auto max-w-xl overflow-hidden rounded-[26px] p-2.5 transition-all duration-300 ${
         expanded
-          ? 'border border-[var(--noq-glass-border)] bg-gradient-to-b from-white/90 via-white/78 to-[var(--noq-surface-soft)]/90 shadow-[inset_0_1.5px_0_rgba(255,255,255,0.95),inset_0_0_24px_rgba(255,255,255,0.35),0_-14px_32px_-12px_var(--noq-glow),0_12px_36px_-16px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[2.2] backdrop-brightness-[1.06]'
-          : 'border border-[var(--noq-glass-border)] bg-gradient-to-br from-white/80 via-white/65 to-[var(--noq-tint-10)] shadow-[inset_0_1px_0_rgba(255,255,255,0.85),inset_0_0_0_1px_rgba(255,255,255,0.35),0_-14px_30px_-18px_var(--noq-glow),0_8px_24px_-16px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[1.8]'
+          ? 'border border-white/80 bg-gradient-to-b from-white/95 via-white/88 to-[var(--noq-surface-soft)]/94 shadow-[inset_0_1.5px_0_white,inset_0_0_24px_rgba(255,255,255,0.45),0_-16px_36px_-18px_var(--noq-glow),0_14px_38px_-18px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[2.2] backdrop-brightness-[1.06]'
+          : 'border border-white/80 bg-gradient-to-br from-white/92 via-white/82 to-[var(--noq-tint-10)] shadow-[inset_0_1px_0_white,inset_0_0_0_1px_rgba(255,255,255,0.4),0_-14px_32px_-20px_var(--noq-glow),0_10px_28px_-18px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[1.9]'
       } ${bounce ? 'dock-bounce' : ''}`}
     >
       {expanded && (
         <>
           {/* Premium blurred mirror / frosted glass material highlights */}
           <div
-            className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
+            className="pointer-events-none absolute inset-0 rounded-[26px] p-px"
             style={{
               background:
                 'linear-gradient(125deg, rgba(255,255,255,0.95), var(--noq-glow) 35%, rgba(255,255,255,0.35) 55%, var(--noq-soft-reflection) 75%, rgba(255,255,255,0.85))',
@@ -60,7 +60,7 @@ export const CategoryActionBar: React.FC<{
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute inset-0 rounded-[22px] opacity-[0.14] mix-blend-overlay"
+            className="pointer-events-none absolute inset-0 rounded-[26px] opacity-[0.14] mix-blend-overlay"
             style={{
               backgroundImage:
                 "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>\")",
@@ -69,7 +69,7 @@ export const CategoryActionBar: React.FC<{
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute -inset-x-[10%] -inset-y-[20%] rounded-[22px] blur-[5px]"
+            className="pointer-events-none absolute -inset-x-[10%] -inset-y-[20%] rounded-[26px] blur-[5px]"
             style={{ background: 'linear-gradient(115deg, transparent 25%, rgba(255,255,255,0.45) 45%, rgba(255,255,255,0.12) 58%, transparent 75%)' }}
             aria-hidden="true"
           />

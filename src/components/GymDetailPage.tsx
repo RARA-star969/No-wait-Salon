@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ArrowLeft,
-  Bookmark,
-  Share2,
   Star,
-  MapPin,
+  Share2,
+  Navigation,
+  PhoneCall,
+  Store,
   Clock,
   Users,
   UserCheck,
@@ -34,13 +34,11 @@ import { resolveAppReadiness } from '../shared/profileReadiness';
 import { GymLiveCard } from './GymLiveCard';
 import { GymHeroGallery } from './GymHeroGallery';
 import { PublicReviewsSection } from './PublicReviewsSection';
-import { AnimatedSalonName } from './AnimatedSalonName';
 import { gymProfileIcon, socialPlatformIcon } from './gymProfileIcons';
-import { defaultQuickActions } from '../shared/gymProfileCms';
 import { GymFloatingCapsule } from './GymFloatingCapsule';
 import { AccountOnboarding } from './AccountOnboarding';
 import { QrScannerModal } from './QrScannerModal';
-import { QuickAction, SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
+import { SectionTitle, AddressSheet, OpenHoursSheet, DirectionsSheet, BranchesSheet, BeenHereSheet } from './DetailPageKit';
 import { CategoryActionBar } from './CategoryActionBar';
 import { formatGymClock, gymVisitDurationLabel } from '../shared/gymTime';
 import { activeAccessHeading, splitRecommendedOfferings } from '../shared/gymLiveFloor';
@@ -50,13 +48,7 @@ import { TodaysWorkoutSheet } from './TodaysWorkoutSheet';
 import { AttendanceCalendarSheet } from './AttendanceCalendarSheet';
 import { WorkoutPlanEditor } from './WorkoutPlanEditor';
 import { resolveGymAccessBarCopy, type GymAccessBarState } from '../shared/gymAccessBar';
-
-// Gym's own violet/purple quick-action tile surface — QuickAction is shared
-// with Salon (which keeps its default teal), so Gym passes its own gradient.
-// Sourced from CATEGORY_THEME_MAP.gym.ctaGradient (the single canonical
-// source for Gym's CTA gradient) via the --category-cta-gradient custom
-// property, rather than a second hardcoded copy of the same two hex stops.
-const GYM_QUICK_ACTION_MEMBER_GRADIENT = 'var(--category-cta-gradient)';
+import { BusinessDetailHero } from './BusinessDetailHero';
 
 interface GymDetailPageProps {
   salon: Salon;
@@ -628,131 +620,38 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         </div>
       )}
 
-      {/* 1. GYM HERO / BUSINESS INFO — premium profile hero matching the NOQ
-          reference: gallery cover, floating glass controls, a large business
-          logo overlapping the cover/identity seam, then the
-          open-now/name/category/rating identity block and address. The
-          photo stays the visually dominant element — only a short gradient
-          right behind the logo/name seam darkens for legibility, never a
-          flat opaque rectangle across the whole identity area. */}
-      <div className="relative bg-[var(--noq-base)] text-[var(--noq-ink)]">
-        <div className="relative">
-          <GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />
-          {/* Tiny seam only, just enough for the logo to land on where it
-              overlaps the photo — the cover photo itself must stay clearly
-              visible at its natural brightness across ~90%+ of its height. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-[var(--noq-base)]/70 to-transparent" />
-          {/* Top Bar Navigation */}
-          <div className="pointer-events-none absolute inset-0">
-            <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
-              <button
-                onClick={onBack}
-                id="gym-back-btn"
-                aria-label="Back to nearby gyms"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setSaved((value) => !value)}
-                  aria-label={saved ? 'Remove saved gym' : 'Save gym'}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-white/15 backdrop-blur-md transition active:scale-95 ${saved ? 'bg-white text-[var(--category-primary-dark)]' : 'bg-black/40 text-white'}`}
-                >
-                  <Bookmark className={`h-4 w-4 ${saved ? 'fill-current' : ''}`} />
-                </button>
-                <button
-                  onClick={shareGym}
-                  aria-label="Share gym"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white ring-1 ring-white/15 backdrop-blur-md transition active:scale-95"
-                >
-                  <Share2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Identity panel: only the logo overlaps upward into the photo's
-            own gradient; the name/category/rating/address text sits on the
-            solid base color immediately below the photo, so it's always
-            fully legible without needing a large dark overlay on the image
-            itself. */}
-        <div className="relative px-5 pb-5 pt-0">
-          <div className="flex items-end gap-3">
-            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[var(--noq-base)] bg-[var(--noq-surface-soft)] text-[var(--category-accent,var(--noq-accent))] shadow-[0_10px_24px_-8px_var(--noq-glow)]">
-              {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
-            </div>
-            <div className="min-w-0 flex-1 pb-0.5">
-              <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${salon.isOpen ? 'bg-[#5EE0B4] open-dot-bounce' : 'bg-[#E58C82]'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--noq-muted)]">{salon.isOpen ? 'Open now' : 'Closed'}</span>
-              </div>
-
-              <AnimatedSalonName name={salon.name} className="mt-1 text-[22px] font-bold leading-tight tracking-[-0.03em] text-[var(--noq-ink)] [overflow-wrap:anywhere]" />
-
-              <p className="mt-0.5 text-xs font-medium text-[var(--category-accent,var(--noq-accent))]">
-                Fitness & Strength Center · {salon.distanceKm} km away
-              </p>
-
-              <div className="mt-1">
-                <RatingSummaryBadge businessId={salon.id} tone="light" />
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            id="gym-address-row"
-            onClick={() => setAddressSheetOpen(true)}
-            aria-label="View gym address and contact"
-            className="mt-3 flex w-full items-start gap-1.5 text-left text-[11px] leading-4 text-[var(--noq-muted)] underline decoration-white/25 underline-offset-2 transition active:text-[var(--noq-ink)]"
-          >
-            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{salon.address}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Premium action tiles — same interaction pattern as the salon detail page. */}
-      <div className="px-5 pt-4">
-        <div className="grid grid-cols-4 gap-2.5">
-          {(salon.quickActions && salon.quickActions.length ? salon.quickActions : defaultQuickActions())
-            .filter((action) => action.visible)
-            .map((action) => {
-              // Every action's real behavior is fixed by its trusted `type`
-              // — an owner can restyle/relabel/hide/reorder a slot, never
-              // repoint Directions/Been-here at an arbitrary URL.
-              const Icon = gymProfileIcon(action.iconKey);
-              if (action.type === 'schedule') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setOpenHoursSheetOpen(true)} tone="gymGlass" />;
-              }
-              if (action.type === 'directions') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} onClick={() => setDirectionsSheetOpen(true)} tone="gymGlass" />;
-              }
-              if (action.type === 'branches') {
-                return <QuickAction key={action.id} icon={<Icon />} label={action.label} secondary={branches.length ? `${branches.length} nearby` : undefined} onClick={() => setBranchesSheetOpen(true)} tone="gymGlass" />;
-              }
-              // been_here — a valid membership is trusted system state that
-              // always outranks the owner's cosmetic label/icon for this slot.
-              if (membership && membership.displayStatus !== 'expired') {
-                return (
-                  <QuickAction
-                    key={action.id}
-                    icon={<Crown />}
-                    goldIcon
-                    label="Member"
-                    active
-                    secondary={`${membership.daysRemaining} DAYS LEFT`}
-                    onClick={() => setBeenHereSheetOpen(true)}
-                    surfaceGradient={GYM_QUICK_ACTION_MEMBER_GRADIENT}
-                  />
-                );
-              }
-              return <QuickAction key={action.id} icon={<Icon />} label={visited ? 'Visited' : action.label} active={visited} onClick={() => setBeenHereSheetOpen(true)} tone="gymGlass" />;
-            })}
-        </div>
-      </div>
+      <BusinessDetailHero
+        businessId={salon.id}
+        businessType="gym"
+        name={salon.name}
+        category="Gym"
+        subcategory="Fitness & Strength Center"
+        address={salon.address}
+        distanceKm={salon.distanceKm}
+        isOpen={salon.isOpen}
+        saved={saved}
+        onBack={onBack}
+        onToggleSaved={() => setSaved((value) => !value)}
+        onShare={shareGym}
+        onAddress={() => setAddressSheetOpen(true)}
+        cover={<GymHeroGallery gallery={salon.gallery} coverImageUrl={salon.coverImageUrl} name={salon.name} />}
+        logo={salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-9 w-9" />}
+        rating={<RatingSummaryBadge businessId={salon.id} tone="light" />}
+        actions={[
+          { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
+          { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
+          { id: 'share', label: 'Share', icon: <Share2 />, onClick: shareGym },
+          { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
+          {
+            id: 'primary',
+            label: accessBarCopy.action,
+            icon: bottomCtaState === 'scan' ? <QrCode /> : <Dumbbell />,
+            onClick: handleBottomCta,
+            disabled: bottomCtaState === 'queued' || bottomCtaState === 'awaiting_payment' || bottomCtaState === 'loading_access' || bottomCtaState === 'unavailable' || scanBusy || (bottomCtaState === 'checked_in' && checkoutBusy),
+            primary: true,
+          },
+        ]}
+      />
 
       {/* Floating Gym Live Capsule when main card is scrolled out of view.
           Same safe-area-aware, flex-centered wrapper pattern as Salon's own
@@ -1333,14 +1232,6 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           ) : null
         }
       >
-        <div className="flex min-w-0 flex-col justify-center py-0.5 pl-1 pr-1">
-          <div className="text-[9px] font-bold uppercase tracking-[0.11em] text-[var(--noq-muted)] sm:text-[10px]">
-            {accessBarCopy.eyebrow}
-          </div>
-          <div id="gym-access-copy" className="mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] text-[var(--noq-ink)] sm:text-xs">
-            {accessBarCopy.main}
-          </div>
-        </div>
         <button
           id="gym-primary-cta"
           onClick={handleBottomCta}
@@ -1352,16 +1243,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className="relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-[var(--noq-accent)] px-3.5 text-[11px] font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs"
+          className="relative flex min-h-14 w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-[18px] bg-[var(--noq-accent)] px-5 text-sm font-extrabold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
           {bottomCtaState === 'scan' && <QrCode className="relative h-3.5 w-3.5" />}
-          <span className="relative">
-            {scanBusy
-              ? 'Checking in…'
-              : bottomCtaState === 'checked_in' && checkoutBusy
-              ? 'Checking out…'
-              : accessBarCopy.action}
+          <span className="relative flex min-w-0 flex-col items-center">
+            <span>
+              {scanBusy
+                ? 'Checking in…'
+                : bottomCtaState === 'checked_in' && checkoutBusy
+                ? 'Checking out…'
+                : accessBarCopy.action}
+            </span>
+            <span className="mt-0.5 max-w-[280px] truncate text-[10px] font-semibold text-white/75">{accessBarCopy.main}</span>
           </span>
         </button>
       </CategoryActionBar>
