@@ -112,23 +112,28 @@ body {
   box-shadow: var(--noq-shadow-inset), 0 1px 0 #fff;
 }
 
-.customer-search-rotating-placeholder {
-  animation: customer-search-placeholder-fade 260ms ease-out;
+.customer-search-rotating-token {
+  animation: customer-search-token-fade 320ms cubic-bezier(.32,.72,.33,1);
 }
 
-@keyframes customer-search-placeholder-fade {
-  from { opacity: 0; transform: translateY(2px); }
+@keyframes customer-search-token-fade {
+  from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .customer-search-rotating-placeholder { animation: none; }
+  .customer-search-rotating-token { animation: none; }
 }
 
 .customer-category-tile {
   border-color: rgba(255,255,255,.9);
   background: linear-gradient(145deg, #ffffff, #f1f4fc);
-  box-shadow: var(--noq-shadow-raised-sm), inset 0 1px 0 #fff;
+  /* Slightly stronger bottom-right depth + a soft top-left highlight —
+     still one subtle neumorphic surface, never a heavy/dirty-grey shadow. */
+  box-shadow:
+    -5px -5px 11px rgba(255,255,255,.95),
+    6px 7px 16px rgba(54,76,139,.14),
+    inset 0 1px 0 #fff;
 }
 
 .customer-category-tile:focus {
@@ -139,6 +144,10 @@ body {
   border-color: color-mix(in srgb, var(--home-accent) 52%, transparent);
   background: color-mix(in srgb, var(--home-accent) 6%, white);
   box-shadow: var(--noq-shadow-inset), 0 8px 18px -14px var(--home-accent);
+}
+
+.customer-category-count {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 1px 3px rgba(54,76,139,.10);
 }
 
 

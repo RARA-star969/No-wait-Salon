@@ -219,12 +219,21 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         <Search className="h-[18px] w-[18px] shrink-0 text-[var(--noq-accent-light)]" />
         <div className="relative min-w-0 flex-1">
           {!value && (
+            // Only the category token crossfades — "Search for" is a plain,
+            // non-keyed span so it never re-renders/animates alongside it.
             <span
-              key={placeholderIndex}
               aria-hidden="true"
-              className="customer-search-rotating-placeholder pointer-events-none absolute inset-y-0 left-0 flex items-center truncate text-[13px] font-medium text-[var(--noq-muted)]"
+              title={rotatingLabel}
+              className="pointer-events-none absolute inset-y-0 left-0 flex min-w-0 items-center truncate text-[13px] font-medium text-[var(--noq-muted)]"
             >
-              {rotatingLabel}
+              <span className="shrink-0">Search for &ldquo;</span>
+              <span
+                key={placeholderIndex}
+                className="customer-search-rotating-token inline-block min-w-0 max-w-[130px] truncate font-semibold text-[var(--noq-ink)]"
+              >
+                {rotatingNames[placeholderIndex % rotatingNames.length]}
+              </span>
+              <span className="shrink-0">&rdquo;</span>
             </span>
           )}
           <input
@@ -247,10 +256,13 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             <X className="h-3.5 w-3.5" />
           </button>
         )}
+        {/* A hairline divider — not a second surface — keeps Filter reading
+            as part of the one capsule instead of a joined-on rectangle. */}
+        <span aria-hidden="true" className="h-6 w-px shrink-0 rounded-full bg-[color-mix(in_srgb,var(--noq-ink)_10%,transparent)]" />
         <button
           type="button"
           onClick={onFilterClick}
-          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-white/40 text-[var(--noq-accent)] transition active:scale-95"
+          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--noq-accent)] transition active:scale-95 active:shadow-[inset_2px_2px_5px_rgba(54,76,139,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]"
           aria-label="Choose preferred Home categories"
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -414,8 +426,15 @@ export const CustomerCategoryGrid: React.FC<{
             <span className="min-w-0">
               <b className="block truncate text-[12.5px] font-extrabold" style={{ color: active ? accent : 'var(--noq-ink)' }}>{category.name}</b>
             </span>
+            {/* Muted, elegant compact count — never a notification-red
+                dot, and never anything but the real per-category tally
+                already computed above. */}
             <span
-              className="absolute right-2.5 top-2.5 text-[9.5px] font-bold tabular-nums text-[var(--noq-muted)]"
+              className="customer-category-count absolute right-2 top-2 grid h-[16px] min-w-[16px] place-items-center rounded-full px-1 text-[8.5px] font-black tabular-nums"
+              style={{
+                backgroundColor: active ? `color-mix(in srgb, ${accent} 16%, white)` : 'color-mix(in srgb, var(--noq-ink) 7%, white)',
+                color: active ? accent : 'var(--noq-muted)',
+              }}
               aria-label={`${category.businessCount ?? 0} businesses`}
             >
               {category.businessCount ?? 0}
@@ -430,7 +449,7 @@ export const CustomerCategoryGrid: React.FC<{
         className="customer-category-tile relative flex h-[74px] items-center gap-2.5 rounded-[20px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
       >
         <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-[var(--noq-muted)]" />
-        <span><b className="block text-[12.5px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>
+        <b className="block text-[12.5px] font-extrabold text-[var(--noq-ink)]">More</b>
       </button>
     </section>
   );

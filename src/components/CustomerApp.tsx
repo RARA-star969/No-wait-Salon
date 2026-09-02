@@ -751,6 +751,85 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const greeting = customerLocalGreeting(greetingNow, customerProfile?.name);
   const GreetingIcon = greeting.icon === 'moon' ? Moon : Sun;
 
+  // Shared per-business card presentation — one place that turns a
+  // NearbySalon + its owning category into the exact props PremiumBusinessCard
+  // needs, so the category listing and the Home search-result list (which can
+  // mix categories) never carry two competing copies of this logic.
+  const resolveBusinessCardProps = (salon: NearbySalon, categoryObj: CategoryItemConfig) => {
+    const catId = (salon.mainCategoryId || 'salon').toLowerCase();
+    const isGym = catId === 'gym';
+    // Category-agnostic: any business with a real active membership record
+    // lights up the crown, not just Gym.
+    const isMember = activeMemberBusinessIds.has(salon.id);
+    // MEMBER outranks Last viewed — an active member never also shows the
+    // last-viewed badge for that same business.
+    const isSelected = !isMember && lastViewedByCategory[catId] === salon.id;
+    const baseTheme = CATEGORY_THEME_MAP[categoryObj.themeKey || catId] || CATEGORY_THEME_MAP.salon;
+    const homeAccent = customerHomeAccent(categoryObj);
+    const theme = { ...baseTheme, primary: homeAccent, accent: homeAccent };
+
+    let liveLine1: string;
+    let liveLine2: string;
+    let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
+    let signalLabel: string;
+    let positionLabel: string | null = null;
+    let liveFloorMeter: { occupancy: number; maxCapacity: number; color: SignalColor } | undefined;
+
+    if (isGym) {
+      const currentOccupancy = salon.currentOccupancy ?? 0;
+      const maxCapacity = salon.maxCapacity ?? 0;
+      const crowd = resolveGymCrowdLevel(currentOccupancy, maxCapacity);
+      const signal = gymListingSignal(crowd.level);
+      liveLine1 = '';
+      liveLine2 = '';
+      liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
+      signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
+      signalLabel = signal.label.toUpperCase();
+    } else if (catId === 'salon') {
+      const waitingCustomers = salon.waitingCustomers;
+      const isNoWait = waitingCustomers === 0;
+      // Compact form — no "Live queue:"/"Est. wait:" prefixes, which read as
+      // verbose duplication once the signal chip already names the status.
+      liveLine1 = isNoWait ? 'No wait' : `${waitingCustomers} ahead`;
+      liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
+      const signal = resolveSalonQueueSignal(waitingCustomers);
+      signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
+      signalLabel = signal.label.toUpperCase();
+      positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
+    } else {
+      liveLine1 = salon.isOpen ? 'Open now' : 'Closed';
+      liveLine2 = salon.openingHours || 'Hours unavailable';
+      signalColor = catId === 'shop' ? 'yellow' : salon.isOpen ? 'green' : 'red';
+      signalLabel = catId === 'shop' ? 'FAST PICKUP' : salon.isOpen ? 'Open' : 'Closed';
+    }
+
+    return { theme, icon: getCategoryIcon(categoryObj.iconName), isSelected, isMember, liveLine1, liveLine2, signalColor, signalLabel, positionLabel, liveFloorMeter };
+  };
+
+  const openBusinessDetail = (salon: NearbySalon) => {
+    setSelectedSalon(salon);
+    markLastViewed(salon.mainCategoryId || 'salon', salon.id);
+    onQrContextChange(null);
+    setScreen('salon');
+  };
+
+  // Home's own discovery search — independent of the category-listing search,
+  // it looks across every category in `visibleSalons` (already the same
+  // authoritative name/address/service filter, never a second query) so
+  // typing a business name on Home never depends on which category tab is
+  // active. A single exact (case-insensitive) name match is treated as a
+  // high-confidence result and shown alone; otherwise every real substring
+  // match stays visible.
+  const homeSearchQuery = salonSearch.trim();
+  const homeSearchActive = homeSearchQuery.length > 0;
+  const homeExactMatch = homeSearchActive
+    ? visibleSalons.find((salon) => salon.name.trim().toLocaleLowerCase() === normalizedSearch)
+    : undefined;
+  const homeSearchResults = homeSearchActive ? (homeExactMatch ? [homeExactMatch] : visibleSalons) : [];
+  const homeSearchCategoryFor = (salon: NearbySalon) =>
+    homeBrowsableCategories.find((category) => category.id.toLowerCase() === (salon.mainCategoryId || 'salon').toLowerCase())
+    || DEFAULT_MAIN_CATEGORIES[0];
+
   const openCategoryListing = (categoryId: string) => {
     setActiveCategoryId(categoryId);
     setCategoryListingId(categoryId);
@@ -1270,7 +1349,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               <div
                 id="customer-home-header"
                 ref={setHomeHeaderNode}
-                className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+                className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden px-4 pb-4 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
                   homeHeaderCollapsed
                     ? 'pointer-events-none -translate-y-full opacity-0'
                     : 'translate-y-0 opacity-100'
@@ -1287,13 +1366,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   </button>
                 </div>
 
-                <div className="mt-3">
+                <div className="mt-3.5">
                   <SalonSearchBar
                     value={salonSearch}
-                    onChange={(value) => {
-                      setSalonSearch(value);
-                      if (value.trim() && !categoryListingId) setCategoryListingId(activeCategoryId);
-                    }}
+                    onChange={(value) => setSalonSearch(value)}
                     categories={categoriesWithLiveCounts}
                     activeCategoryName={activeCategoryObj.name}
                     isListening={isListening}
@@ -1347,29 +1423,81 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               glide (Task 1: "premium and controlled, not flashy") — barely a
               1% scale dip, no brightness/opacity change to draw the eye. */}
           <div
-            className={`relative space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_5.5rem)] pt-2.5 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
+            className={`relative space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_5.5rem)] pt-4 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
               isReturningToTop ? 'duration-500 scale-[0.994]' : 'duration-300 scale-100'
             }`}
           >
 
           {!categoryListingId ? (
             <section className="category-content-transition">
-              <div className="mb-3.5 px-0.5">
-                <div className="flex items-center gap-2 text-[var(--noq-ink)]">
-                  <h1 className="truncate text-[20.5px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
-                  <GreetingIcon className="h-5 w-5 shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
+              {!homeSearchActive && (
+                <>
+                  <div className="mb-4 px-0.5">
+                    <div className="flex items-center gap-2 text-[var(--noq-ink)]">
+                      <h1 className="truncate text-[22px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
+                      <GreetingIcon className="h-5 w-5 shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
+                    </div>
+                    <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
+                  </div>
+                  <div className="mb-1.5 flex justify-end px-0.5">
+                    <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
+                  </div>
+                  <CustomerCategoryGrid
+                    categories={homeCategoryOrder}
+                    selectedCategoryId={null}
+                    onSelect={openCategoryListing}
+                    onMore={() => setIsMoreCategoriesOpen(true)}
+                  />
+                </>
+              )}
+
+              {homeSearchActive && (
+                <div id="home-search-results" className="space-y-2.5">
+                  {homeSearchResults.length === 0 ? (
+                    <div className="rounded-2xl border border-[var(--noq-glass-border)] bg-white/75 px-5 py-8 text-center space-y-2">
+                      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.06]" style={{ color: 'var(--noq-accent)' }}>
+                        <Search className="h-6 w-6" />
+                      </div>
+                      <h3 className="text-sm font-bold text-[var(--noq-ink)]">No matching businesses found</h3>
+                      <p className="text-xs leading-5 text-[var(--noq-muted)] max-w-xs mx-auto">
+                        No results found for &ldquo;{homeSearchQuery}&rdquo;. Try another name.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSalonSearch('')}
+                        className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--noq-tint-10)] px-4 py-2 text-xs font-bold hover:bg-[var(--noq-tint-20)] transition"
+                        style={{ color: 'var(--noq-accent)' }}
+                      >
+                        Clear search
+                      </button>
+                    </div>
+                  ) : (
+                    homeSearchResults.map((salon) => {
+                      const categoryObj = homeSearchCategoryFor(salon);
+                      const cardProps = resolveBusinessCardProps(salon, categoryObj);
+                      return (
+                        <div key={salon.id} id={`home-search-item-${salon.id}`}>
+                          <PremiumBusinessCard
+                            salon={salon}
+                            theme={cardProps.theme}
+                            icon={cardProps.icon}
+                            isSelected={cardProps.isSelected}
+                            isMember={cardProps.isMember}
+                            localityLabel={deriveLocalityLabel(salon)}
+                            liveFloorMeter={cardProps.liveFloorMeter}
+                            liveLine1={cardProps.liveLine1}
+                            liveLine2={cardProps.liveLine2}
+                            signalColor={cardProps.signalColor}
+                            signalLabel={cardProps.signalLabel}
+                            positionLabel={cardProps.positionLabel}
+                            onClick={() => openBusinessDetail(salon)}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
-                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
-              </div>
-              <div className="mb-2 flex justify-end px-0.5">
-                <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
-              </div>
-              <CustomerCategoryGrid
-                categories={homeCategoryOrder}
-                selectedCategoryId={null}
-                onSelect={openCategoryListing}
-                onMore={() => setIsMoreCategoriesOpen(true)}
-              />
+              )}
             </section>
           ) : (
             <div id="category-listing-header" className="category-content-transition -mt-2.5 pt-[max(.8rem,env(safe-area-inset-top))]">
@@ -1512,75 +1640,23 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
 
               {categoryFilteredSalons.map((salon) => {
-                const catId = (salon.mainCategoryId || 'salon').toLowerCase();
-                const isGym = catId === 'gym';
-                // Category-agnostic: any business with a real active
-                // membership record lights up the crown, not just Gym.
-                const isMember = activeMemberBusinessIds.has(salon.id);
-                // MEMBER outranks Last viewed — an active member never also
-                // shows the last-viewed badge for that same business.
-                const isSelected = !isMember && lastViewedByCategory[activeCategoryId.toLowerCase()] === salon.id;
-                const baseTheme = CATEGORY_THEME_MAP[activeCategoryObj.themeKey || activeCategoryId] || CATEGORY_THEME_MAP.salon;
-                const homeAccent = customerHomeAccent(activeCategoryObj);
-                const theme = { ...baseTheme, primary: homeAccent, accent: homeAccent };
-
-                let liveLine1: string;
-                let liveLine2: string;
-                let signalColor: ReturnType<typeof resolveSalonQueueSignal>['color'];
-                let signalLabel: string;
-                let positionLabel: string | null = null;
-                let liveFloorMeter: { occupancy: number; maxCapacity: number; color: SignalColor } | undefined;
-
-                if (isGym) {
-                  const currentOccupancy = salon.currentOccupancy ?? 0;
-                  const maxCapacity = salon.maxCapacity ?? 0;
-                  const crowd = resolveGymCrowdLevel(currentOccupancy, maxCapacity);
-                  const signal = gymListingSignal(crowd.level);
-                  liveLine1 = '';
-                  liveLine2 = '';
-                  liveFloorMeter = { occupancy: currentOccupancy, maxCapacity, color: signal.color };
-                  signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
-                  signalLabel = signal.label.toUpperCase();
-                } else if (catId === 'salon') {
-                  const waitingCustomers = salon.waitingCustomers;
-                  const isNoWait = waitingCustomers === 0;
-                  // Compact form — no "Live queue:"/"Est. wait:" prefixes,
-                  // which read as verbose duplication once the signal chip
-                  // already names the status.
-                  liveLine1 = isNoWait ? 'No wait' : `${waitingCustomers} ahead`;
-                  liveLine2 = isNoWait ? 'Ready now' : `~${salon.liveWaitMinutes} min wait`;
-                  const signal = resolveSalonQueueSignal(waitingCustomers);
-                  signalColor = signal.color === 'green' ? 'green' : signal.color === 'yellow' ? 'yellow' : 'red';
-                  signalLabel = signal.label.toUpperCase();
-                  positionLabel = salonListingPositionLabel(waitingCustomers, salon.readyChairs ?? 0);
-                } else {
-                  liveLine1 = salon.isOpen ? 'Open now' : 'Closed';
-                  liveLine2 = salon.openingHours || 'Hours unavailable';
-                  signalColor = catId === 'shop' ? 'yellow' : salon.isOpen ? 'green' : 'red';
-                  signalLabel = catId === 'shop' ? 'FAST PICKUP' : salon.isOpen ? 'Open' : 'Closed';
-                }
-
+                const cardProps = resolveBusinessCardProps(salon, activeCategoryObj);
                 return (
                   <div key={salon.id} id={`salon-item-${salon.id}`}>
                     <PremiumBusinessCard
                       salon={salon}
-                      theme={theme}
-                      icon={getCategoryIcon(activeCategoryObj.iconName)}
-                      isSelected={isSelected}
-                      isMember={isMember}
+                      theme={cardProps.theme}
+                      icon={cardProps.icon}
+                      isSelected={cardProps.isSelected}
+                      isMember={cardProps.isMember}
                       localityLabel={deriveLocalityLabel(salon)}
-                      liveFloorMeter={liveFloorMeter}
-                      liveLine1={liveLine1}
-                      liveLine2={liveLine2}
-                      signalColor={signalColor}
-                      signalLabel={signalLabel}
-                      positionLabel={positionLabel}
-                      onClick={() => {
-                        setSelectedSalon(salon);
-                        markLastViewed(activeCategoryId, salon.id);
-                        onQrContextChange(null);
-                        setScreen('salon');
-                      }}
+                      liveFloorMeter={cardProps.liveFloorMeter}
+                      liveLine1={cardProps.liveLine1}
+                      liveLine2={cardProps.liveLine2}
+                      signalColor={cardProps.signalColor}
+                      signalLabel={cardProps.signalLabel}
+                      positionLabel={cardProps.positionLabel}
+                      onClick={() => openBusinessDetail(salon)}
                     />
                   </div>
                 );
