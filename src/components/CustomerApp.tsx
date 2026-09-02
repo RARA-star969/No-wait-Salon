@@ -43,6 +43,8 @@ import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerHomeCarousel } from './CustomerHomeCarousel';
+import { HomeContentSections } from './HomeContentSections';
+import { resolveAIQueueInsight } from '../shared/aiQueueInsight';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -1451,6 +1453,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   />
                   <div className="mt-3.5">
                     <CustomerHomeCarousel />
+                  </div>
+                  {/* Why NOQ / AI Queue Insight / About NOQ — static content
+                      below the admin-driven carousel. No live queue-analytics
+                      pipeline exists yet, so the insight resolver is given no
+                      real input and honestly renders its "coming soon"
+                      preview state instead of fabricated best-time data. */}
+                  <div className="mt-3.5">
+                    <HomeContentSections insight={resolveAIQueueInsight(null)} />
                   </div>
                 </>
               )}
