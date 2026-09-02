@@ -369,8 +369,21 @@ db.exec(`
     FOREIGN KEY(business_id) REFERENCES salon(id)
   );
   CREATE INDEX IF NOT EXISTS business_review_business_idx ON business_review(business_id, created_at DESC);
-  CREATE UNIQUE INDEX IF NOT EXISTS business_review_customer_business_unique_idx
-    ON business_review(business_id, customer_id) WHERE customer_id IS NOT NULL;
+  DROP INDEX IF EXISTS business_review_customer_business_unique_idx;
+  WITH ranked_reviews AS (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY business_id, customer_id
+      ORDER BY updated_at DESC, created_at DESC, id DESC
+    ) AS canonical_rank
+    FROM business_review
+    WHERE customer_id IS NOT NULL AND status != 'deleted'
+  )
+  UPDATE business_review
+  SET status = 'deleted'
+  WHERE id IN (SELECT id FROM ranked_reviews WHERE canonical_rank > 1);
+  CREATE UNIQUE INDEX business_review_customer_business_unique_idx
+    ON business_review(business_id, customer_id)
+    WHERE customer_id IS NOT NULL AND status != 'deleted';
 `);
 
 // Additive columns on existing tables
@@ -2925,7 +2938,7 @@ app.get('/api/business/:businessId/reviews', (request, response) => {
   const overallRating = totalReviews ? Math.round((rows.reduce((sum, row) => sum + Number(row.rating), 0) / totalReviews) * 10) / 10 : 0;
   const myReviewRow = customerId
     ? rows.find((r) => String(r.customer_id) === String(customerId)) ||
-      (db.prepare('SELECT * FROM business_review WHERE business_id = ? AND customer_id = ?').get(request.params.businessId, customerId) as Record<string, unknown> | undefined)
+      (db.prepare("SELECT * FROM business_review WHERE business_id = ? AND customer_id = ? AND status != 'deleted' ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1").get(request.params.businessId, customerId) as Record<string, unknown> | undefined)
     : undefined;
   response.json({
     reviews: rows.map(reviewRowToView),
@@ -2943,7 +2956,7 @@ app.post('/api/business/:businessId/reviews', requireCustomer, (request: Authent
   if (!Number.isFinite(ratingInput) || ratingInput < 1 || ratingInput > 5) {
     return response.status(400).json({ error: 'A rating from 1 to 5 is required.' });
   }
-  const existing = db.prepare('SELECT * FROM business_review WHERE business_id = ? AND customer_id = ?').get(businessId, request.customerId) as Record<string, unknown> | undefined;
+  const existing = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND customer_id = ? AND status != 'deleted' ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1").get(businessId, request.customerId) as Record<string, unknown> | undefined;
   if (existing) {
     return response.status(409).json({ error: 'You have already reviewed this business.', review: reviewRowToView(existing) });
   }
@@ -2960,7 +2973,7 @@ app.post('/api/business/:businessId/reviews', requireCustomer, (request: Authent
       VALUES (?, ?, ?, ?, ?, ?, ?, 'visit', ?, 'visible', ?, ?)
     `).run(id, businessId, request.customerId, profile?.name || 'NOQ Customer', rating, reviewText, JSON.stringify(feedbackTags), verified ? 1 : 0, now, now);
   } catch (error) {
-    const racedReview = db.prepare('SELECT * FROM business_review WHERE business_id = ? AND customer_id = ?').get(businessId, request.customerId) as Record<string, unknown> | undefined;
+    const racedReview = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND customer_id = ? AND status != 'deleted' ORDER BY updated_at DESC, created_at DESC, id DESC LIMIT 1").get(businessId, request.customerId) as Record<string, unknown> | undefined;
     if (racedReview) {
       return response.status(409).json({ error: 'You have already reviewed this business.', review: reviewRowToView(racedReview) });
     }

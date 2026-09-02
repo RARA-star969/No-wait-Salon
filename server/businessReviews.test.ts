@@ -13,6 +13,7 @@ let base = '';
 let dataDir = '';
 let salonId = '';
 let secondSalonId = '';
+let thirdSalonId = '';
 let customerToken = '';
 let customerId = '';
 
@@ -47,6 +48,8 @@ before(async () => {
   salonId = created.data.salon.id;
   const secondCreated = await api('POST', '/api/admin/salons', { name: 'Second Reviews Test', main_category_id: 'salon', business_code: 'RVSALON02', status: 'active', latitude: 0, longitude: 0 }, adminToken);
   secondSalonId = secondCreated.data.salon.id;
+  const thirdCreated = await api('POST', '/api/admin/salons', { name: 'Deleted Reviews Test', main_category_id: 'salon', business_code: 'RVSALON03', status: 'active', latitude: 0, longitude: 0 }, adminToken);
+  thirdSalonId = thirdCreated.data.salon.id;
 
   const otpReq = await api('POST', '/api/otp/request', { phone: '9199988877' });
   const otpVerify = await api('POST', '/api/otp/verify', { challengeId: otpReq.data.challengeId, code: otpReq.data.demoCode });
@@ -88,6 +91,29 @@ test('Salon reviews — business-agnostic reviews endpoint', async (t) => {
     const res = await api('POST', `/api/business/${secondSalonId}/reviews`, { rating: 5, reviewText: 'Different business.' }, customerToken);
     assert.equal(res.status, 201);
     assert.equal(res.data.review.businessId, secondSalonId);
+  });
+
+  await t.test('a deleted-only historical review is not myReview and does not block a replacement', async () => {
+    const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO business_review
+        (id, business_id, customer_id, reviewer_name, rating, review_text, status, created_at, updated_at)
+      VALUES (?, ?, ?, 'Ritik', 2, 'Deleted historical review', 'deleted', ?, ?)
+    `).run(`review_deleted_${now}`, thirdSalonId, customerId, now - 100, now - 100);
+    db.close();
+
+    const beforePost = await api('GET', `/api/business/${thirdSalonId}/reviews`, undefined, customerToken);
+    assert.equal(beforePost.status, 200);
+    assert.equal(beforePost.data.myReview, null);
+    assert.equal(beforePost.data.reviews.length, 0);
+
+    const posted = await api('POST', `/api/business/${thirdSalonId}/reviews`, { rating: 5, reviewText: 'Replacement review.' }, customerToken);
+    assert.equal(posted.status, 201);
+
+    const afterPost = await api('GET', `/api/business/${thirdSalonId}/reviews`, undefined, customerToken);
+    assert.equal(afterPost.data.myReview.reviewText, 'Replacement review.');
+    assert.equal(afterPost.data.reviews.length, 1);
   });
 
   await t.test('the authenticated response returns the persisted own review and owner reply', async () => {

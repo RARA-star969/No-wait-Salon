@@ -1,5 +1,25 @@
 import type {Database} from './database.ts';
 
+export const REVIEW_CUSTOMER_BUSINESS_UNIQUENESS_MIGRATION_SQL = `
+  DROP INDEX IF EXISTS business_review_customer_business_unique_idx;
+
+  WITH ranked_reviews AS (
+    SELECT id, ROW_NUMBER() OVER (
+      PARTITION BY business_id, customer_id
+      ORDER BY updated_at DESC, created_at DESC, id DESC
+    ) AS canonical_rank
+    FROM business_review
+    WHERE customer_id IS NOT NULL AND status != 'deleted'
+  )
+  UPDATE business_review
+  SET status = 'deleted'
+  WHERE id IN (SELECT id FROM ranked_reviews WHERE canonical_rank > 1);
+
+  CREATE UNIQUE INDEX business_review_customer_business_unique_idx
+    ON business_review(business_id, customer_id)
+    WHERE customer_id IS NOT NULL AND status != 'deleted';
+`;
+
 const migrations=[{
   version:1,
   name:'initial_platform_schema',
@@ -305,10 +325,7 @@ const migrations=[{
 }, {
   version: 17,
   name: 'one_customer_review_per_business',
-  sql: `
-    CREATE UNIQUE INDEX IF NOT EXISTS business_review_customer_business_unique_idx
-      ON business_review(business_id,customer_id) WHERE customer_id IS NOT NULL;
-  `
+  sql: REVIEW_CUSTOMER_BUSINESS_UNIQUENESS_MIGRATION_SQL
 }];
 
 export async function runMigrations(db:Database){
