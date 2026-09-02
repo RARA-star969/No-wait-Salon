@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Radio, Users } from 'lucide-react';
 import { useMetricFlash } from '../shared/useMetricFlash';
 import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
-import { NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT, NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
 import { TimeValue } from './TimeValue';
+import { formatChairCount } from '../shared/chairGrammar';
 
 /**
- * The hero USP: a premium teal/emerald live-queue card shared by the
- * customer app's salon page and the public QR web page, so both surfaces
- * present the exact same "strongest visual signal" for the live queue.
+ * The hero USP: a real-time queue card shared by the customer app's salon
+ * page and the public QR web page. The Salon Detail variant uses the lighter
+ * NOQ customer surface; the public/default variant keeps its stronger live
+ * signal treatment.
  *
  * Pure CSS keyframes drive the pulse/waveform motion — no per-frame JS —
  * so this stays cheap on low-end mobile browsers.
@@ -75,13 +76,13 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.Reac
 const SalonStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
   <div className="min-w-0 text-center">
     <p
-      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
+      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-[#0D1676] transition-transform duration-300 ${
         dense ? 'text-[15px]' : 'text-[22px]'
-      } ${flashing ? 'scale-[1.12] text-[var(--noq-accent-light)]' : ''}`}
+      } ${flashing ? 'scale-[1.08] text-[var(--noq-accent)]' : ''}`}
     >
       {value}
     </p>
-    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/55">{label || ' '}</p>
+    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--noq-muted)]">{label || ' '}</p>
   </div>
 );
 
@@ -114,42 +115,20 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
     return (
       <section
         id="live-queue-hero-card"
-        className={`relative overflow-hidden rounded-[22px] px-4 py-2.5 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.10),inset_0_1px_0_rgba(255,255,255,0.28),inset_0_0_20px_rgba(94,224,180,0.06),0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
-        style={{ background: NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT }}
+        className={`relative overflow-hidden rounded-[22px] border border-[var(--noq-glass-border)] bg-white/90 px-4 py-3 text-[var(--noq-ink)] shadow-[inset_0_1px_0_white,0_14px_30px_-24px_rgba(52,84,253,.45)] backdrop-blur-xl ${className}`}
       >
         {/* Luminous edge — softened, not neon: low-alpha masked gradient rim. */}
         <div
           className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
           style={{
-            background: NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL,
+            background: 'linear-gradient(120deg, rgba(255,255,255,.95), rgba(52,84,253,.22), rgba(255,255,255,.5))',
             WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
             WebkitMaskComposite: 'xor',
             maskComposite: 'exclude',
           }}
           aria-hidden="true"
         />
-        <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[var(--noq-accent-light)]/16 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute -left-14 bottom-0 h-28 w-28 rounded-full bg-[var(--noq-accent)]/14 blur-3xl" aria-hidden="true" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[46%] bg-gradient-to-b from-white/[0.09] to-transparent" aria-hidden="true" />
-        {/* Periodic bulb-glow sweep: a broad, blurred light crossing the
-            surface every few seconds — reads as light catching a lens. */}
-        <div className="light-sweep pointer-events-none absolute -inset-x-[60%] -inset-y-[40%]" aria-hidden="true" />
-        {/* Faint scrolling line-graph — full-card-only. */}
-        <svg
-          className="queue-waveform-line pointer-events-none absolute inset-x-0 bottom-0 h-9 w-[200%] text-white/[0.08]"
-          viewBox="0 0 800 60"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0 40 L40 30 L80 44 L120 22 L160 36 L200 16 L240 32 L280 24 L320 42 L360 20 L400 40 L440 30 L480 44 L520 22 L560 36 L600 16 L640 32 L680 24 L720 42 L760 20 L800 40"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <div className="pointer-events-none absolute -right-12 -top-16 h-32 w-32 rounded-full bg-[var(--noq-accent)]/[0.07] blur-3xl" aria-hidden="true" />
 
         <div className="relative flex items-center justify-between gap-2">
           <span className={`inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'live-chip-pulse' : ''}`}>
@@ -159,8 +138,8 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
             </span>
             Live
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/55">
-            {totalChairs} {totalChairs === 1 ? 'chair' : 'chairs'} today
+          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--noq-muted)]">
+            {formatChairCount(totalChairs)} TODAY
           </span>
         </div>
 
@@ -172,7 +151,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
             flashing={positionFlash}
             dense={position.state !== 'waiting'}
           />
-          <SalonStat label="Chairs" value={readyChairs} flashing={salonChairsFlash} />
+          <SalonStat label="Ready" value={readyChairs} flashing={salonChairsFlash} />
         </div>
       </section>
     );

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
@@ -173,6 +173,8 @@ type SearchProps = {
   isListening?: boolean;
   onVoiceSearch?: () => void;
   voiceFeedback?: string | null;
+  onFilterClick?: () => void;
+  preferredCategoryCount?: number;
 };
 
 export const SalonSearchBar: React.FC<SearchProps> = ({
@@ -183,15 +185,17 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   isListening = false,
   onVoiceSearch,
   voiceFeedback,
+  onFilterClick,
+  preferredCategoryCount = 0,
 }) => {
   void categories;
   void activeCategoryName;
-  const placeholderText = 'Search salons, gyms, shops...';
+  const placeholderText = 'Search businesses...';
 
   return (
     <div className="relative w-full space-y-2">
       <div
-        className={`customer-search-glass flex h-[52px] w-full items-center gap-3 rounded-[17px] border px-4 backdrop-blur-xl transition-all duration-200 ${
+        className={`customer-search-glass flex h-[48px] w-full items-center gap-2.5 rounded-[16px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
           isListening
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
@@ -208,7 +212,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
           enterKeyHint="search"
           aria-label="Search businesses"
           placeholder={placeholderText}
-          className="h-[52px] min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
+          className="h-[48px] min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
         />
         {value && (
           <button
@@ -220,6 +224,19 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
             <X className="h-3.5 w-3.5" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={onFilterClick}
+          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--noq-glass-border)] bg-white/75 text-[var(--noq-accent)] transition active:scale-95"
+          aria-label="Choose preferred Home categories"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          {preferredCategoryCount > 0 && (
+            <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--noq-accent)] px-1 text-[8px] font-bold text-white">
+              {preferredCategoryCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {voiceFeedback && (
@@ -348,22 +365,17 @@ export function getCategoryIcon(iconName: string): React.FC<{ className?: string
 
 export const CustomerCategoryGrid: React.FC<{
   categories: CategoryItemConfig[];
-  selectedCategoryId: string;
+  selectedCategoryId?: string | null;
   onSelect: (categoryId: string) => void;
   onMore: () => void;
 }> = ({ categories, selectedCategoryId, onSelect, onMore }) => {
-  const preferred = ['salon', 'gym', 'shop', 'clinic', 'spa'];
-  const ordered = [
-    ...preferred.map((id) => categories.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
-    ...categories.filter((category) => !preferred.includes(category.id.toLowerCase())),
-  ] as CategoryItemConfig[];
-  const visible = ordered.slice(0, 5);
+  const visible = categories.slice(0, 5);
   const hasMore = categories.some((category) => !visible.some((item) => item.id === category.id));
 
   return (
-    <section aria-label="Business categories" className="grid grid-cols-3 gap-2.5">
+    <section aria-label="Business categories" className="grid grid-cols-2 gap-2.5 min-[350px]:grid-cols-3">
       {visible.map((category) => {
-        const active = category.id.toLowerCase() === selectedCategoryId.toLowerCase();
+        const active = Boolean(selectedCategoryId) && category.id.toLowerCase() === selectedCategoryId?.toLowerCase();
         const Icon = getCategoryIcon(category.iconName);
         const accent = customerHomeAccent(category);
         return (
@@ -372,7 +384,7 @@ export const CustomerCategoryGrid: React.FC<{
             type="button"
             onClick={() => onSelect(category.id)}
             aria-pressed={active}
-            className={`customer-category-tile relative flex h-[66px] items-center gap-2.5 overflow-hidden rounded-[16px] border px-3 text-left transition-[transform,border-color,box-shadow,background] duration-200 active:translate-y-0.5 active:scale-[0.975] ${active ? 'is-selected -translate-y-px' : ''}`}
+            className={`customer-category-tile relative flex h-[60px] items-center gap-2.5 overflow-hidden rounded-[15px] border px-3 text-left transition-[transform,border-color,box-shadow,background] duration-200 active:translate-y-0.5 active:scale-[0.975] ${active ? 'is-selected -translate-y-px' : ''}`}
             style={{ '--home-accent': accent } as React.CSSProperties}
           >
             <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? accent : '#97A3B7' }} />
@@ -387,7 +399,7 @@ export const CustomerCategoryGrid: React.FC<{
         type="button"
         onClick={onMore}
         aria-label={hasMore ? 'Explore all categories' : 'View categories'}
-        className="customer-category-tile relative flex h-[66px] items-center gap-2.5 rounded-[16px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
+        className="customer-category-tile relative flex h-[60px] items-center gap-2.5 rounded-[15px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
       >
         <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-[var(--noq-muted)]" />
         <span><b className="block text-[11px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>

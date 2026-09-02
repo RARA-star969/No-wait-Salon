@@ -302,6 +302,13 @@ const migrations=[{
     );
     CREATE INDEX IF NOT EXISTS customer_push_device_customer_idx ON customer_push_device(customer_id, updated_at DESC);
   `
+}, {
+  version: 17,
+  name: 'one_customer_review_per_business',
+  sql: `
+    CREATE UNIQUE INDEX IF NOT EXISTS business_review_customer_business_unique_idx
+      ON business_review(business_id,customer_id) WHERE customer_id IS NOT NULL;
+  `
 }];
 
 export async function runMigrations(db:Database){

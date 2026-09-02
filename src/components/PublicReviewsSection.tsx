@@ -32,24 +32,28 @@ export const PublicReviewsSection: React.FC<{
   const [reviewText, setReviewText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const load = async () => {
     try {
+      setLoadError('');
       const data = await businessReviewService.list(businessId);
       setOverallRating(data.overallRating);
       setTotalReviews(data.totalReviews);
       setReviews(data.reviews);
-      if (data.myReview) {
-        setMyReview(data.myReview);
-      }
+      setMyReview(data.myReview ?? null);
     } catch {
-      // Keep showing the last known reviews; nothing to retry automatically.
+      setLoadError('Reviews could not be refreshed. You can retry without leaving this page.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { void load(); }, [businessId]);
+  useEffect(() => {
+    setLoading(true);
+    setMyReview(null);
+    void load();
+  }, [businessId, ready]);
 
   const submit = async () => {
     if (!ready) { onRequireReady(); return; }
@@ -113,6 +117,13 @@ export const PublicReviewsSection: React.FC<{
               </div>
             )}
           </div>
+
+          {loadError && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+              <span>{loadError}</span>
+              <button type="button" onClick={() => { setLoading(true); void load(); }} className="shrink-0 font-bold underline">Retry</button>
+            </div>
+          )}
 
           {/* If the current customer has submitted a review, display it prominently */}
           {myReview && (
@@ -183,13 +194,16 @@ export const PublicReviewsSection: React.FC<{
           {!myReview && (
             <div className={`mt-4 border-t pt-3 ${dark ? 'border-white/[0.06]' : 'border-[#EEF2F1]'}`}>
               <p className={`text-[11px] font-bold uppercase tracking-wide ${headingClass}`}>Write a review</p>
-              <div className="mt-2 flex items-center gap-1">
+              <div className="mt-2 flex items-center gap-1" role="radiogroup" aria-label="Review rating">
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star${n === 1 ? '' : 's'}`}>
+                  <button key={n} type="button" role="radio" aria-checked={rating === n} onClick={() => setRating(n)} aria-label={`${n} star${n === 1 ? '' : 's'}`} className="rounded-md p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--noq-accent)]">
                     <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/20' : 'text-[var(--noq-border)]'}`} />
                   </button>
                 ))}
               </div>
+              <p className={`mt-1 text-[11px] font-semibold ${rating ? textClass : mutedClass}`} aria-live="polite">
+                {rating ? `${rating} of 5 stars selected` : 'No rating selected'}
+              </p>
               <textarea
                 value={reviewText}
                 onChange={(e) => setReviewText(e.target.value)}
@@ -202,7 +216,7 @@ export const PublicReviewsSection: React.FC<{
                 type="button"
                 onClick={submit}
                 disabled={submitting}
-                className="mt-2 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white disabled:opacity-60"
+                className="mt-2 w-full rounded-xl bg-[var(--noq-accent)] py-2.5 text-xs font-bold text-white shadow-[0_10px_22px_-14px_var(--noq-glow)] disabled:opacity-60"
               >
                 {submitting ? 'Submitting…' : ready ? 'Submit review' : 'Verify to submit review'}
               </button>

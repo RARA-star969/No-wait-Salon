@@ -279,7 +279,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   // of 0 must render as 0, not silently fall back to a placeholder. There's
   // no default "42/80"-style number here; before the first successful poll
   // resolves, these simply reflect an empty/zero state matching `loading`.
-  const maxCap = overview?.maxCapacity ?? salon.maxCapacity ?? 80;
+  const maxCap = overview?.maxCapacity ?? salon.maxCapacity ?? 0;
   const currentOcc = overview?.currentOccupancy ?? salon.currentOccupancy ?? 0;
 
   const handleBookClass = async (gymClass: GymClass) => {
@@ -604,7 +604,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   const dockExpanded = bottomCtaState === 'selected' || bottomCtaState === 'checked_in' || bottomCtaState === 'awaiting_payment';
 
   return (
-    <div id="gym-detail-page" className="min-h-full bg-[var(--noq-base)] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)]">
+    <div id="gym-detail-page" className="min-h-full overflow-x-hidden bg-[var(--noq-base)] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)]">
       {/* Bottom padding matches the Salon page: enough clearance for the
           shared sticky dock at its tallest (expanded summary + action row)
           plus the device safe area, so the last section is never hidden
@@ -1078,7 +1078,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           businessId={salon.id}
           ready={readiness.kind === 'ready'}
           onRequireReady={() => requireReady('review', () => {})}
-          tone="dark"
+          tone="light"
         />
       </div>
 

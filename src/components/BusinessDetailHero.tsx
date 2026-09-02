@@ -96,7 +96,7 @@ const ActionTile: React.FC<{ action: BusinessHeroAction }> = ({ action }) => {
 
 const BusinessQuickActions: React.FC<{ actions: BusinessHeroAction[] }> = ({ actions }) => (
   <div className="relative px-4 pb-4">
-    <div className="grid grid-cols-4 gap-2.5 sm:gap-3">
+    <div className="grid gap-2.5 sm:gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(1, actions.length)}, minmax(0, 1fr))` }}>
       {actions.map((action) => (
         <ActionTile key={action.id} action={action} />
       ))}
@@ -145,7 +145,7 @@ export const BusinessDetailHero: React.FC<Props> = ({
     </div>
 
     {/* Smooth curved white shoulder edges overlapping cover image */}
-    <div className="relative z-10 -mt-6 rounded-t-[32px] bg-[var(--noq-base)] px-5 pb-3 pt-[52px] text-center shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.08)]">
+    <div className="business-detail-surface relative z-10 -mt-6 rounded-t-[32px] bg-[var(--noq-base)] px-5 pb-3 pt-[52px] text-center shadow-[0_-6px_22px_-12px_rgba(13,22,118,0.14)]">
       <div className="absolute -top-[46px] left-1/2 flex h-[92px] w-[92px] -translate-x-1/2 items-center justify-center overflow-hidden rounded-[26px] border-[4px] border-[var(--noq-base)] bg-white text-[var(--noq-accent)] shadow-[0_18px_38px_-18px_var(--noq-glow)]">
         {logo}
       </div>

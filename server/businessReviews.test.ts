@@ -12,6 +12,7 @@ let child: ChildProcess | null = null;
 let base = '';
 let dataDir = '';
 let salonId = '';
+let secondSalonId = '';
 let customerToken = '';
 let customerId = '';
 
@@ -44,6 +45,8 @@ before(async () => {
   const adminToken = loginRes.data.token;
   const created = await api('POST', '/api/admin/salons', { name: 'Sharpcut Reviews Test', main_category_id: 'salon', business_code: 'RVSALON01', status: 'active', latitude: 0, longitude: 0 }, adminToken);
   salonId = created.data.salon.id;
+  const secondCreated = await api('POST', '/api/admin/salons', { name: 'Second Reviews Test', main_category_id: 'salon', business_code: 'RVSALON02', status: 'active', latitude: 0, longitude: 0 }, adminToken);
+  secondSalonId = secondCreated.data.salon.id;
 
   const otpReq = await api('POST', '/api/otp/request', { phone: '9199988877' });
   const otpVerify = await api('POST', '/api/otp/verify', { challengeId: otpReq.data.challengeId, code: otpReq.data.demoCode });
@@ -67,6 +70,35 @@ test('Salon reviews — business-agnostic reviews endpoint', async (t) => {
     const res = await api('POST', `/api/business/${salonId}/reviews`, { rating: 5, reviewText: 'Second attempt.' }, customerToken);
     assert.equal(res.status, 409);
     assert.match(res.data.error, /already reviewed/i);
+  });
+
+  await t.test('database constraint also enforces one customer review per business', () => {
+    const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
+    const now = Date.now();
+    assert.throws(() => {
+      db.prepare(`
+        INSERT INTO business_review (id, business_id, customer_id, reviewer_name, rating, review_text, created_at, updated_at)
+        VALUES (?, ?, ?, 'Ritik', 5, 'Race duplicate', ?, ?)
+      `).run(`review_duplicate_${now}`, salonId, customerId, now, now);
+    }, /UNIQUE constraint failed/);
+    db.close();
+  });
+
+  await t.test('the same customer can review a different business', async () => {
+    const res = await api('POST', `/api/business/${secondSalonId}/reviews`, { rating: 5, reviewText: 'Different business.' }, customerToken);
+    assert.equal(res.status, 201);
+    assert.equal(res.data.review.businessId, secondSalonId);
+  });
+
+  await t.test('the authenticated response returns the persisted own review and owner reply', async () => {
+    const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
+    db.prepare('UPDATE business_review SET owner_reply_text = ?, owner_reply_at = ?, updated_at = ? WHERE business_id = ? AND customer_id = ?')
+      .run('Thank you for visiting.', Date.now(), Date.now(), salonId, customerId);
+    db.close();
+    const list = await api('GET', `/api/business/${salonId}/reviews`, undefined, customerToken);
+    assert.equal(list.status, 200);
+    assert.equal(list.data.myReview.reviewText, 'Nice haircut.');
+    assert.equal(list.data.myReview.ownerReplyText, 'Thank you for visiting.');
   });
 
   await t.test('a second customer with a real completed booking gets a genuinely provable verified badge', async () => {

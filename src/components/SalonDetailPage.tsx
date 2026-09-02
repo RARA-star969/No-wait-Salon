@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CornerUpRight, CreditCard, ExternalLink, Info, Lock, Navigation, Palette, Phone, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
+import { Brush, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CornerUpRight, CreditCard, ExternalLink, Info, Navigation, Palette, Phone, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { resolveAppReadiness } from '../shared/profileReadiness';
@@ -28,11 +28,10 @@ import { BusinessDetailHero } from './BusinessDetailHero';
  *   1. Zero services selected never disables/fades Join Queue.
  *   2. The bottom dock has no background slab — the two buttons float
  *      directly on the page (safe-area padding + shadow only).
- * The dock's Calendar button and mid-page "reserve ahead" card both call
- * the real onReserve flow (setScreen('slots') in CustomerApp), not APK45's
- * fake "Premium unlocks / coming soon" lock — that lock would be a
- * regression of already-working newer functionality. Tapping the dock
- * summary opens the same PriceBreakdownSheet used by the Join Queue sheet's
+ * The single mid-page "reserve ahead" card calls the real onReserve flow
+ * (setScreen('slots') in CustomerApp), not APK45's fake "Premium unlocks /
+ * coming soon" lock. Tapping the dock summary opens the same
+ * PriceBreakdownSheet used by the Join Queue sheet's
  * "View services" — one component, one applied-offer id, so the two can
  * never disagree.
  */
@@ -198,7 +197,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   };
 
   return (
-    <div id="customer-salon-screen" className="noq-customer-page relative min-h-full overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)] animate-in fade-in duration-200">
+    <div id="customer-salon-screen" className="noq-customer-page relative min-h-full overflow-x-hidden overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)] animate-in fade-in duration-200">
       {/* Signature floating capsule: a top-center notch/island, content-hugging
           rather than a full-width bar, that stays visible — including through
           the whole Join Queue flow — until the main live-queue card scrolls
@@ -237,7 +236,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           { id: 'directions', label: 'Directions', icon: <CornerUpRight />, onClick: () => setDirectionsSheetOpen(true) },
           { id: 'call', label: 'Call', icon: <Phone />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
           { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
-          { id: 'primary', label: userEntry ? 'View Queue' : 'Join Queue', icon: <Timer />, onClick: onJoin, primary: true, variant: 'standard' as const },
         ]}
       />
 
@@ -251,12 +249,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             readyChairs={availableBarbers}
             totalChairs={activeBarbers}
           />
-
-          {/* Warm ambient blob behind the glass CTA — same decorative-glow
-              pattern used in LiveQueueCard, so the backdrop-blur below has
-              real content to filter. Purely decorative. */}
-          <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[var(--noq-accent-light)]/35 blur-2xl" aria-hidden="true" />
-          <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[var(--category-primary-dark)]/30 blur-2xl" aria-hidden="true" />
 
           {/* Secondary future-booking CTA: translucent warm glass, deliberately
               quieter than the Live Queue hero above it — "later", not "now".
@@ -281,7 +273,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           </button>
         </section>
 
-        <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--noq-accent-deep)] to-[var(--noq-accent)] p-5 text-white shadow-[0_18px_34px_-22px_var(--noq-glow)]">
+        <section className="relative min-h-[128px] w-full overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--noq-accent-deep)] to-[var(--noq-accent)] p-5 text-white shadow-[0_18px_34px_-22px_var(--noq-glow)]">
           <div className="max-w-[72%]"><span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider"><Sparkles className="h-3 w-3" />At {salon.name}</span><h2 className="mt-3 text-lg font-bold leading-tight">Your next grooming visit, without the waiting room.</h2></div>
           <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
         </section>
@@ -374,7 +366,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           summary region now live in the shared <CategoryActionBar>, so Gym
           (and any future category) gets exactly the same dock without a
           second copy of this styling. Everything below — the services
-          summary, the Session chip, Join Queue and the reserve button — is
+          summary, the Session chip, and Join Queue action — is
           Salon's own content and is unchanged. */}
       <CategoryActionBar
         expanded={totals.count > 0}
@@ -435,18 +427,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
           <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
-        </button>
-        <button
-          id="reserve-slot-btn"
-          type="button"
-          onClick={onReserve}
-          aria-label="Reserve a future queue window"
-          className="relative flex min-h-14 w-14 shrink-0 items-center justify-center rounded-[18px] border border-[var(--noq-glass-border)] bg-white/80 shadow-[inset_0_1px_0_white,0_8px_18px_-12px_var(--noq-glow)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
-        >
-          <CalendarDays className="relative h-4.5 w-4.5 text-[var(--noq-accent)]" />
-          <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[var(--noq-accent)] text-white shadow-sm">
-            <Lock className="h-2 w-2" />
-          </span>
         </button>
       </CategoryActionBar>
 

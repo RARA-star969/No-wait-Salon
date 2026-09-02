@@ -22,6 +22,9 @@ import {
   AlertTriangle,
   ArrowUp,
   X,
+  Sun,
+  Moon,
+  Pin,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -38,7 +41,7 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { PromotionalBanner, SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -81,6 +84,9 @@ import { useNotificationInbox } from './useNotificationInbox';
 import { resolveBackAction, type CustomerOverlayState } from '../shared/customerBackResolver';
 import type { CustomerNotification, NotificationFilter, NotificationRoute } from '../shared/customerNotifications';
 import type { BookingRoute, CustomerBookingView } from '../shared/customerBookingViews';
+import { customerLocalGreeting } from '../shared/customerHomePersonalization';
+import { homeCategoryPreference, normalizeHomeCategoryPreference } from '../services/homeCategoryPreferenceService';
+import officialNoqLogo from '../assets/brand/noq-official.png';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
@@ -244,6 +250,21 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [mainCategories, setMainCategories] = useState<CategoryItemConfig[]>(DEFAULT_MAIN_CATEGORIES);
   const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
+  const [categoryListingId, setCategoryListingId] = useState<string | null>(null);
+  const [isCategoryPreferencesOpen, setIsCategoryPreferencesOpen] = useState(false);
+  const [preferredCategoryIds, setPreferredCategoryIds] = useState<string[]>(() =>
+    homeCategoryPreference.read([
+      ...DEFAULT_MAIN_CATEGORIES.map((category) => category.id),
+      ...APPROVED_EMPTY_HOME_CATEGORIES.map((category) => category.id),
+    ]),
+  );
+  const [greetingNow, setGreetingNow] = useState(() => new Date());
+  useEffect(() => {
+    if (currentScreen !== 'home') return;
+    setGreetingNow(new Date());
+    const timer = setInterval(() => setGreetingNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, [currentScreen]);
   // UI-only "last viewed" memory per category — no card starts selected;
   // one becomes marked only once the customer actually opens it. Never a
   // source of truth for booking/queue/payment state.
@@ -349,6 +370,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           .map((result: any) => result[0].transcript)
           .join('');
         setSalonSearch(transcript);
+        setCategoryListingId(activeCategoryId);
         setVoiceFeedback(`Heard: "${transcript}"`);
       };
 
@@ -374,7 +396,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       setVoiceFeedback('Unable to start speech recognition. Please type your search.');
       setTimeout(() => setVoiceFeedback(null), 4000);
     }
-  }, [isListening]);
+  }, [activeCategoryId, isListening]);
 
   useEffect(() => {
     fetch(`${(import.meta.env.VITE_API_BASE_URL||'').replace(/\/$/,'')}/api/main-categories`)
@@ -705,31 +727,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ...cat,
     businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
-  const homeCategoryPreference = ['salon', 'gym', 'shop', 'clinic', 'spa'];
+  const authoritativeCategoryIds = categoriesWithLiveCounts.map((category) => category.id);
+  const resolvedPreferenceIds = normalizeHomeCategoryPreference(preferredCategoryIds, authoritativeCategoryIds);
   const homeCategoryOrder = [
-    ...homeCategoryPreference.map((id) => categoriesWithLiveCounts.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
-    ...categoriesWithLiveCounts.filter((category) => !homeCategoryPreference.includes(category.id.toLowerCase())),
+    ...resolvedPreferenceIds.map((id) => categoriesWithLiveCounts.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
+    ...categoriesWithLiveCounts.filter((category) => !resolvedPreferenceIds.includes(category.id.toLowerCase())),
   ] as CategoryItemConfig[];
   const homeGridCategories = homeCategoryOrder.slice(0, 5);
-  const moreCategories = mainCategories
-    .map((category) => categoriesWithLiveCounts.find((counted) => counted.id === category.id) || category)
-    .filter((category) => !homeGridCategories.some((visible) => visible.id === category.id));
-  const featuredBusiness = categoryFilteredSalons[0] || null;
-  const featuredOperationalLabel = (() => {
-    if (!featuredBusiness) return null;
-    const categoryId = (featuredBusiness.mainCategoryId || 'salon').toLowerCase();
-    if (categoryId === 'gym') {
-      return featuredBusiness.maxCapacity && featuredBusiness.maxCapacity > 0
-        ? `${featuredBusiness.currentOccupancy ?? 0} / ${featuredBusiness.maxCapacity} inside`
-        : null;
-    }
-    if (categoryId === 'salon') {
-      return featuredBusiness.waitingCustomers === 0
-        ? 'Ready now'
-        : `${featuredBusiness.waitingCustomers} ahead · ~${featuredBusiness.liveWaitMinutes} min`;
-    }
-    return `${featuredBusiness.isOpen ? 'Open now' : 'Closed'}${featuredBusiness.openingHours ? ` · ${featuredBusiness.openingHours}` : ''}`;
-  })();
+  const moreCategories = categoriesWithLiveCounts;
   const homeSectionHeading: Record<string, string> = {
     salon: 'Salons with low wait',
     gym: 'Live gym floors near you',
@@ -740,6 +745,22 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     pets: 'Pet care near you',
     mall: 'Malls near you',
     food: 'Places to eat near you',
+  };
+  const greeting = customerLocalGreeting(greetingNow, customerProfile?.name);
+  const GreetingIcon = greeting.icon === 'moon' ? Moon : Sun;
+
+  const openCategoryListing = (categoryId: string) => {
+    setActiveCategoryId(categoryId);
+    setCategoryListingId(categoryId);
+    requestAnimationFrame(() => homeScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' }));
+  };
+
+  const togglePreferredCategory = (categoryId: string) => {
+    const normalizedId = categoryId.toLowerCase();
+    const without = resolvedPreferenceIds.filter((id) => id !== normalizedId);
+    const isPinned = resolvedPreferenceIds.slice(0, 5).includes(normalizedId);
+    const next = isPinned ? [...without, normalizedId] : [normalizedId, ...without];
+    setPreferredCategoryIds(homeCategoryPreference.save(next, authoritativeCategoryIds));
   };
 
   // The browse theme follows the customer's chosen category everywhere they
@@ -1234,16 +1255,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
         <div id="customer-home-screen" className="customer-liquid-home relative min-h-full overflow-x-clip bg-[var(--noq-base)] animate-in fade-in">
-          {/* Futuristic ambient glow backdrop */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div
-              className="absolute -top-28 left-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[var(--noq-accent)] opacity-[28%] blur-[82px]"
-            />
-            <div
-              className="absolute top-72 -right-24 h-72 w-72 rounded-full bg-[var(--noq-accent)] opacity-[8%] blur-[90px]"
-            />
-          </div>
-
           {/* Header — overlay architecture. The sticky shell has `h-0`, so it
               reserves ZERO document height at any scroll position; the actual
               header is `position: absolute` inside it and purely paints over
@@ -1262,25 +1273,39 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   : 'translate-y-0 opacity-100'
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div aria-label="NOQ" className="flex items-center gap-1 text-[23px] font-black tracking-[0.18em] text-[var(--noq-ink)]">
-                  NOQ<span className="h-1.5 w-1.5 rounded-full bg-[var(--noq-accent)] shadow-[0_0_12px_var(--noq-accent)]" />
-                </div>
+              <div className="flex items-start justify-between gap-3">
+                <img
+                  src={officialNoqLogo}
+                  alt="NOQ — Less Queue. More Flow."
+                  className="h-auto w-[112px] object-contain"
+                />
                 <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
                   <MapPin className="h-[18px] w-[18px]" />
                 </button>
               </div>
 
-              {/* Large Search Box with rotating placeholder & inner mic button */}
+              <div className="mt-2.5">
+                <div className="flex items-center gap-2 text-[#0D1676]">
+                  <GreetingIcon className="h-[18px] w-[18px] shrink-0 stroke-[2]" aria-hidden="true" />
+                  <h1 className="truncate text-[18px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
+                </div>
+                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
+              </div>
+
               <div className="mt-3">
                 <SalonSearchBar
                   value={salonSearch}
-                  onChange={setSalonSearch}
+                  onChange={(value) => {
+                    setSalonSearch(value);
+                    if (value.trim() && !categoryListingId) setCategoryListingId(activeCategoryId);
+                  }}
                   categories={categoriesWithLiveCounts}
                   activeCategoryName={activeCategoryObj.name}
                   isListening={isListening}
                   onVoiceSearch={handleVoiceSearch}
                   voiceFeedback={voiceFeedback}
+                  onFilterClick={() => setIsCategoryPreferencesOpen(true)}
+                  preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
                 />
               </div>
             </div>
@@ -1299,7 +1324,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               top, and appears once the customer has scrolled meaningfully
               down. The Location/Search header reveals on its own once the
               scroll-to-top glide this triggers actually reaches the top. */}
-          <div className="pointer-events-none sticky top-3 z-[130] flex justify-end pr-1">
+          <div className="pointer-events-none sticky top-3 z-[130] flex h-0 justify-end pr-1">
             <button
               type="button"
               onClick={revealHomeHeader}
@@ -1326,31 +1351,35 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             }`}
           >
 
-          <CustomerCategoryGrid
-            categories={categoriesWithLiveCounts}
-            selectedCategoryId={activeCategoryId}
-            onSelect={setActiveCategoryId}
-            onMore={() => setIsMoreCategoriesOpen(true)}
-          />
-
-          {/* Premium hero / featured card — adapts to the selected category */}
-          <div id="category-exploration-anchor" key={`banner-${activeCategoryId}`} className="scroll-mt-3 category-content-transition">
-            <PromotionalBanner
-              category={activeCategoryObj}
-              featuredBusiness={featuredBusiness}
-              operationalLabel={featuredOperationalLabel}
-              onCtaClick={() => {
-                if (!featuredBusiness) {
-                  listingsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  return;
-                }
-                setSelectedSalon(featuredBusiness);
-                markLastViewed(activeCategoryId, featuredBusiness.id);
-                onQrContextChange(null);
-                setScreen('salon');
-              }}
-            />
-          </div>
+          {!categoryListingId ? (
+            <section className="category-content-transition">
+              <div className="mb-2.5 flex items-center justify-between px-0.5">
+                <h2 className="text-[13px] font-bold text-[var(--noq-ink)]">Categories</h2>
+                <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
+              </div>
+              <CustomerCategoryGrid
+                categories={homeCategoryOrder}
+                selectedCategoryId={null}
+                onSelect={openCategoryListing}
+                onMore={() => setIsMoreCategoriesOpen(true)}
+              />
+            </section>
+          ) : (
+            <div className="category-content-transition flex items-center gap-3 pb-1">
+              <button
+                type="button"
+                onClick={() => { setCategoryListingId(null); setSalonSearch(''); }}
+                aria-label="Back to Home categories"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--noq-glass-border)] bg-white text-[var(--noq-accent)] shadow-sm"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--noq-muted)]">Category</p>
+                <h2 className="truncate text-[18px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
+              </div>
+            </div>
+          )}
 
           {/* Full Address Management Modal */}
           <AddressManagementModal
@@ -1399,7 +1428,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           )}
 
-          <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition">
+          {categoryListingId && <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition">
             <div className="mb-2.5 flex items-center justify-between gap-4 px-0.5">
               <h2 className="truncate text-[15px] font-black tracking-[-0.02em] text-[var(--noq-ink)]">
                 {homeSectionHeading[activeCategoryId.toLowerCase()] || `${activeCategoryObj.name} businesses near you`}
@@ -1526,7 +1555,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 );
               })}
             </div>
-          </div>
+          </div>}
           </div>
         </div>
       )}
@@ -1610,9 +1639,44 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
         />
       )}
 
+      {currentScreen === 'home' && isCategoryPreferencesOpen && (
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-[#07103A]/35 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsCategoryPreferencesOpen(false); }}>
+          <section className="customer-more-sheet max-h-[calc(100dvh-env(safe-area-inset-top)-.75rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[28px] border px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 text-[var(--noq-ink)]">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--noq-border)]" />
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--noq-accent)]">Home preferences</p>
+                <h2 className="mt-1 text-lg font-bold text-[#0D1676]">Choose your categories</h2>
+                <p className="mt-1 text-[11px] text-[var(--noq-muted)]">Pin up to five categories to the Home grid. All real categories remain in Explore All.</p>
+              </div>
+              <button type="button" onClick={() => setIsCategoryPreferencesOpen(false)} aria-label="Close category preferences" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[var(--noq-glass-border)] bg-white text-[var(--noq-muted)]"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              {categoriesWithLiveCounts.map((category) => {
+                const Icon = getCategoryIcon(category.iconName);
+                const pinned = resolvedPreferenceIds.slice(0, 5).includes(category.id.toLowerCase());
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => togglePreferredCategory(category.id)}
+                    aria-pressed={pinned}
+                    className={`flex min-h-14 items-center gap-2.5 rounded-2xl border px-3 text-left transition active:scale-[0.98] ${pinned ? 'border-[var(--noq-accent)]/35 bg-[var(--noq-tint-10)]' : 'border-[var(--noq-glass-border)] bg-white'}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-[var(--noq-accent)]" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-bold">{category.name}</span>
+                    <Pin className={`h-3.5 w-3.5 shrink-0 text-[var(--noq-accent)] ${pinned ? 'fill-current' : ''}`} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      )}
+
       {currentScreen === 'home' && isMoreCategoriesOpen && (
         <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsMoreCategoriesOpen(false); }}>
-          <section className="customer-more-sheet relative w-full max-w-md rounded-t-[30px] border border-[var(--noq-glass-border)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[var(--noq-ink)] shadow-2xl">
+          <section className="customer-more-sheet relative max-h-[calc(100dvh-env(safe-area-inset-top)-.75rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[30px] border border-[var(--noq-glass-border)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[var(--noq-ink)] shadow-2xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">
               <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--noq-accent-light)]">All categories</p><h2 className="mt-1 text-xl font-black">Explore more nearby</h2></div>
@@ -1624,14 +1688,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   const Icon = getCategoryIcon(category.iconName);
                   const accent = customerHomeAccent(category);
                   return (
-                    <button key={category.id} type="button" onClick={() => { setActiveCategoryId(category.id); setIsMoreCategoriesOpen(false); revealHomeHeader(); }} className="customer-more-category flex min-h-16 items-center gap-3 rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 px-4 text-left transition active:translate-y-0.5 active:scale-[0.98]">
+                    <button key={category.id} type="button" onClick={() => { openCategoryListing(category.id); setIsMoreCategoriesOpen(false); }} className="customer-more-category flex min-h-16 items-center gap-3 rounded-2xl border border-[var(--noq-glass-border)] bg-white/70 px-4 text-left transition active:translate-y-0.5 active:scale-[0.98]">
                       <Icon className="h-5 w-5 shrink-0" style={{ color: accent }} />
                       <span className="min-w-0"><b className="block truncate text-sm">{category.name}</b><span className="block text-[10px] font-semibold text-[var(--noq-muted)]">{category.businessCount ?? 0} nearby</span></span>
                     </button>
                   );
                 })}
               </div>
-            ) : <p className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 text-sm text-[var(--noq-muted)]">All currently supported categories are already visible on Home.</p>}
+            ) : <p className="mt-5 rounded-2xl border border-[var(--noq-glass-border)] bg-white p-5 text-sm text-[var(--noq-muted)]">No supported categories are available yet.</p>}
           </section>
         </div>
       )}
