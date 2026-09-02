@@ -207,11 +207,11 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           cleanly visible above the modal backdrop during Join Queue. */}
       <div
         aria-hidden={!isScoreboardActive}
-        className={`fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)_+_0.6rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
-          isScoreboardActive ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-3 opacity-0'
+        className={`fixed inset-x-0 top-0 z-[95] pointer-events-none flex justify-center px-4 pt-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
+          isScoreboardActive ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'
         }`}
       >
-        <div key={capsuleEnterKey} className="capsule-melt-in">
+        <div key={capsuleEnterKey} className="pointer-events-auto capsule-melt-in">
           <LiveQueueScoreboard metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
         </div>
       </div>
@@ -236,7 +236,6 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         actions={[
           { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
           { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
-          { id: 'share', label: 'Share', icon: <Share2 />, onClick: shareSalon },
           { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
           { id: 'primary', label: userEntry ? 'View Queue' : 'Join Queue', icon: <Timer />, onClick: onJoin, primary: true },
         ]}

@@ -52,39 +52,53 @@ const HeroControl: React.FC<{
   </button>
 );
 
-const ActionContent: React.FC<{ action: BusinessHeroAction }> = ({ action }) => (
-  <>
-    <span
-      className={`relative flex h-11 w-11 items-center justify-center rounded-[16px] border shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_9px_18px_-12px_var(--noq-glow)] [&>svg]:h-[18px] [&>svg]:w-[18px] ${
-        action.primary
-          ? 'border-[var(--noq-accent)] bg-[var(--noq-accent)] text-white'
-          : 'border-white bg-white/90 text-[var(--noq-accent)]'
-      }`}
-    >
-      {action.primary && <span className="pointer-events-none absolute inset-x-1 top-px h-1/2 rounded-t-[14px] bg-gradient-to-b from-white/25 to-transparent" />}
-      <span className="relative contents">{action.icon}</span>
-    </span>
-    <span className={`mt-2 whitespace-nowrap text-[10px] font-bold leading-none ${action.primary ? 'text-[var(--noq-accent)]' : 'text-[var(--noq-ink)]'}`}>
-      {action.label}
-    </span>
-  </>
-);
+const ActionTile: React.FC<{ action: BusinessHeroAction }> = ({ action }) => {
+  const isPrimary = action.primary;
+  const tileClass = `group relative flex flex-col items-center justify-center rounded-[20px] p-2 text-center transition-all duration-200 active:scale-[0.95] ${
+    isPrimary
+      ? 'border border-[var(--noq-accent)]/80 bg-gradient-to-b from-[var(--noq-accent)] to-[var(--noq-accent-deep)] text-white shadow-[0_10px_24px_-8px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.3)]'
+      : 'border border-white/80 bg-white/85 dark:bg-slate-900/80 backdrop-blur-xl text-[var(--noq-ink)] shadow-[0_8px_20px_-8px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white hover:bg-white/95'
+  } ${action.disabled ? 'pointer-events-none opacity-40' : ''}`;
+
+  const content = (
+    <>
+      <span
+        className={`relative flex h-10 w-10 items-center justify-center rounded-[14px] transition-transform duration-200 group-active:scale-95 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
+          isPrimary
+            ? 'bg-white/20 text-white shadow-inner'
+            : 'bg-[var(--noq-surface-soft)] text-[var(--noq-accent)]'
+        }`}
+      >
+        {isPrimary && <span className="pointer-events-none absolute inset-x-1 top-px h-1/2 rounded-t-[12px] bg-gradient-to-b from-white/30 to-transparent" />}
+        <span className="relative contents">{action.icon}</span>
+      </span>
+      <span
+        className={`mt-1.5 line-clamp-1 w-full truncate text-[11px] font-bold leading-tight ${
+          isPrimary ? 'text-white' : 'text-[var(--noq-ink)]'
+        }`}
+      >
+        {action.label}
+      </span>
+    </>
+  );
+
+  return action.href && !action.disabled ? (
+    <a href={action.href} aria-label={action.label} className={tileClass}>
+      {content}
+    </a>
+  ) : (
+    <button type="button" onClick={action.onClick} disabled={action.disabled} className={tileClass}>
+      {content}
+    </button>
+  );
+};
 
 const BusinessQuickActions: React.FC<{ actions: BusinessHeroAction[] }> = ({ actions }) => (
-  <div className="relative -mt-0.5 px-4 pb-4">
-    <div className="noq-glass-surface flex min-w-0 items-start justify-between gap-1 overflow-x-auto rounded-[24px] border px-2 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_18px_40px_-28px_var(--noq-glow)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      {actions.map((action) => {
-        const className = `flex min-w-[60px] flex-1 flex-col items-center px-1 py-0.5 text-center transition active:scale-[0.96] ${action.disabled ? 'pointer-events-none opacity-40' : ''}`;
-        return action.href && !action.disabled ? (
-          <a key={action.id} href={action.href} aria-label={action.label} className={className}>
-            <ActionContent action={action} />
-          </a>
-        ) : (
-          <button key={action.id} type="button" onClick={action.onClick} disabled={action.disabled} className={className}>
-            <ActionContent action={action} />
-          </button>
-        );
-      })}
+  <div className="relative px-4 pb-4">
+    <div className="grid grid-cols-4 gap-2.5">
+      {actions.map((action) => (
+        <ActionTile key={action.id} action={action} />
+      ))}
     </div>
   </div>
 );
@@ -129,8 +143,9 @@ export const BusinessDetailHero: React.FC<Props> = ({
       </div>
     </div>
 
-    <div className="relative px-5 pb-4 pt-[54px] text-center">
-      <div className="absolute left-1/2 top-0 flex h-[92px] w-[92px] -translate-x-1/2 -translate-y-1/2 items-center justify-center overflow-hidden rounded-[26px] border-[4px] border-[var(--noq-base)] bg-white text-[var(--noq-accent)] shadow-[0_18px_38px_-18px_var(--noq-glow)]">
+    {/* Smooth curved white shoulder edges overlapping cover image */}
+    <div className="relative z-10 -mt-6 rounded-t-[32px] bg-[var(--noq-base)] px-5 pb-3 pt-[52px] text-center shadow-[0_-8px_24px_-4px_rgba(0,0,0,0.08)]">
+      <div className="absolute -top-[46px] left-1/2 flex h-[92px] w-[92px] -translate-x-1/2 items-center justify-center overflow-hidden rounded-[26px] border-[4px] border-[var(--noq-base)] bg-white text-[var(--noq-accent)] shadow-[0_18px_38px_-18px_var(--noq-glow)]">
         {logo}
       </div>
       <AnimatedSalonName name={name} className="mx-auto max-w-[330px] text-[26px] font-bold leading-[1.08] tracking-[-0.04em] [overflow-wrap:anywhere]" />

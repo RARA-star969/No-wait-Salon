@@ -37,9 +37,9 @@ export const CategoryActionBar: React.FC<{
 }> = ({ expanded = false, summaryOpen, summary, bounce = false, children, id }) => {
   const open = summaryOpen ?? expanded;
   return (
-  <div id={id} className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.75rem,env(safe-area-inset-bottom))]">
+  <div id={id} className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(.6rem,env(safe-area-inset-bottom))]">
     <div
-      className={`relative mx-auto max-w-xl overflow-hidden rounded-[26px] p-2.5 transition-all duration-300 ${
+      className={`relative mx-auto max-w-xl overflow-hidden rounded-[24px] p-2 transition-all duration-300 ${
         expanded
           ? 'border border-white/80 bg-gradient-to-b from-white/95 via-white/88 to-[var(--noq-surface-soft)]/94 shadow-[inset_0_1.5px_0_white,inset_0_0_24px_rgba(255,255,255,0.45),0_-16px_36px_-18px_var(--noq-glow),0_14px_38px_-18px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[2.2] backdrop-brightness-[1.06]'
           : 'border border-white/80 bg-gradient-to-br from-white/92 via-white/82 to-[var(--noq-tint-10)] shadow-[inset_0_1px_0_white,inset_0_0_0_1px_rgba(255,255,255,0.4),0_-14px_32px_-20px_var(--noq-glow),0_10px_28px_-18px_var(--noq-glow)] backdrop-blur-2xl backdrop-saturate-[1.9]'

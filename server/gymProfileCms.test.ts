@@ -197,14 +197,17 @@ test('Reviews — real customer path, owner dashboard, admin edit', async (t) =>
   });
 
   await t.test('a customer with a real staff-recorded visit gets a genuinely provable verified badge', async () => {
-    // Staff Custom Entry check-in linked to this exact authenticated
-    // customerId — the same real linkage the staff "Add Visitor by phone"
-    // flow produces, never a client-asserted flag.
+    // Staff Custom Entry check-in linked to a distinct authenticated customer
+    const otpReq2 = await api('POST', '/api/otp/request', { phone: '9123456799' });
+    const otpVerify2 = await api('POST', '/api/otp/verify', { challengeId: otpReq2.data.challengeId, code: otpReq2.data.demoCode });
+    const customerToken2 = otpVerify2.data.token;
+    const customerId2 = otpVerify2.data.customerId;
+
     const checkin = await api('POST', `/api/gym/${gymId}/operations/add_visitor`, {
-      name: 'Verified Visitor', mobile: '9123456780', offeringId: 'custom_entry', customerId,
+      name: 'Verified Visitor', mobile: '9123456799', offeringId: 'custom_entry', customerId: customerId2,
     }, owner);
     assert.equal(checkin.status, 200);
-    const res = await api('POST', `/api/business/${gymId}/reviews`, { rating: 5, reviewText: 'Actually trained there.' }, customerToken);
+    const res = await api('POST', `/api/business/${gymId}/reviews`, { rating: 5, reviewText: 'Actually trained there.' }, customerToken2);
     assert.equal(res.status, 201);
     assert.equal(res.data.review.verifiedVisit, true);
   });

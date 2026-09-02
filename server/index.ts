@@ -539,14 +539,17 @@ function rowToSalon(row: SalonRow): Salon {
     .sort((a, b) => Number(b.featured) - Number(a.featured))
     .map((media) => ({ id: String(media.id), imageUrl: String(media.url), type: 'image' as const, label: String(media.caption || row.name), featured: Number(media.featured) === 1 }));
   const { names: amenityNames, details: amenityDetails } = normalizeAmenities(JSON.parse(row.amenities_json || '[]'));
+  const reviewStats = db.prepare("SELECT COUNT(*) as count, AVG(rating) as avg_rating FROM business_review WHERE business_id = ? AND status = 'visible'").get(row.id) as { count: number; avg_rating: number | null } | undefined;
+  const reviewCount = Number(reviewStats?.count || 0);
+  const rating = reviewCount > 0 && reviewStats?.avg_rating ? Math.round(Number(reviewStats.avg_rating) * 10) / 10 : 0;
   return {
     id: row.id,
     name: row.name,
     address: row.address,
     latitude: row.latitude,
     longitude: row.longitude,
-    rating: row.rating,
-    reviewCount: row.review_count,
+    rating,
+    reviewCount,
     isOpen: row.is_open === 1,
     openingHours: row.opening_hours,
     services: services.length ? services : JSON.parse(row.services_json),
@@ -2897,6 +2900,7 @@ function reviewRowToView(row: Record<string, unknown>) {
   return {
     id: String(row.id),
     businessId: String(row.business_id),
+    customerId: row.customer_id ? String(row.customer_id) : undefined,
     reviewerName: String(row.reviewer_name),
     rating: Number(row.rating),
     reviewText: String(row.review_text || ''),
@@ -2913,16 +2917,30 @@ function reviewRowToView(row: Record<string, unknown>) {
 }
 
 app.get('/api/business/:businessId/reviews', (request, response) => {
+  const customerId = resolveCustomerId(request);
   const rows = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND status = 'visible' ORDER BY created_at DESC LIMIT 100").all(request.params.businessId) as Record<string, unknown>[];
   const totalReviews = rows.length;
   const overallRating = totalReviews ? Math.round((rows.reduce((sum, row) => sum + Number(row.rating), 0) / totalReviews) * 10) / 10 : 0;
-  response.json({ reviews: rows.map(reviewRowToView), overallRating, totalReviews });
+  const myReviewRow = customerId
+    ? rows.find((r) => String(r.customer_id) === String(customerId)) ||
+      (db.prepare("SELECT * FROM business_review WHERE business_id = ? AND customer_id = ? AND status != 'deleted'").get(request.params.businessId, customerId) as Record<string, unknown> | undefined)
+    : undefined;
+  response.json({
+    reviews: rows.map(reviewRowToView),
+    overallRating,
+    totalReviews,
+    myReview: myReviewRow ? reviewRowToView(myReviewRow) : null,
+  });
 });
 
 app.post('/api/business/:businessId/reviews', requireCustomer, (request: AuthenticatedRequest, response) => {
   const businessId = request.params.businessId;
   const salon = db.prepare("SELECT id, COALESCE(main_category_id, 'salon') as main_category_id FROM salon WHERE id = ?").get(businessId) as { id: string; main_category_id: string } | undefined;
   if (!salon) return response.status(404).json({ error: 'Business not found.' });
+  const existing = db.prepare("SELECT * FROM business_review WHERE business_id = ? AND customer_id = ? AND status != 'deleted'").get(businessId, request.customerId) as Record<string, unknown> | undefined;
+  if (existing) {
+    return response.status(409).json({ error: 'You have already reviewed this business.', review: reviewRowToView(existing) });
+  }
   const ratingInput = Number(request.body?.rating);
   if (!Number.isFinite(ratingInput) || ratingInput < 1 || ratingInput > 5) {
     return response.status(400).json({ error: 'A rating from 1 to 5 is required.' });
@@ -2938,7 +2956,11 @@ app.post('/api/business/:businessId/reviews', requireCustomer, (request: Authent
     INSERT INTO business_review (id, business_id, customer_id, reviewer_name, rating, review_text, feedback_tags_json, source, verified_visit, status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 'visit', ?, 'visible', ?, ?)
   `).run(id, businessId, request.customerId, profile?.name || 'NOQ Customer', rating, reviewText, JSON.stringify(feedbackTags), verified ? 1 : 0, now, now);
-  postgresPersistence?.flushNow(['business_review']);
+  const stats = db.prepare("SELECT COUNT(*) as count, AVG(rating) as avg_rating FROM business_review WHERE business_id = ? AND status = 'visible'").get(businessId) as { count: number; avg_rating: number | null } | undefined;
+  const count = Number(stats?.count || 0);
+  const avg = count > 0 && stats?.avg_rating ? Math.round(Number(stats.avg_rating) * 10) / 10 : 0;
+  db.prepare('UPDATE salon SET rating = ?, review_count = ?, updated_at = ? WHERE id = ?').run(avg, count, now, businessId);
+  postgresPersistence?.flushNow(['business_review', 'salon']);
   response.status(201).json({ ok: true, review: reviewRowToView(db.prepare('SELECT * FROM business_review WHERE id = ?').get(id) as Record<string, unknown>) });
 });
 

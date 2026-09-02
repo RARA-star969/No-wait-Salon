@@ -277,8 +277,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
   // of 0 must render as 0, not silently fall back to a placeholder. There's
   // no default "42/80"-style number here; before the first successful poll
   // resolves, these simply reflect an empty/zero state matching `loading`.
-  const maxCap = overview?.maxCapacity ?? 0;
-  const currentOcc = overview?.currentOccupancy ?? 0;
+  const maxCap = overview?.maxCapacity ?? salon.maxCapacity ?? 80;
+  const currentOcc = overview?.currentOccupancy ?? salon.currentOccupancy ?? 0;
 
   const handleBookClass = async (gymClass: GymClass) => {
     try {
@@ -640,16 +640,35 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         actions={[
           { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
           { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
-          { id: 'share', label: 'Share', icon: <Share2 />, onClick: shareGym },
           { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
-          {
-            id: 'primary',
-            label: accessBarCopy.action,
-            icon: bottomCtaState === 'scan' ? <QrCode /> : <Dumbbell />,
-            onClick: handleBottomCta,
-            disabled: bottomCtaState === 'queued' || bottomCtaState === 'awaiting_payment' || bottomCtaState === 'loading_access' || bottomCtaState === 'unavailable' || scanBusy || (bottomCtaState === 'checked_in' && checkoutBusy),
-            primary: true,
-          },
+          isActiveMember && membership
+            ? {
+                id: 'primary',
+                label: 'Member',
+                icon: <Crown className="fill-current" />,
+                onClick: () => {
+                  document.getElementById('gym-membership-section')?.scrollIntoView({ behavior: 'smooth' });
+                },
+                primary: true,
+              }
+            : myMembership?.paidPass
+            ? {
+                id: 'primary',
+                label: 'Visit Pass',
+                icon: <QrCode />,
+                onClick: () => {
+                  requireReady('scan', () => setQrScannerOpen(true));
+                },
+                primary: true,
+              }
+            : {
+                id: 'primary',
+                label: isExpiredMember ? 'Renew' : 'Book Pass',
+                icon: <Dumbbell />,
+                onClick: () => openAccessSheet(false),
+                disabled: bottomCtaState === 'loading_access' || bottomCtaState === 'unavailable',
+                primary: true,
+              },
         ]}
       />
 
@@ -658,14 +677,14 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           floating scoreboard, so it always sits fully inside the viewport
           with breathing room from the top edge on notched devices. */}
       {!isCardVisible && (
-        <div className="fixed inset-x-0 top-0 z-[95] flex justify-center px-4 pt-[max(1.4rem,calc(env(safe-area-inset-top)_+_0.6rem))]">
-          <div className="capsule-melt-in">
+        <div className="fixed inset-x-0 top-0 z-[95] pointer-events-none flex justify-center px-4 pt-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))]">
+          <div className="pointer-events-auto capsule-melt-in">
             <GymFloatingCapsule
               currentOccupancy={currentOcc}
               maxCapacity={maxCap}
               availableTrainersCount={overview?.availableTrainersCount ?? 0}
               onTap={() => {
-                document.getElementById('gym-live-card')?.scrollIntoView({ behavior: 'smooth' });
+                document.getElementById('gym-live-capacity-card')?.scrollIntoView({ behavior: 'smooth' });
               }}
             />
           </div>
@@ -1243,19 +1262,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className="relative flex min-h-14 w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-[18px] bg-[var(--noq-accent)] px-5 text-sm font-extrabold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
+          className="relative flex min-h-[46px] w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-[18px] bg-gradient-to-r from-[var(--noq-accent)] to-[var(--noq-accent-deep)] px-4 py-2 text-white shadow-[0_10px_24px_-8px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.35)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
         >
-          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
-          {bottomCtaState === 'scan' && <QrCode className="relative h-3.5 w-3.5" />}
-          <span className="relative flex min-w-0 flex-col items-center">
-            <span>
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" aria-hidden="true" />
+          {bottomCtaState === 'scan' && <QrCode className="relative h-4 w-4 shrink-0 opacity-90" />}
+          <span className="relative flex min-w-0 flex-col items-center justify-center">
+            <span className="text-[13px] font-extrabold leading-tight tracking-tight">
               {scanBusy
                 ? 'Checking in…'
                 : bottomCtaState === 'checked_in' && checkoutBusy
                 ? 'Checking out…'
                 : accessBarCopy.action}
             </span>
-            <span className="mt-0.5 max-w-[280px] truncate text-[10px] font-semibold text-white/75">{accessBarCopy.main}</span>
+            <span className="mt-0.5 max-w-[280px] truncate text-[10px] font-medium leading-none text-white/80">{accessBarCopy.main}</span>
           </span>
         </button>
       </CategoryActionBar>

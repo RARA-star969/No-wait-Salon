@@ -229,6 +229,8 @@ export interface Salon {
   promotionalBannerUrl?: string;
   platformStatus?: 'draft' | 'active' | 'inactive' | 'suspended';
   weeklyHours?: Array<{ day: string; openTime: string; closeTime: string; closed: boolean }>;
+  currentOccupancy?: number;
+  maxCapacity?: number;
 }
 
 export interface SalonOffer {

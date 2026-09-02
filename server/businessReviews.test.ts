@@ -63,16 +63,27 @@ test('Salon reviews — business-agnostic reviews endpoint', async (t) => {
     assert.equal(res.data.review.verifiedVisit, false);
   });
 
-  await t.test('a customer with a real completed booking gets a genuinely provable verified badge', async () => {
+  await t.test('enforces uniqueness: a customer cannot submit a second review for the same business', async () => {
+    const res = await api('POST', `/api/business/${salonId}/reviews`, { rating: 5, reviewText: 'Second attempt.' }, customerToken);
+    assert.equal(res.status, 409);
+    assert.match(res.data.error, /already reviewed/i);
+  });
+
+  await t.test('a second customer with a real completed booking gets a genuinely provable verified badge', async () => {
+    const otpReq2 = await api('POST', '/api/otp/request', { phone: '9199988866' });
+    const otpVerify2 = await api('POST', '/api/otp/verify', { challengeId: otpReq2.data.challengeId, code: otpReq2.data.demoCode });
+    const customerToken2 = otpVerify2.data.token;
+    const customerId2 = otpVerify2.data.customerId;
+
     const db = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
     const now = Date.now();
     db.prepare(`
       INSERT INTO customer_booking (id, queue_entry_id, customer_id, salon_id, service, status, created_at, updated_at)
       VALUES (?, ?, ?, ?, 'Haircut', 'Completed', ?, ?)
-    `).run(`booking_${now}`, `queue_${now}`, customerId, salonId, now, now);
+    `).run(`booking_${now}`, `queue_${now}`, customerId2, salonId, now, now);
     db.close();
 
-    const res = await api('POST', `/api/business/${salonId}/reviews`, { rating: 5, reviewText: 'Actually got my haircut here.' }, customerToken);
+    const res = await api('POST', `/api/business/${salonId}/reviews`, { rating: 5, reviewText: 'Actually got my haircut here.' }, customerToken2);
     assert.equal(res.status, 201);
     assert.equal(res.data.review.verifiedVisit, true);
   });
@@ -85,7 +96,10 @@ test('Salon reviews — business-agnostic reviews endpoint', async (t) => {
   });
 
   await t.test('rejects a review with no rating', async () => {
-    const res = await api('POST', `/api/business/${salonId}/reviews`, { reviewText: 'No rating' }, customerToken);
+    const otpReq3 = await api('POST', '/api/otp/request', { phone: '9199988855' });
+    const otpVerify3 = await api('POST', '/api/otp/verify', { challengeId: otpReq3.data.challengeId, code: otpReq3.data.demoCode });
+    const customerToken3 = otpVerify3.data.token;
+    const res = await api('POST', `/api/business/${salonId}/reviews`, { reviewText: 'No rating' }, customerToken3);
     assert.equal(res.status, 400);
   });
 });

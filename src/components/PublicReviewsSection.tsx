@@ -27,6 +27,7 @@ export const PublicReviewsSection: React.FC<{
   const [overallRating, setOverallRating] = useState(0);
   const [totalReviews, setTotalReviews] = useState(0);
   const [reviews, setReviews] = useState<PublicReviewView[]>([]);
+  const [myReview, setMyReview] = useState<PublicReviewView | null>(null);
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +39,9 @@ export const PublicReviewsSection: React.FC<{
       setOverallRating(data.overallRating);
       setTotalReviews(data.totalReviews);
       setReviews(data.reviews);
+      if (data.myReview) {
+        setMyReview(data.myReview);
+      }
     } catch {
       // Keep showing the last known reviews; nothing to retry automatically.
     } finally {
@@ -52,7 +56,10 @@ export const PublicReviewsSection: React.FC<{
     if (!rating) { setNotice('Choose a star rating first.'); setTimeout(() => setNotice(''), 2500); return; }
     setSubmitting(true);
     try {
-      await businessReviewService.submit(businessId, rating, reviewText);
+      const res = await businessReviewService.submit(businessId, rating, reviewText);
+      if (res.review) {
+        setMyReview(res.review);
+      }
       setRating(0);
       setReviewText('');
       setNotice('Thanks for your review!');
@@ -74,6 +81,8 @@ export const PublicReviewsSection: React.FC<{
     ? 'border-white/10 bg-white/[0.05] text-white placeholder:text-white/30'
     : 'border-[var(--noq-border)] bg-white text-[var(--noq-ink)] placeholder:text-[#8A9997]';
 
+  const otherReviews = reviews.filter((r) => r.id !== myReview?.id);
+
   return (
     <div className={`rounded-2xl border p-4 shadow-sm ${cardClass}`}>
       <h2 className={`text-xs font-bold uppercase tracking-wider ${headingClass}`}>Reviews</h2>
@@ -83,25 +92,64 @@ export const PublicReviewsSection: React.FC<{
       ) : (
         <>
           <div className="mt-2 flex items-center gap-3">
-            {/* A broken/reviews-unavailable response (or any non-finite
-                rating) must never reach .toFixed() — shows "—" instead of
-                crashing the Detail page it's embedded in. */}
-            <span className={`text-2xl font-extrabold ${textClass}`}>
-              {formatOverallRating(overallRating, totalReviews) ?? '—'}
-            </span>
-            <div>
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <Star key={n} className={`h-3.5 w-3.5 ${Number.isFinite(overallRating) && n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[var(--noq-border)]'}`} />
-                ))}
+            {totalReviews > 0 ? (
+              <>
+                <span className={`text-2xl font-extrabold ${textClass}`}>
+                  {formatOverallRating(overallRating, totalReviews) ?? '—'}
+                </span>
+                <div>
+                  <div className="flex items-center gap-0.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star key={n} className={`h-3.5 w-3.5 ${Number.isFinite(overallRating) && n <= Math.round(overallRating) ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[var(--noq-border)]'}`} />
+                    ))}
+                  </div>
+                  <p className={`text-[11px] ${mutedClass}`}>{totalReviews} review{totalReviews === 1 ? '' : 's'}</p>
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className={`text-sm font-bold ${textClass}`}>Not yet rated</p>
+                <p className={`text-[11px] ${mutedClass}`}>0 reviews</p>
               </div>
-              <p className={`text-[11px] ${mutedClass}`}>{totalReviews} review{totalReviews === 1 ? '' : 's'}</p>
-            </div>
+            )}
           </div>
 
-          {reviews.length > 0 && (
+          {/* If the current customer has submitted a review, display it prominently */}
+          {myReview && (
+            <div className="mt-4 space-y-2">
+              <p className={`text-[11px] font-bold uppercase tracking-wide ${headingClass}`}>Your Review</p>
+              <div className={`rounded-xl border p-3.5 ${dark ? 'border-amber-400/30 bg-amber-500/10' : 'border-amber-200 bg-amber-50/50'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-bold ${textClass}`}>{myReview.reviewerName} (You)</span>
+                    {myReview.verifiedVisit && (
+                      <span className="flex items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <BadgeCheck className="h-2.5 w-2.5" /> Verified
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-[10px] ${mutedClass}`}>{new Date(myReview.createdAt).toLocaleDateString()}</span>
+                </div>
+                <div className="mt-1 flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <Star key={n} className={`h-3 w-3 ${n <= myReview.rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/15' : 'text-[var(--noq-border)]'}`} />
+                  ))}
+                </div>
+                {myReview.reviewText && <p className={`mt-1.5 text-xs leading-5 ${textClass}`}>{myReview.reviewText}</p>}
+                {myReview.ownerReplyText && (
+                  <div className={`mt-2 rounded-lg p-2.5 ${dark ? 'bg-white/[0.08]' : 'bg-white border border-amber-100'}`}>
+                    <p className={`text-[9px] font-bold uppercase tracking-wider text-[var(--noq-accent)]`}>Owner reply</p>
+                    <p className={`mt-0.5 text-[11px] leading-4 ${textClass}`}>{myReview.ownerReplyText}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Other community reviews */}
+          {otherReviews.length > 0 && (
             <div className="mt-3 space-y-3">
-              {reviews.slice(0, 5).map((review) => (
+              {otherReviews.slice(0, 5).map((review) => (
                 <div key={review.id} className={`rounded-xl border p-3 ${dark ? 'border-white/[0.06] bg-black/20' : 'border-[#EEF2F1] bg-[var(--noq-base)]'}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
@@ -131,32 +179,35 @@ export const PublicReviewsSection: React.FC<{
             </div>
           )}
 
-          <div className={`mt-4 border-t pt-3 ${dark ? 'border-white/[0.06]' : 'border-[#EEF2F1]'}`}>
-            <p className={`text-[11px] font-bold uppercase tracking-wide ${headingClass}`}>Write a review</p>
-            <div className="mt-2 flex items-center gap-1">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star${n === 1 ? '' : 's'}`}>
-                  <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/20' : 'text-[var(--noq-border)]'}`} />
-                </button>
-              ))}
+          {/* Only show the review submission form if the customer has not yet reviewed */}
+          {!myReview && (
+            <div className={`mt-4 border-t pt-3 ${dark ? 'border-white/[0.06]' : 'border-[#EEF2F1]'}`}>
+              <p className={`text-[11px] font-bold uppercase tracking-wide ${headingClass}`}>Write a review</p>
+              <div className="mt-2 flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} type="button" onClick={() => setRating(n)} aria-label={`${n} star${n === 1 ? '' : 's'}`}>
+                    <Star className={`h-6 w-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : dark ? 'text-white/20' : 'text-[var(--noq-border)]'}`} />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                placeholder="Share your experience (optional)"
+                rows={3}
+                className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs ${inputClass}`}
+              />
+              {notice && <p className={`mt-1.5 text-[11px] font-semibold ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>{notice}</p>}
+              <button
+                type="button"
+                onClick={submit}
+                disabled={submitting}
+                className="mt-2 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white disabled:opacity-60"
+              >
+                {submitting ? 'Submitting…' : ready ? 'Submit review' : 'Verify to submit review'}
+              </button>
             </div>
-            <textarea
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              placeholder="Share your experience (optional)"
-              rows={3}
-              className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs ${inputClass}`}
-            />
-            {notice && <p className={`mt-1.5 text-[11px] font-semibold ${dark ? 'text-emerald-300' : 'text-emerald-700'}`}>{notice}</p>}
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className="mt-2 w-full rounded-xl bg-[var(--category-primary-dark)] py-2.5 text-xs font-bold text-white disabled:opacity-60"
-            >
-              {submitting ? 'Submitting…' : ready ? 'Submit review' : 'Verify to submit review'}
-            </button>
-          </div>
+          )}
         </>
       )}
     </div>

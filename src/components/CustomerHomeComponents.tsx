@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
@@ -588,13 +588,16 @@ export const PremiumBusinessCard: React.FC<{
   const occupancyPercent = liveFloorMeter
     ? resolveGymOccupancyPercentage(liveFloorMeter.occupancy, liveFloorMeter.maxCapacity)
     : 0;
+  const hasReviews = Number(salon.reviewCount) > 0 && Number(salon.rating) > 0;
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={`customer-home-business-card group relative w-full overflow-hidden rounded-[18px] border text-left transition-all duration-200 ${
-        isSelected
+        isMember
+          ? 'border-amber-400/40 bg-gradient-to-br from-amber-500/[0.06] via-white/85 to-white/90 shadow-[0_10px_26px_-18px_rgba(245,158,11,0.28)]'
+          : isSelected
           ? 'border-[var(--noq-accent)]/35 bg-white/90 shadow-[0_13px_30px_-24px_var(--home-accent)]'
           : 'border-[var(--noq-glass-border)] bg-white/75 hover:border-[var(--noq-accent)]/25 hover:bg-white/90'
       }`}
@@ -617,12 +620,26 @@ export const PremiumBusinessCard: React.FC<{
           </div>
         )}
         <div className="min-w-0 flex-1 self-center">
-          <b className="block truncate text-[13px] font-bold leading-4 text-[var(--noq-ink)]">{salon.name}</b>
+          <div className="flex items-center gap-1.5 min-w-0">
+            <b className="block truncate text-[13px] font-bold leading-4 text-[var(--noq-ink)]">{salon.name}</b>
+            {isMember && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-amber-400/20 to-amber-500/15 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-amber-600 shadow-[0_1px_4px_rgba(245,158,11,0.15)]">
+                <Crown className="h-2.5 w-2.5 fill-amber-400 text-amber-500" />
+                Member
+              </span>
+            )}
+          </div>
           <span className="mt-0.5 block truncate text-[9px] font-medium text-[var(--noq-muted)]">{salon.category || localityLabel} · {salon.distanceKm} km</span>
           <span className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-medium text-[var(--noq-muted)]">
-            <Star className="h-2.5 w-2.5 shrink-0 fill-[#FFD166] text-[#FFD166]" />
-            <span className="shrink-0 text-[var(--noq-muted)]">{salon.rating}</span>
-            <span className="truncate">· {salon.reviewCount} {isMember ? '· Member access' : 'reviews'}</span>
+            {hasReviews ? (
+              <>
+                <Star className="h-2.5 w-2.5 shrink-0 fill-[#FFD166] text-[#FFD166]" />
+                <span className="shrink-0 text-[var(--noq-muted)]">{Number(salon.rating).toFixed(1)}</span>
+                <span className="truncate">· {salon.reviewCount} {salon.reviewCount === 1 ? 'review' : 'reviews'}</span>
+              </>
+            ) : (
+              <span className="truncate text-[var(--noq-muted)]">Not yet rated · 0 reviews</span>
+            )}
           </span>
         </div>
         <div className="w-[74px] shrink-0 self-start pt-1 text-right">

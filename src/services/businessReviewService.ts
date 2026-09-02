@@ -5,6 +5,7 @@
 export interface PublicReviewView {
   id: string;
   businessId: string;
+  customerId?: string;
   reviewerName: string;
   rating: number;
   reviewText: string;
@@ -23,6 +24,7 @@ export interface PublicReviewsResponse {
   reviews: PublicReviewView[];
   overallRating: number;
   totalReviews: number;
+  myReview?: PublicReviewView | null;
 }
 
 // Same architecture every other API client in this app uses (see
@@ -59,11 +61,15 @@ function finiteNumberOr(value: unknown, fallback: number): number {
  *  normalized here, once, rather than trusted by every caller. */
 export function normalizePublicReviewsResponse(body: unknown): PublicReviewsResponse {
   const raw = (body && typeof body === 'object' ? body : {}) as Partial<PublicReviewsResponse>;
-  return {
+  const base: PublicReviewsResponse = {
     reviews: Array.isArray(raw.reviews) ? raw.reviews : [],
     overallRating: finiteNumberOr(raw.overallRating, 0),
     totalReviews: Math.max(0, Math.trunc(finiteNumberOr(raw.totalReviews, 0))),
   };
+  if (raw.myReview && typeof raw.myReview === 'object') {
+    base.myReview = raw.myReview;
+  }
+  return base;
 }
 
 /** The one place RatingSummaryBadge and PublicReviewsSection both decide
