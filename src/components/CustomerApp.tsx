@@ -38,6 +38,8 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { HomeContentSections } from './HomeContentSections';
+import { DEMO_QUEUE_INSIGHT } from '../shared/queueInsight';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { GymDetailPage } from './GymDetailPage';
@@ -701,6 +703,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
           {/* Dynamic Theme Banner */}
           <PromotionalBanner category={activeCategoryObj} />
+
+          {/* Why NOQ / AI Queue Insight / About NOQ — static content below the
+              carousel. No live queue-analytics pipeline feeds the insight yet,
+              so it renders DEMO_QUEUE_INSIGHT's honest "preview" state rather
+              than fabricating production data. */}
+          <HomeContentSections insight={DEMO_QUEUE_INSIGHT} />
 
           {/* Full Address Management Modal */}
           <AddressManagementModal

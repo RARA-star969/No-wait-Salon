@@ -13,6 +13,17 @@
   --color-natural-olive-hover: #0B665F;
 }
 
+/* NOQ white + blue palette tokens for content sections built against the
+   brand's premium/neumorphic light theme (Home carousel and below). */
+:root {
+  --noq-ink: #0F172A;
+  --noq-muted: #6B7686;
+  --noq-blue: #2653EB;
+  --noq-blue-soft: #EEF3FF;
+  --noq-card: #FFFFFF;
+  --noq-border: #E4E9F2;
+}
+
 body {
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   background-color: #F4F7F6;
