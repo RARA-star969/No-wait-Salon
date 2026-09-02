@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
@@ -173,6 +173,8 @@ type SearchProps = {
   isListening?: boolean;
   onVoiceSearch?: () => void;
   voiceFeedback?: string | null;
+  onOpenFilter?: () => void;
+  isFilterActive?: boolean;
 };
 
 export const SalonSearchBar: React.FC<SearchProps> = ({
@@ -183,6 +185,8 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   isListening = false,
   onVoiceSearch,
   voiceFeedback,
+  onOpenFilter,
+  isFilterActive = false,
 }) => {
   void categories;
   void activeCategoryName;
@@ -191,7 +195,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   return (
     <div className="relative w-full space-y-2">
       <div
-        className={`customer-search-glass flex h-[52px] w-full items-center gap-3 rounded-[17px] border px-4 backdrop-blur-xl transition-all duration-200 ${
+        className={`customer-search-glass flex h-[52px] w-full items-center gap-2.5 rounded-[17px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
           isListening
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
@@ -214,10 +218,25 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
           <button
             type="button"
             onClick={() => onChange('')}
-            className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
+            className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20 active:scale-95"
             aria-label="Clear search"
           >
             <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onOpenFilter && (
+          <button
+            type="button"
+            onClick={onOpenFilter}
+            aria-label="Filter and pin categories on Home"
+            title="Pin Home Categories"
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[11px] border transition active:scale-95 ${
+              isFilterActive
+                ? 'border-[var(--noq-accent)]/40 bg-[var(--noq-accent)]/15 text-[var(--noq-accent)] shadow-sm'
+                : 'border-white/20 bg-white/60 text-[var(--noq-accent)] hover:border-[var(--noq-accent)]/30 hover:bg-white'
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -351,11 +370,12 @@ export const CustomerCategoryGrid: React.FC<{
   selectedCategoryId: string;
   onSelect: (categoryId: string) => void;
   onMore: () => void;
-}> = ({ categories, selectedCategoryId, onSelect, onMore }) => {
-  const preferred = ['salon', 'gym', 'shop', 'clinic', 'spa'];
+  pinnedIds?: string[];
+}> = ({ categories, selectedCategoryId, onSelect, onMore, pinnedIds }) => {
+  const preferred = pinnedIds && pinnedIds.length > 0 ? pinnedIds : ['salon', 'gym', 'shop', 'clinic', 'spa'];
   const ordered = [
-    ...preferred.map((id) => categories.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
-    ...categories.filter((category) => !preferred.includes(category.id.toLowerCase())),
+    ...preferred.map((id) => categories.find((category) => category.id.toLowerCase() === id.toLowerCase())).filter(Boolean),
+    ...categories.filter((category) => !preferred.some((p) => p.toLowerCase() === category.id.toLowerCase())),
   ] as CategoryItemConfig[];
   const visible = ordered.slice(0, 5);
   const hasMore = categories.some((category) => !visible.some((item) => item.id === category.id));

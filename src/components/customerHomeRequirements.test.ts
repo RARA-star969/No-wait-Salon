@@ -51,4 +51,23 @@ test('Customer Home approved header and operational presentation stay locked', a
     assert.match(cardSource, /width: `\$\{occupancyPercent\}%`/);
     assert.doesNotMatch(cardSource, /Math\.max\([^,]+,\s*occupancyPercent\)/);
   });
+
+  await t.test('header greeting uses dynamic time logic and avoids fake names', () => {
+    assert.match(appSource, /formatCustomerGreeting/);
+    assert.doesNotMatch(appSource, /Alex/);
+    assert.match(appSource, /Smart zero-wait discovery & live flow/);
+  });
+
+  await t.test('search bar integrates category preference filter button', () => {
+    assert.match(componentsSource, /onOpenFilter/);
+    assert.match(componentsSource, /SlidersHorizontal/);
+    assert.match(appSource, /CategoryPreferenceSheet/);
+    assert.match(appSource, /onOpenFilter=\{/);
+  });
+
+  await t.test('pinned categories control Home deck order', () => {
+    assert.match(appSource, /pinnedIds=\{pinnedCategoryIds\}/);
+    assert.match(componentsSource, /pinnedIds\?: string\[\]/);
+  });
 });
+

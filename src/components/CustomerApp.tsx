@@ -39,6 +39,8 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { PromotionalBanner, SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { CategoryPreferenceSheet } from './CategoryPreferenceSheet';
+import { formatCustomerGreeting } from '../shared/timeGreeting';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -84,6 +86,8 @@ import type { BookingRoute, CustomerBookingView } from '../shared/customerBookin
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
+const PINNED_CATEGORIES_STORAGE_KEY = 'no_wait_salon_pinned_categories_v1';
+const DEFAULT_PINNED_CATEGORY_IDS = ['salon', 'gym', 'shop', 'clinic', 'spa'];
 const APPROVED_EMPTY_HOME_CATEGORIES: CategoryItemConfig[] = [
   { id: 'clinic', name: 'Clinic', iconName: 'SquarePlus', label: 'Clinic', description: 'No supported clinic listings are available in this area yet.', themeKey: 'clinic' },
   { id: 'spa', name: 'Spa', iconName: 'Sparkles', label: 'Spa', description: 'No supported spa listings are available in this area yet.', themeKey: 'spa' },
@@ -242,6 +246,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [editingAddress, setEditingAddress] = useState<UserAddress | null>(null);
   const [isRestoringLocation, setIsRestoringLocation] = useState(false);
   const [salonSearch, setSalonSearch] = useState('');
+  const [isCategoryPrefOpen, setIsCategoryPrefOpen] = useState(false);
+  const [pinnedCategoryIds, setPinnedCategoryIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(PINNED_CATEGORIES_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return DEFAULT_PINNED_CATEGORY_IDS;
+  });
   const [mainCategories, setMainCategories] = useState<CategoryItemConfig[]>(DEFAULT_MAIN_CATEGORIES);
   const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
   // UI-only "last viewed" memory per category — no card starts selected;
@@ -705,10 +720,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ...cat,
     businessCount: visibleSalons.filter((salon) => (salon.mainCategoryId || 'salon').toLowerCase() === cat.id.toLowerCase()).length,
   }));
-  const homeCategoryPreference = ['salon', 'gym', 'shop', 'clinic', 'spa'];
+  const homeCategoryPreference = pinnedCategoryIds && pinnedCategoryIds.length > 0 ? pinnedCategoryIds : DEFAULT_PINNED_CATEGORY_IDS;
   const homeCategoryOrder = [
-    ...homeCategoryPreference.map((id) => categoriesWithLiveCounts.find((category) => category.id.toLowerCase() === id)).filter(Boolean),
-    ...categoriesWithLiveCounts.filter((category) => !homeCategoryPreference.includes(category.id.toLowerCase())),
+    ...homeCategoryPreference.map((id) => categoriesWithLiveCounts.find((category) => category.id.toLowerCase() === id.toLowerCase())).filter(Boolean),
+    ...categoriesWithLiveCounts.filter((category) => !homeCategoryPreference.some((p) => p.toLowerCase() === category.id.toLowerCase())),
   ] as CategoryItemConfig[];
   const homeGridCategories = homeCategoryOrder.slice(0, 5);
   const moreCategories = mainCategories
@@ -1234,13 +1249,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (
         <div id="customer-home-screen" className="customer-liquid-home relative min-h-full overflow-x-clip bg-[var(--noq-base)] animate-in fade-in">
-          {/* Futuristic ambient glow backdrop */}
+          {/* Futuristic subtle ambient glow backdrop */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="absolute -top-28 left-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-[var(--noq-accent)] opacity-[28%] blur-[82px]"
+              className="absolute -top-20 left-1/2 h-72 w-96 -translate-x-1/2 rounded-full bg-[var(--noq-accent)] opacity-[14%] blur-[90px]"
             />
             <div
-              className="absolute top-72 -right-24 h-72 w-72 rounded-full bg-[var(--noq-accent)] opacity-[8%] blur-[90px]"
+              className="absolute top-80 -right-20 h-64 w-64 rounded-full bg-[var(--noq-accent)] opacity-[6%] blur-[90px]"
             />
           </div>
 
@@ -1262,16 +1277,32 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   : 'translate-y-0 opacity-100'
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div aria-label="NOQ" className="flex items-center gap-1 text-[23px] font-black tracking-[0.18em] text-[var(--noq-ink)]">
-                  NOQ<span className="h-1.5 w-1.5 rounded-full bg-[var(--noq-accent)] shadow-[0_0_12px_var(--noq-accent)]" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[var(--noq-accent)]/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.16em] text-[var(--noq-accent)]">
+                      <Sparkles className="h-2.5 w-2.5" />
+                      NOQ
+                    </span>
+                  </div>
+                  <h1 className="mt-1 truncate text-[19px] font-black tracking-[-0.03em] text-[var(--noq-ink)] sm:text-[21px]">
+                    {formatCustomerGreeting(customerProfile?.name)}
+                  </h1>
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-[var(--noq-muted)]">
+                    Smart zero-wait discovery & live flow
+                  </p>
                 </div>
-                <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
+                <button
+                  type="button"
+                  onClick={() => setScreen('location-select')}
+                  aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`}
+                  className="customer-location-button grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95"
+                >
                   <MapPin className="h-[18px] w-[18px]" />
                 </button>
               </div>
 
-              {/* Large Search Box with rotating placeholder & inner mic button */}
+              {/* Large Search Box with rotating placeholder, inner mic & filter button */}
               <div className="mt-3">
                 <SalonSearchBar
                   value={salonSearch}
@@ -1281,6 +1312,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   isListening={isListening}
                   onVoiceSearch={handleVoiceSearch}
                   voiceFeedback={voiceFeedback}
+                  onOpenFilter={() => setIsCategoryPrefOpen(true)}
+                  isFilterActive={Boolean(pinnedCategoryIds && pinnedCategoryIds.length > 0)}
                 />
               </div>
             </div>
@@ -1331,6 +1364,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             selectedCategoryId={activeCategoryId}
             onSelect={setActiveCategoryId}
             onMore={() => setIsMoreCategoriesOpen(true)}
+            pinnedIds={pinnedCategoryIds}
           />
 
           {/* Premium hero / featured card — adapts to the selected category */}
@@ -1635,6 +1669,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
           </section>
         </div>
       )}
+
+      <CategoryPreferenceSheet
+        isOpen={isCategoryPrefOpen}
+        onClose={() => setIsCategoryPrefOpen(false)}
+        allCategories={mainCategories}
+        pinnedIds={pinnedCategoryIds}
+        onSavePinned={(newIds) => {
+          setPinnedCategoryIds(newIds);
+          try {
+            localStorage.setItem(PINNED_CATEGORIES_STORAGE_KEY, JSON.stringify(newIds));
+          } catch {}
+        }}
+        onResetDefault={() => {
+          setPinnedCategoryIds(DEFAULT_PINNED_CATEGORY_IDS);
+          try {
+            localStorage.setItem(PINNED_CATEGORIES_STORAGE_KEY, JSON.stringify(DEFAULT_PINNED_CATEGORY_IDS));
+          } catch {}
+        }}
+      />
 
       <QrScannerModal open={isQrScannerOpen} onClose={() => setIsQrScannerOpen(false)} onResolved={openQrBusiness} />
 

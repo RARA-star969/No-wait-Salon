@@ -10,28 +10,38 @@ import type { NearbySalon } from '../types';
  * One NOQ product, one set of components.
  */
 
-export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean; tone?: 'default' | 'gymGlass' }> = ({ icon, label, secondary, onClick, disabled, goldIcon }) => {
+export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean; tone?: 'default' | 'gymGlass' }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'var(--noq-glass-gradient)', goldIcon, tone = 'default' }) => {
+  // 'gymGlass' is a Gym-only presentation variant — Salon (and any caller
+  // that doesn't pass `tone`) keeps the exact original tile untouched.
+  const isGymGlass = tone === 'gymGlass';
   return (
   <button
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`group relative flex min-h-[78px] w-full flex-col items-center justify-center rounded-[20px] py-3.5 px-1.5 text-center transition-all duration-200 ${
-      goldIcon
-        ? 'border border-[#FDE68A] bg-gradient-to-b from-[#FFFDF7] to-[#FFF9EE] text-[#D97706] shadow-[0_2px_12px_-2px_rgba(245,158,11,0.12),0_1px_3px_rgba(245,158,11,0.04)]'
-        : 'border border-[#E2E8F0]/80 bg-white/95 backdrop-blur-sm text-slate-800 shadow-[0_2px_12px_-2px_rgba(0,0,0,0.04),0_1px_3px_rgba(0,0,0,0.02)] hover:bg-white'
-    } ${disabled ? 'pointer-events-none opacity-40' : 'active:scale-[0.96]'}`}
+    className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center transition ${
+      isGymGlass
+        ? 'border border-white/[0.08] bg-[var(--noq-surface-soft)]/80 shadow-[0_10px_22px_-16px_rgba(0,0,0,0.75)] backdrop-blur-sm'
+        : 'border border-[var(--noq-glass-border)] shadow-[inset_0_1px_0_white,0_12px_24px_-20px_var(--noq-glow)]'
+    } ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
+    style={isGymGlass ? undefined : { background: surfaceGradient }}
   >
     <span
-      className={`relative flex items-center justify-center transition-transform duration-200 group-active:scale-95 [&>svg]:h-[22px] [&>svg]:w-[22px] [&>svg]:stroke-[2] ${
+      className={`flex items-center justify-center shadow-[0_6px_14px_-4px_rgba(0,0,0,0.45)] ring-1 ring-black/5 ${
+        isGymGlass ? 'h-8 w-8 rounded-xl [&>svg]:h-[15px] [&>svg]:w-[15px] [&>svg]:stroke-[1.6]' : 'h-10 w-10 rounded-full [&>svg]:h-[18px] [&>svg]:w-[18px]'
+      } ${
         goldIcon
-          ? 'text-amber-500 fill-amber-400'
-          : 'text-[#2563eb]'
+          ? 'bg-[var(--noq-tint-10)] [&>svg]:fill-[var(--noq-accent-light)] [&>svg]:text-[var(--noq-accent)] [&>svg]:stroke-[1.75]'
+          : isGymGlass
+          ? 'bg-[var(--noq-tint-10)] text-[var(--noq-accent)]'
+          : active
+          ? 'bg-[var(--category-primary-light)] text-[var(--category-primary-dark)]'
+          : 'bg-white text-[var(--category-primary-dark)]'
       }`}
     >
-      <span className="relative contents">{icon}</span>
+      {icon}
     </span>
-    <span className={`mt-1.5 line-clamp-1 w-full truncate text-[11px] font-semibold tracking-tight text-center leading-tight ${goldIcon ? 'text-[#D97706]' : 'text-slate-800'}`}>{label}</span>
+    <span className="mt-2.5 text-[10px] font-bold leading-tight text-[var(--noq-ink)]">{label}</span>
     {secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-[var(--noq-muted)]">{secondary}</span>}
   </button>
   );
