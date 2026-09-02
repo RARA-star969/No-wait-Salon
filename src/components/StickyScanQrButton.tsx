@@ -116,7 +116,6 @@ export const StickyScanQrButton: React.FC<Props> = ({
             <span className="pointer-events-none absolute inset-x-2 top-2 h-1/3 rounded-full bg-white/40 blur-[2px]" />
             <QrCode className="relative h-5 w-5 drop-shadow-sm" />
           </button>
-          <span className="pointer-events-none absolute left-1/2 top-[41px] -translate-x-1/2 whitespace-nowrap text-[8px] font-semibold tracking-wide text-[var(--noq-muted)]">Scan QR</span>
         </div>
       </div>
     </div>

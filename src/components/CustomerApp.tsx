@@ -1265,84 +1265,83 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               ever moves), and no "reserved but invisible" blank gap while
               scrolling up through the middle of Home (there's no reservation
               to be blank — see the explicit spacer below instead). */}
-          <div className="sticky top-0 z-[140] h-0 overflow-visible">
-            <div
-              id="customer-home-header"
-              ref={setHomeHeaderNode}
-              className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
-                homeHeaderCollapsed
-                  ? 'pointer-events-none -translate-y-full opacity-0'
-                  : 'translate-y-0 opacity-100'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <img
-                  src={officialNoqLogo}
-                  alt="NOQ — Less Queue. More Flow."
-                  className="h-auto w-[112px] object-contain"
-                />
-                <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
-                  <MapPin className="h-[18px] w-[18px]" />
-                </button>
-              </div>
-
-              <div className="mt-3">
-                <SalonSearchBar
-                  value={salonSearch}
-                  onChange={(value) => {
-                    setSalonSearch(value);
-                    if (value.trim() && !categoryListingId) setCategoryListingId(activeCategoryId);
-                  }}
-                  categories={categoriesWithLiveCounts}
-                  activeCategoryName={activeCategoryObj.name}
-                  isListening={isListening}
-                  onVoiceSearch={handleVoiceSearch}
-                  voiceFeedback={voiceFeedback}
-                  onFilterClick={() => setIsCategoryPreferencesOpen(true)}
-                  preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
-                />
-              </div>
-
-              <div className="mt-3 px-0.5">
-                <div className="flex items-center gap-2 text-[var(--noq-ink)]">
-                  <h1 className="truncate text-[18px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
-                  <GreetingIcon className="h-[18px] w-[18px] shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
+          {!categoryListingId && (
+            <div className="sticky top-0 z-[140] h-0 overflow-visible">
+              <div
+                id="customer-home-header"
+                ref={setHomeHeaderNode}
+                className={`customer-home-header absolute inset-x-0 top-0 overflow-hidden px-4 pb-3 pt-[max(.8rem,env(safe-area-inset-top))] backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] will-change-transform sm:px-5 ${
+                  homeHeaderCollapsed
+                    ? 'pointer-events-none -translate-y-full opacity-0'
+                    : 'translate-y-0 opacity-100'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <img
+                    src={officialNoqLogo}
+                    alt="NOQ — Less Queue. More Flow."
+                    className="h-auto w-[92px] object-contain"
+                  />
+                  <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
+                    <MapPin className="h-[18px] w-[18px]" />
+                  </button>
                 </div>
-                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
+
+                <div className="mt-3">
+                  <SalonSearchBar
+                    value={salonSearch}
+                    onChange={(value) => {
+                      setSalonSearch(value);
+                      if (value.trim() && !categoryListingId) setCategoryListingId(activeCategoryId);
+                    }}
+                    categories={categoriesWithLiveCounts}
+                    activeCategoryName={activeCategoryObj.name}
+                    isListening={isListening}
+                    onVoiceSearch={handleVoiceSearch}
+                    voiceFeedback={voiceFeedback}
+                    onFilterClick={() => setIsCategoryPreferencesOpen(true)}
+                    preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Ordinary static spacer — the ONLY thing that reserves the
               header's vertical space, so the deck begins naturally below
               Location/Search at rest. It is a plain block (not sticky, not
               transform-hidden) and scrolls away with the rest of the
-              document exactly like any other content. */}
-          <div style={{ height: homeHeaderHeight }} aria-hidden="true" />
+              document exactly like any other content. Skipped entirely on
+              the category listing screen, which renders its own compact
+              header instead of the Home logo/search/greeting header. */}
+          {!categoryListingId && <div style={{ height: homeHeaderHeight }} aria-hidden="true" />}
 
           {/* Minimal return-to-top shortcut only — no text, no capsule, and it
               never opens the header itself. It is always mounted (so the
               appearance is a soft fade+slide, never a pop), hidden near the
               top, and appears once the customer has scrolled meaningfully
               down. The Location/Search header reveals on its own once the
-              scroll-to-top glide this triggers actually reaches the top. */}
-          <div className="pointer-events-none sticky top-3 z-[130] flex h-0 justify-end pr-1">
-            <button
-              type="button"
-              onClick={revealHomeHeader}
-              tabIndex={homeHeaderCollapsed ? 0 : -1}
-              aria-hidden={!homeHeaderCollapsed}
-              className={`flex h-8 w-8 items-center justify-center rounded-full border bg-white/80 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-90 ${
-                homeHeaderCollapsed
-                  ? 'pointer-events-auto translate-y-0 opacity-100'
-                  : 'pointer-events-none -translate-y-2 opacity-0'
-              }`}
-              style={{ borderColor: 'var(--category-tint-20, rgba(148,163,184,0.25))' }}
-              aria-label="Return to top"
-            >
-              <ArrowUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
-            </button>
-          </div>
+              scroll-to-top glide this triggers actually reaches the top.
+              Only relevant while the Home header itself can be shown. */}
+          {!categoryListingId && (
+            <div className="pointer-events-none sticky top-3 z-[130] flex h-0 justify-end pr-1">
+              <button
+                type="button"
+                onClick={revealHomeHeader}
+                tabIndex={homeHeaderCollapsed ? 0 : -1}
+                aria-hidden={!homeHeaderCollapsed}
+                className={`flex h-8 w-8 items-center justify-center rounded-full border bg-white/80 backdrop-blur-xl transition-[opacity,transform] duration-300 ease-[cubic-bezier(.32,.72,.33,1)] active:scale-90 ${
+                  homeHeaderCollapsed
+                    ? 'pointer-events-auto translate-y-0 opacity-100'
+                    : 'pointer-events-none -translate-y-2 opacity-0'
+                }`}
+                style={{ borderColor: 'var(--category-tint-20, rgba(148,163,184,0.25))' }}
+                aria-label="Return to top"
+              >
+                <ArrowUp className="h-3.5 w-3.5 text-[var(--category-accent)]" />
+              </button>
+            </div>
+          )}
 
           {/* A near-imperceptible depth cue during the scripted return-to-top
               glide (Task 1: "premium and controlled, not flashy") — barely a
@@ -1355,6 +1354,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
           {!categoryListingId ? (
             <section className="category-content-transition">
+              <div className="mb-3.5 px-0.5">
+                <div className="flex items-center gap-2 text-[var(--noq-ink)]">
+                  <h1 className="truncate text-[20.5px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
+                  <GreetingIcon className="h-5 w-5 shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
+                </div>
+                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
+              </div>
               <div className="mb-2 flex justify-end px-0.5">
                 <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
               </div>
@@ -1366,18 +1372,42 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               />
             </section>
           ) : (
-            <div className="category-content-transition flex items-center gap-3 pb-1">
-              <button
-                type="button"
-                onClick={() => { setCategoryListingId(null); setSalonSearch(''); }}
-                aria-label="Back to Home categories"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--noq-glass-border)] bg-white text-[var(--noq-accent)] shadow-sm"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </button>
-              <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--noq-muted)]">Category</p>
-                <h2 className="truncate text-[18px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
+            <div id="category-listing-header" className="category-content-transition -mt-2.5 pt-[max(.8rem,env(safe-area-inset-top))]">
+              <div className="flex items-center gap-3 pb-3">
+                <button
+                  type="button"
+                  onClick={() => { setCategoryListingId(null); setSalonSearch(''); }}
+                  aria-label="Back to Home categories"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--noq-glass-border)] bg-white text-[var(--noq-accent)] shadow-sm"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--noq-muted)]">Category</p>
+                  <h2 className="truncate text-[18px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
+                </div>
+              </div>
+              <div className="customer-search-glass flex h-[44px] w-full items-center gap-3 rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
+                <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
+                <input
+                  value={salonSearch}
+                  onChange={(event) => setSalonSearch(event.target.value)}
+                  type="search"
+                  enterKeyHint="search"
+                  aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
+                  placeholder={`Search ${activeCategoryObj.name.toLowerCase()}s...`}
+                  className="h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
+                />
+                {salonSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setSalonSearch('')}
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1677,7 +1707,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       )}
 
       {currentScreen === 'home' && isMoreCategoriesOpen && (
-        <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsMoreCategoriesOpen(false); }}>
+        <div className="fixed inset-0 z-[150] flex items-end justify-center bg-[#07103A]/35 backdrop-blur-sm" onClick={(event) => { if (event.target === event.currentTarget) setIsMoreCategoriesOpen(false); }}>
           <section className="customer-more-sheet relative max-h-[calc(100dvh-env(safe-area-inset-top)-.75rem)] w-full max-w-md overflow-y-auto overscroll-contain rounded-t-[30px] border border-[var(--noq-glass-border)] px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-5 text-[var(--noq-ink)] shadow-2xl">
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/20" />
             <div className="flex items-start justify-between gap-4">

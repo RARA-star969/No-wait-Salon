@@ -30,6 +30,12 @@ type Props = {
   className?: string;
   palette?: ScoreboardPalette;
   premiumLive?: boolean;
+  /** Real connection state for the plain (non-`premiumLive`) chip — mirrors
+   *  the same prop LiveQueueCard already honors, so the capsule and the
+   *  full card can never disagree about whether the feed is actually live.
+   *  Defaults to true so callers that don't track connection (e.g. Gym's
+   *  `premiumLive` capsule) keep their current appearance unchanged. */
+  live?: boolean;
 };
 
 const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
@@ -50,7 +56,7 @@ const MetricValue: React.FC<{ metric: ScoreboardMetric }> = ({ metric }) => {
   );
 };
 
-export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette, premiumLive = false }) => {
+export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className = '', palette, premiumLive = false, live = true }) => {
   const Wrapper = onTap ? 'button' : 'div';
   const fill = palette?.fill ?? NOQ_CUSTOMER_LIVE_QUEUE_FILL_CAPSULE;
   const rim = palette?.rim ?? NOQ_CUSTOMER_LIVE_QUEUE_RIM_CAPSULE;
@@ -80,12 +86,12 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className
         <LiveStatusChip />
       ) : (
         <span className="relative flex shrink-0 items-center">
-          <span className="live-chip-pulse inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-[#EF4444]/90 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white">
+          <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white ${live ? 'live-chip-pulse bg-[#EF4444]/90' : 'bg-white/20'}`}>
             <span className="relative flex h-1.5 w-1.5 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />
+              {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
             </span>
-            Live
+            {live ? 'Live' : 'Updating'}
           </span>
         </span>
       )}

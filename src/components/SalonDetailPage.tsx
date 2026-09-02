@@ -212,7 +212,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         }`}
       >
         <div key={capsuleEnterKey} className="pointer-events-auto capsule-melt-in">
-          <LiveQueueScoreboard metrics={scoreboardMetrics} onTap={scrollToLiveQueue} />
+          <LiveQueueScoreboard metrics={scoreboardMetrics} onTap={scrollToLiveQueue} live={liveConnected} />
         </div>
       </div>
 

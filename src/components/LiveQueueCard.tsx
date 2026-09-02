@@ -4,6 +4,7 @@ import { useMetricFlash } from '../shared/useMetricFlash';
 import { liveQueuePosition } from '../shared/liveQueueDisplayMetrics';
 import { TimeValue } from './TimeValue';
 import { formatChairCount } from '../shared/chairGrammar';
+import { NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT, NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL } from '../shared/liveQueueVisual';
 
 /**
  * The hero USP: a real-time queue card shared by the customer app's salon
@@ -76,13 +77,13 @@ const Stat: React.FC<{ label: string; value: React.ReactNode; delta?: React.Reac
 const SalonStat: React.FC<{ label: React.ReactNode; value: React.ReactNode; flashing?: boolean; dense?: boolean }> = ({ label, value, flashing, dense }) => (
   <div className="min-w-0 text-center">
     <p
-      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-[#0D1676] transition-transform duration-300 ${
+      className={`whitespace-nowrap font-bold leading-none tracking-[-0.02em] text-white transition-transform duration-300 ${
         dense ? 'text-[15px]' : 'text-[22px]'
-      } ${flashing ? 'scale-[1.08] text-[var(--noq-accent)]' : ''}`}
+      } ${flashing ? 'scale-[1.08] text-[var(--noq-accent-light)]' : ''}`}
     >
       {value}
     </p>
-    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-[var(--noq-muted)]">{label || ' '}</p>
+    <p className="mt-1.5 whitespace-nowrap text-[9px] font-bold uppercase tracking-[0.14em] text-white/60">{label || ' '}</p>
   </div>
 );
 
@@ -115,30 +116,32 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
     return (
       <section
         id="live-queue-hero-card"
-        className={`noq-glass-surface relative overflow-hidden rounded-[22px] border px-4 py-3 text-[var(--noq-ink)] ${className}`}
+        className={`relative overflow-hidden rounded-[22px] border border-white/[0.14] px-4 py-3 text-white shadow-[0_10px_24px_-10px_rgba(29,54,201,0.28),0_20px_42px_-18px_rgba(52,84,253,0.42)] ${className}`}
+        style={{ background: NOQ_CUSTOMER_LIVE_QUEUE_GRADIENT }}
       >
-        {/* Luminous edge — softened, not neon: low-alpha masked gradient rim. */}
+        {/* Luminous edge — softened, not neon: low-alpha masked gradient rim,
+            the same operational-card material Gym's live card uses. */}
         <div
           className="pointer-events-none absolute inset-0 rounded-[22px] p-px"
           style={{
-            background: 'linear-gradient(120deg, rgba(255,255,255,.95), rgba(52,84,253,.22), rgba(255,255,255,.5))',
+            background: NOQ_CUSTOMER_LIVE_QUEUE_RIM_FULL,
             WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
             WebkitMaskComposite: 'xor',
             maskComposite: 'exclude',
           }}
           aria-hidden="true"
         />
-        <div className="pointer-events-none absolute -right-12 -top-16 h-32 w-32 rounded-full bg-[var(--noq-accent)]/[0.07] blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#7890FF]/[0.16] blur-3xl" aria-hidden="true" />
 
         <div className="relative flex items-center justify-between gap-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'bg-[#EF4444]/90 text-white live-chip-pulse' : 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]'}`}>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-white ${live ? 'bg-[#EF4444]/90 live-chip-pulse' : 'bg-white/15'}`}>
             <span className="relative flex h-1.5 w-1.5">
               {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
-              <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${live ? 'bg-white' : 'bg-[var(--noq-muted)]'}`} />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
             </span>
             {live ? 'Live' : 'Updating'}
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--noq-muted)]">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-white/60">
             {formatChairCount(totalChairs)} TODAY
           </span>
         </div>

@@ -188,14 +188,26 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   onFilterClick,
   preferredCategoryCount = 0,
 }) => {
-  void categories;
   void activeCategoryName;
-  const placeholderText = 'Search businesses...';
+  const rotatingNames = categories.length > 0 ? categories.map((category) => category.name) : ['Salon', 'Gym', 'Shop'];
+  const [placeholderIndex, setPlaceholderIndex] = React.useState(0);
+
+  React.useEffect(() => {
+    if (value) return undefined;
+    if (rotatingNames.length < 2) return undefined;
+    const id = window.setInterval(() => {
+      setPlaceholderIndex((index) => (index + 1) % rotatingNames.length);
+    }, 2000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, rotatingNames.join('|')]);
+
+  const rotatingLabel = `Search for "${rotatingNames[placeholderIndex % rotatingNames.length]}"`;
 
   return (
     <div className="relative w-full space-y-2">
       <div
-        className={`customer-search-glass flex h-[48px] w-full items-center gap-2.5 rounded-[16px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
+        className={`customer-search-glass flex h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
           isListening
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
@@ -205,15 +217,26 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
         <Search className="h-[18px] w-[18px] shrink-0 text-[var(--noq-accent-light)]" />
-        <input
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          type="search"
-          enterKeyHint="search"
-          aria-label="Search businesses"
-          placeholder={placeholderText}
-          className="h-[48px] min-w-0 flex-1 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
-        />
+        <div className="relative min-w-0 flex-1">
+          {!value && (
+            <span
+              key={placeholderIndex}
+              aria-hidden="true"
+              className="customer-search-rotating-placeholder pointer-events-none absolute inset-y-0 left-0 flex items-center truncate text-[13px] font-medium text-[var(--noq-muted)]"
+            >
+              {rotatingLabel}
+            </span>
+          )}
+          <input
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            type="search"
+            enterKeyHint="search"
+            aria-label="Search businesses"
+            placeholder=""
+            className="h-[48px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none"
+          />
+        </div>
         {value && (
           <button
             type="button"
@@ -227,7 +250,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         <button
           type="button"
           onClick={onFilterClick}
-          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--noq-glass-border)] bg-white/75 text-[var(--noq-accent)] transition active:scale-95"
+          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-white/40 text-[var(--noq-accent)] transition active:scale-95"
           aria-label="Choose preferred Home categories"
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -389,8 +412,13 @@ export const CustomerCategoryGrid: React.FC<{
           >
             <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? accent : '#97A3B7' }} />
             <span className="min-w-0">
-              <b className="block truncate text-[11px] font-extrabold" style={{ color: active ? accent : 'var(--noq-ink)' }}>{category.name}</b>
-              <span className="mt-0.5 block truncate text-[8px] font-semibold text-[var(--noq-muted)]">{category.businessCount ?? 0} nearby</span>
+              <b className="block truncate text-[12.5px] font-extrabold" style={{ color: active ? accent : 'var(--noq-ink)' }}>{category.name}</b>
+            </span>
+            <span
+              className="absolute right-2.5 top-2.5 text-[9.5px] font-bold tabular-nums text-[var(--noq-muted)]"
+              aria-label={`${category.businessCount ?? 0} businesses`}
+            >
+              {category.businessCount ?? 0}
             </span>
           </button>
         );
@@ -402,7 +430,7 @@ export const CustomerCategoryGrid: React.FC<{
         className="customer-category-tile relative flex h-[74px] items-center gap-2.5 rounded-[20px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
       >
         <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-[var(--noq-muted)]" />
-        <span><b className="block text-[11px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>
+        <span><b className="block text-[12.5px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>
       </button>
     </section>
   );
