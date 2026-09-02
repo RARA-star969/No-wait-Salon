@@ -1229,7 +1229,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     <div
       ref={homeScrollRef}
       onScroll={handleHomeScroll}
-      className="flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-[var(--noq-base)] text-[var(--noq-ink)] [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
+      className="noq-customer-page flex h-full min-h-0 flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain text-[var(--noq-ink)] [-webkit-overflow-scrolling:touch] [touch-action:pan-y]"
     >
       {/* 1. HOME SCREEN - NEARBY SALONS */}
       {currentScreen === 'home' && (

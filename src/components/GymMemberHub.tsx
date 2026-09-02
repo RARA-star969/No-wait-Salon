@@ -46,19 +46,19 @@ export const GymMemberHub: React.FC<{
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-bold text-[var(--noq-ink)]">{gymName}</h1>
-          <p className="truncate text-[11px] text-[#5C6E6B]">
+          <p className="truncate text-[11px] text-[var(--noq-muted)]">
             {membership ? `${membership.planName} · ${membership.displayStatus === 'expired' ? 'Expired' : 'Activated'}` : 'Membership'}
           </p>
         </div>
       </header>
 
       {loading ? (
-        <div className="flex flex-1 items-center justify-center text-[#5C6E6B]"><LoaderCircle className="h-5 w-5 animate-spin" /></div>
+        <div className="flex flex-1 items-center justify-center text-[var(--noq-muted)]"><LoaderCircle className="h-5 w-5 animate-spin" /></div>
       ) : (
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]">
           <div className="mx-auto max-w-md space-y-3">
             {membership && (
-              <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
+              <div className="noq-glass-surface rounded-2xl border p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--noq-ink)]">Membership details</span>
                   <span className={`rounded-md px-2 py-0.5 text-[9px] font-extrabold uppercase ${
@@ -69,7 +69,7 @@ export const GymMemberHub: React.FC<{
                     {membership.displayStatus === 'expired' ? 'Expired' : 'Activated'}
                   </span>
                 </div>
-                <p className="mt-1 text-[11px] text-[#71807E]">
+                <p className="mt-1 text-[11px] text-[var(--noq-muted)]">
                   Member since {new Date(membership.joinedDate).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}
                 </p>
                 <p className="mt-0.5 text-[11px] font-semibold text-[var(--noq-ink)]">
@@ -92,23 +92,23 @@ export const GymMemberHub: React.FC<{
 
             <button
               onClick={onOpenWorkoutPlan}
-              className="flex w-full items-center gap-3 rounded-2xl border border-[#E0E7E6] bg-white p-4 text-left"
+              className="noq-glass-surface flex w-full items-center gap-3 rounded-2xl border p-4 text-left"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]"><ClipboardList className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-[var(--noq-ink)]">Workout Plan</p>
-                <p className="mt-0.5 text-[11px] text-[#71807E]">Set up or edit your weekly plan for {gymName}</p>
+                <p className="mt-0.5 text-[11px] text-[var(--noq-muted)]">Set up or edit your weekly plan for {gymName}</p>
               </div>
             </button>
 
             <button
               onClick={() => setAttendanceOpen(true)}
-              className="flex w-full items-center gap-3 rounded-2xl border border-[#E0E7E6] bg-white p-4 text-left"
+              className="noq-glass-surface flex w-full items-center gap-3 rounded-2xl border p-4 text-left"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]"><CalendarDays className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-[var(--noq-ink)]">Attendance Calendar</p>
-                <p className="mt-0.5 text-[11px] text-[#71807E]">
+                <p className="mt-0.5 text-[11px] text-[var(--noq-muted)]">
                   {data?.attendance ? `${data.attendance.currentStreak} day streak · ${data.attendance.visitsThisMonth} visits this month` : 'Your real check-in history'}
                 </p>
               </div>
@@ -116,19 +116,19 @@ export const GymMemberHub: React.FC<{
 
             {data?.attendance && (
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
-                  <div className="flex items-center gap-1.5 text-[#71807E]"><Flame className="h-3.5 w-3.5" /><span className="text-[10px] font-bold uppercase tracking-wide">Current streak</span></div>
-                  <p className="mt-1 text-lg font-extrabold text-[var(--noq-ink)]">{data.attendance.currentStreak} <span className="text-xs font-semibold text-[#71807E]">days</span></p>
+                <div className="noq-glass-surface rounded-2xl border p-4">
+                  <div className="flex items-center gap-1.5 text-[var(--noq-muted)]"><Flame className="h-3.5 w-3.5" /><span className="text-[10px] font-bold uppercase tracking-wide">Current streak</span></div>
+                  <p className="mt-1 text-lg font-extrabold text-[var(--noq-ink)]">{data.attendance.currentStreak} <span className="text-xs font-semibold text-[var(--noq-muted)]">days</span></p>
                 </div>
-                <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
-                  <div className="flex items-center gap-1.5 text-[#71807E]"><Target className="h-3.5 w-3.5" /><span className="text-[10px] font-bold uppercase tracking-wide">Per week (avg)</span></div>
+                <div className="noq-glass-surface rounded-2xl border p-4">
+                  <div className="flex items-center gap-1.5 text-[var(--noq-muted)]"><Target className="h-3.5 w-3.5" /><span className="text-[10px] font-bold uppercase tracking-wide">Per week (avg)</span></div>
                   <p className="mt-1 text-lg font-extrabold text-[var(--noq-ink)]">{data.attendance.avgVisitsPerWeek}</p>
                 </div>
               </div>
             )}
 
             {(data?.recentVisits?.length ?? 0) > 0 && (
-              <div className="rounded-2xl border border-[#E0E7E6] bg-white p-4">
+              <div className="noq-glass-surface rounded-2xl border p-4">
                 <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--noq-muted)]">Visit history</p>
                 <div className="mt-2 space-y-2">
                   {data!.recentVisits.slice(0, 8).map((visit) => (
@@ -142,7 +142,7 @@ export const GymMemberHub: React.FC<{
             )}
 
             {!membership && !loading && (
-              <p className="rounded-2xl border border-[#E0E7E6] bg-white p-4 text-center text-xs text-[#71807E]">No active membership found for this gym.</p>
+              <p className="noq-glass-surface rounded-2xl border p-4 text-center text-xs text-[var(--noq-muted)]">No active membership found for this gym.</p>
             )}
           </div>
         </div>

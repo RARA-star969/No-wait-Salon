@@ -90,13 +90,13 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div className="min-w-0">
             <h2 className="text-base font-bold tracking-[-0.01em] text-[var(--noq-ink)]">Change location</h2>
-            <p className="mt-1 text-xs leading-5 text-[#667371]">Pick where you want to find salons.</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--noq-muted)]">Pick where you want to find salons.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F1F5F4] text-[#42524F] transition active:scale-95"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--noq-surface-soft)] text-[var(--noq-muted)] transition active:scale-95"
           >
             <X className="h-4 w-4" />
           </button>
@@ -107,26 +107,26 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
             type="button"
             onClick={useCurrentLocation}
             disabled={loading !== null}
-            className="flex w-full items-center gap-3 rounded-2xl border border-[#CDE3E0] bg-[#F3FAF9] px-4 py-3 text-left transition active:scale-[0.99] disabled:opacity-60"
+            className="flex w-full items-center gap-3 rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-tint-10)] px-4 py-3 text-left transition active:scale-[0.99] disabled:opacity-60"
           >
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--noq-accent)] text-white">
               {loading === 'gps' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-bold text-[var(--noq-ink)]">Use my current location</span>
-              <span className="block text-[11px] leading-4 text-[#667371]">Find salons closest to you right now</span>
+              <span className="block text-[11px] leading-4 text-[var(--noq-muted)]">Find salons closest to you right now</span>
             </span>
             {usingGps && <Check className="h-4 w-4 shrink-0 text-[var(--noq-accent)]" />}
           </button>
 
           {!usingGps && currentLabel && (
             <div className="mt-3 flex items-center gap-3 rounded-2xl border border-[var(--noq-border)] bg-white px-4 py-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#E5F3F1] text-[var(--noq-accent)]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--noq-tint-10)] text-[var(--noq-accent)]">
                 <MapPin className="h-4 w-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[#7A8785]">Currently selected</span>
-                <span className="block truncate text-sm font-semibold text-[#25302F]">{currentLabel}</span>
+                <span className="block text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--noq-muted)]">Currently selected</span>
+                <span className="block truncate text-sm font-semibold text-[var(--noq-ink)]">{currentLabel}</span>
               </span>
               <Check className="h-4 w-4 shrink-0 text-[var(--noq-accent)]" />
             </div>
@@ -148,7 +148,7 @@ export const LocationSelectorSheet: React.FC<Props> = ({ open, currentLabel, onC
                   className="h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9AA6A4]"
                 />
               </div>
-              <button disabled={loading !== null} className="h-11 rounded-xl bg-[#173F3B] px-4 text-xs font-bold text-white disabled:opacity-60">
+              <button disabled={loading !== null} className="h-11 rounded-xl bg-[var(--noq-accent)] px-4 text-xs font-bold text-white disabled:opacity-60">
                 {loading === 'manual' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : 'Search'}
               </button>
             </div>

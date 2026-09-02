@@ -44,13 +44,13 @@ export const CancelBookingSheet: React.FC<Props> = ({ open, audience, title, bus
         <div className="flex items-start justify-between gap-3 px-5 pt-5">
           <div>
             <h2 className="text-base font-bold text-[var(--noq-ink)]">{title || 'Cancel booking'}</h2>
-            <p className="mt-1 text-xs text-[#667371]">Tell us why, so the salon can plan the queue.</p>
+            <p className="mt-1 text-xs text-[var(--noq-muted)]">Tell us why, so the salon can plan the queue.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F1F5F4] text-[#42524F]"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -65,7 +65,7 @@ export const CancelBookingSheet: React.FC<Props> = ({ open, audience, title, bus
                 onClick={() => setCode(reason.code)}
                 aria-pressed={code === reason.code}
                 className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold transition ${
-                  code === reason.code ? 'border-[var(--noq-accent)] bg-[#F1FAF9] text-[var(--noq-accent)]' : 'border-[var(--noq-border)] bg-white text-[#25302F]'
+                  code === reason.code ? 'border-[var(--noq-accent)] bg-[var(--noq-tint-10)] text-[var(--noq-accent)]' : 'border-[var(--noq-border)] bg-white text-[var(--noq-ink)]'
                 }`}
               >
                 <span
@@ -97,7 +97,7 @@ export const CancelBookingSheet: React.FC<Props> = ({ open, audience, title, bus
         </div>
 
         <div className="flex gap-2 px-5 pt-4">
-          <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl border border-[var(--noq-border)] bg-white text-sm font-bold text-[#42524F]">
+          <button type="button" onClick={onClose} className="h-12 flex-1 rounded-xl border border-[var(--noq-border)] bg-white text-sm font-bold text-[var(--noq-muted)]">
             Keep booking
           </button>
           <button

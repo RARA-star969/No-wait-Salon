@@ -151,8 +151,8 @@ export const ThankYouScreen: React.FC<Props> = ({
                       onClick={() => toggleTag(chip.id)}
                       className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                         active
-                          ? 'border-2 border-[var(--noq-accent)] bg-[#E7F5F2] text-[var(--noq-accent)] shadow-sm scale-105'
-                          : 'border border-[var(--noq-border)] bg-[var(--noq-base)] text-[#5E6C6A] hover:border-[#62AAA3]'
+                          ? 'border-2 border-[var(--noq-accent)] bg-[var(--noq-tint-10)] text-[var(--noq-accent)] shadow-sm scale-105'
+                          : 'border border-[var(--noq-border)] bg-[var(--noq-base)] text-[var(--noq-muted)] hover:border-[var(--noq-accent)]'
                       }`}
                     >
                       {chip.label}
@@ -223,7 +223,7 @@ export const ThankYouScreen: React.FC<Props> = ({
                 ✕
               </button>
             </div>
-            <p className="text-xs text-[#5E6C6A] leading-relaxed">
+            <p className="text-xs text-[var(--noq-muted)] leading-relaxed">
               We separate salon feedback from platform support. How can our support team assist you with booking <b>#{item.token || item.id.slice(0, 6)}</b>?
             </p>
             <div className="space-y-2">

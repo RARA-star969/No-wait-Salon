@@ -34,6 +34,7 @@ body {
   --noq-border: #DCE4FF;
   --noq-surface: #FFFFFF;
   --noq-surface-soft: #F5F7FF;
+  --noq-text-subtle: #8C98B5;
   --noq-glass: rgba(253,255,255,.78);
   --noq-glass-strong: rgba(253,255,255,.92);
   --noq-glass-border: rgba(52,84,253,.18);
@@ -63,8 +64,8 @@ body {
 }
 
 /* Approved NOQ Customer Home material. The brand-blue aura is intentionally
-   independent of --category-* so switching categories cannot recolor the
-   shell; only elements carrying --home-accent receive a local category tint. */
+   independent of --category-* so switching categories cannot recolor any
+   visual surface; --home-accent is a compatibility alias for NOQ blue. */
 .customer-liquid-home {
   color-scheme: light;
   background:
@@ -131,6 +132,24 @@ body {
     radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--home-accent) 13%, transparent), transparent 45%),
     var(--noq-glass-gradient);
   box-shadow: inset 0 1px 0 #fff, inset 0 -18px 38px rgba(52,84,253,.035), 0 20px 45px -28px var(--home-accent);
+}
+
+/* Shared customer glass hierarchy. These utilities intentionally carry no
+   layout rules, so screens can adopt the NOQ material system without changing
+   their component structure, spacing or interaction behaviour. */
+.noq-customer-page {
+  color: var(--noq-ink);
+  background:
+    radial-gradient(circle at 88% 0%, var(--noq-tint-10), transparent 31%),
+    linear-gradient(180deg, var(--noq-base), var(--noq-surface-soft));
+}
+
+.noq-glass-surface {
+  border-color: var(--noq-glass-border);
+  background: var(--noq-glass-gradient);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.94), 0 14px 34px -26px var(--noq-glow);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
 }
 
 .customer-hero-arcs span {

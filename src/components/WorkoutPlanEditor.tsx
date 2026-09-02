@@ -126,7 +126,7 @@ export const WorkoutPlanEditor: React.FC<{ gymId: string; gymName: string; onClo
                   key={option}
                   type="button"
                   onClick={() => setGoal(option)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${goal === option ? 'border-[#6B21A8] bg-[#6B21A8] text-white' : 'border-[#DDE5E3] bg-white text-[#5C6E6B]'}`}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${goal === option ? 'border-[var(--noq-accent)] bg-[var(--noq-accent)] text-white' : 'border-[var(--noq-border)] bg-white text-[var(--noq-muted)]'}`}
                 >
                   {option}
                 </button>
@@ -238,7 +238,7 @@ export const WorkoutPlanEditor: React.FC<{ gymId: string; gymName: string; onClo
           type="button"
           onClick={save}
           disabled={saving || loading}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#6B21A8] py-3 text-sm font-bold text-white disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] py-3 text-sm font-bold text-white shadow-[0_12px_24px_-14px_var(--noq-glow)] disabled:opacity-60"
         >
           {saving && <Loader2 className="h-4 w-4 animate-spin" />}
           Save workout plan

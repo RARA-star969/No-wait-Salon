@@ -12,6 +12,18 @@ export const ui = {
   eyebrow: 'text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8785]',
 };
 
+/** Customer-only semantic controls. Staff keeps the legacy `ui` map above;
+ * customer flows consume this NOQ hierarchy explicitly. */
+export const customerUi = {
+  page: 'noq-customer-page text-[var(--noq-ink)]',
+  card: 'noq-glass-surface rounded-2xl border',
+  primaryButton: 'rounded-xl bg-[var(--noq-accent)] px-4 py-3 text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition hover:bg-[var(--noq-accent-hover)] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50',
+  secondaryButton: 'rounded-xl border border-[var(--noq-glass-border)] bg-white/75 px-4 py-3 text-sm font-semibold text-[var(--noq-ink)] transition hover:border-[var(--noq-accent)]/35 hover:text-[var(--noq-accent)] active:scale-[0.99]',
+  field: 'w-full rounded-xl border border-[var(--noq-border)] bg-white/80 px-3.5 py-3 text-sm text-[var(--noq-ink)] outline-none transition placeholder:text-[var(--noq-text-subtle)] focus:border-[var(--noq-accent)] focus:ring-2 focus:ring-[var(--noq-tint-10)]',
+  label: 'mb-1.5 block text-xs font-semibold text-[var(--noq-ink)]',
+  eyebrow: 'text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--noq-muted)]',
+};
+
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
 };

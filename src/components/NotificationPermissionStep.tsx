@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BellRing, LoaderCircle } from 'lucide-react';
-import { Button, ui } from './ui';
+import { customerUi as ui } from './ui';
 import { requestPushPermission } from '../services/notificationService';
 
 type Props = {
@@ -29,12 +29,12 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
   return (
     <div id="onboarding-notifications-step" className={`flex min-h-full flex-col px-5 pb-7 pt-10 ${ui.page}`}>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-        <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
+        <div className="noq-glass-surface mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
           <BellRing className="h-7 w-7" />
         </div>
         <p className={ui.eyebrow}>Turn alerts</p>
         <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Never miss your turn.</h1>
-        <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
+        <p className="mt-3 max-w-sm text-sm leading-6 text-[var(--noq-muted)]">
           We'll notify you when you're almost up, so you don't have to keep the app open and watch the queue.
         </p>
 
@@ -49,11 +49,11 @@ export const NotificationPermissionStep: React.FC<Props> = ({ onDone }) => {
           Enable notifications
         </button>
 
-        <Button type="button" variant="ghost" id="onboarding-skip-notifications-btn" onClick={onDone} className="mt-2 w-full">
+        <button type="button" id="onboarding-skip-notifications-btn" onClick={onDone} className="mt-2 w-full rounded-xl px-3 py-2 text-sm font-semibold text-[var(--noq-muted)] transition hover:bg-[var(--noq-tint-10)] hover:text-[var(--noq-accent)] active:scale-[0.99]">
           Not now
-        </Button>
+        </button>
 
-        <p className="mt-6 text-[11px] leading-5 text-[#788582]">
+        <p className="mt-6 text-[11px] leading-5 text-[var(--noq-muted)]">
           You can change this anytime from the notification bell.
         </p>
       </div>

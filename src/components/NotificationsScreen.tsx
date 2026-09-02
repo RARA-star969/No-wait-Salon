@@ -79,13 +79,13 @@ const NotificationRow: React.FC<{
       data-unread={unread ? 'true' : 'false'}
       className={`flex w-full items-start gap-3 rounded-2xl border p-3.5 text-left transition active:scale-[0.99] ${
         unread
-          ? 'border-white/[0.14] bg-white/[0.07]'
-          : 'border-white/[0.07] bg-white/[0.025]'
+          ? 'border-[var(--noq-accent)]/25 bg-[var(--noq-tint-10)] shadow-[0_12px_28px_-24px_var(--noq-glow)]'
+          : 'border-[var(--noq-glass-border)] bg-white/70'
       }`}
     >
       <span
         className={`mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-          unread ? 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,var(--noq-accent))]' : 'bg-white/[0.06] text-slate-400'
+          unread ? 'bg-[var(--noq-tint-20)] text-[var(--noq-accent)]' : 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]'
         }`}
       >
         <Icon className="h-4 w-4" />
@@ -95,20 +95,20 @@ const NotificationRow: React.FC<{
         <span className="flex items-center gap-2">
           <span className="flex min-w-0 items-center gap-1.5">
             {isAdmin && <ShieldCheck className="h-3 w-3 shrink-0 text-[color:var(--category-accent,var(--noq-accent))]" />}
-            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span className="truncate text-[10px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">
               {isAdmin ? 'NOQ Admin' : notification.sourceName}
             </span>
           </span>
-          <span className="ml-auto shrink-0 text-[10px] font-medium text-slate-500">
+          <span className="ml-auto shrink-0 text-[10px] font-medium text-[var(--noq-text-subtle)]">
             {relativeTimeLabel(notification.createdAt)}
           </span>
           {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[color:var(--category-accent,var(--noq-accent))]" />}
         </span>
-        <span className={`mt-1 block text-sm leading-snug ${unread ? 'font-bold text-white' : 'font-semibold text-slate-300'}`}>
+        <span className={`mt-1 block text-sm leading-snug ${unread ? 'font-bold' : 'font-semibold'} text-[var(--noq-ink)]`}>
           {notification.title}
         </span>
         {notification.body && (
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-400">{notification.body}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-[var(--noq-muted)]">{notification.body}</span>
         )}
         <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--category-accent,var(--noq-accent))]">
           {notificationCtaLabel(route)}
@@ -148,18 +148,18 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
               type="button"
               onClick={onMarkAllRead}
               aria-label="Mark all as read"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] transition active:scale-95"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--noq-glass-border)] bg-white/75 transition active:scale-95"
             >
-              <CheckCheck className="h-4 w-4 text-slate-300" />
+              <CheckCheck className="h-4 w-4 text-[var(--noq-accent)]" />
             </button>
           )}
           <button
             type="button"
             onClick={onOpenSettings}
             aria-label="Notification settings"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] transition active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--noq-glass-border)] bg-white/75 transition active:scale-95"
           >
-            <Settings2 className="h-4 w-4 text-slate-300" />
+            <Settings2 className="h-4 w-4 text-[var(--noq-accent)]" />
           </button>
         </>
       }
@@ -168,19 +168,19 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 
   if (!auth) {
     return (
-      <SafeAreaScreen id="customer-notifications-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
+      <SafeAreaScreen id="customer-notifications-screen" header={header} className="noq-customer-page" bottomInset="nav">
         <div className="mx-auto flex max-w-sm flex-col items-center px-6 pt-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
+          <div className="noq-glass-surface flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
             <BellRing className="h-7 w-7" />
           </div>
-          <h2 className="mt-5 text-xl font-bold text-white">Sign in for your alerts</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <h2 className="mt-5 text-xl font-bold text-[var(--noq-ink)]">Sign in for your alerts</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--noq-muted)]">
             Queue updates, membership reminders and business announcements are kept with your verified account.
           </p>
           <button
             type="button"
             onClick={onLogin}
-            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
+            className="mt-7 h-12 w-full rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)]"
           >
             Verify mobile number
           </button>
@@ -190,7 +190,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
   }
 
   return (
-    <SafeAreaScreen id="customer-notifications-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
+    <SafeAreaScreen id="customer-notifications-screen" header={header} className="noq-customer-page" bottomInset="nav">
       <div className="space-y-4 px-4 pt-4 sm:px-5">
         <div className="flex items-center gap-2">
           {(['all', 'unread'] as NotificationFilter[]).map((value) => {
@@ -203,13 +203,13 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
                 aria-pressed={active}
                 className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider transition ${
                   active
-                    ? 'border-transparent bg-[color:var(--category-accent,var(--noq-accent))] text-slate-950'
-                    : 'border-white/10 bg-white/[0.05] text-slate-300'
+                    ? 'border-transparent bg-[var(--noq-accent)] text-white shadow-[0_8px_20px_-12px_var(--noq-glow)]'
+                    : 'border-[var(--noq-glass-border)] bg-white/70 text-[var(--noq-muted)]'
                 }`}
               >
                 {value === 'all' ? 'All' : 'Unread'}
                 {value === 'unread' && unreadCount > 0 && (
-                  <span className={`rounded-full px-1.5 text-[10px] ${active ? 'bg-slate-950/20' : 'bg-white/10'}`}>
+                  <span className={`rounded-full px-1.5 text-[10px] ${active ? 'bg-white/20' : 'bg-[var(--noq-tint-10)]'}`}>
                     {unreadCount}
                   </span>
                 )}
@@ -219,7 +219,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
         </div>
 
         {error && (
-          <div role="alert" className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200">
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             {error}
           </div>
         )}
@@ -232,13 +232,13 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 
         {!loading && !groups.length && !error && (
           <div id="notifications-empty-state" className="mx-auto flex max-w-sm flex-col items-center px-4 pt-12 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-slate-400">
+            <div className="noq-glass-surface flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
               <BellRing className="h-7 w-7" />
             </div>
-            <h2 className="mt-5 text-lg font-bold text-white">
+            <h2 className="mt-5 text-lg font-bold text-[var(--noq-ink)]">
               {filter === 'unread' ? 'Nothing unread' : 'No notifications yet'}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
+            <p className="mt-2 text-sm leading-6 text-[var(--noq-muted)]">
               {filter === 'unread'
                 ? 'You have read everything in your inbox.'
                 : 'Booking updates, membership reminders and business announcements will appear here.'}
@@ -248,7 +248,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
 
         {groups.map((group) => (
           <section key={group.key} className="space-y-2.5">
-            <h2 className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{group.label}</h2>
+            <h2 className="px-1 text-[10px] font-black uppercase tracking-[0.18em] text-[var(--noq-muted)]">{group.label}</h2>
             <div className="space-y-2.5">
               {group.items.map((notification) => (
                 <NotificationRow
@@ -265,7 +265,7 @@ export const NotificationsScreen: React.FC<NotificationsScreenProps> = ({
             persisted; this only states whether OS-level background delivery
             is configured for this build. It never claims a simulated push. */}
         {!pushTransport.configured && notifications.length > 0 && (
-          <p className="flex items-start gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3 text-[11px] leading-relaxed text-slate-500">
+          <p className="noq-glass-surface flex items-start gap-2 rounded-2xl border p-3 text-[11px] leading-relaxed text-[var(--noq-muted)]">
             <MegaphoneIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
               Alerts are saved to this inbox in real time. Background device push is not enabled on this build, so open

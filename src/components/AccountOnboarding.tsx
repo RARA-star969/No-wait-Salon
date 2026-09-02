@@ -4,7 +4,7 @@ import { missingProfileFields, type AppReadiness } from '../shared/profileReadin
 import type { CustomerAuthSession, CustomerProfile } from '../types';
 import { realtimeQueueService } from '../services/realtimeQueueService';
 import { customerAccountService, saveCustomerAuth } from '../services/customerAccountService';
-import { ui } from './ui';
+import { customerUi as ui } from './ui';
 
 type Props = {
   /** The non-ready readiness result that sent the customer here. */
@@ -117,7 +117,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
           id="onboarding-cancel-btn"
           onClick={onCancel}
           aria-label="Close"
-          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] grid h-9 w-9 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[var(--noq-border)]"
+          className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] grid h-9 w-9 place-items-center rounded-full bg-white text-[var(--noq-muted)] ring-1 ring-[var(--noq-border)]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -125,12 +125,12 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
         {step === 'phone' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
+            <div className="noq-glass-surface mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
               <Smartphone className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>{intro?.eyebrow || 'Verify your mobile'}</p>
             <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">{intro?.title || 'One quick check.'}</h1>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
+            <p className="mt-3 max-w-sm text-sm leading-6 text-[var(--noq-muted)]">
               {intro?.description || 'We use your mobile number to hold your place in a queue and let you back in without asking again.'}
             </p>
 
@@ -173,13 +173,13 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
 
         {step === 'code' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
+            <div className="noq-glass-surface mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
               <ShieldCheck className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Enter the code</p>
             <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">Sent to {phone}</h1>
             {demoCode && (
-              <p className="mt-3 rounded-xl bg-[#F1FAF9] p-3 text-center text-xs font-bold text-[var(--noq-accent)]">Demo code: {demoCode}</p>
+              <p className="mt-3 rounded-xl bg-[var(--noq-tint-10)] p-3 text-center text-xs font-bold text-[var(--noq-accent)]">Demo code: {demoCode}</p>
             )}
 
             <input
@@ -209,7 +209,7 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
               type="button"
               id="onboarding-change-number-btn"
               onClick={() => { setStep('phone'); setCode(''); setCodeError(''); }}
-              className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-[#60706E]"
+              className="mt-3 flex items-center justify-center gap-1.5 text-xs font-semibold text-[var(--noq-muted)]"
             >
               <RefreshCw className="h-3 w-3" /> Use a different number
             </button>
@@ -218,12 +218,12 @@ export const AccountOnboarding: React.FC<Props> = ({ gate, onVerified, onProfile
 
         {step === 'details' && (
           <>
-            <div className="mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#CDE3E0] bg-[#E8F5F3] text-[var(--noq-accent)]">
+            <div className="noq-glass-surface mb-7 flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
               <UserRound className="h-7 w-7" />
             </div>
             <p className={ui.eyebrow}>Almost there</p>
             <h1 className="mt-2 text-[29px] font-bold leading-[1.12] tracking-[-0.04em]">A couple of quick details.</h1>
-            <p className="mt-3 max-w-sm text-sm leading-6 text-[#667371]">
+            <p className="mt-3 max-w-sm text-sm leading-6 text-[var(--noq-muted)]">
               The salon needs your name and gender to call you when it's your turn. Email is optional and can be added later in Profile.
             </p>
 

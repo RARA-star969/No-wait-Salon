@@ -28,9 +28,9 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
     <div id="reserve-future-window-screen" className="min-h-full bg-[var(--noq-base)] pb-10 animate-in fade-in duration-150">
       {/* Branded hero, same colour language as the salon profile page, so the
           reservation flow reads as one continuous premium surface. */}
-      <div className="relative overflow-hidden bg-[#173B38] px-5 pb-6 pt-[max(1rem,env(safe-area-inset-top))] text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_18%,#4A7C76_0,transparent_38%),linear-gradient(145deg,#102B28,#224C47_58%,#C3A66A)]" />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-[#102725]/90" />
+      <div className="relative overflow-hidden bg-[var(--noq-accent-deep)] px-5 pb-6 pt-[max(1rem,env(safe-area-inset-top))] text-white">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_18%,#7890FF_0,transparent_38%),linear-gradient(145deg,#17213D,#3454FD_58%,#1D36C9)]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#17213D]/30 via-transparent to-[#17213D]/90" />
 
         <div className="relative">
           <button
@@ -69,7 +69,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
               type="button"
               onClick={() => setDay(option)}
               className={`flex-1 rounded-lg py-2 text-xs font-bold capitalize transition ${
-                day === option ? 'bg-[var(--noq-accent)] text-white' : 'text-[#5C6B68]'
+                day === option ? 'bg-[var(--noq-accent)] text-white' : 'text-[var(--noq-muted)]'
               }`}
             >
               {option}
@@ -120,13 +120,13 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
           <ChevronDown className={`h-4 w-4 text-[var(--noq-muted)] transition-transform ${windowsOpen ? 'rotate-180' : ''}`} />
         </button>
         {windowsOpen && (
-          <div className="space-y-1.5 border-t border-[#EEF2F1] p-2">
+          <div className="space-y-1.5 border-t border-[var(--noq-border)] p-2">
             {AVAILABLE_TIME_SLOTS.map((slot) => (
               <button
                 key={slot}
                 id={`slot-${slot.replace(/\s+/g, '-').toLowerCase()}`}
                 onClick={() => onSelectSlot(slot)}
-                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-[#F0F9F7]"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left transition hover:bg-[var(--noq-tint-10)]"
               >
                 <span className="flex items-center gap-2.5">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--noq-surface-soft)] text-[var(--noq-accent)]">
@@ -134,7 +134,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
                   </span>
                   <span className="text-sm font-bold text-[var(--noq-ink)]">{slot}</span>
                   {slot === BEST_TIME_SLOT && (
-                    <span className="rounded-full bg-[#E7F5F2] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[var(--noq-accent)]">Best time</span>
+                    <span className="rounded-full bg-[var(--noq-tint-10)] px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider text-[var(--noq-accent)]">Best time</span>
                   )}
                 </span>
               </button>
@@ -146,24 +146,24 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
       {/* Premium unlocks: one reveal on first view, no continuous motion. */}
       <div
         ref={unlocksRef}
-        className={`relative overflow-hidden rounded-2xl p-4 text-white ring-1 ring-[#E7C673]/25 shadow-[0_14px_30px_-18px_rgba(0,0,0,0.6)] ${unlocksRevealed ? 'premium-reveal-in' : 'premium-reveal-pending'}`}
-        style={{ background: 'linear-gradient(135deg, #1D3734, #12211F 60%, #0B1817)' }}
+        className={`relative overflow-hidden rounded-2xl p-4 text-white ring-1 ring-[var(--noq-accent-light)]/25 shadow-[0_14px_30px_-18px_var(--noq-glow)] ${unlocksRevealed ? 'premium-reveal-in' : 'premium-reveal-pending'}`}
+        style={{ background: 'var(--noq-cta-gradient)' }}
       >
-        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[#E7C673]/20 blur-3xl" aria-hidden="true" />
+        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-white/20 blur-3xl" aria-hidden="true" />
         <div className="relative flex items-center gap-1.5">
-          <Sparkles className="h-3.5 w-3.5 text-[#E7C673]" />
-          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-[#E7C673]">Premium unlocks</span>
+          <Sparkles className="h-3.5 w-3.5 text-white" />
+          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-white">Premium unlocks</span>
         </div>
         <div className="relative mt-3 space-y-2.5">
           <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><Clock className="h-3.5 w-3.5" /></span>
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white"><Clock className="h-3.5 w-3.5" /></span>
             <div>
               <p className="text-xs font-bold">Priority arrival window</p>
               <p className="mt-0.5 text-[11px] leading-4 text-white/60">A wider grace period so a late arrival never loses the slot.</p>
             </div>
           </div>
           <div className="flex items-start gap-2.5">
-            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/10 text-[#E7C673]"><UserCheck className="h-3.5 w-3.5" /></span>
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/15 text-white"><UserCheck className="h-3.5 w-3.5" /></span>
             <div>
               <p className="text-xs font-bold">Auto-hold your favourite stylist</p>
               <p className="mt-0.5 text-[11px] leading-4 text-white/60">Reserve with the same stylist across future visits.</p>
@@ -186,7 +186,7 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
       {calendarComingSoonOpen && (
         <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) setCalendarComingSoonOpen(false); }}>
           <section role="dialog" aria-modal="true" aria-label="Premium calendar booking" className="w-full rounded-t-3xl bg-[var(--noq-base)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
-            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--noq-border)] sm:hidden" />
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
                 <LockedCalendarIcon size="sm" className="!h-9 !w-9" />
@@ -194,10 +194,10 @@ export const ReserveFutureWindowScreen: React.FC<Props> = ({ salon, services, on
               </div>
               <button id="close-calendar-modal-btn" onClick={() => setCalendarComingSoonOpen(false)} aria-label="Close" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[var(--noq-border)]"><X className="h-4 w-4" /></button>
             </div>
-            <p className="mt-3 text-xs leading-5 text-[#657471]">
+            <p className="mt-3 text-xs leading-5 text-[var(--noq-muted)]">
               Choosing a specific future date is a premium feature that isn't live yet — coming soon. For now, Today and Tomorrow hold your place in the live queue.
             </p>
-            <span className="mt-4 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ background: 'linear-gradient(120deg, #7A5B21, #E7C673)', color: '#2B1E06' }}>
+            <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-[var(--noq-tint-10)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[var(--noq-accent)]">
               <Lock className="h-3 w-3" /> Coming soon
             </span>
           </section>

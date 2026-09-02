@@ -39,11 +39,11 @@ export interface MyBookingsScreenProps {
 }
 
 const TONE_CLASS: Record<string, string> = {
-  live: 'bg-[color:var(--category-tint-20,rgba(34,211,238,.2))] text-[color:var(--category-accent,var(--noq-accent))]',
-  good: 'bg-emerald-500/15 text-emerald-300',
-  warn: 'bg-amber-500/15 text-amber-300',
-  bad: 'bg-rose-500/15 text-rose-300',
-  neutral: 'bg-white/10 text-slate-300',
+  live: 'bg-[var(--noq-tint-20)] text-[var(--noq-accent)]',
+  good: 'bg-emerald-50 text-emerald-700',
+  warn: 'bg-amber-50 text-amber-700',
+  bad: 'bg-rose-50 text-rose-700',
+  neutral: 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]',
 };
 
 const BookingCard: React.FC<{
@@ -56,23 +56,23 @@ const BookingCard: React.FC<{
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-left transition active:scale-[0.99]"
+      className="noq-glass-surface flex w-full items-center gap-3 rounded-2xl border p-4 text-left transition active:scale-[0.99]"
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-bold text-white">{booking.businessName}</span>
-          <span className="shrink-0 rounded-full bg-white/[0.07] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="truncate text-sm font-bold text-[var(--noq-ink)]">{booking.businessName}</span>
+          <span className="shrink-0 rounded-full bg-[var(--noq-tint-10)] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[var(--noq-muted)]">
             {booking.categoryId}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-xs font-semibold text-slate-300">{bookingServiceLabel(booking)}</p>
-        {detail && <p className="mt-0.5 truncate text-[11px] text-slate-500">{detail}</p>}
-        <p className="mt-1 text-[10px] font-medium text-slate-500">{bookingDateLabel(booking)}</p>
+        <p className="mt-0.5 truncate text-xs font-semibold text-[var(--noq-muted)]">{bookingServiceLabel(booking)}</p>
+        {detail && <p className="mt-0.5 truncate text-[11px] text-[var(--noq-text-subtle)]">{detail}</p>}
+        <p className="mt-1 text-[10px] font-medium text-[var(--noq-text-subtle)]">{bookingDateLabel(booking)}</p>
       </div>
       <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${TONE_CLASS[badge.tone]}`}>
         {badge.label}
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--noq-text-subtle)]" />
     </button>
   );
 };
@@ -80,8 +80,8 @@ const BookingCard: React.FC<{
 const Section: React.FC<{ title: string; hint?: string; children: React.ReactNode }> = ({ title, hint, children }) => (
   <section className="space-y-2.5">
     <div className="flex items-end justify-between gap-3 px-1">
-      <h2 className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{title}</h2>
-      {hint && <span className="text-[10px] font-semibold text-slate-500">{hint}</span>}
+      <h2 className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--noq-muted)]">{title}</h2>
+      {hint && <span className="text-[10px] font-semibold text-[var(--noq-text-subtle)]">{hint}</span>}
     </div>
     {children}
   </section>
@@ -145,9 +145,9 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
             type="button"
             onClick={() => void load()}
             aria-label="Refresh bookings"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] transition active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--noq-glass-border)] bg-white/75 transition active:scale-95"
           >
-            <RefreshCw className={`h-4 w-4 text-slate-300 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 text-[var(--noq-accent)] ${loading ? 'animate-spin' : ''}`} />
           </button>
         ) : undefined
       }
@@ -156,19 +156,19 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
 
   if (!auth) {
     return (
-      <SafeAreaScreen id="customer-bookings-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
+      <SafeAreaScreen id="customer-bookings-screen" header={header} className="noq-customer-page" bottomInset="nav">
         <div className="mx-auto flex max-w-sm flex-col items-center px-6 pt-16 text-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
+          <div className="noq-glass-surface flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
             <CalendarCheck className="h-7 w-7" />
           </div>
-          <h2 className="mt-5 text-xl font-bold text-white">Sign in to see your bookings</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-400">
+          <h2 className="mt-5 text-xl font-bold text-[var(--noq-ink)]">Sign in to see your bookings</h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--noq-muted)]">
             Verify your mobile number to keep your queue tickets, reservations and history synced.
           </p>
           <button
             type="button"
             onClick={onLogin}
-            className="mt-7 h-12 w-full rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
+            className="mt-7 h-12 w-full rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)]"
           >
             Verify mobile number
           </button>
@@ -178,10 +178,10 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
   }
 
   return (
-    <SafeAreaScreen id="customer-bookings-screen" header={header} className="bg-[#050B0C]" bottomInset="nav">
+    <SafeAreaScreen id="customer-bookings-screen" header={header} className="noq-customer-page" bottomInset="nav">
       <div className="space-y-6 px-4 pt-4 sm:px-5">
         {error && (
-          <div role="alert" className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200">
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             {error}
           </div>
         )}
@@ -194,17 +194,17 @@ export const MyBookingsScreen: React.FC<MyBookingsScreenProps> = ({
 
         {!loading && grouped.isEmpty && !error && (
           <div id="bookings-empty-state" className="mx-auto flex max-w-sm flex-col items-center px-4 pt-14 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))]">
+            <div className="noq-glass-surface flex h-16 w-16 items-center justify-center rounded-2xl border text-[var(--noq-accent)]">
               <CalendarCheck className="h-7 w-7" />
             </div>
-            <h2 className="mt-5 text-xl font-bold text-white">No bookings yet</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
+            <h2 className="mt-5 text-xl font-bold text-[var(--noq-ink)]">No bookings yet</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--noq-muted)]">
               Join a live queue or reserve a slot and it will appear here — with your token, status and full history.
             </p>
             <button
               type="button"
               onClick={onExplore}
-              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[color:var(--category-accent,var(--noq-accent))] text-sm font-bold text-slate-950"
+              className="mt-7 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--noq-accent)] text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)]"
             >
               <Compass className="h-4 w-4" />
               Explore businesses

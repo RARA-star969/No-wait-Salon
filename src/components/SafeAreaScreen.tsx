@@ -105,13 +105,16 @@ export const SafeAreaHeader: React.FC<SafeAreaHeaderProps> = ({
   onBack,
   backLabel = 'Back',
   actions,
-  tone = 'dark',
+  tone = 'light',
 }) => {
-  const dark = tone === 'dark';
+  // The historical `dark` option is retained for API compatibility, but the
+  // customer brand is now deliberately light across every destination.
+  void tone;
+  const dark = false;
   return (
     <header
       className={`safe-area-header sticky top-0 z-30 shrink-0 border-b px-4 pb-3 backdrop-blur-xl ${
-        dark ? 'border-white/[0.07] bg-[#050B0C]/85 text-slate-100' : 'border-[#E2E8E7] bg-white/95 text-[var(--noq-ink)]'
+        dark ? '' : 'border-[var(--noq-glass-border)] bg-[var(--noq-glass-strong)] text-[var(--noq-ink)] shadow-[0_12px_30px_-28px_var(--noq-glow)]'
       }`}
       style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
     >
@@ -122,7 +125,7 @@ export const SafeAreaHeader: React.FC<SafeAreaHeaderProps> = ({
             onClick={onBack}
             aria-label={backLabel}
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition active:scale-95 ${
-              dark ? 'border-white/10 bg-white/[0.06]' : 'border-[var(--noq-border)] bg-white'
+              dark ? '' : 'border-[var(--noq-glass-border)] bg-white/75 text-[var(--noq-accent)] shadow-[inset_0_1px_0_white]'
             }`}
           >
             <ArrowLeft className="h-4 w-4" />
@@ -131,7 +134,7 @@ export const SafeAreaHeader: React.FC<SafeAreaHeaderProps> = ({
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-bold tracking-[-0.02em]">{title}</h1>
           {subtitle && (
-            <p className={`truncate text-[11px] font-medium ${dark ? 'text-slate-400' : 'text-[#71807E]'}`}>{subtitle}</p>
+            <p className={`truncate text-[11px] font-medium ${dark ? '' : 'text-[var(--noq-muted)]'}`}>{subtitle}</p>
           )}
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

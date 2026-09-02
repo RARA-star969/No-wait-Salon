@@ -54,13 +54,13 @@ export const LiveQueueScoreboard: React.FC<Props> = ({ metrics, onTap, className
   const Wrapper = onTap ? 'button' : 'div';
   const fill = palette?.fill ?? NOQ_CUSTOMER_LIVE_QUEUE_FILL_CAPSULE;
   const rim = palette?.rim ?? NOQ_CUSTOMER_LIVE_QUEUE_RIM_CAPSULE;
-  const glow = palette?.glow ?? '#5EE0B4';
+  const glow = palette?.glow ?? '#3454FD';
   return (
     <Wrapper
       type={onTap ? 'button' : undefined}
       onClick={onTap}
       aria-label={onTap ? 'Return to live queue' : undefined}
-      className={`live-scoreboard relative isolate inline-flex w-fit max-w-full items-center gap-2.5 overflow-visible rounded-full px-3 py-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.24),inset_0_0_10px_rgba(94,224,180,0.06),0_0_0_1px_rgba(255,255,255,0.1),0_8px_18px_-8px_rgba(6,30,27,0.4)] ${className}`}
+      className={`live-scoreboard relative isolate inline-flex w-fit max-w-full items-center gap-2.5 overflow-visible rounded-full px-3 py-1.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_0_10px_rgba(120,144,255,0.10),0_0_0_1px_rgba(255,255,255,0.14),0_8px_18px_-8px_rgba(29,54,201,0.34)] ${className}`}
       style={{ background: fill, backdropFilter: 'blur(14px) saturate(160%)', WebkitBackdropFilter: 'blur(14px) saturate(160%)' }}
     >
       <span

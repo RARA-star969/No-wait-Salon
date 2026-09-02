@@ -2,7 +2,7 @@ import React from 'react';
 
 /**
  * High-definition 3D vector icons for Explore Services categories.
- * Tactile multi-stop gradients, metallic chrome bevels, gold pivot studs,
+ * Tactile multi-stop gradients, metallic chrome bevels, brand pivot studs,
  * and dimensional drop shadows aligned with the brand aesthetic.
  */
 
@@ -12,26 +12,26 @@ export const HairCare3DIcon: React.FC<{ className?: string }> = ({ className = '
       <linearGradient id="hc-blade-1" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
         <stop stopColor="var(--noq-accent)" />
         <stop offset="0.4" stopColor="var(--noq-accent)" />
-        <stop offset="1" stopColor="#042F2C" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </linearGradient>
       <linearGradient id="hc-blade-2" x1="26" y1="6" x2="6" y2="26" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#5EEAD4" />
+        <stop stopColor="var(--noq-accent-light)" />
         <stop offset="0.45" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <linearGradient id="hc-sheen" x1="8" y1="4" x2="24" y2="28" gradientUnits="userSpaceOnUse">
         <stop stopColor="#FFFFFF" stopOpacity="0.9" />
         <stop offset="0.4" stopColor="#FFFFFF" stopOpacity="0.1" />
-        <stop offset="1" stopColor="#042F2C" stopOpacity="0.5" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" stopOpacity="0.5" />
       </linearGradient>
       <radialGradient id="hc-pivot" cx="16" cy="15.5" r="3.5" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FEF08A" />
-        <stop offset="0.6" stopColor="#EAB308" />
-        <stop offset="0.9" stopColor="#A16207" />
-        <stop offset="1" stopColor="#713F12" />
+        <stop stopColor="#FFFFFF" />
+        <stop offset="0.6" stopColor="var(--noq-accent-light)" />
+        <stop offset="0.9" stopColor="var(--noq-accent)" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </radialGradient>
       <filter id="hc-shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
+        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="var(--noq-accent-deep)" floodOpacity="0.28" />
       </filter>
     </defs>
     <g filter="url(#hc-shadow)">
@@ -65,7 +65,7 @@ export const HairCare3DIcon: React.FC<{ className?: string }> = ({ className = '
         strokeWidth="0.8"
       />
 
-      {/* 3D Gold Pivot Stud */}
+      {/* 3D brand pivot stud */}
       <circle cx="16" cy="15.5" r="2.4" fill="url(#hc-pivot)" stroke="#FFFBEB" strokeWidth="0.7" />
       <circle cx="15.5" cy="14.8" r="0.6" fill="#FFFFFF" opacity="0.8" />
     </g>
@@ -76,7 +76,7 @@ export const Beard3DIcon: React.FC<{ className?: string }> = ({ className = 'h-7
   <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="bd-handle" x1="6" y1="26" x2="20" y2="12" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#042F2C" />
+        <stop stopColor="var(--noq-accent-deep)" />
         <stop offset="0.45" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
@@ -89,15 +89,15 @@ export const Beard3DIcon: React.FC<{ className?: string }> = ({ className = 'h-7
       <linearGradient id="bd-edge" x1="14" y1="4" x2="27" y2="17" gradientUnits="userSpaceOnUse">
         <stop stopColor="var(--noq-accent)" />
         <stop offset="0.5" stopColor="var(--noq-accent)" />
-        <stop offset="1" stopColor="#042F2C" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </linearGradient>
       <radialGradient id="bd-pivot" cx="16.5" cy="15.5" r="3" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FEF08A" />
-        <stop offset="0.6" stopColor="#EAB308" />
-        <stop offset="1" stopColor="#78350F" />
+        <stop stopColor="#FFFFFF" />
+        <stop offset="0.6" stopColor="var(--noq-accent-light)" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </radialGradient>
       <filter id="bd-shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
+        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="var(--noq-accent-deep)" floodOpacity="0.28" />
       </filter>
     </defs>
     <g filter="url(#bd-shadow)">
@@ -139,9 +139,9 @@ export const MassageSpa3DIcon: React.FC<{ className?: string }> = ({ className =
   <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="ms-base" x1="8" y1="19" x2="24" y2="28" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#042F2C" />
+        <stop stopColor="var(--noq-accent-deep)" />
         <stop offset="0.5" stopColor="var(--noq-accent)" />
-        <stop offset="1" stopColor="#115E59" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </linearGradient>
       <linearGradient id="ms-mid" x1="10" y1="13" x2="22" y2="21" gradientUnits="userSpaceOnUse">
         <stop stopColor="var(--noq-accent)" />
@@ -149,12 +149,12 @@ export const MassageSpa3DIcon: React.FC<{ className?: string }> = ({ className =
         <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <linearGradient id="ms-essence" x1="16" y1="3" x2="16" y2="15" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FEF08A" />
+        <stop stopColor="#FFFFFF" />
         <stop offset="0.4" stopColor="var(--noq-accent)" />
         <stop offset="1" stopColor="var(--noq-accent)" />
       </linearGradient>
       <filter id="ms-shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
+        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="var(--noq-accent-deep)" floodOpacity="0.28" />
       </filter>
     </defs>
     <g filter="url(#ms-shadow)">
@@ -175,7 +175,7 @@ export const MassageSpa3DIcon: React.FC<{ className?: string }> = ({ className =
       />
       {/* Essence Core Light Sparkle */}
       <circle cx="16" cy="12" r="1.2" fill="#FFFFFF" />
-      <circle cx="15.5" cy="11.4" r="0.4" fill="#FEF08A" />
+      <circle cx="15.5" cy="11.4" r="0.4" fill="var(--noq-accent-light)" />
     </g>
   </svg>
 );
@@ -184,12 +184,12 @@ export const HairColour3DIcon: React.FC<{ className?: string }> = ({ className =
   <svg viewBox="0 0 32 32" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="hc-pal-base" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
-        <stop stopColor="#FDE68A" />
+        <stop stopColor="var(--noq-accent-light)" />
         <stop offset="0.5" stopColor="var(--noq-accent)" />
-        <stop offset="1" stopColor="#B45309" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </linearGradient>
       <filter id="hc-pal-shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
+        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="var(--noq-accent-deep)" floodOpacity="0.28" />
       </filter>
     </defs>
     <g filter="url(#hc-pal-shadow)">
@@ -201,7 +201,7 @@ export const HairColour3DIcon: React.FC<{ className?: string }> = ({ className =
       />
       <circle cx="10.5" cy="13.5" r="1.6" fill="var(--noq-accent)" />
       <circle cx="14.5" cy="10.5" r="1.6" fill="var(--noq-accent)" />
-      <circle cx="19.5" cy="11.5" r="1.6" fill="#EF4444" />
+      <circle cx="19.5" cy="11.5" r="1.6" fill="var(--noq-accent-light)" />
     </g>
   </svg>
 );
@@ -212,10 +212,10 @@ export const Facial3DIcon: React.FC<{ className?: string }> = ({ className = 'h-
       <linearGradient id="fc-glow" x1="16" y1="4" x2="16" y2="28" gradientUnits="userSpaceOnUse">
         <stop stopColor="var(--noq-accent)" />
         <stop offset="0.6" stopColor="var(--noq-accent)" />
-        <stop offset="1" stopColor="#042F2C" />
+        <stop offset="1" stopColor="var(--noq-accent-deep)" />
       </linearGradient>
       <filter id="fc-glow-shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="#042F2C" floodOpacity="0.35" />
+        <feDropShadow dx="0" dy="1.8" stdDeviation="1.2" floodColor="var(--noq-accent-deep)" floodOpacity="0.28" />
       </filter>
     </defs>
     <g filter="url(#fc-glow-shadow)">

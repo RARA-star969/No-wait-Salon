@@ -196,7 +196,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
   };
 
   return (
-    <div id="customer-salon-screen" className="relative min-h-full overflow-y-auto bg-[#F5F7F6] pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)] animate-in fade-in duration-200">
+    <div id="customer-salon-screen" className="noq-customer-page relative min-h-full overflow-y-auto pb-[calc(8.5rem+env(safe-area-inset-bottom))] text-[var(--noq-ink)] animate-in fade-in duration-200">
       {/* Signature floating capsule: a top-center notch/island, content-hugging
           rather than a full-width bar, that stays visible — including through
           the whole Join Queue flow — until the main live-queue card scrolls
@@ -214,11 +214,11 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         </div>
       </div>
 
-      <section className="relative min-h-[270px] overflow-hidden bg-[#173B38] text-white">
+      <section className="relative min-h-[270px] overflow-hidden bg-[var(--noq-accent-deep)] text-white">
         {salon.coverImageUrl ? <img src={salon.coverImageUrl} alt={`${salon.name} interior`} className="absolute inset-0 h-full w-full object-cover opacity-80" /> : (
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#4A7C76_0,transparent_38%),linear-gradient(145deg,#102B28,#224C47_58%,#C3A66A)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_75%_22%,#7890FF_0,transparent_38%),linear-gradient(145deg,#17213D,#3454FD_58%,#1D36C9)]" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-[#102725]/95" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#17213D]/35 via-transparent to-[#17213D]/95" />
         <div className="relative z-10 flex items-center justify-between px-4 pt-[max(1rem,env(safe-area-inset-top))]">
           <button onClick={onBack} id="back-to-salons-btn" aria-label="Back to nearby salons" className="flex h-10 w-10 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-md"><ArrowLeft className="h-5 w-5" /></button>
           <div className="flex gap-2">
@@ -228,7 +228,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         </div>
         <div className="absolute inset-x-0 bottom-0 z-10 px-4 pb-5">
           <div className="flex items-end gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[#E3F1EF] text-[var(--category-primary-dark)] shadow-lg">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-white/80 bg-[var(--noq-surface-soft)] text-[var(--category-primary-dark)] shadow-lg">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-7 w-7" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
@@ -276,7 +276,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           {/* Warm ambient blob behind the glass CTA — same decorative-glow
               pattern used in LiveQueueCard, so the backdrop-blur below has
               real content to filter. Purely decorative. */}
-          <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[#C9A24B]/55 blur-2xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-6 left-4 -z-10 h-28 w-48 rounded-full bg-[var(--noq-accent-light)]/35 blur-2xl" aria-hidden="true" />
           <div className="pointer-events-none absolute -bottom-6 right-4 -z-10 h-24 w-32 rounded-full bg-[var(--category-primary-dark)]/30 blur-2xl" aria-hidden="true" />
 
           {/* Secondary future-booking CTA: translucent warm glass, deliberately
@@ -286,23 +286,23 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           <button
             onClick={onReserve}
             id="reserve-future-window-btn"
-            className="relative mt-2 flex w-full items-center justify-between gap-3 rounded-2xl border border-[#E7C673]/55 bg-[#8A6A2C]/22 px-3.5 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_8px_20px_-16px_rgba(90,64,20,0.5)] backdrop-blur-md backdrop-saturate-[1.8]"
+            className="noq-glass-surface relative mt-2 flex w-full items-center justify-between gap-3 rounded-2xl border px-3.5 py-2.5 text-left"
           >
             <span className="flex min-w-0 items-center gap-2.5">
               <LockedCalendarIcon size="sm" />
               <span className="min-w-0">
-                <span className="block truncate text-[12.5px] font-bold text-[#3E2F13]">Choose a future time</span>
-                <span className="mt-0.5 block truncate text-[10px] font-medium text-[#5C4A28]">Skip the wait — reserve ahead</span>
+                <span className="block truncate text-[12.5px] font-bold text-[var(--noq-ink)]">Choose a future time</span>
+                <span className="mt-0.5 block truncate text-[10px] font-medium text-[var(--noq-muted)]">Skip the wait — reserve ahead</span>
               </span>
             </span>
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-[#E7C673]/60 bg-white/20 px-2.5 py-1 text-[10px] font-bold text-[#5B420F] shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-sm">
+            <span className="flex shrink-0 items-center gap-0.5 rounded-full border border-[var(--noq-glass-border)] bg-[var(--noq-tint-10)] px-2.5 py-1 text-[10px] font-bold text-[var(--noq-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-sm">
               Reserve
               <ChevronRight className="h-3 w-3" />
             </span>
           </button>
         </section>
 
-        <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[#173E3A] to-[#3F746D] p-5 text-white">
+        <section className="relative aspect-[2.4/1] min-h-[128px] overflow-hidden rounded-2xl bg-gradient-to-r from-[var(--noq-accent-deep)] to-[var(--noq-accent)] p-5 text-white shadow-[0_18px_34px_-22px_var(--noq-glow)]">
           <div className="max-w-[72%]"><span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[9px] font-bold uppercase tracking-wider"><Sparkles className="h-3 w-3" />At {salon.name}</span><h2 className="mt-3 text-lg font-bold leading-tight">Your next grooming visit, without the waiting room.</h2></div>
           <Scissors className="absolute -bottom-4 -right-2 h-28 w-28 rotate-[-12deg] text-white/10" />
         </section>
@@ -316,9 +316,9 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               <a
                 key={category}
                 href="#service-menu"
-                className="group flex min-w-[104px] flex-1 flex-col items-center rounded-2xl border border-[#E0E7E6] bg-white px-3 py-3.5 text-center shadow-[0_4px_14px_-8px_rgba(15,40,37,0.08)] transition active:scale-[0.98]"
+                className="noq-glass-surface group flex min-w-[104px] flex-1 flex-col items-center rounded-2xl border px-3 py-3.5 text-center transition active:scale-[0.98]"
               >
-                <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-white via-[#F2FAF8] to-[#DEF3EF] shadow-[inset_0_1.5px_0_rgba(255,255,255,1),inset_0_-1px_2px_var(--category-glow),0_3px_8px_-2px_var(--category-glow)] transition-transform duration-200 group-hover:scale-105">
+                <span className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--category-primary-dark)]/20 bg-gradient-to-b from-white via-[var(--noq-surface-soft)] to-[var(--noq-border)] shadow-[inset_0_1.5px_0_rgba(255,255,255,1),inset_0_-1px_2px_var(--category-glow),0_3px_8px_-2px_var(--category-glow)] transition-transform duration-200 group-hover:scale-105">
                   {CATEGORY_ICONS[category] || <HairCare3DIcon className="h-6 w-6" />}
                 </span>
                 <span className="mt-2 text-[11px] font-bold text-[var(--noq-ink)]">{category}</span>
@@ -335,7 +335,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 key={filter}
                 type="button"
                 onClick={() => setServiceFilter(filter)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[var(--category-primary-dark)] bg-[var(--category-primary-dark)] text-white' : 'border-[var(--noq-border)] bg-white text-[#536966]'}`}
+                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-bold ${serviceFilter === filter ? 'border-[var(--category-primary-dark)] bg-[var(--category-primary-dark)] text-white' : 'border-[var(--noq-border)] bg-white text-[var(--noq-muted)]'}`}
               >
                 {filter}
               </button>
@@ -350,17 +350,17 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 onToggle={() => toggleService(service.id)}
               />
             ))}
-            {filteredServices.length === 0 && <p className="rounded-2xl border border-[#E0E7E6] bg-white p-5 text-center text-xs text-[#788582]">No services in this filter yet.</p>}
+            {filteredServices.length === 0 && <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-5 text-center text-xs text-[var(--noq-muted)]">No services in this filter yet.</p>}
           </div>
         </section>
 
         {!!profile.gallery.length && <section><SectionTitle eyebrow="Inside the salon" title="Vibes" /><div className="flex snap-x gap-3 overflow-x-auto">{profile.gallery.map((item) => <div key={item.id} className="relative aspect-[4/5] min-w-[160px] snap-start overflow-hidden rounded-2xl bg-[#DDE9E7]"><img src={item.imageUrl} alt={item.label || salon.name} className="h-full w-full object-cover" />{item.type === 'video' && <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-bold text-white">Video · muted</span>}</div>)}</div></section>}
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[#657471] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-primary-dark)]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--noq-surface-soft)] px-3 py-1.5 text-[10px] font-semibold text-[#536966]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
+        <section className="noq-glass-surface rounded-2xl border p-4"><SectionTitle eyebrow="Our story" title={`About ${salon.name}`} /><p className={`text-xs leading-5 text-[var(--noq-muted)] ${aboutExpanded ? '' : 'line-clamp-3'}`}>{profile.description}</p><button onClick={() => setAboutExpanded((value) => !value)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[var(--category-primary-dark)]">Read {aboutExpanded ? 'less' : 'more'}<ChevronDown className={`h-3.5 w-3.5 transition ${aboutExpanded ? 'rotate-180' : ''}`} /></button>{!!profile.amenities.length && <div className="mt-4 flex flex-wrap gap-2">{profile.amenities.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--noq-surface-soft)] px-3 py-1.5 text-[10px] font-semibold text-[var(--noq-muted)]">{amenity.includes('Wi-Fi') ? <Wifi className="h-3 w-3" /> : amenity.includes('Air') ? <Wind className="h-3 w-3" /> : <CreditCard className="h-3 w-3" />}{amenity}</span>)}</div>}</section>
 
-        <section className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[#657471]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#BED7D3] text-xs font-bold text-[var(--category-primary-dark)]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
+        <section className="noq-glass-surface rounded-2xl border p-4"><SectionTitle eyebrow="Visit" title="Location & hours" /><p className="text-xs leading-5 text-[var(--noq-muted)]">{salon.address}</p><p className="mt-2 text-xs font-semibold">{profile.openingHours}</p><a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[var(--noq-glass-border)] text-xs font-bold text-[var(--category-primary-dark)]"><Navigation className="h-4 w-4" />View directions<ExternalLink className="h-3 w-3" /></a></section>
 
-        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="rounded-2xl border border-[#E0E7E6] bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.18)]"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
+        {!!branches.length && <section><SectionTitle eyebrow="More nearby" title="Other branches near you" /><div className="space-y-2">{branches.map((branch) => <div key={branch.id} className="noq-glass-surface rounded-2xl border p-4"><p className="text-sm font-bold">{branch.name}</p><p className="mt-1 text-[10px] text-[var(--noq-muted)]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p></div>)}</div></section>}
 
         <PublicReviewsSection
           businessId={salon.id}
@@ -462,10 +462,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           type="button"
           onClick={onReserve}
           aria-label="Reserve a future queue window"
-          className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[#E7C673]/60 bg-[#8A6A2C]/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_8px_18px_-12px_rgba(90,64,20,0.45)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
+          className="relative flex min-h-13 w-13 shrink-0 items-center justify-center rounded-2xl border border-[var(--noq-glass-border)] bg-[var(--noq-tint-10)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_8px_18px_-12px_var(--noq-glow)] backdrop-blur-md backdrop-saturate-[1.7] transition active:scale-[0.98]"
         >
-          <CalendarDays className="relative h-4.5 w-4.5 text-[#3E2D0C]" />
-          <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[#3B2A08] text-[#F1D68A] shadow-sm">
+          <CalendarDays className="relative h-4.5 w-4.5 text-[var(--noq-accent)]" />
+          <span className="absolute -right-1 -top-1 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 border-white bg-[var(--noq-accent)] text-white shadow-sm">
             <Lock className="h-2 w-2" />
           </span>
         </button>
@@ -537,14 +537,14 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
   return (
     <div
       id={`service-opt-${service.id}`}
-      className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 shadow-[0_4px_16px_-10px_rgba(15,40,37,0.16)] transition-all ${
-        active ? 'border-[#4F9D95] ring-1 ring-[#4F9D95] bg-[#F1FAF9] shadow-[0_6px_20px_-10px_rgba(79,157,149,0.35)]' : 'border-[#E0E7E6]'
+      className={`flex w-full items-start gap-3 rounded-2xl border bg-white p-4 shadow-[0_4px_16px_-10px_var(--noq-glow)] transition-all ${
+        active ? 'border-[var(--noq-accent)] ring-1 ring-[var(--noq-accent)] bg-[var(--noq-tint-10)] shadow-[0_6px_20px_-10px_var(--noq-glow)]' : 'border-[var(--noq-border)]'
       }`}
     >
       <div className="min-w-0 flex-1">
         <span className="block text-sm font-bold text-[var(--noq-ink)]">{service.name}</span>
         {service.description && (
-          <p className="mt-1 text-[10px] leading-4 text-[#788582]">
+          <p className="mt-1 text-[10px] leading-4 text-[var(--noq-muted)]">
             {descExpanded || !isLong ? service.description : (
               <>
                 {preview}
@@ -553,7 +553,7 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
             )}
           </p>
         )}
-        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#EFF4F3] px-2 py-0.5 text-[10px] font-bold text-[#4C5A58]">
+        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[var(--noq-surface-soft)] px-2 py-0.5 text-[10px] font-bold text-[var(--noq-muted)]">
           <Timer className="h-3 w-3 text-[var(--category-primary-dark)]" />
           Session time : {service.durationMin} min
         </span>
@@ -629,4 +629,3 @@ const ServiceCard: React.FC<{ service: ServiceItem; active: boolean; onToggle: (
     </div>
   );
 };
-

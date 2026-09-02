@@ -74,7 +74,7 @@ export const PriceBreakdownSheet: React.FC<PriceBreakdownSheetProps> = ({ servic
               {services.length} {services.length === 1 ? 'service' : 'services'}
             </h2>
           </div>
-          <button id="close-price-breakdown-btn" type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[var(--noq-border)]">
+          <button id="close-price-breakdown-btn" type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[var(--noq-muted)] ring-1 ring-[var(--noq-border)]">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -85,13 +85,13 @@ export const PriceBreakdownSheet: React.FC<PriceBreakdownSheetProps> = ({ servic
               {services.map((service) => (
                 <div key={service.id} className="flex items-center justify-between gap-3">
                   <span className="min-w-0 truncate text-[13px] font-semibold text-[var(--noq-ink)]">{service.name}</span>
-                  <span className="shrink-0 text-[13px] font-bold text-[#4C5A58]">₹{service.priceInr}</span>
+                  <span className="shrink-0 text-[13px] font-bold text-[var(--noq-ink)]">₹{service.priceInr}</span>
                 </div>
               ))}
-              {services.length === 0 && <p className="text-[12px] text-[#788582]">No services selected yet.</p>}
+              {services.length === 0 && <p className="text-[12px] text-[var(--noq-muted)]">No services selected yet.</p>}
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-[var(--noq-surface-soft)] pt-3">
-              <span className="text-[12px] font-semibold text-[#4C5A58]">Subtotal</span>
+              <span className="text-[12px] font-semibold text-[var(--noq-muted)]">Subtotal</span>
               <span className="text-[13px] font-bold text-[var(--noq-ink)]">₹{subtotalInr}</span>
             </div>
             {discountInr > 0 && appliedEntry && (
@@ -107,13 +107,13 @@ export const PriceBreakdownSheet: React.FC<PriceBreakdownSheetProps> = ({ servic
               <span id="price-breakdown-final-total" className="text-[20px] font-bold leading-none tracking-[-0.02em] text-[var(--noq-ink)]">₹{finalTotalInr}</span>
             </div>
             {totalDurationMin > 0 && (
-              <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[#E7EEEC] bg-[#F6FAF9] px-2.5 py-2">
+              <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-[var(--noq-glass-border)] bg-[var(--noq-surface-soft)] px-2.5 py-2">
                 <span className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[9px] bg-gradient-to-br from-[var(--noq-accent-light)] to-[var(--noq-accent-deep)] text-white shadow-[0_1px_3px_rgba(52,84,253,0.24)]">
                   <Clock className="h-3.5 w-3.5" />
                 </span>
                 <span className="flex items-baseline gap-1.5">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
-                  <span className="text-xs font-extrabold text-[#0B211E]">{totalDurationMin} min</span>
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[var(--noq-muted)]">Session</span>
+                  <span className="text-xs font-extrabold text-[var(--noq-ink)]">{totalDurationMin} min</span>
                 </span>
               </div>
             )}
@@ -160,7 +160,7 @@ export const PriceBreakdownSheet: React.FC<PriceBreakdownSheetProps> = ({ servic
                       key={offer.id}
                       id={`offer-${offer.id}`}
                       className={`rounded-2xl border p-3.5 transition ${
-                        applied ? 'border-[var(--noq-accent)] bg-[#F1FAF9]' : result.eligible ? 'border-[var(--noq-border)] bg-white' : 'border-[var(--noq-border)] bg-white opacity-60'
+                        applied ? 'border-[var(--noq-accent)] bg-[var(--noq-tint-10)]' : result.eligible ? 'border-[var(--noq-border)] bg-white' : 'border-[var(--noq-border)] bg-white opacity-60'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">

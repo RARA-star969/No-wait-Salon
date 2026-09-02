@@ -39,7 +39,7 @@ const Avatar: React.FC<{ profile: CustomerProfile | null; editable?: boolean; on
   }, [profile?.profilePhotoUrl, profile?.updatedAt]);
   return (
     <button type="button" onClick={onClick} disabled={!editable} aria-label={editable ? 'Change profile photo' : 'Profile photo'}
-      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#DFF0ED] text-2xl font-bold text-[var(--category-primary-dark)] ring-1 ring-[#C6DEDA] disabled:cursor-default">
+      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[var(--noq-tint-10)] text-2xl font-bold text-[var(--category-primary-dark)] ring-1 ring-[var(--noq-glass-border)] disabled:cursor-default">
       {photoSrc ? <img src={photoSrc} alt="Customer profile" className="h-full w-full object-cover" />
         : initials || <UserRound className="h-10 w-10" />}
       {editable && <span className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--category-primary-dark)] text-white ring-2 ring-white"><Camera className="h-4 w-4" /></span>}
@@ -112,9 +112,9 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
     <div id="customer-profile-screen" className="min-h-full bg-[var(--noq-base)] px-5 pb-8 pt-[max(1rem,env(safe-area-inset-top))]">
       <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--noq-border)] bg-white" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
       <div className="mx-auto flex max-w-sm flex-col items-center px-3 pt-16 text-center">
-        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#E2F2EF] text-[var(--category-primary-dark)]"><CircleUserRound className="h-9 w-9" /></div>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[var(--noq-tint-10)] text-[var(--category-primary-dark)]"><CircleUserRound className="h-9 w-9" /></div>
         <h1 className="mt-5 text-2xl font-bold tracking-[-0.035em]">Your personal salon account</h1>
-        <p className="mt-2 text-sm leading-6 text-[#6B7977]">Verify your mobile number to view bookings and keep your profile safely synced.</p>
+        <p className="mt-2 text-sm leading-6 text-[var(--noq-muted)]">Verify your mobile number to view bookings and keep your profile safely synced.</p>
         <button onClick={onLogin} className="mt-7 h-12 w-full rounded-xl bg-[var(--category-primary-dark)] text-sm font-bold text-white">Verify mobile number</button>
       </div>
     </div>
@@ -128,9 +128,9 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
       onSubmit={submit}
       className="min-h-full bg-[var(--noq-base)]"
     >
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[#E2E8E7] bg-white/95 px-4 py-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur">
+      <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-[var(--noq-glass-border)] bg-[var(--noq-glass-strong)] px-4 py-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur">
         <button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--noq-border)]" aria-label="Back to profile"><ArrowLeft className="h-4 w-4" /></button>
-        <div><h1 className="text-lg font-bold">Edit profile</h1><p className="text-[10px] text-[#71807E]">Keep your details up to date</p></div>
+        <div><h1 className="text-lg font-bold">Edit profile</h1><p className="text-[10px] text-[var(--noq-muted)]">Keep your details up to date</p></div>
       </div>
       <div className="mx-auto max-w-md space-y-5 px-4 py-6">
         <div className="flex flex-col items-center">
@@ -139,7 +139,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
           <p className="mt-2 text-[10px] text-[#788582]">JPEG, PNG or WebP · Max 256 KB</p>
           {photoUploading && <p className="mt-1 text-xs font-semibold text-[var(--category-primary-dark)]">Uploading photo…</p>}
         </div>
-        <div className="space-y-4 rounded-2xl border border-[#E0E7E6] bg-white p-4">
+        <div className="noq-glass-surface space-y-4 rounded-2xl border p-4">
           <ProfileInput label="Full name" value={form.name} onChange={(value) => setForm({ ...form, name: value })} placeholder="Your full name" icon={<UserRound />} autoComplete="name" />
           <ProfileInput label="Verified mobile number" value={`+91 ${profile.phoneNumber}`} icon={<Phone />} disabled helper="Verified with OTP. Contact support to change this number." />
           <ProfileInput label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} placeholder="you@example.com" icon={<Mail />} type="email" autoComplete="email" />
@@ -159,7 +159,7 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
             spacer is measured via ResizeObserver rather than assumed. */}
         <div aria-hidden style={{ height: `calc(${saveBarHeight}px + env(safe-area-inset-bottom))` }} />
       </div>
-      <div ref={saveBarRef} className="fixed inset-x-0 bottom-0 z-20 border-t border-[#E0E7E6] bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div ref={saveBarRef} className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--noq-glass-border)] bg-[var(--noq-glass-strong)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
         <button disabled={saving || photoUploading} className="mx-auto flex h-12 w-full max-w-md items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-sm font-bold text-white disabled:opacity-60">
           {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{saving ? 'Saving…' : 'Save profile'}
         </button>
@@ -173,20 +173,20 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
     // sitting under the bar. Same 6.25rem reserve the SafeAreaScreen shell
     // uses for `bottomInset="nav"`.
     <div id="customer-profile-screen" className="min-h-full bg-[var(--noq-base)] pb-[calc(env(safe-area-inset-bottom)_+_7.5rem)]">
-      <div className="bg-gradient-to-b from-[#DFF1EE] to-[var(--noq-base)] px-4 pb-7 pt-[max(1rem,env(safe-area-inset-top))]">
+      <div className="bg-gradient-to-b from-[var(--noq-tint-20)] to-[var(--noq-base)] px-4 pb-7 pt-[max(1rem,env(safe-area-inset-top))]">
         <button onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/80 bg-white/80" aria-label="Back"><ArrowLeft className="h-4 w-4" /></button>
         <div className="mt-5 flex flex-col items-center text-center">
           <Avatar profile={profile} />
           <h1 className="mt-3 text-2xl font-bold tracking-[-0.035em]">{profile.name || 'Welcome to No-Wait Salon'}</h1>
-          <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[#58706D]"><ShieldCheck className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />+91 {profile.phoneNumber} · Verified</p>
+          <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-[var(--noq-muted)]"><ShieldCheck className="h-3.5 w-3.5 text-[var(--category-primary-dark)]" />+91 {profile.phoneNumber} · Verified</p>
         </div>
       </div>
       <div className="mx-auto -mt-2 max-w-md space-y-4 px-4">
-        <button onClick={onEdit} className="w-full rounded-2xl border border-[#CBE0DD] bg-white p-4 text-left">
+        <button onClick={onEdit} className="noq-glass-surface w-full rounded-2xl border p-4 text-left">
           <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold">{title}</p><p className="mt-1 text-xs text-[#71807E]">{completed === 4 ? 'All essential details added' : `${completed} / 4 steps completed`}</p></div><ChevronRight className="h-5 w-5 text-[var(--category-primary-dark)]" /></div>
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E6EEEC]"><div className="h-full rounded-full bg-[var(--category-primary-dark)] transition-all" style={{ width: `${percentage}%` }} /></div>
         </button>
-        <div className="overflow-hidden rounded-2xl border border-[#E0E7E6] bg-white">
+        <div className="noq-glass-surface overflow-hidden rounded-2xl border">
           <ProfileRow icon={<UserRound />} label="My profile" onClick={onEdit} />
           <ProfileRow icon={<CalendarDays />} label="My bookings & history" secondary="Active, upcoming and past bookings" onClick={onOpenBookings} />
           <ProfileRow icon={<Dumbbell />} label="My Memberships & Gym Activity" secondary="Gym plans and visits linked to your account" onClick={onOpenGymActivity} />
@@ -200,10 +200,10 @@ export const CustomerProfileScreen: React.FC<Props> = ({ mode, auth, profile, lo
 };
 
 const ProfileRow: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void }> = ({ icon, label, secondary, onClick }) => (
-  <button type="button" onClick={onClick} className="flex min-h-16 w-full items-center gap-3 border-b border-[#EDF1F0] px-4 text-left last:border-0">
-    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E9F4F2] text-[var(--category-primary-dark)] [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span>{secondary && <span className="block truncate text-[10px] text-[#7A8785]">{secondary}</span>}</span>
-    <ChevronRight className="h-4 w-4 text-[#9AA6A4]" />
+  <button type="button" onClick={onClick} className="flex min-h-16 w-full items-center gap-3 border-b border-[var(--noq-glass-border)] px-4 text-left last:border-0">
+    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--noq-tint-10)] text-[var(--category-primary-dark)] [&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{label}</span>{secondary && <span className="block truncate text-[10px] text-[var(--noq-muted)]">{secondary}</span>}</span>
+    <ChevronRight className="h-4 w-4 text-[var(--noq-text-subtle)]" />
   </button>
 );
 

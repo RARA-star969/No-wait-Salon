@@ -73,7 +73,7 @@ export const CategoryLiveCard: React.FC<CategoryLiveCardProps> = ({
   return (
     <section
       id={id}
-      className={`relative overflow-hidden rounded-[22px] border border-white/[0.06] px-4 py-2.5 text-white shadow-[0_10px_24px_-10px_rgba(6,20,18,0.35),0_20px_42px_-18px_rgba(6,44,40,0.7)] ${className}`}
+      className={`relative overflow-hidden rounded-[22px] border border-white/[0.14] px-4 py-2.5 text-white shadow-[0_10px_24px_-10px_rgba(29,54,201,0.28),0_20px_42px_-18px_rgba(52,84,253,0.42)] ${className}`}
       style={{ background: gradient }}
     >
       {/* Luminous edge — softened, low-alpha masked gradient rim */}

@@ -35,15 +35,15 @@ const Toggle: React.FC<{
   lockedNote?: string;
   onChange?: (next: boolean) => void;
 }> = ({ label, description, icon, checked, disabled, lockedNote, onChange }) => (
-  <div className="flex items-start gap-3 border-b border-white/[0.06] px-4 py-4 last:border-0">
-    <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-[color:var(--category-accent,var(--noq-accent))] [&>svg]:h-4 [&>svg]:w-4">
+  <div className="flex items-start gap-3 border-b border-[var(--noq-glass-border)] px-4 py-4 last:border-0">
+    <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--noq-tint-10)] text-[var(--noq-accent)] [&>svg]:h-4 [&>svg]:w-4">
       {icon}
     </span>
     <div className="min-w-0 flex-1">
-      <p className="text-sm font-semibold text-white">{label}</p>
-      <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{description}</p>
+      <p className="text-sm font-semibold text-[var(--noq-ink)]">{label}</p>
+      <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--noq-muted)]">{description}</p>
       {disabled && lockedNote && (
-        <p className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+        <p className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--noq-text-subtle)]">
           <Lock className="h-3 w-3" />
           {lockedNote}
         </p>
@@ -57,7 +57,7 @@ const Toggle: React.FC<{
       disabled={disabled}
       onClick={() => onChange?.(!checked)}
       className={`mt-1 flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${
-        checked ? 'bg-[color:var(--category-accent,var(--noq-accent))]' : 'bg-white/15'
+        checked ? 'bg-[var(--noq-accent)]' : 'bg-[var(--noq-border)]'
       } ${disabled ? 'opacity-50' : ''}`}
     >
       <span className={`h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
@@ -85,7 +85,7 @@ export const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProp
   return (
     <SafeAreaScreen
       id="notification-settings-screen"
-      className="bg-[#050B0C]"
+      className="noq-customer-page"
       bottomInset="nav"
       header={
         <SafeAreaHeader
@@ -97,12 +97,12 @@ export const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProp
     >
       <div className="space-y-5 px-4 pt-4 sm:px-5">
         {error && (
-          <div role="alert" className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-3 text-xs text-rose-200">
+          <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
             {error}
           </div>
         )}
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+        <div className="noq-glass-surface overflow-hidden rounded-2xl border">
           <Toggle
             icon={<BellRing />}
             label="Booking & queue alerts"
@@ -127,37 +127,37 @@ export const NotificationSettingsScreen: React.FC<NotificationSettingsScreenProp
           />
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="noq-glass-surface rounded-2xl border p-4">
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-[color:var(--category-accent,var(--noq-accent))]" />
-            <p className="text-sm font-semibold text-white">Quiet hours</p>
+            <p className="text-sm font-semibold text-[var(--noq-ink)]">Quiet hours</p>
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
+          <p className="mt-1 text-[11px] leading-relaxed text-[var(--noq-muted)]">
             Hold promotional messages during these hours. Urgent booking alerts are never held.
           </p>
           <div className="mt-3 flex items-center gap-3">
             <label className="flex-1">
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">From</span>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--noq-text-subtle)]">From</span>
               <input
                 type="time"
                 value={draft.quietHoursStart}
                 onChange={(event) => update({ quietHoursStart: event.target.value })}
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm text-white outline-none"
+                className="h-11 w-full rounded-xl border border-[var(--noq-glass-border)] bg-white/75 px-3 text-sm text-[var(--noq-ink)] outline-none focus:border-[var(--noq-accent)]"
               />
             </label>
             <label className="flex-1">
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">To</span>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-[var(--noq-text-subtle)]">To</span>
               <input
                 type="time"
                 value={draft.quietHoursEnd}
                 onChange={(event) => update({ quietHoursEnd: event.target.value })}
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm text-white outline-none"
+                className="h-11 w-full rounded-xl border border-[var(--noq-glass-border)] bg-white/75 px-3 text-sm text-[var(--noq-ink)] outline-none focus:border-[var(--noq-accent)]"
               />
             </label>
           </div>
         </div>
 
-        <p className="px-1 text-[11px] leading-relaxed text-slate-500">
+        <p className="px-1 text-[11px] leading-relaxed text-[var(--noq-muted)]">
           {pushTransport.configured
             ? 'Background device push is enabled for this build.'
             : 'Background device push is not configured on this build. Every alert is still saved to your in-app inbox.'}

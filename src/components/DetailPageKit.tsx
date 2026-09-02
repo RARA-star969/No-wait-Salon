@@ -10,7 +10,7 @@ import type { NearbySalon } from '../types';
  * One NOQ product, one set of components.
  */
 
-export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean; tone?: 'default' | 'gymGlass' }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'linear-gradient(160deg, #234742 0%, #16302C 75%)', goldIcon, tone = 'default' }) => {
+export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; secondary?: string; onClick?: () => void; active?: boolean; disabled?: boolean; surfaceGradient?: string; goldIcon?: boolean; tone?: 'default' | 'gymGlass' }> = ({ icon, label, secondary, onClick, active, disabled, surfaceGradient = 'var(--noq-glass-gradient)', goldIcon, tone = 'default' }) => {
   // 'gymGlass' is a Gym-only presentation variant — Salon (and any caller
   // that doesn't pass `tone`) keeps the exact original tile untouched.
   const isGymGlass = tone === 'gymGlass';
@@ -22,7 +22,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
     className={`relative flex min-h-[92px] flex-col items-center justify-center overflow-hidden rounded-2xl px-1.5 py-3 text-center transition ${
       isGymGlass
         ? 'border border-white/[0.08] bg-[var(--noq-surface-soft)]/80 shadow-[0_10px_22px_-16px_rgba(0,0,0,0.75)] backdrop-blur-sm'
-        : 'shadow-[0_12px_24px_-16px_rgba(4,16,14,0.7)] ring-1 ring-white/[0.06]'
+        : 'border border-[var(--noq-glass-border)] shadow-[inset_0_1px_0_white,0_12px_24px_-20px_var(--noq-glow)]'
     } ${disabled ? 'opacity-45' : 'active:scale-[0.97]'}`}
     style={isGymGlass ? undefined : { background: surfaceGradient }}
   >
@@ -31,7 +31,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
         isGymGlass ? 'h-8 w-8 rounded-xl [&>svg]:h-[15px] [&>svg]:w-[15px] [&>svg]:stroke-[1.6]' : 'h-10 w-10 rounded-full [&>svg]:h-[18px] [&>svg]:w-[18px]'
       } ${
         goldIcon
-          ? 'bg-white [&>svg]:fill-[#F3D584] [&>svg]:text-[#8A6316] [&>svg]:stroke-[1.75]'
+          ? 'bg-[var(--noq-tint-10)] [&>svg]:fill-[var(--noq-accent-light)] [&>svg]:text-[var(--noq-accent)] [&>svg]:stroke-[1.75]'
           : isGymGlass
           ? 'bg-[var(--noq-tint-10)] text-[var(--noq-accent)]'
           : active
@@ -41,8 +41,8 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
     >
       {icon}
     </span>
-    <span className={`mt-2.5 text-[10px] font-bold leading-tight ${isGymGlass ? 'text-white/90' : 'text-white'}`}>{label}</span>
-    {secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-white/55">{secondary}</span>}
+    <span className="mt-2.5 text-[10px] font-bold leading-tight text-[var(--noq-ink)]">{label}</span>
+    {secondary && <span className="mt-0.5 line-clamp-1 text-[8px] text-[var(--noq-muted)]">{secondary}</span>}
   </button>
   );
 };
@@ -50,7 +50,7 @@ export const QuickAction: React.FC<{ icon: React.ReactElement; label: string; se
 export const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?: string }> = ({ eyebrow, title, secondary }) => (
   <div className="mb-3 flex items-end justify-between gap-3">
     <div>
-      <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#73827F]">{eyebrow}</p>
+      <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--noq-muted)]">{eyebrow}</p>
       <h2 className="mt-0.5 text-lg font-bold tracking-[-0.025em]">{title}</h2>
     </div>
     {secondary && <span className="text-[10px] font-semibold text-[var(--category-primary-dark)]">{secondary}</span>}
@@ -61,7 +61,7 @@ export const SectionTitle: React.FC<{ eyebrow: string; title: string; secondary?
 export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow: string; title: string; onClose: () => void; children: React.ReactNode }> = ({ icon, eyebrow, title, onClose, children }) => (
   <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 sm:items-center" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <section role="dialog" aria-modal="true" aria-label={title} className="w-full rounded-t-3xl bg-[var(--noq-base)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6">
-      <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[#C9D2D0] sm:hidden" />
+      <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--noq-border)] sm:hidden" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--category-tint-10)] text-[var(--category-primary-dark)]">{icon}</span>
@@ -81,12 +81,12 @@ export const QuickActionSheetShell: React.FC<{ icon: React.ReactElement; eyebrow
 export const AddressSheet: React.FC<{ name: string; address: string; locationLabel: string; phoneNumber?: string; directionsUrl: string; eyebrow?: string; onClose: () => void }> = ({ name, address, locationLabel, phoneNumber, directionsUrl, eyebrow = 'Store location', onClose }) => (
   <QuickActionSheetShell icon={<MapPin className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
     <p className="mt-4 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--category-primary-dark)]"><MapPin className="h-3.5 w-3.5 shrink-0" />{locationLabel}</p>
-    <p className="mt-2 rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-xs leading-5 text-[#4C5A58] shadow-[0_2px_10px_-6px_rgba(15,40,37,0.15)] [overflow-wrap:anywhere]">{address}</p>
+    <p className="mt-2 rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-xs leading-5 text-[var(--noq-muted)] shadow-[0_2px_10px_-6px_var(--noq-glow)] [overflow-wrap:anywhere]">{address}</p>
     <div className="mt-4 grid grid-cols-2 gap-2.5">
       {phoneNumber ? (
         <a href={`tel:${phoneNumber}`} className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--noq-border)] bg-white text-xs font-bold text-[var(--noq-ink)]"><PhoneCall className="h-4 w-4 text-[var(--category-primary-dark)]" />Call</a>
       ) : (
-        <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--noq-border)] bg-[#F1F4F3] text-xs font-semibold text-[#9AA6A3]"><PhoneCall className="h-4 w-4" />No number listed</span>
+        <span className="flex h-12 items-center justify-center gap-2 rounded-xl border border-[var(--noq-border)] bg-[var(--noq-surface-soft)] text-xs font-semibold text-[var(--noq-text-subtle)]"><PhoneCall className="h-4 w-4" />No number listed</span>
       )}
       <a href={directionsUrl} target="_blank" rel="noreferrer" className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Directions</a>
     </div>
@@ -98,19 +98,19 @@ export const OpenHoursSheet: React.FC<{ name: string; isOpen: boolean; openingHo
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   return (
     <QuickActionSheetShell icon={<Clock3 className="h-4 w-4" />} eyebrow={eyebrow} title={name} onClose={onClose}>
-      <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-[#BFE0DC] bg-[#EDF8F6] text-[var(--category-primary-dark)]' : 'border-[#F0D6D1] bg-[#FFF7F5] text-[#8A3E35]'}`}>
-        <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-[var(--noq-accent)]' : 'bg-[#E58C82]'}`} />
+      <div className={`mt-4 flex items-center gap-2 rounded-2xl border p-3.5 text-xs font-bold ${isOpen ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+        <span className={`h-2 w-2 rounded-full ${isOpen ? 'bg-emerald-500' : 'bg-rose-500'}`} />
         {isOpen ? 'Open right now' : 'Closed right now'} · {openingHours}
       </div>
       <div className="mt-3 space-y-1 rounded-2xl border border-[var(--noq-border)] bg-white p-3.5">
         {days.map((day) => (
           <div key={day} className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[#4C5A58]">{day}</span>
-            <span className="text-[#788582]">{openingHours}</span>
+            <span className="font-semibold text-[var(--noq-ink)]">{day}</span>
+            <span className="text-[var(--noq-muted)]">{openingHours}</span>
           </div>
         ))}
       </div>
-      <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[#9AA6A3]"><Info className="mt-0.5 h-3 w-3 shrink-0" />Per-day timing isn't wired up yet — every day shows the general hours for now.</p>
+      <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[var(--noq-text-subtle)]"><Info className="mt-0.5 h-3 w-3 shrink-0" />Per-day timing isn't wired up yet — every day shows the general hours for now.</p>
     </QuickActionSheetShell>
   );
 };
@@ -118,9 +118,9 @@ export const OpenHoursSheet: React.FC<{ name: string; isOpen: boolean; openingHo
 /** Directions/help sheet — placeholder structure alongside the real maps link. */
 export const DirectionsSheet: React.FC<{ name: string; address: string; directionsUrl: string; onClose: () => void }> = ({ name, address, directionsUrl, onClose }) => (
   <QuickActionSheetShell icon={<Navigation className="h-4 w-4" />} eyebrow="Get there" title={`Directions to ${name}`} onClose={onClose}>
-    <p className="mt-4 text-xs leading-5 text-[#657471] [overflow-wrap:anywhere]">{address}</p>
+    <p className="mt-4 text-xs leading-5 text-[var(--noq-muted)] [overflow-wrap:anywhere]">{address}</p>
     <a href={directionsUrl} target="_blank" rel="noreferrer" className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--category-primary-dark)] text-xs font-bold text-white"><Navigation className="h-4 w-4" />Open in Maps<ExternalLink className="h-3 w-3" /></a>
-    <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[#9AA6A3]"><Info className="mt-0.5 h-3 w-3 shrink-0" />In-app turn-by-turn guidance isn't available yet — this opens your device's maps app instead.</p>
+    <p className="mt-3 flex items-start gap-1.5 text-[10px] leading-4 text-[var(--noq-text-subtle)]"><Info className="mt-0.5 h-3 w-3 shrink-0" />In-app turn-by-turn guidance isn't available yet — this opens your device's maps app instead.</p>
   </QuickActionSheetShell>
 );
 
@@ -131,11 +131,11 @@ export const BranchesSheet: React.FC<{ branches: NearbySalon[]; onClose: () => v
       {branches.map((branch) => (
         <div key={branch.id} className="rounded-2xl border border-[var(--noq-border)] bg-white p-3.5">
           <p className="text-sm font-bold text-[var(--noq-ink)]">{branch.name}</p>
-          <p className="mt-1 text-[10px] text-[#788582]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p>
+          <p className="mt-1 text-[10px] text-[var(--noq-muted)]">{branch.distanceKm} km · {branch.liveWaitMinutes ? `${branch.liveWaitMinutes} min wait` : 'No wait'}</p>
         </div>
       ))}
       {branches.length === 0 && (
-        <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-center text-xs text-[#788582]">No other branches nearby yet.</p>
+        <p className="rounded-2xl border border-[var(--noq-border)] bg-white p-4 text-center text-xs text-[var(--noq-muted)]">No other branches nearby yet.</p>
       )}
     </div>
   </QuickActionSheetShell>
@@ -144,11 +144,11 @@ export const BranchesSheet: React.FC<{ branches: NearbySalon[]; onClose: () => v
 /** "Been here" — a simple honest visited toggle; no fake visit history invented. */
 export const BeenHereSheet: React.FC<{ visited: boolean; subjectLabel?: string; onToggle: () => void; onClose: () => void }> = ({ visited, subjectLabel = 'salon', onToggle, onClose }) => (
   <QuickActionSheetShell icon={<CheckCircle2 className="h-4 w-4" />} eyebrow="Your visits" title="Been here?" onClose={onClose}>
-    <p className="mt-4 text-xs leading-5 text-[#657471]">Mark this {subjectLabel} as one you've visited before. Your visit history isn't tracked yet — this is just a personal reminder for now.</p>
+    <p className="mt-4 text-xs leading-5 text-[var(--noq-muted)]">Mark this {subjectLabel} as one you've visited before. Your visit history isn't tracked yet — this is just a personal reminder for now.</p>
     <button
       type="button"
       onClick={onToggle}
-      className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${visited ? 'bg-[#F1F4F3] text-[#4C5A58]' : 'bg-[var(--category-primary-dark)] text-white'}`}
+      className={`mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-xs font-bold transition ${visited ? 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]' : 'bg-[var(--category-primary-dark)] text-white'}`}
     >
       <CheckCircle2 className="h-4 w-4" />
       {visited ? 'Marked as visited' : 'Mark as visited'}

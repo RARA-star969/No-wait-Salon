@@ -74,14 +74,14 @@ export const GymActivityScreen: React.FC<{
   };
 
   return (
-    <div id="gym-activity-screen" className="min-h-full bg-[var(--noq-base)] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      <div className="flex items-center gap-3 bg-gradient-to-b from-[#DFF1EE] to-[var(--noq-base)] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))]">
+    <div id="gym-activity-screen" className="noq-customer-page min-h-full pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+      <div className="flex items-center gap-3 bg-gradient-to-b from-[var(--noq-tint-20)] to-[var(--noq-base)] px-4 pb-5 pt-[max(1rem,env(safe-area-inset-top))]">
         <button onClick={onBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/80" aria-label="Back">
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="min-w-0">
           <h1 className="text-lg font-bold tracking-[-0.03em]">My Memberships & Gym Activity</h1>
-          <p className="mt-0.5 text-xs text-[#58706D]">Gym plans and visits linked to your account</p>
+          <p className="mt-0.5 text-xs text-[var(--noq-muted)]">Gym plans and visits linked to your account</p>
         </div>
       </div>
 
@@ -91,10 +91,10 @@ export const GymActivityScreen: React.FC<{
         ) : (
           <>
             {(active.length > 0 || recent.length > 0) && (
-              <div className="space-y-2 rounded-2xl border border-[#E0E7E6] bg-white p-4">
+              <div className="noq-glass-surface space-y-2 rounded-2xl border p-4">
                 <p className="text-[10px] font-extrabold uppercase tracking-wider text-[var(--noq-muted)]">Gym activity</p>
                 {active.map((entry) => (
-                  <div key={entry.visit.id} className="rounded-xl border border-[var(--category-primary-dark)]/35 bg-[#F2FAF8] p-3">
+                  <div key={entry.visit.id} className="rounded-xl border border-[var(--category-primary-dark)]/35 bg-[var(--noq-tint-10)] p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-bold text-[var(--noq-ink)]">{entry.gymName}</span>
                       <span className="rounded-md bg-[var(--category-primary-dark)] px-2 py-0.5 text-[9px] font-extrabold uppercase text-white">
@@ -139,7 +139,7 @@ export const GymActivityScreen: React.FC<{
               </div>
             )}
 
-            <div className="rounded-2xl border border-[#E0E7E6] bg-white p-2">
+            <div className="noq-glass-surface rounded-2xl border p-2">
               {memberships.length === 0 ? (
                 <p className="p-3 text-xs text-[#71807E]">No gym memberships linked to this account yet.</p>
               ) : (

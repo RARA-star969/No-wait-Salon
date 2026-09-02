@@ -72,13 +72,13 @@ export const ServicesBillSheet: React.FC<Props> = ({
             <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--noq-accent)]">{eyebrow}</p>
             <h2 className="mt-1 truncate text-lg font-bold tracking-[-0.02em] text-[var(--noq-ink)]">{title}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#42524F] ring-1 ring-[var(--noq-border)]">
+          <button type="button" onClick={onClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[var(--noq-muted)] ring-1 ring-[var(--noq-border)]">
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-5">
-          <div className="overflow-hidden rounded-2xl border border-[#E3EAE8] bg-white shadow-[0_8px_20px_-16px_rgba(15,40,37,0.3)]">
+          <div className="noq-glass-surface overflow-hidden rounded-2xl border">
             <div className="space-y-3 px-4 pb-1 pt-4">
               {services.map((service) => (
                 <div key={service.id} className="flex items-start justify-between gap-3">
@@ -92,7 +92,7 @@ export const ServicesBillSheet: React.FC<Props> = ({
                 </div>
               ))}
               {services.length === 0 && (
-                <p className="py-2 text-center text-xs text-[#788582]">No services selected.</p>
+                <p className="py-2 text-center text-xs text-[var(--noq-muted)]">No services selected.</p>
               )}
             </div>
 
@@ -147,7 +147,7 @@ export const ServicesBillSheet: React.FC<Props> = ({
             )}
 
             <div className="mt-1 space-y-1.5 px-4 pb-4 pt-3">
-              <div className="flex items-center justify-between text-[11.5px] font-semibold text-[#788582]">
+              <div className="flex items-center justify-between text-[11.5px] font-semibold text-[var(--noq-muted)]">
                 <span>Subtotal</span>
                 <span className="tabular-nums">₹{subtotal}</span>
               </div>
@@ -164,7 +164,7 @@ export const ServicesBillSheet: React.FC<Props> = ({
               )}
             </div>
 
-            <div className="flex items-center justify-between bg-gradient-to-b from-[#0F2C28] to-[var(--noq-accent)] px-4 py-3">
+            <div className="flex items-center justify-between bg-[var(--noq-cta-gradient)] px-4 py-3">
               <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-white/70">Total</span>
               <span className="text-xl font-extrabold tracking-[-0.02em] tabular-nums text-white">₹{total}</span>
             </div>

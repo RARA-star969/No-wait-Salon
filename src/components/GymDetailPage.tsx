@@ -680,7 +680,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             itself. */}
         <div className="relative px-5 pb-5 pt-0">
           <div className="flex items-end gap-3">
-            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[var(--noq-base)] bg-[var(--category-dark-surface,#241536)] text-[var(--category-accent,var(--noq-accent))] shadow-[0_10px_24px_-8px_rgba(0,0,0,0.55)]">
+            <div className="-mt-9 flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[22px] border-[3px] border-[var(--noq-base)] bg-[var(--noq-surface-soft)] text-[var(--category-accent,var(--noq-accent))] shadow-[0_10px_24px_-8px_var(--noq-glow)]">
               {salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-8 w-8" />}
             </div>
             <div className="min-w-0 flex-1 pb-0.5">
@@ -796,8 +796,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 aria-hidden="true"
               />
               <div className="relative flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[#F3D584]">
-                  <Crown className="h-3.5 w-3.5 fill-[#F3D584] stroke-[1.75] text-[#8A6316]" />
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-[var(--noq-accent)]">
+                  <Crown className="h-3.5 w-3.5 fill-[var(--noq-accent-light)] stroke-[1.75] text-[var(--noq-accent)]" />
                   Active member
                 </span>
                 <button
@@ -853,16 +853,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               </p>
             </div>
           ) : membership ? (
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 p-4">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
               <div className="flex items-center gap-2">
-                <BadgeCheck className="h-4 w-4 text-rose-300" />
+                <BadgeCheck className="h-4 w-4 text-rose-600" />
                 <h2 className="text-xs font-extrabold text-[var(--noq-ink)]">{membership.planName}</h2>
-                <span className="rounded-md bg-rose-500/15 px-2 py-0.5 text-[9px] font-extrabold uppercase text-rose-300">Expired</span>
+                <span className="rounded-md bg-rose-100 px-2 py-0.5 text-[9px] font-extrabold uppercase text-rose-700">Expired</span>
               </div>
               <p className="mt-1 text-[11px] text-[var(--noq-muted)]">Expired on {new Date(membership.expiryDate).toLocaleDateString()}. Renew to unlock check-in again.</p>
             </div>
           ) : myMembership?.pendingClaim ? (
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4 text-xs font-semibold text-amber-200">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-semibold text-amber-800">
               Your membership claim is pending gym approval. You'll see your member status here once the front desk verifies it.
             </div>
           ) : (
@@ -1295,16 +1295,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           bottomCtaState === 'selected' && selectedOffering ? (
             <div className="flex items-center justify-between gap-3 rounded-xl px-2 py-1">
               <span className="min-w-0">
-                <span className="block break-words text-[11px] font-bold leading-tight text-[#12332E]">{selectedOffering.name}</span>
-                <span className="mt-0.5 block text-[10px] font-semibold text-[#4A5D5A]">Valid for {durationText(selectedOffering)}</span>
+                <span className="block break-words text-[11px] font-bold leading-tight text-[var(--noq-ink)]">{selectedOffering.name}</span>
+                <span className="mt-0.5 block text-[10px] font-semibold text-[var(--noq-muted)]">Valid for {durationText(selectedOffering)}</span>
               </span>
-              <span className="shrink-0 text-sm font-extrabold text-[#0B1F1C]">₹{selectedOffering.priceInr}</span>
+              <span className="shrink-0 text-sm font-extrabold text-[var(--noq-ink)]">₹{selectedOffering.priceInr}</span>
             </div>
           ) : bottomCtaState === 'checked_in' && activeVisit ? (
             <div className="flex items-center justify-between gap-3 rounded-xl px-2 py-1">
               <span className="min-w-0">
-                <span className="block truncate text-[11px] font-bold text-[#12332E]">{activeAccessName}</span>
-                <span className="mt-0.5 block text-[10px] font-semibold text-[#4A5D5A]">
+                <span className="block truncate text-[11px] font-bold text-[var(--noq-ink)]">{activeAccessName}</span>
+                <span className="mt-0.5 block text-[10px] font-semibold text-[var(--noq-muted)]">
                   Since {formatGymClock(activeVisit.checkedInAt)}
                 </span>
               </span>
@@ -1319,8 +1319,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
           ) : bottomCtaState === 'awaiting_payment' && awaitingPayment ? (
             <div className="flex items-center justify-between gap-3 rounded-xl px-2 py-1">
               <span className="min-w-0">
-                <span className="block truncate text-[11px] font-bold text-[#12332E]">{awaitingPayment.offeringName}</span>
-                <span className="mt-0.5 block text-[10px] font-semibold text-[#4A5D5A]">
+                <span className="block truncate text-[11px] font-bold text-[var(--noq-ink)]">{awaitingPayment.offeringName}</span>
+                <span className="mt-0.5 block text-[10px] font-semibold text-[var(--noq-muted)]">
                   {awaitingPayment.status === 'paid'
                     ? 'Paid · the gym will check you in'
                     : awaitingPayment.method === 'cash'
@@ -1328,16 +1328,16 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     : 'Awaiting payment confirmation'}
                 </span>
               </span>
-              <span className="shrink-0 text-sm font-extrabold text-[#0B1F1C]">₹{awaitingPayment.amountInr}</span>
+              <span className="shrink-0 text-sm font-extrabold text-[var(--noq-ink)]">₹{awaitingPayment.amountInr}</span>
             </div>
           ) : null
         }
       >
         <div className="flex min-w-0 flex-col justify-center py-0.5 pl-1 pr-1">
-          <div className={`text-[9px] font-bold uppercase tracking-[0.11em] sm:text-[10px] ${dockExpanded ? 'text-[#4A5D5A]' : 'text-[var(--noq-muted)]'}`}>
+          <div className="text-[9px] font-bold uppercase tracking-[0.11em] text-[var(--noq-muted)] sm:text-[10px]">
             {accessBarCopy.eyebrow}
           </div>
-          <div id="gym-access-copy" className={`mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] sm:text-xs ${dockExpanded ? 'text-[#12332E]' : 'text-[var(--noq-ink)]'}`}>
+          <div id="gym-access-copy" className="mt-0.5 break-words text-[11px] font-extrabold leading-[1.2] text-[var(--noq-ink)] sm:text-xs">
             {accessBarCopy.main}
           </div>
         </div>
@@ -1352,9 +1352,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className={`relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-3.5 text-[11px] font-extrabold text-[var(--noq-ink)] shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs ${
-            bottomCtaState === 'renew' ? 'bg-amber-600' : 'bg-[var(--category-primary-dark)]'
-          }`}
+          className="relative flex min-h-13 min-w-[86px] shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-[var(--noq-accent)] px-3.5 text-[11px] font-extrabold text-white shadow-[0_10px_20px_-10px_var(--category-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55 sm:min-w-[96px] sm:px-5 sm:text-xs"
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
           {bottomCtaState === 'scan' && <QrCode className="relative h-3.5 w-3.5" />}
