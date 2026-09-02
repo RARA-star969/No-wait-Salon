@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2 } from 'lucide-react';
+import { Mic, Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, ChevronLeft, SlidersHorizontal } from 'lucide-react';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -256,6 +256,14 @@ export const PromotionalBanner: React.FC<{ category?: CategoryItemConfig; imageS
   );
 };
 
+export type CategoryBannerItem = {
+  id: string;
+  imageUrl?: string;
+  headline?: string;
+  subheadline?: string;
+  ctaText?: string;
+};
+
 export type CategoryItemConfig = {
   id: string;
   name: string;
@@ -271,6 +279,8 @@ export type CategoryItemConfig = {
   bannerHeadline?: string;
   bannerSubheadline?: string;
   bannerCtaText?: string;
+  /** Admin-controlled carousel shown at the top of the category page. Falls back to the single hero banner fields above when empty. */
+  banners?: CategoryBannerItem[];
 };
 
 const categoryIconMap: Record<string, React.FC<{ className?: string }>> = {
@@ -298,6 +308,271 @@ export const DEFAULT_MAIN_CATEGORIES: CategoryItemConfig[] = [
   { id: 'mall', name: 'Mall', iconName: 'Building2', label: 'Mall', description: 'Shopping Malls & Outlets', themeKey: 'mall' },
   { id: 'food', name: 'Food', iconName: 'Utensils', label: 'Food', description: 'Restaurants & Dining', themeKey: 'food' },
 ];
+
+/**
+ * Admin-controlled promotional carousel shown at the top of every category page.
+ * Reads `category.banners`; falls back to the single hero-banner fields so
+ * categories without a configured carousel keep showing the existing banner.
+ */
+export const BannerCarousel: React.FC<{ category?: CategoryItemConfig; autoPlayMs?: number }> = ({ category, autoPlayMs = 5000 }) => {
+  const fallbackSlide: CategoryBannerItem = {
+    id: 'fallback',
+    headline: category?.bannerHeadline || 'Better grooming, less waiting.',
+    subheadline: category?.bannerSubheadline || 'Discover trusted businesses and reserve your place before leaving home.',
+    ctaText: category?.bannerCtaText || `Explore ${category?.name || 'Chairs'}`,
+    imageUrl: category?.bannerImageUrl,
+  };
+  const slides = category?.banners?.length ? category.banners : [fallbackSlide];
+  const theme = CATEGORY_THEME_MAP[category?.themeKey || category?.id || 'salon'] || CATEGORY_THEME_MAP.salon;
+  const IconComponent = getCategoryIcon(category?.iconName || 'Scissors');
+  const [index, setIndex] = React.useState(0);
+  const touchStartX = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    setIndex(0);
+  }, [category?.id]);
+
+  React.useEffect(() => {
+    if (slides.length < 2) return;
+    const timer = setInterval(() => setIndex((prev) => (prev + 1) % slides.length), autoPlayMs);
+    return () => clearInterval(timer);
+  }, [slides.length, autoPlayMs]);
+
+  const goTo = (next: number) => setIndex(((next % slides.length) + slides.length) % slides.length);
+
+  return (
+    <section
+      className="relative"
+      onTouchStart={(e) => { touchStartX.current = e.touches[0]?.clientX ?? null; }}
+      onTouchEnd={(e) => {
+        if (touchStartX.current === null) return;
+        const delta = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
+        if (delta > 40) goTo(index - 1);
+        else if (delta < -40) goTo(index + 1);
+        touchStartX.current = null;
+      }}
+    >
+      {slides.map((slide, slideIndex) => (
+        <div
+          key={slide.id}
+          className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${theme.bannerGradient} p-5 shadow-sm sm:p-6 transition-opacity duration-300 ${
+            slideIndex === index ? 'block opacity-100' : 'hidden opacity-0'
+          }`}
+        >
+          {slide.imageUrl ? (
+            <img src={slide.imageUrl} alt={slide.headline || 'Featured offer'} className="h-full w-full rounded-2xl object-cover" />
+          ) : (
+            <div className="flex items-center justify-between gap-4">
+              <div className="max-w-[72%]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-slate-800 shadow-xs">
+                  <Sparkles className="h-3 w-3 text-amber-500" /> Featured {category?.name || 'Category'}
+                </span>
+                <h2 className="mt-3 text-lg font-black leading-tight tracking-[-0.025em] text-slate-900 sm:text-xl">
+                  {slide.headline}
+                </h2>
+                <p className="mt-1 text-[11px] leading-4 font-medium text-slate-600">{slide.subheadline}</p>
+                {slide.ctaText && (
+                  <div className="mt-3">
+                    <span className="inline-flex items-center rounded-xl bg-white px-3 py-1.5 text-[11px] font-bold text-slate-900 shadow-xs">
+                      {slide.ctaText} →
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br ${theme.gradientFrom} ${theme.gradientTo} text-white shadow-lg sm:h-24 sm:w-24`}>
+                <IconComponent className="h-10 w-10" />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {slides.length > 1 && (
+        <div className="mt-3 flex items-center justify-center gap-1.5">
+          {slides.map((slide, dotIndex) => (
+            <button
+              key={slide.id}
+              type="button"
+              aria-label={`Show promotion ${dotIndex + 1}`}
+              onClick={() => goTo(dotIndex)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                dotIndex === index ? 'w-5 bg-[#0F766E]' : 'w-1.5 bg-slate-300'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
+/**
+ * Shared header for every category page: back chevron + category title/subtitle.
+ * Kept identical across categories so the top structure stays reusable.
+ */
+export const CategoryPageHeader: React.FC<{
+  title: string;
+  subtitle?: string;
+  onBack?: () => void;
+}> = ({ title, subtitle, onBack }) => (
+  <div className="flex items-start justify-between gap-3">
+    <div className="flex items-start gap-3">
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Go back"
+          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-teal-300 hover:text-teal-700 active:scale-[0.96]"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
+      <div className="min-w-0">
+        <h1 className="text-[28px] font-black leading-tight tracking-[-0.02em] text-slate-900">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-sm font-medium text-slate-500">{subtitle}</p>}
+      </div>
+    </div>
+  </div>
+);
+
+export type SalonAudience = 'men' | 'women';
+
+/**
+ * Salon-only Men/Women segmented switch. Premium, light, NOQ blue-accented,
+ * matching the reference top-of-category design. Drives salon discovery/filtering.
+ */
+export const SalonAudienceSwitch: React.FC<{
+  value: SalonAudience;
+  onChange: (value: SalonAudience) => void;
+}> = ({ value, onChange }) => {
+  const options: Array<{ id: SalonAudience; label: string; sublabel: string; Icon: React.FC<{ className?: string }> }> = [
+    { id: 'men', label: 'Men', sublabel: 'Barbershops', Icon: (props) => <UserRound {...props} /> },
+    { id: 'women', label: 'Women', sublabel: 'Parlours & Salons', Icon: (props) => <UserRound {...props} /> },
+  ];
+
+  return (
+    <div className="relative flex w-full items-stretch rounded-2xl border border-slate-200/80 bg-white p-1.5 shadow-sm">
+      {options.map((option, optionIndex) => {
+        const isSelected = value === option.id;
+        return (
+          <React.Fragment key={option.id}>
+            <button
+              type="button"
+              onClick={() => onChange(option.id)}
+              aria-pressed={isSelected}
+              className={`relative flex flex-1 items-center justify-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 active:scale-[0.98] ${
+                isSelected ? 'bg-blue-50 shadow-[inset_0_0_0_1.5px_rgba(37,99,235,0.35)]' : 'bg-transparent hover:bg-slate-50'
+              }`}
+            >
+              <option.Icon className={`h-6 w-6 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span className="flex flex-col items-start leading-tight">
+                <span className={`text-[15px] font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{option.label}</span>
+                <span className={`text-[11px] font-medium ${isSelected ? 'text-blue-500' : 'text-slate-400'}`}>{option.sublabel}</span>
+              </span>
+            </button>
+            {optionIndex === 0 && <span className="my-2 w-px shrink-0 bg-slate-200" />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
+/**
+ * Search row shown below category-specific controls. Reusable across all
+ * categories; the placeholder is passed in so Salon can vary it by audience.
+ */
+export const CategorySearchRow: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  onFilterClick?: () => void;
+  isFilterActive?: boolean;
+  isListening?: boolean;
+  onVoiceSearch?: () => void;
+  voiceFeedback?: string | null;
+}> = ({ value, onChange, placeholder, onFilterClick, isFilterActive, isListening = false, onVoiceSearch, voiceFeedback }) => (
+  <div className="space-y-2">
+    <div className="flex items-center gap-2.5">
+      <div className={`flex h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl border bg-white px-4 shadow-sm transition-all duration-200 ${
+        isListening
+          ? 'border-red-500 ring-2 ring-red-100'
+          : 'border-slate-200/90 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100'
+      }`}>
+        <Search className="h-5 w-5 shrink-0 text-slate-400" />
+        <input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          type="search"
+          enterKeyHint="search"
+          aria-label="Search businesses"
+          placeholder={placeholder}
+          className="h-full min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
+            aria-label="Clear search"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {onVoiceSearch && (
+          <button
+            type="button"
+            onClick={onVoiceSearch}
+            aria-label={isListening ? 'Stop listening' : 'Start voice search'}
+            className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200 active:scale-95 ${
+              isListening ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {isListening && <span className="absolute inset-0 rounded-lg bg-red-400 opacity-75 animate-ping" />}
+            <Mic className={`relative h-4 w-4 ${isListening ? 'animate-bounce' : ''}`} />
+          </button>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onFilterClick}
+        aria-label="Filter results"
+        aria-pressed={isFilterActive}
+        className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border shadow-sm transition active:scale-[0.96] ${
+          isFilterActive
+            ? 'border-blue-300 bg-blue-50 text-blue-600'
+            : 'border-slate-200/90 bg-white text-blue-600 hover:border-blue-300'
+        }`}
+      >
+        <SlidersHorizontal className="h-5 w-5" />
+      </button>
+    </div>
+
+    {voiceFeedback && (
+      <div className={`flex items-center justify-between gap-3 rounded-xl p-3 text-xs font-bold transition-all animate-in fade-in duration-200 ${
+        isListening
+          ? 'bg-red-50 text-red-700 border border-red-200'
+          : voiceFeedback.includes('Heard')
+            ? 'bg-blue-50 text-blue-800 border border-blue-200'
+            : 'bg-amber-50 text-amber-800 border border-amber-200'
+      }`}>
+        <div className="flex items-center gap-2">
+          {isListening ? (
+            <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+          ) : (
+            <Volume2 className="h-4 w-4 shrink-0 text-blue-700" />
+          )}
+          <span>{voiceFeedback}</span>
+        </div>
+        {!isListening && (
+          <button type="button" onClick={() => onChange('')} className="text-[10px] underline uppercase tracking-wider">
+            Reset
+          </button>
+        )}
+      </div>
+    )}
+  </div>
+);
 
 export const TopCategoryTabs: React.FC<{
   categories?: CategoryItemConfig[];

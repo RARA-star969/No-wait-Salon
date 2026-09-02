@@ -192,6 +192,13 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS staff_account_business_idx ON staff_account(business_id,role);
     CREATE INDEX IF NOT EXISTS staff_session_business_idx ON staff_session(business_id,expires_at);
   `
+}, {
+  version: 12,
+  name: 'category_banner_carousel_and_salon_audience',
+  sql: `
+    ALTER TABLE main_category ADD COLUMN IF NOT EXISTS banner_carousel_json TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE salon ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'unisex';
+  `
 }];
 
 export async function runMigrations(db:Database){

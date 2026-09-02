@@ -196,6 +196,7 @@ export interface Salon {
   openingHours: string;
   category?: string;
   mainCategoryId?: string;
+  audience?: 'men' | 'women' | 'unisex';
   phoneNumber?: string;
   description?: string;
   coverImageUrl?: string;

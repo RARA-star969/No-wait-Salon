@@ -37,7 +37,7 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { ProfileButton, PromotionalBanner, SalonSearchBar, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { ProfileButton, WalletButton, TopCategoryTabs, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, BannerCarousel, CategoryPageHeader, SalonAudienceSwitch, SalonAudience, CategorySearchRow } from './CustomerHomeComponents';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { SalonDetailPage } from './SalonDetailPage';
 import { GymDetailPage } from './GymDetailPage';
@@ -194,6 +194,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [salonSearch, setSalonSearch] = useState('');
   const [mainCategories, setMainCategories] = useState<CategoryItemConfig[]>(DEFAULT_MAIN_CATEGORIES);
   const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
+  const [salonAudience, setSalonAudience] = useState<SalonAudience>('men');
+  const [salonSort, setSalonSort] = useState<'nearest' | 'rating'>('nearest');
+  const [isSalonFilterOpen, setIsSalonFilterOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceFeedback, setVoiceFeedback] = useState<string | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -469,10 +472,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     ].some((value) => value.toLocaleLowerCase().includes(normalizedSearch));
   }) || [];
 
-  const categoryFilteredSalons = visibleSalons.filter((salon) => {
-    const catId = (salon.mainCategoryId || 'salon').toLowerCase();
-    return catId === activeCategoryId.toLowerCase();
-  });
+  const categoryFilteredSalons = visibleSalons
+    .filter((salon) => {
+      const catId = (salon.mainCategoryId || 'salon').toLowerCase();
+      if (catId !== activeCategoryId.toLowerCase()) return false;
+      if (activeCategoryId.toLowerCase() === 'salon') {
+        const audience = salon.audience || 'unisex';
+        if (audience !== 'unisex' && audience !== salonAudience) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => (salonSort === 'rating' ? b.rating - a.rating : a.distanceKm - b.distanceKm));
   const activeCategoryObj = mainCategories.find((c) => c.id === activeCategoryId) || DEFAULT_MAIN_CATEGORIES[0];
 
   // The single authoritative pre-Home sequence: landing, then permissions
@@ -676,31 +686,72 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               </div>
             </div>
 
-            {/* Large Search Box with rotating placeholder & inner mic button */}
-            <div className="mt-3.5">
-              <SalonSearchBar
-                value={salonSearch}
-                onChange={setSalonSearch}
-                categories={mainCategories}
-                activeCategoryName={activeCategoryObj.name}
-                isListening={isListening}
-                onVoiceSearch={handleVoiceSearch}
-                voiceFeedback={voiceFeedback}
-              />
-            </div>
           </div>
 
           <div className="space-y-5 px-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] pt-3 sm:px-5">
 
-          {/* Sculpted Connected Category Tabs */}
+          {/* Sculpted Connected Category Tabs — switches which category page is shown below */}
           <TopCategoryTabs
             categories={mainCategories}
             selectedCategoryId={activeCategoryId}
             onSelectCategory={setActiveCategoryId}
           />
 
-          {/* Dynamic Theme Banner */}
-          <PromotionalBanner category={activeCategoryObj} />
+          {/* Category Page: 1) back + title/subtitle, 2) admin banner carousel,
+              3) category-specific controls (Men/Women only for Salon), 4) search row */}
+          <CategoryPageHeader
+            title={activeCategoryObj.name}
+            subtitle={
+              activeCategoryId === 'salon'
+                ? 'Find the right place for your style'
+                : activeCategoryObj.description
+            }
+            onBack={backToLanding}
+          />
+
+          <BannerCarousel category={activeCategoryObj} />
+
+          {activeCategoryId === 'salon' && (
+            <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
+          )}
+
+          <div className="relative">
+            <CategorySearchRow
+              value={salonSearch}
+              onChange={setSalonSearch}
+              placeholder={
+                activeCategoryId === 'salon'
+                  ? salonAudience === 'men'
+                    ? "Search men's salons near you"
+                    : "Search women's salons near you"
+                  : `Search ${activeCategoryObj.name.toLowerCase()} near you`
+              }
+              onFilterClick={() => setIsSalonFilterOpen((open) => !open)}
+              isFilterActive={isSalonFilterOpen}
+              isListening={isListening}
+              onVoiceSearch={handleVoiceSearch}
+              voiceFeedback={voiceFeedback}
+            />
+            {isSalonFilterOpen && (
+              <div className="absolute right-0 top-[calc(100%+0.5rem)] z-20 w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg">
+                {([
+                  { id: 'nearest', label: 'Nearest first' },
+                  { id: 'rating', label: 'Top rated' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => { setSalonSort(option.id); setIsSalonFilterOpen(false); }}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                      salonSort === option.id ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Full Address Management Modal */}
           <AddressManagementModal

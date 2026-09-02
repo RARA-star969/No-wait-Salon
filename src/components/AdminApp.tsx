@@ -95,6 +95,7 @@ const emptySalon = () => ({
   cover_image_url: '',
   promotional_banner_url: '',
   amenities: [],
+  audience: 'unisex',
   status: 'draft',
   hours: days.map((_, i) => ({ day_of_week: i, open_time: '09:00', close_time: '21:00', closed: 0 })),
   services: [],
@@ -167,6 +168,7 @@ const norm = (raw: AnyRow) => ({
   isOpen: Boolean(raw.isOpen),
   status: raw.status || raw.platform_status || 'draft',
   main_category_id: raw.mainCategoryId || raw.main_category_id || 'salon',
+  audience: raw.audience || 'unisex',
   amenities: raw.amenities || [],
   hours: raw.hours || [],
   services: (raw.services || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
@@ -625,6 +627,7 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
     bannerHeadline: cat.bannerHeadline || '',
     bannerSubheadline: cat.bannerSubheadline || '',
     bannerCtaText: cat.bannerCtaText || '',
+    banners: (cat.banners || []) as AnyRow[],
     active: cat.active ?? true,
   });
   const [busy, setBusy] = useState(false);
@@ -694,6 +697,74 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
             <Field label="Banner Headline" value={form.bannerHeadline} onChange={(v) => setForm((f) => ({ ...f, bannerHeadline: v }))} placeholder="e.g. Better grooming, less waiting." />
             <Field label="Banner Subheadline" value={form.bannerSubheadline} onChange={(v) => setForm((f) => ({ ...f, bannerSubheadline: v }))} placeholder="e.g. Reserve your chair before leaving home." />
             <Field label="Banner CTA Text" value={form.bannerCtaText} onChange={(v) => setForm((f) => ({ ...f, bannerCtaText: v }))} placeholder="e.g. Explore Chairs" />
+          </div>
+
+          <div className="sm:col-span-2 space-y-3 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Top Banner Carousel (Category Page)
+              </h4>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, banners: [...f.banners, { id: `banner-${Date.now()}`, imageUrl: '', headline: '', subheadline: '', ctaText: '' }] }))}
+                className="flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-700 hover:bg-teal-100"
+              >
+                <Plus size={14} /> Add Slide
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Slides shown at the top of this category&apos;s customer page, above category controls. Leave empty to keep showing the single hero banner above.
+            </p>
+            {form.banners.length === 0 && (
+              <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">No carousel slides configured yet.</p>
+            )}
+            <div className="space-y-3">
+              {form.banners.map((slide: AnyRow, index: number) => (
+                <div key={slide.id || index} className="space-y-2 rounded-xl border border-slate-200 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500">Slide {index + 1}</span>
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, banners: f.banners.filter((_: AnyRow, i: number) => i !== index) }))}
+                      className="rounded-lg p-1 text-rose-500 hover:bg-rose-50"
+                      title="Remove slide"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Field
+                      label="Image URL (optional)"
+                      value={slide.imageUrl}
+                      onChange={(v) => setForm((f) => ({ ...f, banners: f.banners.map((b: AnyRow, i: number) => (i === index ? { ...b, imageUrl: v } : b)) }))}
+                      placeholder="https://…"
+                    />
+                    <Field
+                      label="CTA Text"
+                      value={slide.ctaText}
+                      onChange={(v) => setForm((f) => ({ ...f, banners: f.banners.map((b: AnyRow, i: number) => (i === index ? { ...b, ctaText: v } : b)) }))}
+                      placeholder="e.g. View Offers"
+                    />
+                    <div className="sm:col-span-2">
+                      <Field
+                        label="Headline"
+                        value={slide.headline}
+                        onChange={(v) => setForm((f) => ({ ...f, banners: f.banners.map((b: AnyRow, i: number) => (i === index ? { ...b, headline: v } : b)) }))}
+                        placeholder="e.g. Fresh looks, flat 20% off."
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Field
+                        label="Subheadline"
+                        value={slide.subheadline}
+                        onChange={(v) => setForm((f) => ({ ...f, banners: f.banners.map((b: AnyRow, i: number) => (i === index ? { ...b, subheadline: v } : b)) }))}
+                        placeholder="e.g. Limited-time offers from top-rated partner salons."
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="sm:col-span-2">
             <Field label="Description" value={form.description} onChange={(v) => setForm((f) => ({ ...f, description: v }))} placeholder="Short category description for customers" />
@@ -1150,7 +1221,17 @@ const [checkingId, setCheckingId] = useState(false);
               {mainCats.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
             </select>
           </label>
-          
+          {form.main_category_id === 'salon' && (
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+              Audience (Salon only — drives the customer Men/Women switch)
+              <select value={form.audience || 'unisex'} onChange={(e) => set('audience', e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600">
+                <option value="unisex">Unisex (shown for Men & Women)</option>
+                <option value="men">Men — Barbershop</option>
+                <option value="women">Women — Parlour &amp; Salon</option>
+              </select>
+            </label>
+          )}
+
           <div className="pt-4 border-t">
             <h3 className="text-sm font-bold text-slate-900 mb-4">Permanent Platform Identity</h3>
             <div className="flex flex-col gap-2">
@@ -1253,6 +1334,20 @@ const [checkingId, setCheckingId] = useState(false);
                   ))}
                 </select>
               </label>
+              {form.main_category_id === 'salon' && (
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  Audience (drives the customer Men/Women switch)
+                  <select
+                    value={form.audience || 'unisex'}
+                    onChange={(e) => set('audience', e.target.value)}
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+                  >
+                    <option value="unisex">Unisex (shown for Men & Women)</option>
+                    <option value="men">Men — Barbershop</option>
+                    <option value="women">Women — Parlour &amp; Salon</option>
+                  </select>
+                </label>
+              )}
               <Field label="Phone Number" value={form.phone_number} onChange={(v) => set('phone_number', v)} />
               <Field label="Email" type="email" value={form.email} onChange={(v) => set('email', String(v).trim().toLowerCase())} />
               <Field label="Address" value={form.address} onChange={(v) => set('address', v)} />
