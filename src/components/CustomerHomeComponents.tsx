@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal, Mars, Venus } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
@@ -303,6 +303,59 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
           )}
         </div>
       )}
+    </div>
+  );
+};
+
+export type SalonAudience = 'men' | 'women';
+
+/**
+ * Salon-only Men/Women discovery switch shown on the Salon category page,
+ * below its admin carousel. Premium, light, NOQ blue-accented to match the
+ * rest of the liquid-glass customer surface — never shown on any other
+ * category. Selecting a side drives real Salon listing filtering by the
+ * persisted `audience` field, not just a visual toggle.
+ */
+export const SalonAudienceSwitch: React.FC<{
+  value: SalonAudience;
+  onChange: (value: SalonAudience) => void;
+}> = ({ value, onChange }) => {
+  const options: Array<{ id: SalonAudience; label: string; sublabel: string; Icon: React.FC<{ className?: string }> }> = [
+    { id: 'men', label: 'Men', sublabel: 'Barbershops', Icon: (props) => <Mars {...props} /> },
+    { id: 'women', label: 'Women', sublabel: 'Parlours & Salons', Icon: (props) => <Venus {...props} /> },
+  ];
+
+  return (
+    <div className="customer-search-glass flex items-stretch gap-1 rounded-[18px] border border-white/10 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+      {options.map((option) => {
+        const isSelected = value === option.id;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange(option.id)}
+            aria-pressed={isSelected}
+            className="relative flex flex-1 items-center justify-center gap-2.5 rounded-[14px] px-3 py-3 transition-all duration-200 active:scale-[0.98]"
+            style={isSelected ? {
+              backgroundColor: 'var(--noq-tint-10)',
+              boxShadow: 'inset 0 0 0 1.5px var(--noq-glass-border)',
+            } : undefined}
+          >
+            <option.Icon
+              className="h-5 w-5 shrink-0"
+              style={{ color: isSelected ? 'var(--noq-accent)' : 'var(--noq-muted)' }}
+            />
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-[13px] font-bold" style={{ color: isSelected ? 'var(--noq-accent)' : 'var(--noq-ink)' }}>
+                {option.label}
+              </span>
+              <span className="text-[10px] font-medium" style={{ color: isSelected ? 'var(--noq-accent-light)' : 'var(--noq-muted)' }}>
+                {option.sublabel}
+              </span>
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 };

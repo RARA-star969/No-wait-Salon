@@ -138,6 +138,7 @@ const additiveSalonColumns: Record<string, string> = {
   profile_completed_at: "INTEGER",
   quick_actions_json: "TEXT NOT NULL DEFAULT '[]'",
   social_links_json: "TEXT NOT NULL DEFAULT '[]'",
+  audience: "TEXT NOT NULL DEFAULT 'unisex'",
 };
 for (const [column, definition] of Object.entries(additiveSalonColumns)) {
   if (!salonColumns.has(column)) db.exec(`ALTER TABLE salon ADD COLUMN ${column} ${definition}`);
@@ -205,10 +206,18 @@ db.exec(`
     cta_label TEXT NOT NULL DEFAULT '',
     cta_link TEXT NOT NULL DEFAULT '',
     youtube_url TEXT NOT NULL DEFAULT '',
+    placement TEXT NOT NULL DEFAULT 'home',
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
 `);
+
+// Safely add any missing columns to carousel_banner for existing databases —
+// `placement` scopes a banner to 'home', 'category' (every category page), or
+// one specific main_category_id. Existing rows default to 'home' so today's
+// Home carousel keeps showing exactly what it already shows.
+const carouselBannerCols = (db.prepare("PRAGMA table_info(carousel_banner)").all() as Array<{ name: string }>).map((c) => c.name);
+if (!carouselBannerCols.includes('placement')) db.exec("ALTER TABLE carousel_banner ADD COLUMN placement TEXT NOT NULL DEFAULT 'home'");
 
 // Safely add any missing columns to main_category for existing databases
 const categoryCols = (db.prepare("PRAGMA table_info(main_category)").all() as Array<{ name: string }>).map((c) => c.name);
@@ -322,6 +331,7 @@ type SalonRow = {
   pin_code: string; promotional_banner_url: string; platform_status: string; updated_at: number; onboarded: number; created_at: number;
   quick_actions_json?: string;
   social_links_json?: string;
+  audience?: string;
 };
 
 db.exec(`
@@ -587,6 +597,7 @@ function rowToSalon(row: SalonRow): Salon {
     distanceKm: 0,
     category: row.category,
     mainCategoryId: row.main_category_id || 'salon',
+    audience: (row.audience as Salon['audience']) || 'unisex',
     phoneNumber: row.phone_number,
     description: row.description,
     coverImageUrl: row.cover_image_url,
@@ -3264,13 +3275,39 @@ function carouselBannerRowToRecord(r: Record<string, unknown>) {
     ctaLabel: String(r.cta_label || ''),
     ctaLink: String(r.cta_link || ''),
     youtubeUrl: String(r.youtube_url || ''),
+    // 'home' | 'category' (every category page) | a specific main_category_id
+    placement: String(r.placement || 'home'),
   };
 }
 
-// Public — the customer Home carousel only ever fetches enabled banners in
-// admin-defined order; nothing here is ever hardcoded in the customer bundle.
+// A banner's `placement` decides where it can appear: 'home' (Customer Home,
+// the original/default), 'category' (every category page generically), or
+// one specific main_category_id (that category page only). Validated against
+// the live main_category table so a typo can never silently vanish a banner.
+function resolvePlacement(body: Record<string, unknown>): string {
+  const raw = cleanText(body.placement, 50) || 'home';
+  if (raw === 'home' || raw === 'category') return raw;
+  const category = db.prepare('SELECT id FROM main_category WHERE id = ?').get(raw);
+  if (!category) throw new Error('Select Home, All Category Pages, or a valid category for this banner.');
+  return raw;
+}
+
+// Public — the customer Home carousel only ever fetches enabled 'home'
+// banners in admin-defined order; nothing here is ever hardcoded in the
+// customer bundle.
 app.get('/api/carousel-banners', (_request, response) => {
-  const rows = db.prepare('SELECT * FROM carousel_banner WHERE enabled = 1 ORDER BY display_order ASC, id ASC').all() as Array<Record<string, unknown>>;
+  const rows = db.prepare("SELECT * FROM carousel_banner WHERE enabled = 1 AND placement = 'home' ORDER BY display_order ASC, id ASC").all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+// Public — a category page's carousel shows enabled banners scoped to that
+// exact category plus every banner scoped to 'category' (all category
+// pages), merged and sorted by the same admin-defined order.
+app.get('/api/carousel-banners/category/:categoryId', (request, response) => {
+  const categoryId = String(request.params.categoryId || '').trim().toLowerCase();
+  const rows = db.prepare(
+    "SELECT * FROM carousel_banner WHERE enabled = 1 AND (placement = 'category' OR lower(placement) = ?) ORDER BY display_order ASC, id ASC"
+  ).all(categoryId) as Array<Record<string, unknown>>;
   response.json({ banners: rows.map(carouselBannerRowToRecord) });
 });
 
@@ -3285,6 +3322,7 @@ app.post('/api/admin/carousel-banners', requireAdmin, async (request, response) 
     const type = String(body.type) === 'youtube' ? 'youtube' : 'image';
     const id = randomUUID();
     const enabled = asBoolean(body.enabled ?? true) ? 1 : 0;
+    const placement = resolvePlacement(body);
     const maxOrder = (db.prepare('SELECT COALESCE(MAX(display_order), -1) as m FROM carousel_banner').get() as { m: number }).m;
     const displayOrder = Number.isFinite(Number(body.order)) && body.order !== undefined && body.order !== null && body.order !== ''
       ? Number(body.order)
@@ -3300,9 +3338,9 @@ app.post('/api/admin/carousel-banners', requireAdmin, async (request, response) 
     const now = Date.now();
 
     db.prepare(`
-      INSERT INTO carousel_banner (id, type, enabled, display_order, title, subtitle, image_url, cta_label, cta_link, youtube_url, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, now, now);
+      INSERT INTO carousel_banner (id, type, enabled, display_order, title, subtitle, image_url, cta_label, cta_link, youtube_url, placement, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, placement, now, now);
 
     await postgresPersistence?.flushNow(['carousel_banner']);
     const row = db.prepare('SELECT * FROM carousel_banner WHERE id = ?').get(id) as Record<string, unknown>;
@@ -3318,6 +3356,7 @@ app.put('/api/admin/carousel-banners/:id', requireAdmin, async (request, respons
     const body = request.body as Record<string, unknown>;
     const type = String(body.type) === 'youtube' ? 'youtube' : 'image';
     const enabled = asBoolean(body.enabled) ? 1 : 0;
+    const placement = resolvePlacement(body);
     const displayOrder = Number(body.order) || 0;
     const title = cleanText(body.title, 200);
     const subtitle = cleanText(body.subtitle, 300);
@@ -3331,9 +3370,9 @@ app.put('/api/admin/carousel-banners/:id', requireAdmin, async (request, respons
 
     const res = db.prepare(`
       UPDATE carousel_banner
-      SET type=?, enabled=?, display_order=?, title=?, subtitle=?, image_url=?, cta_label=?, cta_link=?, youtube_url=?, updated_at=?
+      SET type=?, enabled=?, display_order=?, title=?, subtitle=?, image_url=?, cta_label=?, cta_link=?, youtube_url=?, placement=?, updated_at=?
       WHERE id=?
-    `).run(type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, now, id);
+    `).run(type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, placement, now, id);
 
     if (!res.changes) return response.status(404).json({ error: 'Banner not found.' });
     await postgresPersistence?.flushNow(['carousel_banner']);
@@ -3723,6 +3762,14 @@ function resolveAdminMainCategoryId(body: Record<string, unknown>, fallback?: st
   return category.id;
 }
 
+// Salon-only discovery axis behind the customer Men/Women switch. Any other
+// value (including missing/unset, which covers every business created
+// before this field existed) safely defaults to 'unisex' — shown under both.
+function resolveAudience(body: Record<string, unknown>): 'men' | 'women' | 'unisex' {
+  const candidate = String(body.audience || '').toLowerCase();
+  return candidate === 'men' || candidate === 'women' ? candidate : 'unisex';
+}
+
 app.post('/api/admin/salons', requireAdmin, async (request, response) => {
   try {
     const body = request.body as Record<string, unknown>; const name = cleanText(body.name, 150); if (!name) throw new Error('Salon name is required.');
@@ -3734,10 +3781,10 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     if (existingCode) { return response.status(409).json({ error: 'This Business ID is already in use.' }); }
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
-      category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at)
-      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at,audience)
+      VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
-        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,businessCode,null);
+        cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,businessCode,null,resolveAudience(body));
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
     response.status(201).json({ salon: adminSalonDetail(id) });
@@ -3752,8 +3799,8 @@ app.put('/api/admin/salons/:id', requireAdmin, async (request, response) => {
     const mainCategoryId = resolveAdminMainCategoryId(body, String((existing as Record<string,unknown>).main_category_id || 'salon'));
     db.exec('BEGIN IMMEDIATE');
     db.prepare(`UPDATE salon SET name=?,short_description=?,description=?,category=?,main_category_id=?,phone_number=?,email=?,website_url=?,address=?,area=?,city=?,state=?,pin_code=?,latitude=?,longitude=?,
-      is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,updated_at=? WHERE id=?`)
-      .run(name,cleanText(body.short_description,300),cleanText(body.description,3000),cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.address,500),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',cleanText(body.logo_image_url,1000),cleanText(body.cover_image_url,1000),cleanText(body.promotional_banner_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),cleanText(body.status,20)||'draft',now,request.params.id);
+      is_open=?,opening_hours=?,logo_image_url=?,cover_image_url=?,promotional_banner_url=?,amenities_json=?,platform_status=?,audience=?,updated_at=? WHERE id=?`)
+      .run(name,cleanText(body.short_description,300),cleanText(body.description,3000),cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.address,500),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',cleanText(body.logo_image_url,1000),cleanText(body.cover_image_url,1000),cleanText(body.promotional_banner_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),cleanText(body.status,20)||'draft',resolveAudience(body),now,request.params.id);
     saveSalonRelations(request.params.id,body,now); db.exec('COMMIT'); publish(readState(request.params.id));
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media']);
     response.json({ salon: adminSalonDetail(request.params.id) });

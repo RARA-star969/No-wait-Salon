@@ -196,6 +196,9 @@ export interface Salon {
   openingHours: string;
   category?: string;
   mainCategoryId?: string;
+  /** Salon-only discovery axis: which of the customer Men/Women switch this
+   *  listing shows under. Every other category ignores this field. */
+  audience?: 'men' | 'women' | 'unisex';
   phoneNumber?: string;
   description?: string;
   coverImageUrl?: string;

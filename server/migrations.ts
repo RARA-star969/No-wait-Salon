@@ -346,6 +346,14 @@ const migrations=[{
     );
     CREATE INDEX IF NOT EXISTS carousel_banner_order_idx ON carousel_banner(enabled, display_order);
   `
+}, {
+  version: 19,
+  name: 'carousel_banner_placement_and_salon_audience',
+  sql: `
+    ALTER TABLE carousel_banner ADD COLUMN IF NOT EXISTS placement TEXT NOT NULL DEFAULT 'home';
+    CREATE INDEX IF NOT EXISTS carousel_banner_placement_idx ON carousel_banner(placement, enabled, display_order);
+    ALTER TABLE salon ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'unisex';
+  `
 }];
 
 export async function runMigrations(db:Database){

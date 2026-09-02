@@ -103,6 +103,7 @@ const emptySalon = () => ({
   cover_image_url: '',
   promotional_banner_url: '',
   amenities: [],
+  audience: 'unisex',
   status: 'draft',
   hours: days.map((_, i) => ({ day_of_week: i, open_time: '09:00', close_time: '21:00', closed: 0 })),
   services: [],
@@ -175,6 +176,7 @@ const norm = (raw: AnyRow) => ({
   isOpen: Boolean(raw.isOpen),
   status: raw.status || raw.platform_status || 'draft',
   main_category_id: raw.mainCategoryId || raw.main_category_id || 'salon',
+  audience: raw.audience || 'unisex',
   amenities: raw.amenities || [],
   hours: raw.hours || [],
   services: (raw.services || []).map((x: AnyRow) => ({ ...x, active: Boolean(x.active) })),
@@ -736,6 +738,7 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
 
 function CarouselBannersList() {
   const [banners, setBanners] = useState<AnyRow[]>([]);
+  const [mainCats, setMainCats] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -760,7 +763,14 @@ function CarouselBannersList() {
 
   useEffect(() => {
     void load();
+    void api('/api/admin/main-categories').then((b) => setMainCats(b.categories || [])).catch(() => {});
   }, []);
+
+  const placementLabel = (placement: string) => {
+    if (!placement || placement === 'home') return 'Home';
+    if (placement === 'category') return 'All Category Pages';
+    return `Category: ${mainCats.find((c) => c.id === placement)?.name || placement}`;
+  };
 
   const toggle = async (b: AnyRow) => {
     try {
@@ -808,12 +818,12 @@ function CarouselBannersList() {
     <div>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Home Carousel</h1>
-          <p className="mt-1 text-slate-500">Manage the swipeable banners shown on Customer Home, below the category grid.</p>
+          <h1 className="text-3xl font-bold">Carousels</h1>
+          <p className="mt-1 text-slate-500">Manage the swipeable banners shown on Customer Home and on category pages. Each banner's Placement decides where it appears.</p>
         </div>
         <button
           onClick={() => {
-            setEditingBanner({ type: 'image', enabled: true, order: banners.length });
+            setEditingBanner({ type: 'image', enabled: true, order: banners.length, placement: 'home' });
             setModalOpen(true);
           }}
           className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 transition"
@@ -841,6 +851,7 @@ function CarouselBannersList() {
                 <th className="px-4 py-3">Preview</th>
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Placement</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
@@ -848,15 +859,15 @@ function CarouselBannersList() {
             <tbody className="divide-y divide-slate-100">
               {loading && banners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
                     Loading banners…
                   </td>
                 </tr>
               ) : banners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    No banners yet. Add one to feature it on Customer Home.
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    No banners yet. Add one to feature it on Customer Home or a category page.
                   </td>
                 </tr>
               ) : (
@@ -905,6 +916,11 @@ function CarouselBannersList() {
                     </td>
                     <td className="px-4 py-4 font-semibold text-slate-900">{b.title || <span className="text-slate-400">Untitled</span>}</td>
                     <td className="px-4 py-4">
+                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
+                        {placementLabel(b.placement)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                         {b.enabled ? 'Enabled' : 'Disabled'}
                       </span>
@@ -945,6 +961,7 @@ function CarouselBannersList() {
       {modalOpen && editingBanner && (
         <CarouselBannerModal
           banner={editingBanner}
+          mainCats={mainCats}
           onClose={() => setModalOpen(false)}
           onSave={() => { setModalOpen(false); load(true); }}
         />
@@ -972,7 +989,7 @@ function extractYoutubeIdForPreview(raw: string) {
   return '';
 }
 
-function CarouselBannerModal({ banner, onClose, onSave }: { banner: AnyRow; onClose: () => void; onSave: () => void }) {
+function CarouselBannerModal({ banner, mainCats, onClose, onSave }: { banner: AnyRow; mainCats: AnyRow[]; onClose: () => void; onSave: () => void }) {
   const isNew = !banner.id;
   const [form, setForm] = useState({
     type: banner.type || 'image',
@@ -984,6 +1001,7 @@ function CarouselBannerModal({ banner, onClose, onSave }: { banner: AnyRow; onCl
     ctaLabel: banner.ctaLabel || '',
     ctaLink: banner.ctaLink || '',
     youtubeUrl: banner.youtubeUrl || '',
+    placement: banner.placement || 'home',
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1054,6 +1072,26 @@ function CarouselBannerModal({ banner, onClose, onSave }: { banner: AnyRow; onCl
                 </button>
               ))}
             </div>
+          </label>
+
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Placement
+            <select
+              value={form.placement}
+              onChange={(e) => setForm((f) => ({ ...f, placement: e.target.value }))}
+              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+            >
+              <option value="home">Home</option>
+              <option value="category">All Category Pages</option>
+              {mainCats.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Category: {c.name}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-slate-500">
+              Where this banner appears — Customer Home, every category page, or one specific category.
+            </span>
           </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -1538,7 +1576,17 @@ const [checkingId, setCheckingId] = useState(false);
               {mainCats.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
             </select>
           </label>
-          
+          {(form.main_category_id || 'salon') === 'salon' && (
+            <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+              Audience (drives the customer Men/Women switch)
+              <select value={form.audience || 'unisex'} onChange={(e) => set('audience', e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600">
+                <option value="unisex">Unisex — shown for both Men and Women</option>
+                <option value="men">Men — Barbershop</option>
+                <option value="women">Women — Parlour &amp; Salon</option>
+              </select>
+            </label>
+          )}
+
           <div className="pt-4 border-t">
             <h3 className="text-sm font-bold text-slate-900 mb-4">Permanent Platform Identity</h3>
             <div className="flex flex-col gap-2">
@@ -1641,6 +1689,20 @@ const [checkingId, setCheckingId] = useState(false);
                   ))}
                 </select>
               </label>
+              {(form.main_category_id || 'salon') === 'salon' && (
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  Audience (drives the customer Men/Women switch)
+                  <select
+                    value={form.audience || 'unisex'}
+                    onChange={(e) => set('audience', e.target.value)}
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
+                  >
+                    <option value="unisex">Unisex — shown for both Men and Women</option>
+                    <option value="men">Men — Barbershop</option>
+                    <option value="women">Women — Parlour &amp; Salon</option>
+                  </select>
+                </label>
+              )}
               <Field label="Phone Number" value={form.phone_number} onChange={(v) => set('phone_number', v)} />
               <Field label="Email" type="email" value={form.email} onChange={(v) => set('email', String(v).trim().toLowerCase())} />
               <Field label="Address" value={form.address} onChange={(v) => set('address', v)} />

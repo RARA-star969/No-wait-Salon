@@ -7,21 +7,19 @@ import {
   type CarouselSlideRenderProps,
 } from '../shared/carouselBanner';
 
-/**
- * Admin-driven Home carousel. Fetches only enabled banners, in the order the
- * admin set, from the server — no banner content is ever hardcoded in the
- * customer bundle. Renders nothing while empty/loading/failed so it never
- * regresses Home when there is no admin content yet.
- */
-export const CustomerHomeCarousel: React.FC = () => {
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+/** Shared fetch-and-render behind both the Home and category-page carousels:
+ *  fetch banners from `endpoint`, sort/filter with the one shared selector,
+ *  and render nothing while empty/loading/failed so neither surface ever
+ *  regresses when there is no admin content configured yet. */
+function useCarouselSlides(endpoint: string): CarouselSlideRenderProps[] {
   const [banners, setBanners] = React.useState<CarouselBannerRecord[] | null>(null);
-  const [activeIndex, setActiveIndex] = React.useState(0);
-  const [playingId, setPlayingId] = React.useState<string | null>(null);
-  const trackRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch(`${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/carousel-banners`)
+    setBanners(null);
+    fetch(`${API_BASE}${endpoint}`)
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
@@ -29,12 +27,39 @@ export const CustomerHomeCarousel: React.FC = () => {
       })
       .catch(() => { if (!cancelled) setBanners([]); });
     return () => { cancelled = true; };
-  }, []);
+  }, [endpoint]);
 
-  const slides = React.useMemo<CarouselSlideRenderProps[]>(
+  return React.useMemo<CarouselSlideRenderProps[]>(
     () => selectActiveBanners(banners || []).map(mapBannerToSlideProps),
     [banners],
   );
+}
+
+/**
+ * Admin-driven Home carousel. Fetches only enabled 'home'-placement banners,
+ * in the order the admin set, from the server — no banner content is ever
+ * hardcoded in the customer bundle.
+ */
+export const CustomerHomeCarousel: React.FC = () => {
+  const slides = useCarouselSlides('/api/carousel-banners');
+  return <CarouselTrack slides={slides} ariaLabel="Featured" />;
+};
+
+/**
+ * Admin-driven category-page carousel. Reuses the exact same track/slide
+ * rendering as Home; only the fetch endpoint (and therefore the placement
+ * scope resolved server-side) differs. Shows banners placed on 'category'
+ * (every category page) plus any placed on this specific categoryId.
+ */
+export const CustomerCategoryCarousel: React.FC<{ categoryId: string }> = ({ categoryId }) => {
+  const slides = useCarouselSlides(`/api/carousel-banners/category/${encodeURIComponent(categoryId)}`);
+  return <CarouselTrack slides={slides} ariaLabel={`Featured on ${categoryId}`} />;
+};
+
+const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: string }> = ({ slides, ariaLabel }) => {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [playingId, setPlayingId] = React.useState<string | null>(null);
+  const trackRef = React.useRef<HTMLDivElement>(null);
 
   const handleScroll = React.useCallback(() => {
     const el = trackRef.current;
@@ -55,7 +80,7 @@ export const CustomerHomeCarousel: React.FC = () => {
   if (!slides.length) return null;
 
   return (
-    <section aria-label="Featured" className="noq-home-carousel">
+    <section aria-label={ariaLabel} className="noq-home-carousel">
       <div
         ref={trackRef}
         onScroll={handleScroll}

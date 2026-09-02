@@ -22,6 +22,10 @@ export interface CarouselBannerRecord {
   ctaLink?: string | null;
   /** `youtube` banners: the raw admin-entered URL or bare video id. */
   youtubeUrl?: string | null;
+  /** Where this banner is allowed to appear: 'home', 'category' (every
+   *  category page), or one specific main_category_id. The public API
+   *  already filters by this server-side — the client never has to. */
+  placement?: string | null;
 }
 
 /** Fully resolved props a `<CustomerHomeCarousel>` slide can render directly. */

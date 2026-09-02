@@ -25,6 +25,7 @@ import {
   Sun,
   Moon,
   Pin,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Salon, QueueItem, Barber, CustomerScreen, NearbySalon, CustomerAuthSession, CustomerProfile, UserAddress } from '../types';
 import { formatDurationRangeLabel } from '../shared/durationFormat';
@@ -41,8 +42,8 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
-import { CustomerHomeCarousel } from './CustomerHomeCarousel';
+import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, SalonAudienceSwitch, SalonAudience } from './CustomerHomeComponents';
+import { CustomerHomeCarousel, CustomerCategoryCarousel } from './CustomerHomeCarousel';
 import { HomeContentSections } from './HomeContentSections';
 import { resolveAIQueueInsight } from '../shared/aiQueueInsight';
 import { CustomerProfileScreen } from './CustomerProfile';
@@ -257,6 +258,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   const [activeCategoryId, setActiveCategoryId] = useState<string>('salon');
   const [categoryListingId, setCategoryListingId] = useState<string | null>(null);
   const [isCategoryPreferencesOpen, setIsCategoryPreferencesOpen] = useState(false);
+  // Salon-only Men/Women discovery switch. Default 'men' matches the
+  // reference design's initial selected state; irrelevant to every other
+  // category, which never renders SalonAudienceSwitch at all.
+  const [salonAudience, setSalonAudience] = useState<SalonAudience>('men');
+  const [salonSort, setSalonSort] = useState<'nearest' | 'rating'>('nearest');
+  const [isSalonFilterOpen, setIsSalonFilterOpen] = useState(false);
   const [preferredCategoryIds, setPreferredCategoryIds] = useState<string[]>(() =>
     homeCategoryPreference.read([
       ...DEFAULT_MAIN_CATEGORIES.map((category) => category.id),
@@ -718,8 +725,17 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
   const categoryFilteredSalons = visibleSalons.filter((salon) => {
     const catId = (salon.mainCategoryId || 'salon').toLowerCase();
-    return catId === activeCategoryId.toLowerCase();
-  });
+    const isInCategory = catId === activeCategoryId.toLowerCase();
+    if (!isInCategory) return false;
+    // Salon-only: a listing tagged 'unisex' (including every business saved
+    // before this field existed) always shows under both Men and Women; a
+    // listing explicitly tagged 'men'/'women' shows only there.
+    if (catId === 'salon') {
+      const audience = salon.audience || 'unisex';
+      if (audience !== 'unisex' && audience !== salonAudience) return false;
+    }
+    return true;
+  }).sort((a, b) => (salonSort === 'rating' ? b.rating - a.rating : a.distanceKm - b.distanceKm));
   const homeBrowsableCategories = [
     ...mainCategories,
     ...APPROVED_EMPTY_HOME_CATEGORIES.filter((placeholder) => !mainCategories.some((category) => category.id.toLowerCase() === placeholder.id)),
@@ -1514,8 +1530,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
             </section>
           ) : (
-            <div id="category-listing-header" className="category-content-transition -mt-2.5 pt-[max(.8rem,env(safe-area-inset-top))]">
-              <div className="flex items-center gap-3 pb-3">
+            <div id="category-listing-header" className="category-content-transition -mt-2.5 space-y-3 pt-[max(.8rem,env(safe-area-inset-top))]">
+              {/* 1) Back + category title/subtitle */}
+              <div className="flex items-start gap-3">
                 <button
                   type="button"
                   onClick={() => { setCategoryListingId(null); setSalonSearch(''); }}
@@ -1525,30 +1542,79 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--noq-muted)]">Category</p>
-                  <h2 className="truncate text-[18px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
+                  <h2 className="truncate text-[22px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
+                  <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--noq-muted)]">
+                    {activeCategoryId === 'salon' ? 'Find the right place for your style' : (activeCategoryObj.description || `Explore ${activeCategoryObj.name} near you`)}
+                  </p>
                 </div>
               </div>
-              <div className="customer-search-glass noq-search-capsule flex h-[44px] w-full items-center rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
-                <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
-                <input
-                  value={salonSearch}
-                  onChange={(event) => setSalonSearch(event.target.value)}
-                  type="search"
-                  enterKeyHint="search"
-                  aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
-                  placeholder={`Search ${activeCategoryObj.name.toLowerCase()}s...`}
-                  className="noq-search-input-wrap h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
-                />
-                {salonSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setSalonSearch('')}
-                    className="ml-2 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
-                    aria-label="Clear search"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
+
+              {/* 2) Admin-controlled category carousel — reusable across every
+                  category; scoped server-side to this categoryId + any
+                  'category'-wide banners. */}
+              <CustomerCategoryCarousel categoryId={activeCategoryId} />
+
+              {/* 3) Category-specific controls — Salon only. */}
+              {activeCategoryId === 'salon' && (
+                <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
+              )}
+
+              {/* 4) Category search row */}
+              <div className="relative flex items-center gap-2">
+                <div className="customer-search-glass noq-search-capsule flex h-[44px] w-full min-w-0 flex-1 items-center rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
+                  <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
+                  <input
+                    value={salonSearch}
+                    onChange={(event) => setSalonSearch(event.target.value)}
+                    type="search"
+                    enterKeyHint="search"
+                    aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
+                    placeholder={
+                      activeCategoryId === 'salon'
+                        ? salonAudience === 'men'
+                          ? "Search men's salons near you"
+                          : "Search women's salons near you"
+                        : `Search ${activeCategoryObj.name.toLowerCase()}s...`
+                    }
+                    className="noq-search-input-wrap h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
+                  />
+                  {salonSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSalonSearch('')}
+                      className="ml-2 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
+                      aria-label="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsSalonFilterOpen((open) => !open)}
+                  aria-label="Filter results"
+                  aria-pressed={isSalonFilterOpen}
+                  className="customer-search-glass relative grid h-[44px] w-[44px] shrink-0 place-items-center rounded-[16px] border border-white/10 text-[var(--noq-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition active:scale-95"
+                >
+                  <SlidersHorizontal className="h-4 w-4" />
+                </button>
+                {isSalonFilterOpen && (
+                  <div className="customer-search-glass absolute right-0 top-[calc(100%+0.5rem)] z-20 w-48 rounded-2xl border border-white/10 p-1.5 shadow-lg">
+                    {([
+                      { id: 'nearest', label: 'Nearest first' },
+                      { id: 'rating', label: 'Top rated' },
+                    ] as const).map((option) => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => { setSalonSort(option.id); setIsSalonFilterOpen(false); }}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition"
+                        style={salonSort === option.id ? { backgroundColor: 'var(--noq-tint-10)', color: 'var(--noq-accent)' } : { color: 'var(--noq-muted)' }}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

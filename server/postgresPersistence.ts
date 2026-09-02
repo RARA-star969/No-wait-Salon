@@ -8,7 +8,7 @@ import {runMigrations} from './migrations.ts';
 const tables:Record<string,string[]>={
   gym_state:['gym_id','state_json','updated_at'],
   main_category:['id','name','icon_name','label','description','display_order','active','is_default','theme_key','primary_color','accent_color','banner_image_url','banner_headline','banner_subheadline','banner_cta_text','created_at','updated_at'],
-  salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at','business_code','profile_completed_at','quick_actions_json','social_links_json'],
+  salon:['id','name','address','latitude','longitude','rating','review_count','is_open','opening_hours','services_json','barbers_json','onboarded','created_at','category','phone_number','description','cover_image_url','logo_image_url','amenities_json','offers_json','gallery_json','brand_key','short_description','email','website_url','area','city','state','pin_code','promotional_banner_url','platform_status','main_category_id','updated_at','business_code','profile_completed_at','quick_actions_json','social_links_json','audience'],
   salon_hours:['salon_id','day_of_week','open_time','close_time','closed'],
   salon_service:['id','salon_id','name','category','price_inr','duration_min','description','image_url','active','sort_order','created_at','updated_at'],
   salon_staff:['id','salon_id','name','photo_url','role','service_ids_json','working_status','active','sort_order','created_at','updated_at'],
@@ -33,7 +33,7 @@ const tables:Record<string,string[]>={
   customer_notification:['id','customer_id','type','category','priority','title','body','source_kind','source_business_id','source_name','deep_link_json','dedupe_key','actor_kind','actor_id','read_at','created_at'],
   customer_notification_preference:['customer_id','promotional_enabled','business_updates_enabled','quiet_hours_start','quiet_hours_end','updated_at'],
   customer_push_device:['id','customer_id','platform','token','created_at','updated_at','last_seen_at'],
-  carousel_banner:['id','type','enabled','display_order','title','subtitle','image_url','cta_label','cta_link','youtube_url','created_at','updated_at'],
+  carousel_banner:['id','type','enabled','display_order','title','subtitle','image_url','cta_label','cta_link','youtube_url','placement','created_at','updated_at'],
 };
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();
