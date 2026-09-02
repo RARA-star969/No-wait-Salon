@@ -9,6 +9,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const appSource = readFileSync(path.join(here, 'CustomerApp.tsx'), 'utf8');
 const reviewSource = readFileSync(path.join(here, 'PublicReviewsSection.tsx'), 'utf8');
 const salonSource = readFileSync(path.join(here, 'SalonDetailPage.tsx'), 'utf8');
+const cssSource = readFileSync(path.join(here, '..', 'index.css'), 'utf8');
 const logo = readFileSync(path.join(here, '..', 'assets', 'brand', 'noq-official.png'));
 
 test('Home uses the exact supplied official NOQ image asset', () => {
@@ -23,6 +24,22 @@ test('Home is a discovery surface and category tap opens the separate listings s
   assert.match(appSource, /onSelect=\{openCategoryListing\}/);
   assert.match(appSource, /\{categoryListingId && <div ref=\{listingsSectionRef\}/);
   assert.match(appSource, /Back to Home categories/);
+});
+
+test('Home follows the approved logo, search, greeting, Explore all and category order', () => {
+  const home = appSource.slice(appSource.indexOf('id="customer-home-screen"'), appSource.indexOf("currentScreen === 'salon'"));
+  const logoIndex = home.indexOf('src={officialNoqLogo}');
+  const searchIndex = home.indexOf('<SalonSearchBar');
+  const greetingIndex = home.indexOf('{greeting.text}');
+  const exploreIndex = home.indexOf('>Explore all</button>');
+  const categoriesIndex = home.indexOf('<CustomerCategoryGrid');
+  assert.ok(logoIndex < searchIndex && searchIndex < greetingIndex && greetingIndex < exploreIndex && exploreIndex < categoriesIndex);
+  assert.doesNotMatch(home, />Categories<\/h2>/);
+});
+
+test('the existing Good Evening color is the canonical customer primary-text token', () => {
+  assert.match(cssSource, /--noq-ink:\s*#0D1676/);
+  assert.match(appSource, /gap-2 text-\[var\(--noq-ink\)\][\s\S]*?\{greeting\.text\}/);
 });
 
 test('review form hides after own review and persisted owner reply remains visible', () => {

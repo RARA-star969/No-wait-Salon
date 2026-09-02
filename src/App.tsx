@@ -24,6 +24,7 @@ import { resolveAppReadiness } from './shared/profileReadiness';
 import { offerDiscountLabel } from './shared/couponPricing';
 import { QueueJoinSheet } from './components/QueueJoinSheet';
 import { AccountOnboarding } from './components/AccountOnboarding';
+import { shouldApplySalonSnapshot } from './shared/salonLiveSnapshot';
 
 const NOTIFICATIONS_STORAGE_KEY = 'no_wait_salon_notifications_v1';
 const SESSION_STORAGE_KEY = 'no_wait_salon_customer_session';
@@ -85,7 +86,13 @@ export default function App() {
   const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
   const [barbers, setBarbers] = useState<Barber[]>(INITIAL_BARBERS);
   const [completedList, setCompletedList] = useState<QueueItem[]>([]);
+  const selectedCustomerSalonIdRef = useRef(customerSalon.id);
+  const latestSalonSnapshotRef = useRef<{ salonId: string; version: number } | null>(null);
   const customerSessionId = useRef<string>(loadCustomerSessionId());
+
+  // Updated during render so even an already-resolving request from the
+  // previous business is rejected before its effect cleanup runs.
+  selectedCustomerSalonIdRef.current = customerSalon.id;
 
   useEffect(() => {
     if (!isStaffSurface) return;
@@ -110,6 +117,7 @@ export default function App() {
   }, []);
 
   const [queueAlert, setQueueAlert] = useState<string>('');
+  const [queueConnected, setQueueConnected] = useState(false);
   const [customerAuth, setCustomerAuth] = useState<CustomerAuthSession | null>(() => loadCustomerAuth());
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -168,10 +176,14 @@ export default function App() {
   const sentNotificationsRef = useRef<Set<string>>(new Set());
 
   const applySnapshot = (snapshot: SalonSnapshot) => {
+    const latest = latestSalonSnapshotRef.current;
+    if (!shouldApplySalonSnapshot(selectedCustomerSalonIdRef.current, latest, snapshot)) return;
+    latestSalonSnapshotRef.current = { salonId: snapshot.salonId, version: snapshot.version };
     setQueue(snapshot.queue);
     setBarbers(snapshot.barbers);
     setCompletedList(snapshot.completedList);
     setQueueAlert('');
+    setQueueConnected(true);
     if (snapshot.platformStatus) {
       setCustomerSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
     }
@@ -181,18 +193,48 @@ export default function App() {
   // by the Staff/Owner panel switching businesses.
   useEffect(() => {
     let disposed = false;
-    realtimeQueueService.getState(customerSalon.id)
-      .then((snapshot) => !disposed && applySnapshot(snapshot))
-      .catch((error) => !disposed && setQueueAlert(error instanceof Error ? error.message : 'Unable to load the live queue.'));
+    let inFlight = false;
+    latestSalonSnapshotRef.current = null;
+    setQueueConnected(false);
+
+    const refresh = async () => {
+      if (disposed || inFlight) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      inFlight = true;
+      try {
+        const snapshot = await realtimeQueueService.getState(customerSalon.id);
+        if (!disposed) applySnapshot(snapshot);
+      } catch (error) {
+        if (!disposed) {
+          setQueueConnected(false);
+          setQueueAlert(error instanceof Error ? error.message : 'Unable to load the live queue.');
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void refresh();
     const unsubscribe = realtimeQueueService.subscribe(
       customerSalon.id,
       (snapshot) => !disposed && applySnapshot(snapshot),
       (connected) => {
-        if (!disposed && !connected) setQueueAlert('Live connection interrupted. Reconnecting…');
+        if (!disposed && !connected) {
+          setQueueConnected(false);
+          setQueueAlert('Live connection interrupted. Reconnecting…');
+        }
       }
     );
+    // EventSource remains the primary, immediate transport. This same short
+    // authoritative refresh pattern used by Gym is a safety net for proxies,
+    // suspended WebViews, or mobile networks that silently stall SSE.
+    const intervalId = window.setInterval(refresh, 3000);
+    const onVisibilityChange = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       disposed = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       unsubscribe();
     };
   }, [customerSalon.id]);
@@ -863,6 +905,7 @@ export default function App() {
                   }}
                   onQrContextChange={setActiveQrToken}
                   queueError={queueAlert}
+                  queueConnected={queueConnected}
                   isJoinSheetOpen={isJoinSheetOpen}
                   onOpenNotifications={() => setIsNotificationCenterOpen(true)}
                 />

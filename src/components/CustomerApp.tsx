@@ -153,6 +153,7 @@ interface CustomerAppProps {
   onProfileLogout: () => void;
   onQrContextChange: (token: string | null) => void;
   queueError: string;
+  queueConnected: boolean;
   isJoinSheetOpen?: boolean;
   /** Opens App.tsx's existing NotificationCenterModal — reused as-is for the
    *  bottom nav's "Alerts" destination. */
@@ -214,6 +215,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   onProfileLogout,
   onQrContextChange,
   queueError,
+  queueConnected,
   isJoinSheetOpen,
   onOpenNotifications,
 }) => {
@@ -1284,14 +1286,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </button>
               </div>
 
-              <div className="mt-2.5">
-                <div className="flex items-center gap-2 text-[#0D1676]">
-                  <GreetingIcon className="h-[18px] w-[18px] shrink-0 stroke-[2]" aria-hidden="true" />
-                  <h1 className="truncate text-[18px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
-                </div>
-                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
-              </div>
-
               <div className="mt-3">
                 <SalonSearchBar
                   value={salonSearch}
@@ -1307,6 +1301,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   onFilterClick={() => setIsCategoryPreferencesOpen(true)}
                   preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
                 />
+              </div>
+
+              <div className="mt-3 px-0.5">
+                <div className="flex items-center gap-2 text-[var(--noq-ink)]">
+                  <h1 className="truncate text-[18px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
+                  <GreetingIcon className="h-[18px] w-[18px] shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
+                </div>
+                <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
               </div>
             </div>
           </div>
@@ -1353,8 +1355,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
 
           {!categoryListingId ? (
             <section className="category-content-transition">
-              <div className="mb-2.5 flex items-center justify-between px-0.5">
-                <h2 className="text-[13px] font-bold text-[var(--noq-ink)]">Categories</h2>
+              <div className="mb-2 flex justify-end px-0.5">
                 <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
               </div>
               <CustomerCategoryGrid
@@ -1613,6 +1614,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 onReserve={() => setScreen('slots')}
                 userEntry={userEntry}
                 isJoinSheetOpen={isJoinSheetOpen}
+                liveConnected={queueConnected}
                 customerAuth={customerAuth}
                 customerProfile={customerProfile}
                 profileLoading={profileLoading}

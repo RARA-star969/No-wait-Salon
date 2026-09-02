@@ -53,6 +53,7 @@ type Props = {
   onReserve: () => void;
   userEntry: QueueItem | null;
   isJoinSheetOpen?: boolean;
+  liveConnected?: boolean;
   customerAuth?: CustomerAuthSession | null;
   customerProfile?: CustomerProfile | null;
   profileLoading?: boolean;
@@ -81,7 +82,7 @@ const CATEGORY_ICONS: Record<string, React.ReactElement> = {
 
 const SALON_FALLBACK_COVER = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1000&auto=format&fit=crop';
 
-export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen, customerAuth = null, customerProfile = null, profileLoading = false, onIdentityVerified, onProfileSaved }) => {
+export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, barbers, selectedService, setSelectedService, selectedServiceIds, setSelectedServiceIds, appliedOfferId, onApplyOffer, onRemoveOffer, onBack, onJoin, onReserve, userEntry, isJoinSheetOpen, liveConnected = true, customerAuth = null, customerProfile = null, profileLoading = false, onIdentityVerified, onProfileSaved }) => {
   const readiness = resolveAppReadiness(customerAuth, customerProfile, { profileLoading });
   const [reviewGateOpen, setReviewGateOpen] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -244,6 +245,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <section ref={liveQueueSectionRef} className="relative">
           <LiveQueueCard
             variant="salon"
+            live={liveConnected}
             waitLabel={waitLabel}
             peopleAhead={waiting.length}
             readyChairs={availableBarbers}
@@ -381,7 +383,7 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
             className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition active:bg-white/10"
           >
             <span className="min-w-0">
-              <span className="block text-[11px] font-semibold leading-4 text-[#12332E]">
+              <span className="block text-[11px] font-semibold leading-4 text-[var(--noq-ink)]">
                 {totals.count} {totals.count === 1 ? 'service' : 'services'} selected
               </span>
               {dockDiscountInr > 0 && appliedOffer && (
@@ -392,10 +394,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
               {dockDiscountInr > 0 ? (
                 <span className="flex items-baseline gap-1.5">
                   <span className="text-[11px] text-[#A3ADAB] line-through">₹{totals.totalPriceInr}</span>
-                  <span className="text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">₹{dockFinalTotalInr}</span>
+                  <span className="text-sm font-bold text-[var(--noq-ink)] underline decoration-[var(--noq-ink)]/25 decoration-dashed underline-offset-4">₹{dockFinalTotalInr}</span>
                 </span>
               ) : (
-                <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-[#0B1F1C] underline decoration-[#0B1F1C]/25 decoration-dashed underline-offset-4">
+                <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-[var(--noq-ink)] underline decoration-[var(--noq-ink)]/25 decoration-dashed underline-offset-4">
                   ₹{totals.totalPriceInr}
                 </span>
               )}
@@ -412,8 +414,8 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
                 <Clock className="h-3.5 w-3.5" />
               </span>
               <span className="flex items-baseline gap-1.5">
-                <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
-                <span className="text-xs font-extrabold text-[#0B211E]">{formatDurationLabel(totals.totalDurationMin)}</span>
+                <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[var(--noq-ink)]">Session</span>
+                <span className="text-xs font-extrabold text-[var(--noq-ink)]">{formatDurationLabel(totals.totalDurationMin)}</span>
               </span>
             </div>
           )}

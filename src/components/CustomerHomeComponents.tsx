@@ -384,7 +384,7 @@ export const CustomerCategoryGrid: React.FC<{
             type="button"
             onClick={() => onSelect(category.id)}
             aria-pressed={active}
-            className={`customer-category-tile relative flex h-[60px] items-center gap-2.5 overflow-hidden rounded-[15px] border px-3 text-left transition-[transform,border-color,box-shadow,background] duration-200 active:translate-y-0.5 active:scale-[0.975] ${active ? 'is-selected -translate-y-px' : ''}`}
+            className={`customer-category-tile relative flex h-[74px] items-center gap-2.5 overflow-hidden rounded-[20px] border px-3 text-left transition-[transform,border-color,box-shadow,background] duration-200 active:translate-y-0.5 active:scale-[0.975] ${active ? 'is-selected -translate-y-px' : ''}`}
             style={{ '--home-accent': accent } as React.CSSProperties}
           >
             <Icon className="h-[18px] w-[18px] shrink-0" style={{ color: active ? accent : '#97A3B7' }} />
@@ -399,7 +399,7 @@ export const CustomerCategoryGrid: React.FC<{
         type="button"
         onClick={onMore}
         aria-label={hasMore ? 'Explore all categories' : 'View categories'}
-        className="customer-category-tile relative flex h-[60px] items-center gap-2.5 rounded-[15px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
+        className="customer-category-tile relative flex h-[74px] items-center gap-2.5 rounded-[20px] border px-3 text-left transition active:translate-y-0.5 active:scale-[0.975]"
       >
         <Grid2X2 className="h-[18px] w-[18px] shrink-0 text-[var(--noq-muted)]" />
         <span><b className="block text-[11px] font-extrabold text-[var(--noq-ink)]">More</b><span className="mt-0.5 block text-[8px] font-semibold text-[var(--noq-muted)]">Explore all</span></span>

@@ -151,8 +151,8 @@ export const QueueJoinSheet: React.FC<Props> = ({
                   <Clock className="h-3.5 w-3.5" />
                 </span>
                 <span className="flex items-baseline gap-1.5">
-                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[#173832]">Session</span>
-                  <span className="text-xs font-extrabold text-[#0B211E]">{totalDurationMin} min</span>
+                  <span className="text-[10.5px] font-bold uppercase tracking-[0.05em] text-[var(--noq-ink)]">Session</span>
+                  <span className="text-xs font-extrabold text-[var(--noq-ink)]">{totalDurationMin} min</span>
                 </span>
               </div>
             )}

@@ -115,7 +115,7 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
     return (
       <section
         id="live-queue-hero-card"
-        className={`relative overflow-hidden rounded-[22px] border border-[var(--noq-glass-border)] bg-white/90 px-4 py-3 text-[var(--noq-ink)] shadow-[inset_0_1px_0_white,0_14px_30px_-24px_rgba(52,84,253,.45)] backdrop-blur-xl ${className}`}
+        className={`noq-glass-surface relative overflow-hidden rounded-[22px] border px-4 py-3 text-[var(--noq-ink)] ${className}`}
       >
         {/* Luminous edge — softened, not neon: low-alpha masked gradient rim. */}
         <div
@@ -131,12 +131,12 @@ export const LiveQueueCard: React.FC<LiveQueueCardProps> = ({
         <div className="pointer-events-none absolute -right-12 -top-16 h-32 w-32 rounded-full bg-[var(--noq-accent)]/[0.07] blur-3xl" aria-hidden="true" />
 
         <div className="relative flex items-center justify-between gap-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-full bg-[#EF4444]/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'live-chip-pulse' : ''}`}>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${live ? 'bg-[#EF4444]/90 text-white live-chip-pulse' : 'bg-[var(--noq-surface-soft)] text-[var(--noq-muted)]'}`}>
             <span className="relative flex h-1.5 w-1.5">
               {live && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/80" />}
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+              <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${live ? 'bg-white' : 'bg-[var(--noq-muted)]'}`} />
             </span>
-            Live
+            {live ? 'Live' : 'Updating'}
           </span>
           <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--noq-muted)]">
             {formatChairCount(totalChairs)} TODAY
