@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CreditCard, ExternalLink, Info, Lock, Navigation, Palette, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
+import { Brush, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Clock3, CornerUpRight, CreditCard, ExternalLink, Info, Lock, Navigation, Palette, Phone, PhoneCall, Plus, ScanFace, Scissors, Share2, Sparkles, Store, Tag, Timer, Waves, Wifi, Wind, X } from 'lucide-react';
 import type { Barber, NearbySalon, QueueItem, Salon, ServiceItem, CustomerAuthSession, CustomerProfile } from '../types';
 import { toSalonProfile } from '../shared/salonProfile';
 import { resolveAppReadiness } from '../shared/profileReadiness';
@@ -234,10 +234,10 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         logo={salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Scissors className="h-9 w-9" />}
         rating={<RatingSummaryBadge businessId={salon.id} tone="light" />}
         actions={[
-          { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
-          { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
+          { id: 'directions', label: 'Directions', icon: <CornerUpRight />, onClick: () => setDirectionsSheetOpen(true) },
+          { id: 'call', label: 'Call', icon: <Phone />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
           { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
-          { id: 'primary', label: userEntry ? 'View Queue' : 'Join Queue', icon: <Timer />, onClick: onJoin, primary: true },
+          { id: 'primary', label: userEntry ? 'View Queue' : 'Join Queue', icon: <Timer />, onClick: onJoin, primary: true, variant: 'standard' as const },
         ]}
       />
 

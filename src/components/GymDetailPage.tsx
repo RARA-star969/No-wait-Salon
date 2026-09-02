@@ -3,6 +3,8 @@ import {
   Star,
   Share2,
   Navigation,
+  CornerUpRight,
+  Phone,
   PhoneCall,
   Store,
   Clock,
@@ -638,8 +640,8 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
         logo={salon.logoImageUrl ? <img src={salon.logoImageUrl} alt={`${salon.name} logo`} className="h-full w-full object-cover" /> : <Dumbbell className="h-9 w-9" />}
         rating={<RatingSummaryBadge businessId={salon.id} tone="light" />}
         actions={[
-          { id: 'directions', label: 'Directions', icon: <Navigation />, onClick: () => setDirectionsSheetOpen(true) },
-          { id: 'call', label: 'Call', icon: <PhoneCall />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
+          { id: 'directions', label: 'Directions', icon: <CornerUpRight />, onClick: () => setDirectionsSheetOpen(true) },
+          { id: 'call', label: 'Call', icon: <Phone />, href: salon.phoneNumber ? `tel:${salon.phoneNumber}` : undefined, disabled: !salon.phoneNumber },
           { id: 'branches', label: 'Branches', icon: <Store />, onClick: () => setBranchesSheetOpen(true) },
           isActiveMember && membership
             ? {
@@ -661,7 +663,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   requireReady('scan', () => setQrScannerOpen(true));
                 },
                 primary: true,
-                variant: 'primary' as const,
+                variant: 'standard' as const,
               }
             : {
                 id: 'primary',
@@ -670,7 +672,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 onClick: () => openAccessSheet(false),
                 disabled: bottomCtaState === 'loading_access' || bottomCtaState === 'unavailable',
                 primary: true,
-                variant: 'primary' as const,
+                variant: 'standard' as const,
               },
         ]}
       />
