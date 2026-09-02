@@ -42,6 +42,7 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig } from './CustomerHomeComponents';
+import { CustomerHomeCarousel } from './CustomerHomeCarousel';
 import { CustomerProfileScreen } from './CustomerProfile';
 import { GymActivityScreen } from './GymActivityScreen';
 import { GymMemberHub } from './GymMemberHub';
@@ -1439,7 +1440,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     </div>
                     <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
                   </div>
-                  <div className="mb-1.5 flex justify-end px-0.5">
+                  <div className="mb-0 flex justify-end px-0.5">
                     <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
                   </div>
                   <CustomerCategoryGrid
@@ -1448,6 +1449,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     onSelect={openCategoryListing}
                     onMore={() => setIsMoreCategoriesOpen(true)}
                   />
+                  <div className="mt-3.5">
+                    <CustomerHomeCarousel />
+                  </div>
                 </>
               )}
 
@@ -1515,7 +1519,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   <h2 className="truncate text-[18px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
                 </div>
               </div>
-              <div className="customer-search-glass flex h-[44px] w-full items-center gap-3 rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
+              <div className="customer-search-glass noq-search-capsule flex h-[44px] w-full items-center rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
                 <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
                 <input
                   value={salonSearch}
@@ -1524,13 +1528,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   enterKeyHint="search"
                   aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
                   placeholder={`Search ${activeCategoryObj.name.toLowerCase()}s...`}
-                  className="h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
+                  className="noq-search-input-wrap h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
                 />
                 {salonSearch && (
                   <button
                     type="button"
                     onClick={() => setSalonSearch('')}
-                    className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
+                    className="ml-2 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
                     aria-label="Clear search"
                   >
                     <X className="h-3.5 w-3.5" />

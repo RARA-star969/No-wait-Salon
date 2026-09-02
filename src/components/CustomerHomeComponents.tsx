@@ -207,7 +207,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   return (
     <div className="relative w-full space-y-2">
       <div
-        className={`customer-search-glass flex h-[48px] w-full items-center gap-3 rounded-[16px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
+        className={`customer-search-glass noq-search-capsule flex h-[48px] w-full items-center rounded-[16px] border px-3.5 backdrop-blur-xl transition-all duration-200 ${
           isListening
             ? 'border-red-400/60 ring-2 ring-red-400/20 shadow-[0_0_24px_-6px_rgba(248,113,113,0.5)]'
             : 'border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2'
@@ -217,10 +217,12 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         onBlur={(e) => { e.currentTarget.style.borderColor = ''; }}
       >
         <Search className="h-[18px] w-[18px] shrink-0 text-[var(--noq-accent-light)]" />
-        <div className="relative min-w-0 flex-1">
+        <div className="noq-search-input-wrap relative min-w-0 flex-1">
           {!value && (
             // Only the category token crossfades — "Search for" is a plain,
             // non-keyed span so it never re-renders/animates alongside it.
+            // Both spans share the exact same grey token so the animated
+            // word is never rendered in the dark ink color.
             <span
               aria-hidden="true"
               title={rotatingLabel}
@@ -229,7 +231,7 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
               <span className="shrink-0">Search for &ldquo;</span>
               <span
                 key={placeholderIndex}
-                className="customer-search-rotating-token inline-block min-w-0 max-w-[130px] truncate font-semibold text-[var(--noq-ink)]"
+                className="customer-search-rotating-token inline-block min-w-0 max-w-[130px] truncate font-semibold text-[var(--noq-muted)]"
               >
                 {rotatingNames[placeholderIndex % rotatingNames.length]}
               </span>
@@ -250,19 +252,16 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
           <button
             type="button"
             onClick={() => onChange('')}
-            className="grid h-6 w-6 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
+            className="ml-2 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10 text-[var(--noq-muted)] hover:bg-white/20"
             aria-label="Clear search"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         )}
-        {/* A hairline divider — not a second surface — keeps Filter reading
-            as part of the one capsule instead of a joined-on rectangle. */}
-        <span aria-hidden="true" className="h-6 w-px shrink-0 rounded-full bg-[color-mix(in_srgb,var(--noq-ink)_10%,transparent)]" />
         <button
           type="button"
           onClick={onFilterClick}
-          className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--noq-accent)] transition active:scale-95 active:shadow-[inset_2px_2px_5px_rgba(54,76,139,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]"
+          className="relative ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--noq-accent)] transition active:scale-95 active:shadow-[inset_2px_2px_5px_rgba(54,76,139,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]"
           aria-label="Choose preferred Home categories"
         >
           <SlidersHorizontal className="h-4 w-4" />
@@ -428,12 +427,14 @@ export const CustomerCategoryGrid: React.FC<{
             </span>
             {/* Muted, elegant compact count — never a notification-red
                 dot, and never anything but the real per-category tally
-                already computed above. */}
+                already computed above. Slightly larger and higher-contrast
+                than the first pass while staying a quiet, non-alerting
+                badge. */}
             <span
-              className="customer-category-count absolute right-2 top-2 grid h-[16px] min-w-[16px] place-items-center rounded-full px-1 text-[8.5px] font-black tabular-nums"
+              className="customer-category-count absolute right-2 top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full px-1.5 text-[9px] font-black tabular-nums"
               style={{
-                backgroundColor: active ? `color-mix(in srgb, ${accent} 16%, white)` : 'color-mix(in srgb, var(--noq-ink) 7%, white)',
-                color: active ? accent : 'var(--noq-muted)',
+                backgroundColor: active ? `color-mix(in srgb, ${accent} 20%, white)` : 'color-mix(in srgb, var(--noq-ink) 11%, white)',
+                color: active ? accent : 'var(--noq-ink)',
               }}
               aria-label={`${category.businessCount ?? 0} businesses`}
             >

@@ -33,6 +33,7 @@ const tables:Record<string,string[]>={
   customer_notification:['id','customer_id','type','category','priority','title','body','source_kind','source_business_id','source_name','deep_link_json','dedupe_key','actor_kind','actor_id','read_at','created_at'],
   customer_notification_preference:['customer_id','promotional_enabled','business_updates_enabled','quiet_hours_start','quiet_hours_end','updated_at'],
   customer_push_device:['id','customer_id','platform','token','created_at','updated_at','last_seen_at'],
+  carousel_banner:['id','type','enabled','display_order','title','subtitle','image_url','cta_label','cta_link','youtube_url','created_at','updated_at'],
 };
 const insertOrder=Object.keys(tables);
 const deleteOrder=[...insertOrder].reverse();
@@ -54,6 +55,7 @@ const conflictKeys:Record<string,string[]>={
   business_profile_moderation:['business_id'],business_profile_draft:['business_id'],business_review:['id'],
   customer_workout_plan:['customer_id','business_id'],
   customer_notification:['id'],customer_notification_preference:['customer_id'],customer_push_device:['id'],
+  carousel_banner:['id'],
 };
 
 async function replacePostgres(sqlite:DatabaseSync,postgres:Database,selected=insertOrder){

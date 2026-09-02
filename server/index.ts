@@ -193,6 +193,21 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'pending',
     created_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS carousel_banner (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'image',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    title TEXT NOT NULL DEFAULT '',
+    subtitle TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    cta_label TEXT NOT NULL DEFAULT '',
+    cta_link TEXT NOT NULL DEFAULT '',
+    youtube_url TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 // Safely add any missing columns to main_category for existing databases
@@ -3235,6 +3250,127 @@ app.get('/api/main-categories', (_request, response) => {
     bannerCtaText: String(r.banner_cta_text || ''),
   }));
   response.json({ categories });
+});
+
+function carouselBannerRowToRecord(r: Record<string, unknown>) {
+  return {
+    id: String(r.id),
+    type: (String(r.type) === 'youtube' ? 'youtube' : 'image') as 'image' | 'youtube',
+    enabled: Boolean(r.enabled),
+    order: Number(r.display_order || 0),
+    title: String(r.title || ''),
+    subtitle: String(r.subtitle || ''),
+    imageUrl: String(r.image_url || ''),
+    ctaLabel: String(r.cta_label || ''),
+    ctaLink: String(r.cta_link || ''),
+    youtubeUrl: String(r.youtube_url || ''),
+  };
+}
+
+// Public — the customer Home carousel only ever fetches enabled banners in
+// admin-defined order; nothing here is ever hardcoded in the customer bundle.
+app.get('/api/carousel-banners', (_request, response) => {
+  const rows = db.prepare('SELECT * FROM carousel_banner WHERE enabled = 1 ORDER BY display_order ASC, id ASC').all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+app.get('/api/admin/carousel-banners', requireAdmin, (_request, response) => {
+  const rows = db.prepare('SELECT * FROM carousel_banner ORDER BY display_order ASC, id ASC').all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+app.post('/api/admin/carousel-banners', requireAdmin, async (request, response) => {
+  try {
+    const body = request.body as Record<string, unknown>;
+    const type = String(body.type) === 'youtube' ? 'youtube' : 'image';
+    const id = randomUUID();
+    const enabled = asBoolean(body.enabled ?? true) ? 1 : 0;
+    const maxOrder = (db.prepare('SELECT COALESCE(MAX(display_order), -1) as m FROM carousel_banner').get() as { m: number }).m;
+    const displayOrder = Number.isFinite(Number(body.order)) && body.order !== undefined && body.order !== null && body.order !== ''
+      ? Number(body.order)
+      : maxOrder + 1;
+    const title = cleanText(body.title, 200);
+    const subtitle = cleanText(body.subtitle, 300);
+    const imageUrl = cleanText(body.imageUrl, 2000);
+    const ctaLabel = cleanText(body.ctaLabel, 60);
+    const ctaLink = cleanText(body.ctaLink, 2000);
+    const youtubeUrl = cleanText(body.youtubeUrl, 500);
+    if (type === 'image' && !imageUrl) throw new Error('An image URL is required for image banners.');
+    if (type === 'youtube' && !youtubeUrl) throw new Error('A YouTube URL or video id is required for YouTube banners.');
+    const now = Date.now();
+
+    db.prepare(`
+      INSERT INTO carousel_banner (id, type, enabled, display_order, title, subtitle, image_url, cta_label, cta_link, youtube_url, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, now, now);
+
+    await postgresPersistence?.flushNow(['carousel_banner']);
+    const row = db.prepare('SELECT * FROM carousel_banner WHERE id = ?').get(id) as Record<string, unknown>;
+    response.status(201).json({ banner: carouselBannerRowToRecord(row) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to create banner.' });
+  }
+});
+
+app.put('/api/admin/carousel-banners/:id', requireAdmin, async (request, response) => {
+  try {
+    const id = request.params.id;
+    const body = request.body as Record<string, unknown>;
+    const type = String(body.type) === 'youtube' ? 'youtube' : 'image';
+    const enabled = asBoolean(body.enabled) ? 1 : 0;
+    const displayOrder = Number(body.order) || 0;
+    const title = cleanText(body.title, 200);
+    const subtitle = cleanText(body.subtitle, 300);
+    const imageUrl = cleanText(body.imageUrl, 2000);
+    const ctaLabel = cleanText(body.ctaLabel, 60);
+    const ctaLink = cleanText(body.ctaLink, 2000);
+    const youtubeUrl = cleanText(body.youtubeUrl, 500);
+    if (type === 'image' && !imageUrl) throw new Error('An image URL is required for image banners.');
+    if (type === 'youtube' && !youtubeUrl) throw new Error('A YouTube URL or video id is required for YouTube banners.');
+    const now = Date.now();
+
+    const res = db.prepare(`
+      UPDATE carousel_banner
+      SET type=?, enabled=?, display_order=?, title=?, subtitle=?, image_url=?, cta_label=?, cta_link=?, youtube_url=?, updated_at=?
+      WHERE id=?
+    `).run(type, enabled, displayOrder, title, subtitle, imageUrl, ctaLabel, ctaLink, youtubeUrl, now, id);
+
+    if (!res.changes) return response.status(404).json({ error: 'Banner not found.' });
+    await postgresPersistence?.flushNow(['carousel_banner']);
+    const row = db.prepare('SELECT * FROM carousel_banner WHERE id = ?').get(id) as Record<string, unknown>;
+    response.json({ ok: true, banner: carouselBannerRowToRecord(row) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update banner.' });
+  }
+});
+
+app.patch('/api/admin/carousel-banners/:id/status', requireAdmin, async (request, response) => {
+  const enabled = asBoolean(request.body?.enabled) ? 1 : 0;
+  const res = db.prepare('UPDATE carousel_banner SET enabled=?, updated_at=? WHERE id=?').run(enabled, Date.now(), request.params.id);
+  if (!res.changes) return response.status(404).json({ error: 'Banner not found.' });
+  await postgresPersistence?.flushNow(['carousel_banner']);
+  response.json({ ok: true, enabled: Boolean(enabled) });
+});
+
+// Reorder: body carries the full ordered list of banner ids — the admin UI's
+// up/down (or drag) reorder resolves to a full sequence, applied atomically
+// against display_order so two banners can never end up with the same rank.
+app.put('/api/admin/carousel-banners/reorder', requireAdmin, async (request, response) => {
+  const ids = Array.isArray(request.body?.ids) ? (request.body.ids as unknown[]).map((x) => String(x)) : [];
+  if (!ids.length) return response.status(400).json({ error: 'A non-empty list of banner ids is required.' });
+  const now = Date.now();
+  const update = db.prepare('UPDATE carousel_banner SET display_order=?, updated_at=? WHERE id=?');
+  ids.forEach((id, index) => update.run(index, now, id));
+  await postgresPersistence?.flushNow(['carousel_banner']);
+  const rows = db.prepare('SELECT * FROM carousel_banner ORDER BY display_order ASC, id ASC').all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+app.delete('/api/admin/carousel-banners/:id', requireAdmin, async (request, response) => {
+  const res = db.prepare('DELETE FROM carousel_banner WHERE id=?').run(request.params.id);
+  if (!res.changes) return response.status(404).json({ error: 'Banner not found.' });
+  await postgresPersistence?.flushNow(['carousel_banner']);
+  response.json({ ok: true });
 });
 
 app.get('/api/business-qr-public/:businessId', (request, response) => {

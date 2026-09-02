@@ -31,6 +31,11 @@ import {
   Star,
   EyeOff,
   Eye,
+  ArrowUp,
+  ArrowDown,
+  Youtube,
+  Image as ImageIcon,
+  MonitorPlay,
 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -250,12 +255,13 @@ export function AdminApp() {
 }
 
 function AdminShell({ onLogout }: { onLogout: () => void }) {
-  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers' | 'reviews'>('dashboard');
+  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers' | 'reviews' | 'carousel'>('dashboard');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const nav = [
     ['dashboard', 'Overview', LayoutDashboard],
     ['categories', 'Main Categories', Layers],
+    ['carousel', 'Home Carousel', MonitorPlay],
     ['salons', 'Salons & Businesses', Building2],
     ['customers', 'Customers', Users],
     ['reviews', 'Reviews', Star],
@@ -316,11 +322,13 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
                   ? 'Dashboard'
                   : page === 'categories'
                     ? 'Main Categories'
-                    : page === 'salons'
-                      ? 'Business management'
-                      : page === 'reviews'
-                        ? 'Reviews'
-                        : 'Customers'}
+                    : page === 'carousel'
+                      ? 'Home Carousel'
+                      : page === 'salons'
+                        ? 'Business management'
+                        : page === 'reviews'
+                          ? 'Reviews'
+                          : 'Customers'}
             </p>
             <p className="hidden text-xs text-slate-500 sm:block">
               Manage platform categories & business content without rebuilding customer apps.
@@ -337,6 +345,8 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
             <Dashboard onSalons={() => setPage('salons')} />
           ) : page === 'categories' ? (
             <CategoriesList />
+          ) : page === 'carousel' ? (
+            <CarouselBannersList />
           ) : page === 'salons' ? (
             <SalonList onEdit={setEditing} />
           ) : page === 'reviews' ? (
@@ -717,6 +727,376 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
           </button>
           <button disabled={busy} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50">
             {busy ? 'Saving…' : 'Save Category'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function CarouselBannersList() {
+  const [banners, setBanners] = useState<AnyRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingBanner, setEditingBanner] = useState<AnyRow | null>(null);
+  const [reordering, setReordering] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else if (banners.length === 0) setLoading(true);
+    setError('');
+    try {
+      const b = await api('/api/admin/carousel-banners');
+      setBanners(b.banners || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load carousel banners.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [banners.length]);
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const toggle = async (b: AnyRow) => {
+    try {
+      await api(`/api/admin/carousel-banners/${b.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: !b.enabled }),
+      });
+      load(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Status update failed.');
+    }
+  };
+
+  const remove = async (b: AnyRow) => {
+    if (!window.confirm(`Delete this banner${b.title ? ` "${b.title}"` : ''}? This cannot be undone.`)) return;
+    try {
+      await api(`/api/admin/carousel-banners/${b.id}`, { method: 'DELETE' });
+      load(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Unable to delete banner.');
+    }
+  };
+
+  const move = async (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= banners.length) return;
+    const reordered = banners.slice();
+    [reordered[index], reordered[target]] = [reordered[target], reordered[index]];
+    setBanners(reordered);
+    setReordering(true);
+    try {
+      await api('/api/admin/carousel-banners/reorder', {
+        method: 'PUT',
+        body: JSON.stringify({ ids: reordered.map((b) => b.id) }),
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Reorder failed.');
+      load(true);
+    } finally {
+      setReordering(false);
+    }
+  };
+
+  return (
+    <div>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Home Carousel</h1>
+          <p className="mt-1 text-slate-500">Manage the swipeable banners shown on Customer Home, below the category grid.</p>
+        </div>
+        <button
+          onClick={() => {
+            setEditingBanner({ type: 'image', enabled: true, order: banners.length });
+            setModalOpen(true);
+          }}
+          className="flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 transition"
+        >
+          <Plus size={18} />
+          Add Banner
+        </button>
+      </div>
+
+      {error && (
+        <div className="mb-4 flex items-center justify-between rounded-xl bg-amber-50 p-3 text-sm text-amber-800 border border-amber-200">
+          <span>{error}</span>
+          <button onClick={() => void load(true)} className="flex items-center gap-1 font-semibold hover:underline">
+            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} /> Retry
+          </button>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[820px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-4 py-3">Order</th>
+                <th className="px-4 py-3">Preview</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Title</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading && banners.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    <Loader2 className="mx-auto mb-2 animate-spin text-teal-600" size={24} />
+                    Loading banners…
+                  </td>
+                </tr>
+              ) : banners.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    No banners yet. Add one to feature it on Customer Home.
+                  </td>
+                </tr>
+              ) : (
+                banners.map((b, index) => (
+                  <tr key={b.id} className="hover:bg-slate-50/50">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-1">
+                        <button
+                          disabled={index === 0 || reordering}
+                          onClick={() => void move(index, -1)}
+                          className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                          title="Move up"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <button
+                          disabled={index === banners.length - 1 || reordering}
+                          onClick={() => void move(index, 1)}
+                          className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-30"
+                          title="Move down"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-12 w-20 overflow-hidden rounded-lg bg-slate-100">
+                        {b.type === 'youtube' ? (
+                          b.youtubeUrl ? (
+                            <img src={`https://img.youtube.com/vi/${extractYoutubeIdForPreview(b.youtubeUrl)}/hqdefault.jpg`} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center text-slate-400"><Youtube size={16} /></div>
+                          )
+                        ) : b.imageUrl ? (
+                          <img src={b.imageUrl} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-slate-400"><ImageIcon size={16} /></div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                        {b.type === 'youtube' ? <Youtube size={14} /> : <ImageIcon size={14} />}
+                        {b.type === 'youtube' ? 'YouTube' : 'Image'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 font-semibold text-slate-900">{b.title || <span className="text-slate-400">Untitled</span>}</td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {b.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => { setEditingBanner(b); setModalOpen(true); }}
+                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          onClick={() => void toggle(b)}
+                          className={`rounded-lg p-1.5 transition ${b.enabled ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'}`}
+                          title={b.enabled ? 'Disable' : 'Enable'}
+                        >
+                          <Power size={16} />
+                        </button>
+                        <button
+                          onClick={() => void remove(b)}
+                          className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-50"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {modalOpen && editingBanner && (
+        <CarouselBannerModal
+          banner={editingBanner}
+          onClose={() => setModalOpen(false)}
+          onSave={() => { setModalOpen(false); load(true); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Best-effort id extraction for the admin table's thumbnail preview only —
+ *  the authoritative parse (used for what customers actually see) lives in
+ *  src/shared/carouselBanner.ts and runs on the server response. */
+function extractYoutubeIdForPreview(raw: string) {
+  const trimmed = String(raw || '').trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    if (url.hostname.includes('youtu.be')) return url.pathname.split('/').filter(Boolean)[0] || '';
+    const v = url.searchParams.get('v');
+    if (v) return v;
+    const segments = url.pathname.split('/').filter(Boolean);
+    if (segments.length >= 2 && ['embed', 'shorts', 'live'].includes(segments[0])) return segments[1];
+  } catch {
+    // ignore — preview just stays blank
+  }
+  return '';
+}
+
+function CarouselBannerModal({ banner, onClose, onSave }: { banner: AnyRow; onClose: () => void; onSave: () => void }) {
+  const isNew = !banner.id;
+  const [form, setForm] = useState({
+    type: banner.type || 'image',
+    enabled: banner.enabled ?? true,
+    order: banner.order ?? 0,
+    title: banner.title || '',
+    subtitle: banner.subtitle || '',
+    imageUrl: banner.imageUrl || '',
+    ctaLabel: banner.ctaLabel || '',
+    ctaLink: banner.ctaLink || '',
+    youtubeUrl: banner.youtubeUrl || '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  const upload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) return alert('Image must be 2 MB or smaller.');
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const b = await api('/api/admin/media/upload', { method: 'POST', body: JSON.stringify({ dataUrl: reader.result }) });
+        setForm((f) => ({ ...f, imageUrl: b.url }));
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Upload failed.');
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      if (isNew) {
+        await api('/api/admin/carousel-banners', { method: 'POST', body: JSON.stringify(form) });
+      } else {
+        await api(`/api/admin/carousel-banners/${banner.id}`, { method: 'PUT', body: JSON.stringify(form) });
+      }
+      onSave();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+      <form onSubmit={save} className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto space-y-4">
+        <div className="flex items-center justify-between border-b pb-3">
+          <h2 className="text-xl font-bold text-slate-900">{isNew ? 'Add Banner' : 'Edit Banner'}</h2>
+          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
+            <X size={20} />
+          </button>
+        </div>
+
+        {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+
+        <div className="grid gap-4">
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Banner Type
+            <div className="flex gap-2">
+              {(['image', 'youtube'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, type: t }))}
+                  className={`flex flex-1 items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${
+                    form.type === t ? 'border-teal-600 bg-teal-50 text-teal-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  {t === 'image' ? <ImageIcon size={16} /> : <Youtube size={16} />}
+                  {t === 'image' ? 'Image' : 'YouTube'}
+                </button>
+              ))}
+            </div>
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Title (optional)" value={form.title} onChange={(v) => setForm((f) => ({ ...f, title: v }))} />
+            <Field label="Subtitle (optional)" value={form.subtitle} onChange={(v) => setForm((f) => ({ ...f, subtitle: v }))} />
+          </div>
+
+          {form.type === 'image' ? (
+            <>
+              <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                <span>Image <b className="text-red-500">*</b></span>
+                <div className="flex items-center gap-3">
+                  <div className="h-16 w-28 shrink-0 overflow-hidden rounded-lg border bg-slate-50">
+                    {form.imageUrl && <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />}
+                  </div>
+                  <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 py-3 text-xs font-semibold text-teal-700">
+                    <ImagePlus size={16} />
+                    {uploading ? 'Uploading…' : 'Upload image'}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={uploading} onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
+                  </label>
+                </div>
+              </label>
+              <Field label="or paste an image URL" value={form.imageUrl} onChange={(v) => setForm((f) => ({ ...f, imageUrl: v }))} placeholder="https://…" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="CTA Label (optional)" value={form.ctaLabel} onChange={(v) => setForm((f) => ({ ...f, ctaLabel: v }))} placeholder="e.g. Book now" />
+                <Field label="CTA Link (optional)" value={form.ctaLink} onChange={(v) => setForm((f) => ({ ...f, ctaLink: v }))} placeholder="https://…" />
+              </div>
+            </>
+          ) : (
+            <Field label="YouTube URL or video ID *" value={form.youtubeUrl} onChange={(v) => setForm((f) => ({ ...f, youtubeUrl: v }))} placeholder="https://youtu.be/…" />
+          )}
+
+          <Field label="Display Order" type="number" value={form.order} onChange={(v) => setForm((f) => ({ ...f, order: v }))} />
+
+          <Toggle checked={Boolean(form.enabled)} onChange={(v) => setForm((f) => ({ ...f, enabled: v }))} label="Banner is enabled on Customer Home" />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onClick={onClose} className="rounded-xl border px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+            Cancel
+          </button>
+          <button disabled={busy} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50">
+            {busy ? 'Saving…' : 'Save Banner'}
           </button>
         </div>
       </form>

@@ -112,6 +112,24 @@ body {
   box-shadow: var(--noq-shadow-inset), 0 1px 0 #fff;
 }
 
+/* One continuous neumorphic capsule (Task 1): the icon, the input and the
+   filter control all read from the very same surface/shadow declared on
+   .customer-search-glass above — this class only adds the icon↔text gap so
+   there is never an inner seam, divider or second "joined-on" surface. */
+.noq-search-capsule input,
+.noq-search-capsule .noq-search-input-wrap input {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.noq-search-input-wrap {
+  margin-left: 13px;
+}
+
+.noq-search-capsule input.noq-search-input-wrap {
+  margin-left: 13px;
+}
+
 .customer-search-rotating-token {
   animation: customer-search-token-fade 320ms cubic-bezier(.32,.72,.33,1);
 }
@@ -189,6 +207,12 @@ body {
 
 .customer-operational-pill {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 4px 12px -8px currentColor;
+}
+
+.noq-home-carousel-card {
+  border-color: rgba(255,255,255,.9);
+  background: linear-gradient(145deg, #ffffff, #eef1ff);
+  box-shadow: var(--noq-shadow-raised-sm), inset 0 1px 0 #fff;
 }
 
 .customer-bottom-dock {

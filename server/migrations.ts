@@ -326,6 +326,26 @@ const migrations=[{
   version: 17,
   name: 'one_customer_review_per_business',
   sql: REVIEW_CUSTOMER_BUSINESS_UNIQUENESS_MIGRATION_SQL
+}, {
+  version: 18,
+  name: 'admin_home_carousel_banners',
+  sql: `
+    CREATE TABLE IF NOT EXISTS carousel_banner (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL DEFAULT 'image',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      title TEXT NOT NULL DEFAULT '',
+      subtitle TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '',
+      cta_label TEXT NOT NULL DEFAULT '',
+      cta_link TEXT NOT NULL DEFAULT '',
+      youtube_url TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS carousel_banner_order_idx ON carousel_banner(enabled, display_order);
+  `
 }];
 
 export async function runMigrations(db:Database){
