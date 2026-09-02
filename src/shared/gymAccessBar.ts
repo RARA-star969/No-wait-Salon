@@ -55,7 +55,7 @@ export function resolveGymAccessBarCopy(input: {
   if (state === 'scan' && membership) {
     return {
       eyebrow: 'MEMBERSHIP ACTIVE',
-      main: `${membership.planName} · Valid till ${gymMembershipValidTill(membership.expiryDate)}`,
+      main: `Valid till ${gymMembershipValidTill(membership.expiryDate)}`,
       // This is the existing, truthful member-pass action: it opens the QR
       // scanner instead of presenting a decorative pass that cannot check in.
       action: 'Scan to Check In',
@@ -92,5 +92,5 @@ export function resolveGymAccessBarCopy(input: {
   }
   if (state === 'loading_access') return { eyebrow: 'GYM ACCESS', main: 'Loading available passes…', action: 'Loading…' };
   if (state === 'unavailable') return { eyebrow: 'GYM ACCESS', main: 'No passes available yet', action: 'Unavailable' };
-  return { eyebrow: 'GYM ACCESS', main: 'Choose your pass', action: 'View Plans' };
+  return { eyebrow: 'GYM ACCESS', main: 'Choose a plan and get started', action: 'Book Your Pass' };
 }

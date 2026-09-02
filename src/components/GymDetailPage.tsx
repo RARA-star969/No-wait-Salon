@@ -645,11 +645,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             ? {
                 id: 'primary',
                 label: 'Member',
-                icon: <Crown className="fill-current" />,
+                icon: <Crown className="fill-amber-400 text-amber-500" />,
                 onClick: () => {
                   document.getElementById('gym-membership-section')?.scrollIntoView({ behavior: 'smooth' });
                 },
                 primary: true,
+                variant: 'gold' as const,
               }
             : myMembership?.paidPass
             ? {
@@ -660,6 +661,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                   requireReady('scan', () => setQrScannerOpen(true));
                 },
                 primary: true,
+                variant: 'primary' as const,
               }
             : {
                 id: 'primary',
@@ -668,16 +670,15 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 onClick: () => openAccessSheet(false),
                 disabled: bottomCtaState === 'loading_access' || bottomCtaState === 'unavailable',
                 primary: true,
+                variant: 'primary' as const,
               },
         ]}
       />
 
       {/* Floating Gym Live Capsule when main card is scrolled out of view.
-          Same safe-area-aware, flex-centered wrapper pattern as Salon's own
-          floating scoreboard, so it always sits fully inside the viewport
-          with breathing room from the top edge on notched devices. */}
+          Sticky top layer that floats above content without overlapping header chrome. */}
       {!isCardVisible && (
-        <div className="fixed inset-x-0 top-0 z-[95] pointer-events-none flex justify-center px-4 pt-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))]">
+        <div className="sticky top-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] z-[95] pointer-events-none -mb-14 flex justify-center px-4">
           <div className="pointer-events-auto capsule-melt-in">
             <GymFloatingCapsule
               currentOccupancy={currentOcc}
@@ -932,22 +933,19 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
               return (
               <div
                 key={offering.id}
-                className={`rounded-2xl border bg-white/70 p-4 transition ${
-                  isActivePass || isMine
-                    ? 'border-[var(--category-primary-dark)] shadow-[0_10px_28px_-18px_var(--category-glow)]'
+                className={`rounded-2xl border p-4 transition ${
+                  isMine
+                    ? 'border-amber-300/60 bg-gradient-to-br from-amber-500/[0.04] via-white/80 to-white/95 shadow-[0_8px_24px_-12px_rgba(245,158,11,0.25)]'
+                    : isActivePass
+                    ? 'border-[var(--category-primary-dark)] bg-white/70 shadow-[0_10px_28px_-18px_var(--category-glow)]'
                     : isSelected
-                    ? 'border-[var(--category-primary-dark)]/60 shadow-[0_8px_22px_-16px_var(--category-glow)]'
-                    : 'border-[var(--noq-glass-border)]'
+                    ? 'border-[var(--category-primary-dark)]/60 bg-white/70 shadow-[0_8px_22px_-16px_var(--category-glow)]'
+                    : 'border-[var(--noq-glass-border)] bg-white/70'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${isActivePass || isMine ? 'bg-[var(--category-primary-dark)] text-white' : 'bg-[var(--category-tint-10)] text-[var(--category-accent)]'}`}>
-                        {isActivePass ? 'Checked in' : isMine ? 'Activated' : offering.type.replace('_', ' ')}
-                      </span>
-                      <h3 className="text-xs font-extrabold text-[var(--noq-ink)]">{offering.name}</h3>
-                    </div>
+                    <h3 className="text-sm font-extrabold text-[var(--noq-ink)]">{offering.name}</h3>
                     <p className="mt-1 text-[11px] text-[var(--noq-muted)]">
                       {isActivePass
                         ? `Inside · ${activeDurationLabel}`
@@ -956,7 +954,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                         : offering.description || 'Full equipment and facility access included.'}
                     </p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <div className="text-sm font-extrabold text-[var(--noq-ink)]">₹{offering.priceInr}</div>
                     <div className="text-[10px] font-semibold text-[var(--noq-muted)]">{durationText(offering)}</div>
                   </div>
@@ -967,9 +965,9 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                     Inside · {activeDurationLabel}
                   </div>
                 ) : isMine ? (
-                  <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-[var(--category-primary-dark)]/30 bg-[var(--category-tint-10)] py-2 text-xs font-extrabold text-[var(--category-accent)] shadow-[0_0_20px_-6px_var(--category-glow)]">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    ✓ ACTIVATED
+                  <div className="mt-3 flex items-center justify-center gap-2 rounded-xl border border-amber-300/50 bg-gradient-to-r from-amber-500/15 via-amber-400/20 to-amber-500/15 py-2 text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-300 shadow-[0_2px_8px_-2px_rgba(245,158,11,0.15)]">
+                    <Crown className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                    ACTIVATED
                   </div>
                 ) : showUpgrade ? (
                   <button
@@ -1262,19 +1260,27 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
-          className="relative flex min-h-[46px] w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-[18px] bg-gradient-to-r from-[var(--noq-accent)] to-[var(--noq-accent-deep)] px-4 py-2 text-white shadow-[0_10px_24px_-8px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.35)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
+          className="relative flex min-h-[52px] w-full min-w-0 items-center justify-between overflow-hidden rounded-[20px] bg-gradient-to-r from-[var(--noq-accent)] via-[var(--noq-accent)] to-[var(--noq-accent-deep)] p-2 pl-4 text-white shadow-[0_12px_28px_-10px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.35)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
         >
-          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 to-transparent" aria-hidden="true" />
-          {bottomCtaState === 'scan' && <QrCode className="relative h-4 w-4 shrink-0 opacity-90" />}
-          <span className="relative flex min-w-0 flex-col items-center justify-center">
-            <span className="text-[13px] font-extrabold leading-tight tracking-tight">
+          <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
+          <span className="relative flex min-w-0 flex-col items-start justify-center pr-2 text-left">
+            <span className="text-[14px] font-extrabold leading-tight tracking-tight text-white">
               {scanBusy
                 ? 'Checking in…'
                 : bottomCtaState === 'checked_in' && checkoutBusy
                 ? 'Checking out…'
                 : accessBarCopy.action}
             </span>
-            <span className="mt-0.5 max-w-[280px] truncate text-[10px] font-medium leading-none text-white/80">{accessBarCopy.main}</span>
+            <span className="mt-0.5 max-w-[240px] truncate text-[11px] font-medium leading-tight text-white/80">
+              {accessBarCopy.main}
+            </span>
+          </span>
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-white/20 text-white backdrop-blur-md border border-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_8px_rgba(0,0,0,0.1)]">
+            {bottomCtaState === 'scan' ? (
+              <QrCode className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4 stroke-[2.5]" />
+            )}
           </span>
         </button>
       </CategoryActionBar>

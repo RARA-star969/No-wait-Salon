@@ -1,6 +1,6 @@
 import React from 'react';
 
-const NBSP = ' ';
+const NBSP = '\u00A0';
 
 /**
  * The salon name, revealed letter-by-letter left to right on mount — a

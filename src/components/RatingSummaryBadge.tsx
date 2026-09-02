@@ -33,7 +33,7 @@ export const RatingSummaryBadge: React.FC<{ businessId: string; tone?: 'dark' | 
   // Detail page it's embedded in.
   const formattedRating = formatOverallRating(overallRating, totalReviews);
   if (formattedRating === null) {
-    return <span className={`text-[11px] font-semibold ${mutedClass}`}>New · Not yet rated</span>;
+    return <span className={`text-[11px] font-semibold ${mutedClass}`}>Not yet rated · 0 reviews</span>;
   }
 
   return (

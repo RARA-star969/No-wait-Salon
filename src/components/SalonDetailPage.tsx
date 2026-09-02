@@ -207,8 +207,8 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
           cleanly visible above the modal backdrop during Join Queue. */}
       <div
         aria-hidden={!isScoreboardActive}
-        className={`fixed inset-x-0 top-0 z-[95] pointer-events-none flex justify-center px-4 pt-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] transition-all duration-300 ease-out motion-reduce:transition-none ${
-          isScoreboardActive ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'
+        className={`sticky top-[max(0.75rem,calc(env(safe-area-inset-top)+0.5rem))] z-[95] pointer-events-none -mb-14 flex justify-center px-4 transition-all duration-300 ease-out motion-reduce:transition-none ${
+          isScoreboardActive ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0 pointer-events-none'
         }`}
       >
         <div key={capsuleEnterKey} className="pointer-events-auto capsule-melt-in">

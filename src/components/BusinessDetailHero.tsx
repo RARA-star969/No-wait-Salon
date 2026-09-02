@@ -10,6 +10,7 @@ export type BusinessHeroAction = {
   href?: string;
   disabled?: boolean;
   primary?: boolean;
+  variant?: 'standard' | 'primary' | 'gold';
 };
 
 type Props = {
@@ -53,28 +54,34 @@ const HeroControl: React.FC<{
 );
 
 const ActionTile: React.FC<{ action: BusinessHeroAction }> = ({ action }) => {
-  const isPrimary = action.primary;
-  const tileClass = `group relative flex flex-col items-center justify-center rounded-[20px] p-2 text-center transition-all duration-200 active:scale-[0.95] ${
-    isPrimary
-      ? 'border border-[var(--noq-accent)]/80 bg-gradient-to-b from-[var(--noq-accent)] to-[var(--noq-accent-deep)] text-white shadow-[0_10px_24px_-8px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.3)]'
-      : 'border border-white/80 bg-white/85 dark:bg-slate-900/80 backdrop-blur-xl text-[var(--noq-ink)] shadow-[0_8px_20px_-8px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-white hover:bg-white/95'
+  const isGold = action.variant === 'gold';
+  const isPrimary = action.variant === 'primary' || (action.primary && !isGold);
+
+  const tileClass = `group relative flex flex-col items-center justify-center rounded-[18px] p-2 text-center transition-all duration-200 active:scale-[0.95] min-h-[72px] ${
+    isGold
+      ? 'border border-amber-300/80 bg-gradient-to-b from-[#FFFDF7] to-[#FDF8E8] dark:from-amber-950/40 dark:to-amber-900/30 text-amber-950 dark:text-amber-100 shadow-[0_6px_16px_-6px_rgba(245,158,11,0.22),inset_0_1px_0_rgba(255,255,255,0.9)]'
+      : isPrimary
+      ? 'border border-[var(--noq-accent)]/80 bg-gradient-to-b from-[var(--noq-accent)] to-[var(--noq-accent-deep)] text-white shadow-[0_8px_20px_-8px_var(--noq-glow),inset_0_1px_0_rgba(255,255,255,0.3)]'
+      : 'border border-white/85 dark:border-white/10 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md text-[var(--noq-ink)] shadow-[0_4px_14px_-6px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] hover:bg-white'
   } ${action.disabled ? 'pointer-events-none opacity-40' : ''}`;
 
   const content = (
     <>
       <span
-        className={`relative flex h-10 w-10 items-center justify-center rounded-[14px] transition-transform duration-200 group-active:scale-95 [&>svg]:h-[18px] [&>svg]:w-[18px] ${
-          isPrimary
+        className={`relative flex h-9 w-9 items-center justify-center rounded-[13px] transition-transform duration-200 group-active:scale-95 [&>svg]:h-[17px] [&>svg]:w-[17px] ${
+          isGold
+            ? 'border border-amber-300/50 bg-gradient-to-br from-amber-400/20 to-amber-500/15 text-amber-600 dark:text-amber-400 shadow-[0_2px_6px_-1px_rgba(245,158,11,0.2)]'
+            : isPrimary
             ? 'bg-white/20 text-white shadow-inner'
-            : 'bg-[var(--noq-surface-soft)] text-[var(--noq-accent)]'
+            : 'bg-[var(--noq-tint-10)] text-[var(--noq-accent)]'
         }`}
       >
-        {isPrimary && <span className="pointer-events-none absolute inset-x-1 top-px h-1/2 rounded-t-[12px] bg-gradient-to-b from-white/30 to-transparent" />}
+        {isPrimary && <span className="pointer-events-none absolute inset-x-1 top-px h-1/2 rounded-t-[11px] bg-gradient-to-b from-white/30 to-transparent" />}
         <span className="relative contents">{action.icon}</span>
       </span>
       <span
         className={`mt-1.5 line-clamp-1 w-full truncate text-[11px] font-bold leading-tight ${
-          isPrimary ? 'text-white' : 'text-[var(--noq-ink)]'
+          isGold ? 'text-amber-950 dark:text-amber-200' : isPrimary ? 'text-white' : 'text-[var(--noq-ink)]'
         }`}
       >
         {action.label}

@@ -6,8 +6,8 @@ test('Gym access bar copy is truthful for every physical-APK state', async (t) =
   await t.test('no selection invites the customer to view real plans', () => {
     assert.deepEqual(resolveGymAccessBarCopy({ state: 'choose_access' }), {
       eyebrow: 'GYM ACCESS',
-      main: 'Choose your pass',
-      action: 'View Plans',
+      main: 'Choose a plan and get started',
+      action: 'Book Your Pass',
     });
   });
 
@@ -37,7 +37,7 @@ test('Gym access bar copy is truthful for every physical-APK state', async (t) =
       }),
       {
         eyebrow: 'MEMBERSHIP ACTIVE',
-        main: 'Monthly · Valid till 30 Sep',
+        main: 'Valid till 30 Sep',
         action: 'Scan to Check In',
       },
     );
