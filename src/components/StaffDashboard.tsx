@@ -146,8 +146,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFA] text-[#17201F]">
-      <div className="space-y-5 p-5">
+    // No independent height/overflow here — StaffAppShell's <main> above is
+    // the one real scroll container. A second nested overflow-y-auto (this
+    // div previously had h-full + overflow-y-auto too) is the classic
+    // double-scroll-container bug: with no bounded height, this element's
+    // own "scroll area" never actually contains overflow, yet it can still
+    // capture touch/wheel input and stop it reaching the ancestor that can
+    // scroll — which read on a real device as "can't scroll to the rest of
+    // the queue" even though desktop devtools looked fine.
+    <div className="flex flex-col bg-[#F8FAFA] text-[#17201F]">
+      <div className="space-y-5 p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start justify-between gap-4">
           <div>
             <span className={ui.eyebrow}>{isGymCategory ? 'Fitness & Strength Facility' : 'Today at the salon'}</span>
@@ -174,7 +182,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 onClick={() => setGymModule(mod.id)}
                 className={`snap-start shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
                   gymModule === mod.id
-                    ? 'bg-[#0F766E] text-white shadow-sm'
+                    ? 'bg-[#3454FD] text-white shadow-sm'
                     : 'border border-[#DDE5E3] bg-white text-[#5C6E6B] hover:bg-[#F4F7F6]'
                 }`}
               >
@@ -188,7 +196,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         <div className="grid grid-cols-3 gap-3">
           <div className={`${ui.card} p-3.5`}>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <Users className="w-3.5 h-3.5 text-[#0F766E]" />
+              <Users className="w-3.5 h-3.5 text-[#3454FD]" />
               <span>Waiting</span>
             </div>
             <b id="staff-waiting-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1">
@@ -203,7 +211,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
           <div className={`${ui.card} p-3.5`}>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <Scissors className="w-3.5 h-3.5 text-[#0F766E]" />
+              <Scissors className="w-3.5 h-3.5 text-[#3454FD]" />
               <span>In Chair</span>
             </div>
             <b id="staff-serving-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1">
@@ -214,7 +222,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
           <div className={`${ui.card} p-3.5`}>
             <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <UserCheck className="w-3.5 h-3.5 text-[#0F766E]" />
+              <UserCheck className="w-3.5 h-3.5 text-[#3454FD]" />
               <span>Barbers</span>
             </div>
             <b id="staff-barber-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1 truncate">
@@ -276,7 +284,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               onClick={() => setActiveTab('live')}
               className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                 activeTab === 'live'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  ? 'bg-white text-[#3454FD] ring-1 ring-[#D6DEFB]'
                   : 'text-[#6F7C7A] hover:text-[#17201F]'
               }`}
             >
@@ -287,7 +295,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               onClick={() => setActiveTab('history')}
               className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                 activeTab === 'history'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  ? 'bg-white text-[#3454FD] ring-1 ring-[#D6DEFB]'
                   : 'text-[#6F7C7A] hover:text-[#17201F]'
               }`}
             >
@@ -299,7 +307,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               onClick={() => setActiveTab('staff')}
               className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                 activeTab === 'staff'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  ? 'bg-white text-[#3454FD] ring-1 ring-[#D6DEFB]'
                   : 'text-[#6F7C7A] hover:text-[#17201F]'
               }`}
             >
@@ -311,7 +319,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               onClick={() => setActiveTab('offers')}
               className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                 activeTab === 'offers'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  ? 'bg-white text-[#3454FD] ring-1 ring-[#D6DEFB]'
                   : 'text-[#6F7C7A] hover:text-[#17201F]'
               }`}
             >
@@ -323,7 +331,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               onClick={() => setActiveTab('profile')}
               className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
                 activeTab === 'profile'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
+                  ? 'bg-white text-[#3454FD] ring-1 ring-[#D6DEFB]'
                   : 'text-[#6F7C7A] hover:text-[#17201F]'
               }`}
             >
@@ -367,7 +375,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 </p>
                 <button
                   onClick={() => setIsWalkinModalOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-[#3454FD] hover:bg-[#2746EA] text-white text-xs font-semibold transition cursor-pointer"
                 >
                   + Add Walk-In Customer
                 </button>
@@ -405,7 +413,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   onClick={() => setBookingTab(tab.id)}
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
                     bookingTab === tab.id
-                      ? 'bg-[#0F766E] text-white'
+                      ? 'bg-[#3454FD] text-white'
                       : 'bg-white text-[#6F7C7A] border border-[#E1E7E6] hover:text-[#17201F]'
                   }`}
                 >
@@ -421,7 +429,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={range}
                     onClick={() => setFilters((current) => ({ ...current, range }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.range === range ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                      filters.range === range ? 'bg-[#EEF1FE] text-[#3454FD]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
                     }`}
                   >
                     {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
@@ -432,7 +440,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={source}
                     onClick={() => setFilters((current) => ({ ...current, source }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.source === source ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                      filters.source === source ? 'bg-[#EEF1FE] text-[#3454FD]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
                     }`}
                   >
                     {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : 'App'}
@@ -496,7 +504,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 if (rows.length === 0) {
                   return (
                     <div className="p-8 text-center bg-white rounded-2xl border border-[#E1E7E6]">
-                      <CheckCircle className="w-8 h-8 text-[#0F766E] mx-auto mb-2 opacity-60" />
+                      <CheckCircle className="w-8 h-8 text-[#3454FD] mx-auto mb-2 opacity-60" />
                       <p className="text-xs text-[#6F7C7A]">
                         {bookingTab === 'reserved'
                           ? 'Reserved bookings are not supported yet.'
@@ -524,7 +532,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
-                              <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] font-bold uppercase bg-[#3454FD]/10 text-[#3454FD] px-1.5 py-0.5 rounded">
                                 {sourceLabel(item)}
                                 {(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                               </span>
@@ -695,7 +703,7 @@ const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onS
                 </label>
                 <div className="flex items-center justify-between gap-2">
                   <label className="flex items-center gap-2 text-[11px] font-bold text-[#17201F]">
-                    <input type="checkbox" checked={staff.active !== false} onChange={(e) => update(staff.id, { active: e.target.checked })} className="h-4 w-4 accent-[#0F766E]" />
+                    <input type="checkbox" checked={staff.active !== false} onChange={(e) => update(staff.id, { active: e.target.checked })} className="h-4 w-4 accent-[#3454FD]" />
                     Visible to customers
                   </label>
                   <button id={`manage-staff-remove-${staff.id}`} onClick={() => removeStaff(staff.id)} aria-label={`Remove ${staff.name || 'staff member'}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] text-rose-600">
@@ -771,7 +779,7 @@ const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onS
                       key={service.id}
                       type="button"
                       onClick={() => toggleSkill(staff.id, service.id)}
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#3454FD] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
                     >
                       {service.name}
                     </button>
@@ -781,7 +789,7 @@ const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onS
             )}
           </div>
         ))}
-        <button id="manage-staff-add-btn" onClick={addStaff} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
+        <button id="manage-staff-add-btn" onClick={addStaff} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#3454FD]/40 py-3 text-xs font-bold text-[#3454FD]">
           <Plus className="h-3.5 w-3.5" /> Add staff member
         </button>
       </div>
@@ -887,7 +895,7 @@ const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[];
               </label>
               <div className="flex items-center justify-between gap-2">
                 <label className="flex items-center gap-2 text-[11px] font-bold text-[#17201F]">
-                  <input type="checkbox" checked={offer.active !== false} onChange={(e) => update(offer.id, { active: e.target.checked })} className="h-4 w-4 accent-[#0F766E]" />
+                  <input type="checkbox" checked={offer.active !== false} onChange={(e) => update(offer.id, { active: e.target.checked })} className="h-4 w-4 accent-[#3454FD]" />
                   Active
                 </label>
                 <button id={`manage-offer-remove-${offer.id}`} onClick={() => removeOffer(offer.id)} aria-label={`Remove ${offer.title || 'offer'}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] text-rose-600">
@@ -918,7 +926,7 @@ const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[];
                         key={service.id}
                         type="button"
                         onClick={() => toggleEligibleService(offer.id, service.id)}
-                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#0F766E] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
+                        className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#3454FD] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
                       >
                         {service.name}
                       </button>
@@ -929,7 +937,7 @@ const ManageOffers: React.FC<{ offers: SalonOffer[]; allServices: ServiceItem[];
             )}
           </div>
         ))}
-        <button id="manage-offers-add-btn" onClick={addOffer} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#0F766E]/40 py-3 text-xs font-bold text-[#0F766E]">
+        <button id="manage-offers-add-btn" onClick={addOffer} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#3454FD]/40 py-3 text-xs font-bold text-[#3454FD]">
           <Plus className="h-3.5 w-3.5" /> Add offer
         </button>
       </div>
@@ -966,7 +974,7 @@ const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
   };
 
   if (state === 'sent') {
-    return <span className="text-[10px] font-bold text-[#0F766E]">Review requested</span>;
+    return <span className="text-[10px] font-bold text-[#3454FD]">Review requested</span>;
   }
 
   return (
@@ -975,7 +983,7 @@ const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
         type="button"
         onClick={send}
         disabled={state === 'sending'}
-        className="rounded-full border border-[#0F766E]/30 bg-[#0F766E]/5 px-2.5 py-1 text-[10px] font-bold text-[#0F766E] transition disabled:opacity-60"
+        className="rounded-full border border-[#3454FD]/30 bg-[#3454FD]/5 px-2.5 py-1 text-[10px] font-bold text-[#3454FD] transition disabled:opacity-60"
       >
         {state === 'sending' ? 'Sending…' : 'Request review'}
       </button>

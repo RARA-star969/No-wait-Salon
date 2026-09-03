@@ -366,7 +366,11 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   };
 
   return (
-    <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">
+    // A bounded, dynamic-viewport height (not h-full/min-h-screen, which
+    // resolve to the content's own height without a percentage-height
+    // ancestor chain) is what lets <main> below be the single real scroll
+    // container — see the scroll-bug note on its overflow-y-auto.
+    <div className="flex h-dvh w-full flex-col bg-[#F4F7F6]">
       {isProfileIncomplete && (
         <div className="bg-[#FFF8E6] px-4 py-2 text-center text-sm font-medium text-[#B45309] flex justify-between items-center">
           <span>Business profile incomplete</span>
@@ -376,7 +380,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
       {/* Top Header Shell */}
       <header className="flex shrink-0 items-center justify-between border-b border-[#DDE5E3] bg-white px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-white font-bold uppercase">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#3454FD] text-white font-bold uppercase">
             {session!.business.name.charAt(0)}
           </div>
           <div>
@@ -389,8 +393,11 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
         </button>
       </header>
       
-      {/* Dynamic Category Render */}
-      <main className="flex-1 overflow-y-auto">
+      {/* Dynamic Category Render — the single scroll container for the whole
+          Salon dashboard. min-h-0 overrides a flex item's default
+          min-height:auto, which otherwise stops it from shrinking below its
+          content size and silently defeats overflow-y-auto. */}
+      <main className="min-h-0 flex-1 overflow-y-auto">
           <StaffDashboard 
             salon={activeBusinessSalon}
             queue={props.queue}

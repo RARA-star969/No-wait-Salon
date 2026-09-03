@@ -198,7 +198,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
 };
 
 const CARD_TONE: Record<CardKind, string> = {
-  serving: 'border-[var(--noq-accent)]/40 bg-[#E7F5F2]/70',
+  serving: 'border-[var(--noq-accent)]/40 bg-[var(--noq-tint-10)]',
   called_active: 'border-[#A66020]/40 bg-[#FAF0E6] ring-1 ring-[#A66020]/30',
   call_expired: 'border-[#A66020]/50 bg-[#FBF3E9] ring-1 ring-[#A66020]/35',
   reserved: 'border-[var(--noq-accent)]/30 bg-white',
@@ -214,7 +214,7 @@ const BADGE_TONE: Record<CardKind, string> = {
 };
 
 const STATUS_TONE: Record<CardKind, string> = {
-  serving: 'border border-[var(--noq-accent)]/30 bg-[#E7F5F2] text-[var(--noq-accent)]',
+  serving: 'border border-[var(--noq-accent)]/30 bg-[var(--noq-tint-10)] text-[var(--noq-accent)]',
   called_active: 'border border-[#A66020]/30 bg-[#FFF6EA] text-[#A66020]',
   // Informational, not an alarm: the action row carries the urgency here.
   call_expired: 'border border-[#C9A227]/40 bg-[#FFF8E7] text-[#8A6516]',

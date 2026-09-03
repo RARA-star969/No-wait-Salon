@@ -91,7 +91,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
 
         {/* Modal Header */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-2xl bg-[#0F766E] text-white flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-[#3454FD] text-white flex items-center justify-center shrink-0">
             <UserPlus className="w-5 h-5" />
           </div>
           <div>
@@ -119,7 +119,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
             >
               Customer Name <span className="text-rose-600">*</span>
             </label>
-            <div className="flex rounded-xl border border-[#E1E7E6] bg-white focus-within:border-[#0F766E] focus-within:ring-1 focus-within:ring-[#0F766E] transition">
+            <div className="flex rounded-xl border border-[#E1E7E6] bg-white focus-within:border-[#3454FD] focus-within:ring-1 focus-within:ring-[#3454FD] transition">
               <span className="flex items-center pl-3.5 text-[#6F7C7A]">
                 <User className="w-4 h-4" />
               </span>
@@ -152,8 +152,8 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
             >
               Mobile Number (For Live SMS & Push)
             </label>
-            <div className="flex rounded-xl border border-[#E1E7E6] bg-white focus-within:border-[#0F766E] focus-within:ring-1 focus-within:ring-[#0F766E] transition overflow-hidden">
-              <span className="flex items-center px-3 text-xs font-bold text-[#0F766E] bg-[#F8FAFA] border-r border-[#E1E7E6]">
+            <div className="flex rounded-xl border border-[#E1E7E6] bg-white focus-within:border-[#3454FD] focus-within:ring-1 focus-within:ring-[#3454FD] transition overflow-hidden">
+              <span className="flex items-center px-3 text-xs font-bold text-[#3454FD] bg-[#F8FAFA] border-r border-[#E1E7E6]">
                 +91
               </span>
               <input
@@ -176,7 +176,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                 Select Service
               </label>
               {activeServiceObj && (
-                <span className="text-xs font-bold text-[#0F766E]">
+                <span className="text-xs font-bold text-[#3454FD]">
                   ₹{activeServiceObj.priceInr} · {activeServiceObj.durationMin} mins
                 </span>
               )}
@@ -193,13 +193,13 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                     onClick={() => setSelectedService(srv.name)}
                     className={`p-2.5 rounded-xl border text-left flex flex-col justify-between transition cursor-pointer ${
                       isSelected
-                        ? 'border-[#0F766E] bg-[#0F766E]/10 ring-1 ring-[#0F766E]'
-                        : 'border-[#E1E7E6] bg-white hover:border-[#0F766E]/40'
+                        ? 'border-[#3454FD] bg-[#3454FD]/10 ring-1 ring-[#3454FD]'
+                        : 'border-[#E1E7E6] bg-white hover:border-[#3454FD]/40'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-xs font-bold text-[#17201F] truncate">{srv.name}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[#0F766E] shrink-0" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-[#3454FD] shrink-0" />}
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[#6F7C7A] mt-1">
                       <span>₹{srv.priceInr}</span>
@@ -223,7 +223,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                 onClick={() => setSelectedBarberIndex(undefined)}
                 className={`p-2 rounded-xl border text-xs font-semibold text-center transition cursor-pointer ${
                   selectedBarberIndex === undefined
-                    ? 'border-[#0F766E] bg-[#0F766E] text-white'
+                    ? 'border-[#3454FD] bg-[#3454FD] text-white'
                     : 'border-[#E1E7E6] bg-white text-[#6F7C7A] hover:text-[#17201F]'
                 }`}
               >
@@ -244,11 +244,11 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                     disabled={barber.status === 'unavailable'}
                     className={`p-2 rounded-xl border text-xs font-semibold text-center transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
                       isSelected
-                        ? 'border-[#0F766E] bg-[#0F766E] text-white'
+                        ? 'border-[#3454FD] bg-[#3454FD] text-white'
                         : isBusy
                           ? 'border-[#A66020]/30 bg-[#FAF0E6] text-[#A66020]'
                           : isAvailable
-                            ? 'border-[#E1E7E6] bg-white text-[#17201F] hover:border-[#0F766E]'
+                            ? 'border-[#E1E7E6] bg-white text-[#17201F] hover:border-[#3454FD]'
                             : 'border-[#E1E7E6] bg-[#F8FAFA] text-[#6F7C7A] opacity-60 cursor-not-allowed'
                     }`}
                   >
@@ -260,7 +260,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                           : isBusy
                             ? 'text-[#A66020]'
                             : isAvailable
-                              ? 'text-[#0F766E]'
+                              ? 'text-[#3454FD]'
                               : 'text-[#6F7C7A]'
                       }`}
                     >
@@ -278,7 +278,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
               <button
                 type="submit"
                 id="walkin-submit-queue-btn"
-                className="py-3 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white font-bold text-xs transition active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="py-3 px-4 rounded-xl bg-[#3454FD] hover:bg-[#2746EA] text-white font-bold text-xs transition active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>Add to Queue</span>
@@ -289,7 +289,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                 id="walkin-start-now-btn"
                 onClick={() => handleSubmit(true)}
                 disabled={availableBarbers.length === 0}
-                className="py-3 px-4 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] disabled:bg-[#6F7C7A]/30 disabled:text-[#6F7C7A] disabled:cursor-not-allowed text-white font-bold text-xs transition active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer"
+                className="py-3 px-4 rounded-xl bg-[#3454FD] hover:bg-[#2746EA] disabled:bg-[#6F7C7A]/30 disabled:text-[#6F7C7A] disabled:cursor-not-allowed text-white font-bold text-xs transition active:scale-[0.99] flex items-center justify-center gap-1.5 cursor-pointer"
                 title={availableBarbers.length === 0 ? 'No barbers available right now' : 'Directly start service in chair'}
               >
                 <Play className="w-3.5 h-3.5" />
