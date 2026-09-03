@@ -43,7 +43,7 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, SalonAudienceSwitch, SalonAudience } from './CustomerHomeComponents';
-import { CustomerHomeCarousel, CustomerCategoryCarousel } from './CustomerHomeCarousel';
+import { CustomerHomeCarousel, CustomerCategoryCarousel, CustomerHomePromoBoxRow } from './CustomerHomeCarousel';
 import { HomeContentSections } from './HomeContentSections';
 import { resolveAIQueueInsight } from '../shared/aiQueueInsight';
 import { CustomerProfileScreen } from './CustomerProfile';
@@ -1488,6 +1488,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   />
                   <div className="mt-5">
                     <CustomerHomeCarousel />
+                  </div>
+                  {/* Two independently-rotating admin promo boxes (5s / 7s)
+                      below the main carousel — a second, calmer stack rather
+                      than a second full-width carousel, so Home doesn't feel
+                      like it's fluctuating everywhere at once. Renders
+                      nothing when neither box has admin content. */}
+                  <div className="mt-4">
+                    <CustomerHomePromoBoxRow />
                   </div>
                   {/* Why NOQ / AI Queue Insight / About NOQ — static content
                       below the admin-driven carousel. No live queue-analytics

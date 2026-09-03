@@ -767,7 +767,9 @@ function CarouselBannersList() {
   }, []);
 
   const placementLabel = (placement: string) => {
-    if (!placement || placement === 'home') return 'Home';
+    if (!placement || placement === 'home') return 'Home — Main Carousel';
+    if (placement === 'home-promo-1') return 'Home — Promo Box 1';
+    if (placement === 'home-promo-2') return 'Home — Promo Box 2';
     if (placement === 'category') return 'All Category Pages';
     return `Category: ${mainCats.find((c) => c.id === placement)?.name || placement}`;
   };
@@ -819,7 +821,7 @@ function CarouselBannersList() {
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Carousels</h1>
-          <p className="mt-1 text-slate-500">Manage the swipeable banners shown on Customer Home and on category pages. Each banner's Placement decides where it appears.</p>
+          <p className="mt-1 text-slate-500">Manage the swipeable banners shown on Customer Home's main carousel, the two Home promo boxes, and category pages. Each banner's Placement decides where it appears.</p>
         </div>
         <button
           onClick={() => {
@@ -1081,7 +1083,9 @@ function CarouselBannerModal({ banner, mainCats, onClose, onSave }: { banner: An
               onChange={(e) => setForm((f) => ({ ...f, placement: e.target.value }))}
               className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-teal-600"
             >
-              <option value="home">Home</option>
+              <option value="home">Home — Main Carousel</option>
+              <option value="home-promo-1">Home — Promo Box 1 (rotates every 5s)</option>
+              <option value="home-promo-2">Home — Promo Box 2 (rotates every 7s)</option>
               <option value="category">All Category Pages</option>
               {mainCats.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -1090,7 +1094,7 @@ function CarouselBannerModal({ banner, mainCats, onClose, onSave }: { banner: An
               ))}
             </select>
             <span className="text-xs font-normal text-slate-500">
-              Where this banner appears — Customer Home, every category page, or one specific category.
+              Where this banner appears — the Home main carousel, one of the two Home promo boxes, every category page, or one specific category.
             </span>
           </label>
 
@@ -1126,7 +1130,7 @@ function CarouselBannerModal({ banner, mainCats, onClose, onSave }: { banner: An
 
           <Field label="Display Order" type="number" value={form.order} onChange={(v) => setForm((f) => ({ ...f, order: v }))} />
 
-          <Toggle checked={Boolean(form.enabled)} onChange={(v) => setForm((f) => ({ ...f, enabled: v }))} label="Banner is enabled on Customer Home" />
+          <Toggle checked={Boolean(form.enabled)} onChange={(v) => setForm((f) => ({ ...f, enabled: v }))} label="Banner is enabled" />
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">

@@ -164,3 +164,45 @@ test('Carousel banner placement scoping', async (t) => {
     assert.ok(!titles.includes('Disabled Salon Banner'));
   });
 });
+
+test('Home promo box placements', async (t) => {
+  await t.test('home-promo-1 and home-promo-2 are accepted placements, distinct from home and each other', async () => {
+    const promo1 = await api('POST', '/api/admin/carousel-banners', {
+      type: 'image', imageUrl: 'https://example.com/promo1.jpg', enabled: true, placement: 'home-promo-1', title: 'Promo Box 1 Only',
+    }, adminToken);
+    assert.equal(promo1.status, 201);
+    assert.equal(promo1.data.banner.placement, 'home-promo-1');
+
+    const promo2 = await api('POST', '/api/admin/carousel-banners', {
+      type: 'image', imageUrl: 'https://example.com/promo2.jpg', enabled: true, placement: 'home-promo-2', title: 'Promo Box 2 Only',
+    }, adminToken);
+    assert.equal(promo2.status, 201);
+    assert.equal(promo2.data.banner.placement, 'home-promo-2');
+
+    const mainHome = await api('GET', '/api/carousel-banners');
+    const mainTitles = mainHome.data.banners.map((b: { title: string }) => b.title);
+    assert.ok(!mainTitles.includes('Promo Box 1 Only'), 'main Home carousel should not include promo-box-only banners');
+    assert.ok(!mainTitles.includes('Promo Box 2 Only'), 'main Home carousel should not include promo-box-only banners');
+
+    const box1Feed = await api('GET', '/api/carousel-banners/home-promo-1');
+    const box1Titles = box1Feed.data.banners.map((b: { title: string }) => b.title);
+    assert.ok(box1Titles.includes('Promo Box 1 Only'));
+    assert.ok(!box1Titles.includes('Promo Box 2 Only'), 'promo box 1 feed should not include promo box 2 banners');
+
+    const box2Feed = await api('GET', '/api/carousel-banners/home-promo-2');
+    const box2Titles = box2Feed.data.banners.map((b: { title: string }) => b.title);
+    assert.ok(box2Titles.includes('Promo Box 2 Only'));
+    assert.ok(!box2Titles.includes('Promo Box 1 Only'), 'promo box 2 feed should not include promo box 1 banners');
+  });
+
+  await t.test('a disabled promo-box banner never appears in its public feed', async () => {
+    const created = await api('POST', '/api/admin/carousel-banners', {
+      type: 'image', imageUrl: 'https://example.com/disabled-promo.jpg', enabled: false, placement: 'home-promo-1', title: 'Disabled Promo Box 1 Banner',
+    }, adminToken);
+    assert.equal(created.status, 201);
+
+    const box1Feed = await api('GET', '/api/carousel-banners/home-promo-1');
+    const titles = box1Feed.data.banners.map((b: { title: string }) => b.title);
+    assert.ok(!titles.includes('Disabled Promo Box 1 Banner'));
+  });
+});

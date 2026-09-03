@@ -3280,15 +3280,18 @@ function carouselBannerRowToRecord(r: Record<string, unknown>) {
   };
 }
 
-// A banner's `placement` decides where it can appear: 'home' (Customer Home,
-// the original/default), 'category' (every category page generically), or
-// one specific main_category_id (that category page only). Validated against
-// the live main_category table so a typo can never silently vanish a banner.
+// A banner's `placement` decides where it can appear: 'home' (the main
+// Customer Home carousel, the original/default), 'home-promo-1' / 'home-promo-2'
+// (the two independently-rotating promo boxes below it), 'category' (every
+// category page generically), or one specific main_category_id (that
+// category page only). Validated against the live main_category table so a
+// typo can never silently vanish a banner.
+const FIXED_PLACEMENTS = new Set(['home', 'home-promo-1', 'home-promo-2', 'category']);
 function resolvePlacement(body: Record<string, unknown>): string {
   const raw = cleanText(body.placement, 50) || 'home';
-  if (raw === 'home' || raw === 'category') return raw;
+  if (FIXED_PLACEMENTS.has(raw)) return raw;
   const category = db.prepare('SELECT id FROM main_category WHERE id = ?').get(raw);
-  if (!category) throw new Error('Select Home, All Category Pages, or a valid category for this banner.');
+  if (!category) throw new Error('Select Home, a Home promo box, All Category Pages, or a valid category for this banner.');
   return raw;
 }
 
@@ -3297,6 +3300,19 @@ function resolvePlacement(body: Record<string, unknown>): string {
 // customer bundle.
 app.get('/api/carousel-banners', (_request, response) => {
   const rows = db.prepare("SELECT * FROM carousel_banner WHERE enabled = 1 AND placement = 'home' ORDER BY display_order ASC, id ASC").all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+// Public — the two Home promo boxes below the main carousel. Same shape and
+// admin ownership as the main carousel; only the `placement` filter differs,
+// so they reuse carouselBannerRowToRecord and the reorder/CRUD endpoints below.
+app.get('/api/carousel-banners/home-promo-1', (_request, response) => {
+  const rows = db.prepare("SELECT * FROM carousel_banner WHERE enabled = 1 AND placement = 'home-promo-1' ORDER BY display_order ASC, id ASC").all() as Array<Record<string, unknown>>;
+  response.json({ banners: rows.map(carouselBannerRowToRecord) });
+});
+
+app.get('/api/carousel-banners/home-promo-2', (_request, response) => {
+  const rows = db.prepare("SELECT * FROM carousel_banner WHERE enabled = 1 AND placement = 'home-promo-2' ORDER BY display_order ASC, id ASC").all() as Array<Record<string, unknown>>;
   response.json({ banners: rows.map(carouselBannerRowToRecord) });
 });
 

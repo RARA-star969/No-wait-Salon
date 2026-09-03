@@ -162,6 +162,139 @@ const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: s
   );
 };
 
+/**
+ * The two admin-managed promo boxes below the main Home carousel. Each is
+ * its own independently-fetched, independently-rotating banner set (never
+ * mixed with the main carousel's 'home' placement or with each other), shown
+ * side by side on Home so the page reads as one calm row instead of stacked
+ * full-width carousels. Deliberately duplicates CarouselTrack's auto-advance
+ * logic (via PromoBoxTrack below) rather than adding an interval prop to the
+ * already-tested main CarouselTrack, so the existing Home/category carousel
+ * behavior stays byte-for-byte the same.
+ *
+ * Renders the row of one or two promo boxes; skips a box with no active
+ *  banners instead of leaving a hollow slot, and never renders an empty row. */
+export const CustomerHomePromoBoxRow: React.FC = () => {
+  const slides1 = useCarouselSlides('/api/carousel-banners/home-promo-1');
+  const slides2 = useCarouselSlides('/api/carousel-banners/home-promo-2');
+  if (!slides1.length && !slides2.length) return null;
+
+  const bothPresent = slides1.length > 0 && slides2.length > 0;
+
+  return (
+    <div className={bothPresent ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1'}>
+      {slides1.length > 0 && <PromoBoxTrack slides={slides1} ariaLabel="Promo" intervalMs={PROMO_BOX_1_INTERVAL_MS} />}
+      {slides2.length > 0 && <PromoBoxTrack slides={slides2} ariaLabel="Promo" intervalMs={PROMO_BOX_2_INTERVAL_MS} />}
+    </div>
+  );
+};
+
+/** Milliseconds between auto-advance steps for Promo Box 1. */
+const PROMO_BOX_1_INTERVAL_MS = 5000;
+/** Milliseconds between auto-advance steps for Promo Box 2. */
+const PROMO_BOX_2_INTERVAL_MS = 7000;
+
+/** Same behavior as CarouselTrack (auto-advance while 2+ active slides,
+ *  pauses on active video playback, respects prefers-reduced-motion, manual
+ *  swipe/dot navigation restarts the timer, cleans up on unmount) but with a
+ *  configurable interval so each promo box can rotate on its own cadence. */
+const PromoBoxTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: string; intervalMs: number }> = ({ slides, ariaLabel, intervalMs }) => {
+  const [activeIndex, setActiveIndex] = React.useState(0);
+  const [playingId, setPlayingId] = React.useState<string | null>(null);
+  const trackRef = React.useRef<HTMLDivElement>(null);
+  const autoAdvanceTimerRef = React.useRef<number | null>(null);
+
+  const prefersReducedMotion = React.useMemo(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+
+  const handleScroll = React.useCallback(() => {
+    const el = trackRef.current;
+    if (!el || slides.length === 0) return;
+    const slideWidth = el.scrollWidth / slides.length;
+    if (!slideWidth) return;
+    const index = Math.round(el.scrollLeft / slideWidth);
+    setActiveIndex(Math.min(slides.length - 1, Math.max(0, index)));
+  }, [slides.length]);
+
+  const scrollToIndex = React.useCallback((index: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const slideWidth = el.scrollWidth / Math.max(1, slides.length);
+    el.scrollTo({ left: slideWidth * index, behavior: 'smooth' });
+  }, [slides.length]);
+
+  const clearAutoAdvance = React.useCallback(() => {
+    if (autoAdvanceTimerRef.current !== null) {
+      window.clearInterval(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+  }, []);
+
+  const restartAutoAdvance = React.useCallback(() => {
+    clearAutoAdvance();
+    if (slides.length < 2 || playingId || prefersReducedMotion) return;
+    autoAdvanceTimerRef.current = window.setInterval(() => {
+      setActiveIndex((current) => {
+        const next = (current + 1) % slides.length;
+        scrollToIndex(next);
+        return next;
+      });
+    }, intervalMs);
+  }, [clearAutoAdvance, slides.length, playingId, prefersReducedMotion, scrollToIndex, intervalMs]);
+
+  React.useEffect(() => {
+    restartAutoAdvance();
+    return clearAutoAdvance;
+  }, [restartAutoAdvance, clearAutoAdvance]);
+
+  const handleManualNavigate = React.useCallback((index: number) => {
+    scrollToIndex(index);
+    restartAutoAdvance();
+  }, [scrollToIndex, restartAutoAdvance]);
+
+  if (!slides.length) return null;
+
+  return (
+    <section aria-label={ariaLabel} className="noq-home-promo-box">
+      <div
+        ref={trackRef}
+        onScroll={handleScroll}
+        onPointerDown={restartAutoAdvance}
+        className="noq-home-carousel-track flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {slides.map((slide) => (
+          <CarouselSlide
+            key={slide.id}
+            slide={slide}
+            isPlaying={playingId === slide.id}
+            onPlay={() => setPlayingId(slide.id)}
+          />
+        ))}
+      </div>
+      {slides.length > 1 && (
+        <div className="mt-2 flex items-center justify-center gap-1.5" role="tablist" aria-label={`${ariaLabel} banners`}>
+          {slides.map((slide, index) => (
+            <button
+              key={slide.id}
+              type="button"
+              role="tab"
+              aria-selected={index === activeIndex}
+              aria-label={`Show banner ${index + 1} of ${slides.length}`}
+              onClick={() => handleManualNavigate(index)}
+              className={`noq-carousel-dot h-1.5 rounded-full transition-all duration-300 ${
+                index === activeIndex ? 'w-5 bg-[var(--noq-accent)]' : 'w-1.5 bg-[color-mix(in_srgb,var(--noq-ink)_18%,transparent)]'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+};
+
 const CarouselSlide: React.FC<{
   slide: CarouselSlideRenderProps;
   isPlaying: boolean;
