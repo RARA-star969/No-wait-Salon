@@ -132,12 +132,16 @@ test('Men/Women switch is compact and right-aligned, not a full-width card', () 
 });
 
 test('AI hairstyle card is an honest entry point — tappable, and opens a "coming soon" surface rather than a fake generated result', () => {
-  assert.match(homeComponentsSource, /export const SalonHairstyleAICard: React\.FC<\{ onClick: \(\) => void \}>/);
-  assert.match(homeComponentsSource, /Try hairstyle with AI/);
-  assert.match(homeComponentsSource, /Preview styles before you visit/);
+  // The card's creative (image + copy) is admin-managed — see
+  // shared/salonAiHairstylePromo.ts — rather than hardcoded in the
+  // component, so the checked-in default copy lives in the fallback there.
+  assert.match(homeComponentsSource, /export const SalonHairstyleAICard: React\.FC<\{[\s\S]*?promo: SalonAiHairstylePromoRenderProps;/);
+  const salonAiHairstylePromoSource = readFileSync(path.join(here, '..', 'shared', 'salonAiHairstylePromo.ts'), 'utf8');
+  assert.match(salonAiHairstylePromoSource, /Try hairstyle with AI/);
+  assert.match(salonAiHairstylePromoSource, /Preview styles before you visit/);
 
   const header = categoryHeaderBlock();
-  assert.match(header, /activeCategoryId === 'salon' &&\s*\(\s*<SalonHairstyleAICard onClick=\{\(\) => setIsHairstyleAIOpen\(true\)\}/);
+  assert.match(header, /activeCategoryId === 'salon' && salonAiHairstylePromo\.visible &&\s*\(\s*<div className="mt-5">\s*<SalonHairstyleAICard onClick=\{\(\) => setIsHairstyleAIOpen\(true\)\}/);
 
   const comingSoonBlock = appSource.slice(
     appSource.indexOf('id="salon-hairstyle-ai-coming-soon"'),

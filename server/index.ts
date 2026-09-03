@@ -210,7 +210,28 @@ db.exec(`
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS salon_ai_promo (
+    id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    title TEXT NOT NULL DEFAULT '',
+    subtitle TEXT NOT NULL DEFAULT '',
+    image_url TEXT NOT NULL DEFAULT '',
+    cta_label TEXT NOT NULL DEFAULT '',
+    cta_link TEXT NOT NULL DEFAULT '',
+    updated_at INTEGER NOT NULL
+  );
 `);
+
+// Seed the Salon "Try hairstyle with AI" promo with the approved default
+// creative the first time this database is created. Admin edits afterward
+// (image replace, copy, enable/disable) always win — this never overwrites
+// an existing row.
+db.prepare(`
+  INSERT INTO salon_ai_promo (id, enabled, title, subtitle, image_url, cta_label, cta_link, updated_at)
+  VALUES ('salon-ai-hairstyle-promo', 1, 'Try hairstyle with AI', 'Preview styles before you visit', '/static-defaults/ai-hairstyle-promo-default.svg', '', '', 0)
+  ON CONFLICT(id) DO NOTHING
+`).run();
 
 // Safely add any missing columns to carousel_banner for existing databases —
 // `placement` scopes a banner to 'home', 'category' (every category page), or
@@ -941,6 +962,10 @@ app.use((_request, response, next) => {
 });
 app.use(express.json({ limit: '3mb' }));
 app.use('/salon-media', express.static(salonMediaDir, { immutable: true, maxAge: '7d' }));
+// Checked-in default creatives (e.g. the AI hairstyle promo's initial image)
+// that ship with the app, as distinct from admin-uploaded files in
+// salonMediaDir — served the same way so both resolve through plain URLs.
+app.use('/static-defaults', express.static(path.join(projectRoot, 'server/assets'), { immutable: true, maxAge: '7d' }));
 app.use((request,response,next)=>{
   if(!['GET','HEAD','OPTIONS'].includes(request.method))response.on('finish',()=>postgresPersistence?.scheduleFlush());
   next();
@@ -3280,6 +3305,20 @@ function carouselBannerRowToRecord(r: Record<string, unknown>) {
   };
 }
 
+const SALON_AI_PROMO_ID = 'salon-ai-hairstyle-promo';
+
+function salonAiPromoRowToRecord(r: Record<string, unknown>) {
+  return {
+    enabled: Boolean(r.enabled),
+    title: String(r.title || ''),
+    subtitle: String(r.subtitle || ''),
+    imageUrl: String(r.image_url || ''),
+    ctaLabel: String(r.cta_label || ''),
+    ctaLink: String(r.cta_link || ''),
+    updatedAt: Number(r.updated_at || 0),
+  };
+}
+
 // A banner's `placement` decides where it can appear: 'home' (the main
 // Customer Home carousel, the original/default), 'home-promo-1' / 'home-promo-2'
 // (the two independently-rotating promo boxes below it), 'category' (every
@@ -3426,6 +3465,59 @@ app.delete('/api/admin/carousel-banners/:id', requireAdmin, async (request, resp
   if (!res.changes) return response.status(404).json({ error: 'Banner not found.' });
   await postgresPersistence?.flushNow(['carousel_banner']);
   response.json({ ok: true });
+});
+
+// Public — the Salon category page's "Try hairstyle with AI" promo. A
+// singleton row admin can update (image, copy, enabled) without an app
+// rebuild; if the row is somehow missing, fall back to the checked-in
+// default creative rather than breaking the Salon page.
+app.get('/api/salon/ai-hairstyle-promo', (_request, response) => {
+  const row = db.prepare('SELECT * FROM salon_ai_promo WHERE id = ?').get(SALON_AI_PROMO_ID) as Record<string, unknown> | undefined;
+  if (!row) {
+    return response.json({ promo: {
+      enabled: true,
+      title: 'Try hairstyle with AI',
+      subtitle: 'Preview styles before you visit',
+      imageUrl: '/static-defaults/ai-hairstyle-promo-default.svg',
+      ctaLabel: '',
+      ctaLink: '',
+      updatedAt: 0,
+    } });
+  }
+  response.json({ promo: salonAiPromoRowToRecord(row) });
+});
+
+app.get('/api/admin/salon-ai-hairstyle-promo', requireAdmin, (_request, response) => {
+  const row = db.prepare('SELECT * FROM salon_ai_promo WHERE id = ?').get(SALON_AI_PROMO_ID) as Record<string, unknown> | undefined;
+  if (!row) return response.status(404).json({ error: 'AI hairstyle promo config not found.' });
+  response.json({ promo: salonAiPromoRowToRecord(row) });
+});
+
+app.put('/api/admin/salon-ai-hairstyle-promo', requireAdmin, async (request, response) => {
+  try {
+    const body = request.body as Record<string, unknown>;
+    const enabled = asBoolean(body.enabled ?? true) ? 1 : 0;
+    const title = cleanText(body.title, 200);
+    const subtitle = cleanText(body.subtitle, 300);
+    const imageUrl = cleanText(body.imageUrl, 2000);
+    const ctaLabel = cleanText(body.ctaLabel, 60);
+    const ctaLink = cleanText(body.ctaLink, 2000);
+    if (enabled && !imageUrl) throw new Error('An image is required while the promo is enabled.');
+    const now = Date.now();
+
+    db.prepare(`
+      INSERT INTO salon_ai_promo (id, enabled, title, subtitle, image_url, cta_label, cta_link, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (id) DO UPDATE SET enabled=excluded.enabled, title=excluded.title, subtitle=excluded.subtitle,
+        image_url=excluded.image_url, cta_label=excluded.cta_label, cta_link=excluded.cta_link, updated_at=excluded.updated_at
+    `).run(SALON_AI_PROMO_ID, enabled, title, subtitle, imageUrl, ctaLabel, ctaLink, now);
+
+    await postgresPersistence?.flushNow(['salon_ai_promo']);
+    const row = db.prepare('SELECT * FROM salon_ai_promo WHERE id = ?').get(SALON_AI_PROMO_ID) as Record<string, unknown>;
+    response.json({ ok: true, promo: salonAiPromoRowToRecord(row) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to update AI hairstyle promo.' });
+  }
 });
 
 app.get('/api/business-qr-public/:businessId', (request, response) => {

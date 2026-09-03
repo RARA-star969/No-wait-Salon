@@ -43,6 +43,7 @@ import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
 import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, SalonAudienceSwitch, SalonAudience, SalonHairstyleAICard } from './CustomerHomeComponents';
+import { useSalonAiHairstylePromo } from './useSalonAiHairstylePromo';
 import { CustomerHomeCarousel, CustomerCategoryCarousel, CustomerHomePromoBoxRow } from './CustomerHomeCarousel';
 import { HomeContentSections } from './HomeContentSections';
 import { resolveAIQueueInsight } from '../shared/aiQueueInsight';
@@ -274,6 +275,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // customer has actually typed something, resumed the moment it's cleared.
   const [salonSearchPlaceholderIndex, setSalonSearchPlaceholderIndex] = useState(0);
   const [isHairstyleAIOpen, setIsHairstyleAIOpen] = useState(false);
+  const salonAiHairstylePromo = useSalonAiHairstylePromo();
 
   useEffect(() => {
     if (activeCategoryId !== 'salon' || salonSearch) return undefined;
@@ -1578,7 +1580,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               )}
             </section>
           ) : (
-            <div id="category-listing-header" className="category-content-transition -mt-2.5 space-y-3 pt-[max(.8rem,env(safe-area-inset-top))]">
+            <div id="category-listing-header" className="category-content-transition -mt-2.5 pt-[max(.8rem,env(safe-area-inset-top))]">
               {/* 1) Back + category title/subtitle */}
               <div className="flex items-start gap-3">
                 <button
@@ -1591,14 +1593,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </button>
                 <div className="min-w-0">
                   <h2 className="truncate text-[22px] font-bold tracking-[-0.02em] text-[#0D1676]">{activeCategoryObj.name}</h2>
-                  <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--noq-muted)]">
+                  <p className="mt-[7px] truncate text-[12px] font-medium text-[var(--noq-muted)]">
                     {activeCategoryId === 'salon' ? 'Find the right place for your style' : (activeCategoryObj.description || `Explore ${activeCategoryObj.name} near you`)}
                   </p>
                 </div>
               </div>
 
               {/* 2) Category search row + filter */}
-              <div className="relative flex items-center gap-2">
+              <div className="relative mt-6 flex items-center gap-2">
                 <div className="customer-search-glass noq-search-capsule flex h-[44px] w-full min-w-0 flex-1 items-center rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
                   <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
                   <div className="noq-search-input-wrap relative min-w-0 flex-1">
@@ -1683,18 +1685,24 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               {/* 3) Admin-controlled category carousel — reusable across every
                   category; scoped server-side to this categoryId + any
                   'category'-wide banners. */}
-              <CustomerCategoryCarousel categoryId={activeCategoryId} />
+              <div className="mt-6">
+                <CustomerCategoryCarousel categoryId={activeCategoryId} />
+              </div>
 
               {/* 4) Category-specific controls — Salon only: compact,
                   right-aligned Men/Women discovery switch. */}
               {activeCategoryId === 'salon' && (
-                <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
+                <div className="mt-[22px]">
+                  <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
+                </div>
               )}
 
               {/* 5) Try hairstyle with AI — Salon-only entry point, honest
                   "coming soon" until a real generative workflow exists. */}
-              {activeCategoryId === 'salon' && (
-                <SalonHairstyleAICard onClick={() => setIsHairstyleAIOpen(true)} />
+              {activeCategoryId === 'salon' && salonAiHairstylePromo.visible && (
+                <div className="mt-5">
+                  <SalonHairstyleAICard onClick={() => setIsHairstyleAIOpen(true)} promo={salonAiHairstylePromo} />
+                </div>
               )}
             </div>
           )}
@@ -1787,7 +1795,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             </div>
           )}
 
-          {categoryListingId && <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition">
+          {categoryListingId && <div ref={listingsSectionRef} key={`businesses-${activeCategoryId}`} className="category-content-transition mt-6">
             <div className="mb-2.5 flex items-center justify-between gap-4 px-0.5">
               <h2 className="truncate text-[15px] font-black tracking-[-0.02em] text-[var(--noq-ink)]">
                 {homeSectionHeading[activeCategoryId.toLowerCase()] || `${activeCategoryObj.name} businesses near you`}

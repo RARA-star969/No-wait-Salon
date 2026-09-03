@@ -77,8 +77,10 @@ test('category page top section renders search+filter above the admin carousel, 
   assert.ok(searchIndex < carouselIndex, 'search row must render above the carousel');
   assert.ok(carouselIndex < switchIndex, 'carousel must render above the Salon Men/Women switch');
   assert.ok(switchIndex < aiCardIndex, 'Salon Men/Women switch must render above the AI hairstyle card');
-  assert.match(categoryHeader, /activeCategoryId === 'salon' &&\s*\(\s*<SalonAudienceSwitch/);
-  assert.match(categoryHeader, /activeCategoryId === 'salon' &&\s*\(\s*<SalonHairstyleAICard/);
+  // Each is wrapped in its own spacer div for the page's breathable vertical
+  // rhythm, but the conditional gate is still the same salon-only check.
+  assert.match(categoryHeader, /activeCategoryId === 'salon' &&\s*\(\s*<div className="mt-\[22px\]">\s*<SalonAudienceSwitch/);
+  assert.match(categoryHeader, /activeCategoryId === 'salon' && salonAiHairstylePromo\.visible &&\s*\(\s*<div className="mt-5">\s*<SalonHairstyleAICard/);
 });
 
 test('category-specific search filters only businesses inside the open category', () => {

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F5F7FF" />
+      <stop offset="1" stop-color="#FFFFFF" />
+    </linearGradient>
+    <linearGradient id="badge" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3454FD" />
+      <stop offset="1" stop-color="#1F35B8" />
+    </linearGradient>
+    <linearGradient id="face1" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C7D2FE" />
+      <stop offset="1" stop-color="#A5B4FC" />
+    </linearGradient>
+    <linearGradient id="face2" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93C5FD" />
+      <stop offset="1" stop-color="#60A5FA" />
+    </linearGradient>
+    <linearGradient id="face3" x1="0" y1="0" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7DD3FC" />
+      <stop offset="1" stop-color="#38BDF8" />
+    </linearGradient>
+  </defs>
+
+  <rect x="4" y="4" width="1192" height="292" rx="36" fill="url(#bg)" stroke="#E4E9FF" stroke-width="2" />
+
+  <!-- Left icon tile -->
+  <rect x="48" y="70" width="160" height="160" rx="32" fill="#FFFFFF" />
+  <path d="M128 108c-24 0-42 18-42 42 0 14 6 24 6 24s-4 22 6 34c8 10 20 14 30 14s22-4 30-14c10-12 6-34 6-34s6-10 6-24c0-24-18-42-42-42Z" fill="none" stroke="#1E2A6E" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M92 132c6-20 20-32 36-32 18 0 30 10 34 24" fill="none" stroke="#1E2A6E" stroke-width="5" stroke-linecap="round" />
+  <circle cx="152" cy="60" r="6" fill="#3454FD" />
+  <circle cx="176" cy="82" r="4" fill="#3454FD" />
+  <circle cx="184" cy="58" r="3" fill="#3454FD" />
+
+  <g transform="translate(150,168)">
+    <rect x="0" y="0" width="58" height="58" rx="18" fill="url(#badge)" />
+    <text x="29" y="38" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="800" fill="#FFFFFF">AI</text>
+  </g>
+
+  <!-- Text block -->
+  <text x="248" y="128" font-family="Arial, Helvetica, sans-serif" font-size="46" font-weight="800" fill="#0D1676">Try hairstyle with AI</text>
+  <path d="M700 96c3 9 3 9 12 12-9 3-9 3-12 12-3-9-3-9-12-12 9-3 9-3 12-12Z" fill="#3454FD" />
+  <path d="M726 108c2 6 2 6 8 8-6 2-6 2-8 8-2-6-2-6-8-8 6-2 6-2 8-8Z" fill="#3454FD" />
+  <text x="248" y="176" font-family="Arial, Helvetica, sans-serif" font-size="28" fill="#5B6472">Preview styles before you visit</text>
+
+  <!-- Preview face circles (illustrative placeholders) -->
+  <g>
+    <circle cx="900" cy="150" r="66" fill="url(#face1)" stroke="#FFFFFF" stroke-width="6" />
+    <circle cx="982" cy="150" r="66" fill="url(#face2)" stroke="#FFFFFF" stroke-width="6" />
+    <circle cx="1064" cy="150" r="66" fill="url(#face3)" stroke="#FFFFFF" stroke-width="6" />
+    <g fill="#FFFFFF" fill-opacity="0.85">
+      <circle cx="900" cy="130" r="20" />
+      <path d="M866 182c0-22 15-34 34-34s34 12 34 34" />
+      <circle cx="982" cy="130" r="20" />
+      <path d="M948 182c0-22 15-34 34-34s34 12 34 34" />
+      <circle cx="1064" cy="130" r="20" />
+      <path d="M1030 182c0-22 15-34 34-34s34 12 34 34" />
+    </g>
+  </g>
+
+  <!-- Arrow CTA -->
+  <circle cx="1148" cy="150" r="30" fill="#FFFFFF" stroke="#E4E9FF" stroke-width="2" />
+  <path d="M1142 136l16 14-16 14" fill="none" stroke="#3454FD" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

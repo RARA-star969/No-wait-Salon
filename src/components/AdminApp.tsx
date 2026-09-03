@@ -36,6 +36,7 @@ import {
   Youtube,
   Image as ImageIcon,
   MonitorPlay,
+  Sparkles,
 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -257,13 +258,14 @@ export function AdminApp() {
 }
 
 function AdminShell({ onLogout }: { onLogout: () => void }) {
-  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers' | 'reviews' | 'carousel'>('dashboard');
+  const [page, setPage] = useState<'dashboard' | 'categories' | 'salons' | 'customers' | 'reviews' | 'carousel' | 'ai-promo'>('dashboard');
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
   const nav = [
     ['dashboard', 'Overview', LayoutDashboard],
     ['categories', 'Main Categories', Layers],
     ['carousel', 'Home Carousel', MonitorPlay],
+    ['ai-promo', 'Salon AI Promo', Sparkles],
     ['salons', 'Salons & Businesses', Building2],
     ['customers', 'Customers', Users],
     ['reviews', 'Reviews', Star],
@@ -326,11 +328,13 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
                     ? 'Main Categories'
                     : page === 'carousel'
                       ? 'Home Carousel'
-                      : page === 'salons'
-                        ? 'Business management'
-                        : page === 'reviews'
-                          ? 'Reviews'
-                          : 'Customers'}
+                      : page === 'ai-promo'
+                        ? 'Salon AI Hairstyle Promo'
+                        : page === 'salons'
+                          ? 'Business management'
+                          : page === 'reviews'
+                            ? 'Reviews'
+                            : 'Customers'}
             </p>
             <p className="hidden text-xs text-slate-500 sm:block">
               Manage platform categories & business content without rebuilding customer apps.
@@ -349,6 +353,8 @@ function AdminShell({ onLogout }: { onLogout: () => void }) {
             <CategoriesList />
           ) : page === 'carousel' ? (
             <CarouselBannersList />
+          ) : page === 'ai-promo' ? (
+            <SalonAiHairstylePromoEditor />
           ) : page === 'salons' ? (
             <SalonList onEdit={setEditing} />
           ) : page === 'reviews' ? (
@@ -733,6 +739,138 @@ function CategoryModal({ cat, onClose, onSave }: { cat: AnyRow; onClose: () => v
         </div>
       </form>
     </div>
+  );
+}
+
+function SalonAiHairstylePromoEditor() {
+  const [form, setForm] = useState({
+    enabled: true,
+    title: '',
+    subtitle: '',
+    imageUrl: '',
+    ctaLabel: '',
+    ctaLink: '',
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api('/api/admin/salon-ai-hairstyle-promo');
+      const p = res.promo || {};
+      setForm({
+        enabled: p.enabled ?? true,
+        title: p.title || '',
+        subtitle: p.subtitle || '',
+        imageUrl: p.imageUrl || '',
+        ctaLabel: p.ctaLabel || '',
+        ctaLink: p.ctaLink || '',
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load the AI hairstyle promo.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const upload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) return alert('Image must be 2 MB or smaller.');
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const b = await api('/api/admin/media/upload', { method: 'POST', body: JSON.stringify({ dataUrl: reader.result }) });
+        setForm((f) => ({ ...f, imageUrl: b.url }));
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Upload failed.');
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const res = await api('/api/admin/salon-ai-hairstyle-promo', { method: 'PUT', body: JSON.stringify(form) });
+      const p = res.promo || {};
+      setForm({
+        enabled: p.enabled ?? true,
+        title: p.title || '',
+        subtitle: p.subtitle || '',
+        imageUrl: p.imageUrl || '',
+        ctaLabel: p.ctaLabel || '',
+        ctaLink: p.ctaLink || '',
+      });
+      setToast('Saved — the Customer app now shows this creative, no rebuild required.');
+      setTimeout(() => setToast(''), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Save failed.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
+
+  return (
+    <form onSubmit={save} className="max-w-2xl space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">Salon &ldquo;Try hairstyle with AI&rdquo; promo</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Controls the banner shown on the Salon category page, between the Men/Women switch and the listings.
+          Replacing the image here updates every installed Customer app immediately — no Play Store/App Store/APK
+          update needed. Tapping the banner always opens the existing honest &ldquo;coming soon&rdquo; flow.
+        </p>
+      </div>
+
+      {toast && <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{toast}</p>}
+      {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+
+      <Toggle checked={Boolean(form.enabled)} onChange={(v) => setForm((f) => ({ ...f, enabled: v }))} label="Promo is enabled" />
+
+      <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+        <span>Banner image <b className="text-red-500">*</b></span>
+        <div className="flex items-center gap-3">
+          <div className="h-16 w-40 shrink-0 overflow-hidden rounded-lg border bg-slate-50">
+            {form.imageUrl && <img src={form.imageUrl} alt="" className="h-full w-full object-cover" />}
+          </div>
+          <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-teal-300 py-3 text-xs font-semibold text-teal-700">
+            <ImagePlus size={16} />
+            {uploading ? 'Uploading…' : 'Upload / replace image'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" hidden disabled={uploading} onChange={(e) => e.target.files?.[0] && void upload(e.target.files[0])} />
+          </label>
+        </div>
+      </label>
+      <Field label="or paste an image URL" value={form.imageUrl} onChange={(v) => setForm((f) => ({ ...f, imageUrl: v }))} placeholder="https://…" />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Title (optional)" value={form.title} onChange={(v) => setForm((f) => ({ ...f, title: v }))} placeholder="Try hairstyle with AI" />
+        <Field label="Subtitle (optional)" value={form.subtitle} onChange={(v) => setForm((f) => ({ ...f, subtitle: v }))} placeholder="Preview styles before you visit" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="CTA label (optional)" value={form.ctaLabel} onChange={(v) => setForm((f) => ({ ...f, ctaLabel: v }))} />
+        <Field label="CTA link/action (optional)" value={form.ctaLink} onChange={(v) => setForm((f) => ({ ...f, ctaLink: v }))} />
+      </div>
+
+      <div className="flex justify-end gap-2 border-t pt-4">
+        <button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save promo'}
+        </button>
+      </div>
+    </form>
   );
 }
 

@@ -354,6 +354,31 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS carousel_banner_placement_idx ON carousel_banner(placement, enabled, display_order);
     ALTER TABLE salon ADD COLUMN IF NOT EXISTS audience TEXT NOT NULL DEFAULT 'unisex';
   `
+}, {
+  version: 20,
+  name: 'salon_ai_hairstyle_promo',
+  sql: `
+    CREATE TABLE IF NOT EXISTS salon_ai_promo (
+      id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      title TEXT NOT NULL DEFAULT '',
+      subtitle TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '',
+      cta_label TEXT NOT NULL DEFAULT '',
+      cta_link TEXT NOT NULL DEFAULT '',
+      updated_at BIGINT NOT NULL
+    );
+    INSERT INTO salon_ai_promo (id, enabled, title, subtitle, image_url, cta_label, cta_link, updated_at)
+    VALUES (
+      'salon-ai-hairstyle-promo', 1,
+      'Try hairstyle with AI',
+      'Preview styles before you visit',
+      '/static-defaults/ai-hairstyle-promo-default.svg',
+      '', '',
+      0
+    )
+    ON CONFLICT (id) DO NOTHING;
+  `
 }];
 
 export async function runMigrations(db:Database){

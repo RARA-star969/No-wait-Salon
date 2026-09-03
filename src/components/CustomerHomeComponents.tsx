@@ -5,6 +5,7 @@ import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
 import { NOQ_BRAND, NOQ_BRAND_CSS_VARS } from '../shared/noqBrand';
 import { resolveSalonAudienceLabel } from '../shared/salonAudienceLabel';
+import type { SalonAiHairstylePromoRenderProps } from '../shared/salonAiHairstylePromo';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -408,40 +409,35 @@ export const SalonAudienceSwitch: React.FC<{
  * category page between the Men/Women switch and the listings. Tappable
  * only — it opens an honest "coming soon" surface rather than fabricating a
  * generative-AI backend that doesn't exist yet.
+ *
+ * The banner creative itself (image, title, subtitle) is admin-managed —
+ * see `useSalonAiHairstylePromo` — so it can be replaced after the app is
+ * published with no rebuild. `promo.visible` is false whenever the admin
+ * has disabled it or no image is configured, in which case this renders
+ * nothing rather than a broken card.
  */
-export const SalonHairstyleAICard: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    id="salon-hairstyle-ai-card"
-    className="customer-search-glass flex w-full items-center gap-3 rounded-[20px] border border-white/10 p-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition active:scale-[0.99]"
-  >
-    <span
-      className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
-      style={{ background: 'linear-gradient(145deg, var(--noq-accent), var(--noq-accent-deep))' }}
+export const SalonHairstyleAICard: React.FC<{
+  onClick: () => void;
+  promo: SalonAiHairstylePromoRenderProps;
+}> = ({ onClick, promo }) => {
+  if (!promo.visible) return null;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      id="salon-hairstyle-ai-card"
+      aria-label={`${promo.title} — ${promo.subtitle}`}
+      className="block w-full overflow-hidden rounded-[20px] border border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition active:scale-[0.99]"
     >
-      <UserRound className="h-6 w-6" />
-      <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-white text-[8px] font-black text-[var(--noq-accent)] ring-2 ring-white shadow">
-        AI
-      </span>
-    </span>
-    <span className="min-w-0 flex-1">
-      <span className="flex items-center gap-1.5 text-[13px] font-bold text-[var(--noq-ink)]">
-        Try hairstyle with AI
-        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--noq-accent)' }} />
-      </span>
-      <span className="mt-0.5 block truncate text-[11px] font-medium text-[var(--noq-muted)]">Preview styles before you visit</span>
-    </span>
-    <span className="flex shrink-0 -space-x-2" aria-hidden="true">
-      {[0, 1, 2].map((i) => (
-        <span key={i} className="grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-[var(--noq-tint-10)] text-[var(--noq-accent)]">
-          <UserRound className="h-4 w-4" />
-        </span>
-      ))}
-    </span>
-    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--noq-muted)]" />
-  </button>
-);
+      <img
+        src={promo.imageUrl}
+        alt={`${promo.title} — ${promo.subtitle}`}
+        className="block aspect-[4/1] w-full object-cover"
+        loading="lazy"
+      />
+    </button>
+  );
+};
 
 const HERO_COPY: Record<string, { headline: string; subheadline: string }> = {
   salon: { headline: 'Better grooming, less waiting.', subheadline: 'Discover trusted salons and reserve your chair before leaving home.' },
