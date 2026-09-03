@@ -216,13 +216,16 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
           <form onSubmit={handleResolveBusiness} className="space-y-4">
             <div>
               <label className="text-xs font-bold text-[#5C6E6B]">Business ID</label>
-              <input 
-                type="text" 
-                value={businessCode} 
-                onChange={e => setBusinessCode(e.target.value.toUpperCase())}
+              <input
+                type="text"
+                value={businessCode}
+                onChange={e => setBusinessCode(e.target.value)}
                 placeholder="e.g. IRONHOUSE01"
-                className="mt-1 w-full rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-4 py-2.5 text-sm text-[#17201F] uppercase"
-                required 
+                className="mt-1 w-full rounded-xl border border-[#DDE5E3] bg-[#F8FAFA] px-4 py-2.5 text-sm text-[#17201F]"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                required
               />
             </div>
             <button type="submit" disabled={resolvingCode} className="w-full rounded-xl bg-[#0F766E] py-3 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-50">
