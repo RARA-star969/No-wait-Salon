@@ -56,10 +56,20 @@ export const CustomerCategoryCarousel: React.FC<{ categoryId: string }> = ({ cat
   return <CarouselTrack slides={slides} ariaLabel={`Featured on ${categoryId}`} />;
 };
 
+/** Milliseconds between auto-advance steps once 2+ banners are active. */
+const AUTO_ADVANCE_INTERVAL_MS = 3000;
+
 const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: string }> = ({ slides, ariaLabel }) => {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const [playingId, setPlayingId] = React.useState<string | null>(null);
   const trackRef = React.useRef<HTMLDivElement>(null);
+  const autoAdvanceTimerRef = React.useRef<number | null>(null);
+
+  const prefersReducedMotion = React.useMemo(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
 
   const handleScroll = React.useCallback(() => {
     const el = trackRef.current;
@@ -77,6 +87,41 @@ const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: s
     el.scrollTo({ left: slideWidth * index, behavior: 'smooth' });
   }, [slides.length]);
 
+  const clearAutoAdvance = React.useCallback(() => {
+    if (autoAdvanceTimerRef.current !== null) {
+      window.clearInterval(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+  }, []);
+
+  // Auto-advance only ever runs with 2+ active banners, pauses the instant a
+  // YouTube slide starts playing (never fights active video playback), and
+  // is skipped entirely under prefers-reduced-motion. Restarting (rather
+  // than merely clearing) whenever slides/playback state change means a
+  // manual swipe or dot tap — both of which call this via scrollToIndex —
+  // gets a fresh 3s window instead of firing on stale timing.
+  const restartAutoAdvance = React.useCallback(() => {
+    clearAutoAdvance();
+    if (slides.length < 2 || playingId || prefersReducedMotion) return;
+    autoAdvanceTimerRef.current = window.setInterval(() => {
+      setActiveIndex((current) => {
+        const next = (current + 1) % slides.length;
+        scrollToIndex(next);
+        return next;
+      });
+    }, AUTO_ADVANCE_INTERVAL_MS);
+  }, [clearAutoAdvance, slides.length, playingId, prefersReducedMotion, scrollToIndex]);
+
+  React.useEffect(() => {
+    restartAutoAdvance();
+    return clearAutoAdvance;
+  }, [restartAutoAdvance, clearAutoAdvance]);
+
+  const handleManualNavigate = React.useCallback((index: number) => {
+    scrollToIndex(index);
+    restartAutoAdvance();
+  }, [scrollToIndex, restartAutoAdvance]);
+
   if (!slides.length) return null;
 
   return (
@@ -84,6 +129,7 @@ const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: s
       <div
         ref={trackRef}
         onScroll={handleScroll}
+        onPointerDown={restartAutoAdvance}
         className="noq-home-carousel-track flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {slides.map((slide) => (
@@ -104,7 +150,7 @@ const CarouselTrack: React.FC<{ slides: CarouselSlideRenderProps[]; ariaLabel: s
               role="tab"
               aria-selected={index === activeIndex}
               aria-label={`Show banner ${index + 1} of ${slides.length}`}
-              onClick={() => scrollToIndex(index)}
+              onClick={() => handleManualNavigate(index)}
               className={`noq-carousel-dot h-1.5 rounded-full transition-all duration-300 ${
                 index === activeIndex ? 'w-5 bg-[var(--noq-accent)]' : 'w-1.5 bg-[color-mix(in_srgb,var(--noq-ink)_18%,transparent)]'
               }`}
@@ -140,7 +186,18 @@ const CarouselSlide: React.FC<{
           ) : (
             <div className="absolute inset-0 bg-[linear-gradient(145deg,#eef1ff,#dfe6ff)]" />
           )}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
+          {/* Netflix-style readability overlay: a contextual dark gradient
+              that is strongest right behind the title/subtitle and fades to
+              fully transparent toward the top, so bright/colorful thumbnails
+              stay visible instead of sitting under a flat black blanket.
+              Only painted when there is actual text to protect. */}
+          {(slide.title || slide.subtitle) && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{ backgroundImage: 'linear-gradient(180deg, rgba(0,0,0,0) 38%, rgba(0,0,0,0.32) 66%, rgba(0,0,0,0.82) 100%)' }}
+            />
+          )}
           {isYoutube && (
             <button
               type="button"

@@ -35,7 +35,7 @@ import { AddressManagementModal } from './AddressManagementModal';
 import { LocationSelectScreen } from './LocationSelectScreen';
 import { AddAddressScreen } from './AddAddressScreen';
 import { RequestAddressScreen } from './RequestAddressScreen';
-import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon, categoryCssVars, resolveCategoryTheme, CustomerCategoryGrid, customerHomeAccent } from './CustomerHomeComponents';
+import { CATEGORY_THEME_MAP, PremiumBusinessCard, getCategoryIcon, categoryCssVars, resolveCategoryTheme, CustomerCategoryGrid, customerHomeAccent, HomeProfileAvatar, CategoryFilterButton } from './CustomerHomeComponents';
 import { AVAILABLE_TIME_SLOTS } from '../data/mockData';
 import { CallSalonModal } from './CallSalonModal';
 import { LandingScreen } from './LandingScreen';
@@ -90,6 +90,7 @@ import type { CustomerNotification, NotificationFilter, NotificationRoute } from
 import type { BookingRoute, CustomerBookingView } from '../shared/customerBookingViews';
 import { customerLocalGreeting } from '../shared/customerHomePersonalization';
 import { homeCategoryPreference, normalizeHomeCategoryPreference } from '../services/homeCategoryPreferenceService';
+import { customerAccountService } from '../services/customerAccountService';
 import officialNoqLogo from '../assets/brand/noq-official.png';
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
@@ -277,6 +278,16 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
     const timer = setInterval(() => setGreetingNow(new Date()), 60_000);
     return () => clearInterval(timer);
   }, [currentScreen]);
+  // Home-header avatar photo — same source as the full Profile screen's own
+  // Avatar (`customerAccountService.getPhotoObjectUrl`), resolved once here
+  // so the header never invents a second profile-photo flow.
+  const [headerAvatarPhotoUrl, setHeaderAvatarPhotoUrl] = useState('');
+  useEffect(() => {
+    let objectUrl = '';
+    if (!customerProfile?.profilePhotoUrl) { setHeaderAvatarPhotoUrl(''); return undefined; }
+    customerAccountService.getPhotoObjectUrl().then((url) => { objectUrl = url; setHeaderAvatarPhotoUrl(url); }).catch(() => setHeaderAvatarPhotoUrl(''));
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [customerProfile?.profilePhotoUrl, customerProfile?.updatedAt]);
   // UI-only "last viewed" memory per category — no card starts selected;
   // one becomes marked only once the customer actually opens it. Never a
   // source of truth for booking/queue/payment state.
@@ -1374,18 +1385,25 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     : 'translate-y-0 opacity-100'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center justify-between gap-3">
                   <img
                     src={officialNoqLogo}
                     alt="NOQ — Less Queue. More Flow."
-                    className="h-auto w-[92px] object-contain"
+                    className="h-auto w-[76px] object-contain"
                   />
-                  <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button ml-auto grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
-                    <MapPin className="h-[18px] w-[18px]" />
-                  </button>
+                  <div className="ml-auto flex items-center gap-2.5">
+                    <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
+                      <MapPin className="h-[18px] w-[18px]" />
+                    </button>
+                    <HomeProfileAvatar
+                      name={customerProfile?.name}
+                      photoObjectUrl={headerAvatarPhotoUrl}
+                      onClick={() => setScreen('profile')}
+                    />
+                  </div>
                 </div>
 
-                <div className="mt-3.5">
+                <div className="mt-5">
                   <SalonSearchBar
                     value={salonSearch}
                     onChange={(value) => setSalonSearch(value)}
@@ -1394,8 +1412,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     isListening={isListening}
                     onVoiceSearch={handleVoiceSearch}
                     voiceFeedback={voiceFeedback}
-                    onFilterClick={() => setIsCategoryPreferencesOpen(true)}
-                    preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
                   />
                 </div>
               </div>
@@ -1451,15 +1467,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <section className="category-content-transition">
               {!homeSearchActive && (
                 <>
-                  <div className="mb-4 px-0.5">
+                  <div className="mb-5 px-0.5">
                     <div className="flex items-center gap-2 text-[var(--noq-ink)]">
-                      <h1 className="truncate text-[22px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
+                      <h1 className="truncate text-[25px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
                       <GreetingIcon className="h-5 w-5 shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />
                     </div>
                     <p className="mt-1 text-[12px] font-medium text-[var(--noq-muted)]">Less waiting. More of your day.</p>
                   </div>
-                  <div className="mb-0 flex justify-end px-0.5">
-                    <button type="button" onClick={() => setIsMoreCategoriesOpen(true)} className="text-[10px] font-bold text-[var(--noq-accent)]">Explore all</button>
+                  <div className="mb-3.5 flex justify-end px-0.5">
+                    <CategoryFilterButton
+                      onClick={() => setIsCategoryPreferencesOpen(true)}
+                      preferredCategoryCount={Math.min(5, resolvedPreferenceIds.length)}
+                    />
                   </div>
                   <CustomerCategoryGrid
                     categories={homeCategoryOrder}
@@ -1467,7 +1486,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     onSelect={openCategoryListing}
                     onMore={() => setIsMoreCategoriesOpen(true)}
                   />
-                  <div className="mt-3.5">
+                  <div className="mt-5">
                     <CustomerHomeCarousel />
                   </div>
                   {/* Why NOQ / AI Queue Insight / About NOQ — static content
@@ -1475,7 +1494,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                       pipeline exists yet, so the insight resolver is given no
                       real input and honestly renders its "coming soon"
                       preview state instead of fabricated best-time data. */}
-                  <div className="mt-3.5">
+                  <div className="mt-6">
                     <HomeContentSections insight={resolveAIQueueInsight(null)} />
                   </div>
                 </>

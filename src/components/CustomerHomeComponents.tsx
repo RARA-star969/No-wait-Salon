@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal, Mars, Venus } from 'lucide-react';
+import { Search, Sparkles, UserRound, WalletCards, Scissors, Dumbbell, ShoppingBag, Car, Dog, Building2, Utensils, Store, X, Volume2, Star, ChevronRight, Clock, SquarePlus, Grid2X2, UsersRound, CalendarDays, Crown, SlidersHorizontal, Mars, Venus, Mic } from 'lucide-react';
 import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
@@ -26,6 +26,54 @@ export const ProfileButton: React.FC<{ onClick?: () => void }> = ({ onClick }) =
     style={{ color: 'var(--category-accent, var(--noq-accent))' }}
   >
     <UserRound className="h-[18px] w-[18px]" />
+  </button>
+);
+
+/** Compact circular Home-header avatar. Reuses the exact same photo source
+ *  as the full Profile screen (`photoObjectUrl`, resolved once by the
+ *  caller so this stays a dumb, reusable presentational piece) — a real
+ *  photo when present, otherwise a neutral empty-user glyph. Never a fake
+ *  placeholder photo. */
+export const HomeProfileAvatar: React.FC<{ name?: string | null; photoObjectUrl?: string | null; onClick?: () => void }> = ({
+  name,
+  photoObjectUrl,
+  onClick,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label="Open your profile"
+    className="customer-location-button grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95"
+  >
+    {photoObjectUrl ? (
+      <img src={photoObjectUrl} alt="" className="h-full w-full object-cover" />
+    ) : (
+      <UserRound className="h-[18px] w-[18px]" aria-hidden="true" />
+    )}
+  </button>
+);
+
+/** The exact Filter control that used to live inside the search capsule,
+ *  relocated to sit above the category grid. Same workflow/state
+ *  (`onClick` still opens the one Home-category-preferences sheet) — only
+ *  its position and outer shell changed. */
+export const CategoryFilterButton: React.FC<{ onClick?: () => void; preferredCategoryCount?: number }> = ({
+  onClick,
+  preferredCategoryCount = 0,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label="Choose preferred Home categories"
+    className="customer-filter-chip relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[13px] border px-3 text-[11px] font-bold text-[var(--noq-accent)] transition active:scale-95"
+  >
+    <SlidersHorizontal className="h-3.5 w-3.5" />
+    Filter
+    {preferredCategoryCount > 0 && (
+      <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[var(--noq-accent)] px-1 text-[8px] font-bold text-white">
+        {preferredCategoryCount}
+      </span>
+    )}
   </button>
 );
 
@@ -173,8 +221,6 @@ type SearchProps = {
   isListening?: boolean;
   onVoiceSearch?: () => void;
   voiceFeedback?: string | null;
-  onFilterClick?: () => void;
-  preferredCategoryCount?: number;
 };
 
 export const SalonSearchBar: React.FC<SearchProps> = ({
@@ -185,8 +231,6 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
   isListening = false,
   onVoiceSearch,
   voiceFeedback,
-  onFilterClick,
-  preferredCategoryCount = 0,
 }) => {
   void activeCategoryName;
   const rotatingNames = categories.length > 0 ? categories.map((category) => category.name) : ['Salon', 'Gym', 'Shop'];
@@ -260,16 +304,14 @@ export const SalonSearchBar: React.FC<SearchProps> = ({
         )}
         <button
           type="button"
-          onClick={onFilterClick}
-          className="relative ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl text-[var(--noq-accent)] transition active:scale-95 active:shadow-[inset_2px_2px_5px_rgba(54,76,139,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.9)]"
-          aria-label="Choose preferred Home categories"
+          onClick={onVoiceSearch}
+          className={`relative ml-1 grid h-8 w-8 shrink-0 place-items-center rounded-xl transition active:scale-95 active:shadow-[inset_2px_2px_5px_rgba(54,76,139,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.9)] ${
+            isListening ? 'text-red-500' : 'text-[var(--noq-accent)]'
+          }`}
+          aria-label={isListening ? 'Stop voice search' : 'Search by voice'}
         >
-          <SlidersHorizontal className="h-4 w-4" />
-          {preferredCategoryCount > 0 && (
-            <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--noq-accent)] px-1 text-[8px] font-bold text-white">
-              {preferredCategoryCount}
-            </span>
-          )}
+          <Mic className="h-4 w-4" />
+          {isListening && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden="true" />}
         </button>
       </div>
 

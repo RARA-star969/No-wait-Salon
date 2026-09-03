@@ -26,14 +26,16 @@ test('Home is a discovery surface and category tap opens the separate listings s
   assert.match(appSource, /Back to Home categories/);
 });
 
-test('Home follows the approved logo, search, greeting, Explore all and category order', () => {
+test('Home follows the approved logo, search, greeting, category Filter control and category order', () => {
   const home = appSource.slice(appSource.indexOf('id="customer-home-screen"'), appSource.indexOf("currentScreen === 'salon'"));
   const logoIndex = home.indexOf('src={officialNoqLogo}');
   const searchIndex = home.indexOf('<SalonSearchBar');
   const greetingIndex = home.indexOf('{greeting.text}');
-  const exploreIndex = home.indexOf('>Explore all</button>');
+  // The standalone "Explore all" text button was retired in favor of
+  // relocating the search bar's Filter control to this same position.
+  const filterIndex = home.indexOf('<CategoryFilterButton');
   const categoriesIndex = home.indexOf('<CustomerCategoryGrid');
-  assert.ok(logoIndex < searchIndex && searchIndex < greetingIndex && greetingIndex < exploreIndex && exploreIndex < categoriesIndex);
+  assert.ok(logoIndex < searchIndex && searchIndex < greetingIndex && greetingIndex < filterIndex && filterIndex < categoriesIndex);
   assert.doesNotMatch(home, />Categories<\/h2>/);
 });
 

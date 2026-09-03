@@ -25,8 +25,9 @@ test('Home header contains only logo/location and search — greeting lives in b
   assert.match(headerBlock, /src=\{officialNoqLogo\}/);
   assert.match(headerBlock, /<SalonSearchBar/);
 
-  // Greeting now renders inside the ordinary Home content, above Explore all.
-  const homeBody = appSource.slice(appSource.indexOf('{!categoryListingId ? ('), appSource.indexOf('>Explore all</button>'));
+  // Greeting now renders inside the ordinary Home content, above the
+  // relocated category Filter control (formerly "Explore all").
+  const homeBody = appSource.slice(appSource.indexOf('{!categoryListingId ? ('), appSource.indexOf('<CategoryFilterButton'));
   assert.match(homeBody, /\{greeting\.text\}/);
 });
 
@@ -36,7 +37,8 @@ test('Home header has no bottom shadow / seam', () => {
 });
 
 test('NOQ logo is sized down from its previous dominant footprint', () => {
-  assert.match(appSource, /w-\[92px\] object-contain/);
+  assert.match(appSource, /w-\[76px\] object-contain/);
+  assert.doesNotMatch(appSource, /w-\[92px\] object-contain/);
   assert.doesNotMatch(appSource, /w-\[112px\] object-contain/);
 });
 

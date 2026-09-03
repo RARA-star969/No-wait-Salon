@@ -70,9 +70,9 @@ test('Home search reuses the same authoritative business dataset/filter — no s
 test('clearing the Home search query restores the normal greeting + category discovery view', () => {
   assert.match(appSource, /\{!homeSearchActive && \(/);
   assert.match(appSource, /\{homeSearchActive && \(/);
-  // The discovery block (greeting + Explore all + grid) is gated on the same
-  // query-emptiness flag the search bar itself clears via onChange('').
-  const discoveryBlock = appSource.slice(appSource.indexOf('{!homeSearchActive && ('), appSource.indexOf('>Explore all</button>'));
+  // The discovery block (greeting + Filter control + grid) is gated on the
+  // same query-emptiness flag the search bar itself clears via onChange('').
+  const discoveryBlock = appSource.slice(appSource.indexOf('{!homeSearchActive && ('), appSource.indexOf('<CategoryFilterButton'));
   assert.match(discoveryBlock, /\{greeting\.text\}/);
 });
 
