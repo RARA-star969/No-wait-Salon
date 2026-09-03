@@ -1392,13 +1392,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                     className="h-auto w-[76px] object-contain"
                   />
                   <div className="ml-auto flex items-center gap-2.5">
-                    <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95">
+                    <button type="button" onClick={() => setScreen('location-select')} aria-label={`Choose location${locationLabel ? `, current location ${locationLabel}` : ''}`} className="customer-location-button grid h-10 w-10 place-items-center rounded-[14px] border text-[var(--noq-accent)] transition active:translate-y-0.5 active:scale-95">
                       <MapPin className="h-[18px] w-[18px]" />
                     </button>
                     <HomeProfileAvatar
                       name={customerProfile?.name}
                       photoObjectUrl={headerAvatarPhotoUrl}
-                      onClick={() => setScreen('profile')}
+                      onClick={() => setScreen('edit-profile')}
                     />
                   </div>
                 </div>
@@ -1458,7 +1458,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
               glide (Task 1: "premium and controlled, not flashy") — barely a
               1% scale dip, no brightness/opacity change to draw the eye. */}
           <div
-            className={`relative space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_5.5rem)] pt-4 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
+            className={`relative space-y-3.5 px-4 pb-[calc(env(safe-area-inset-bottom)_+_7rem)] pt-4 sm:px-5 transition-transform ease-[cubic-bezier(.22,1,.36,1)] ${
               isReturningToTop ? 'duration-500 scale-[0.994]' : 'duration-300 scale-100'
             }`}
           >
@@ -1467,7 +1467,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             <section className="category-content-transition">
               {!homeSearchActive && (
                 <>
-                  <div className="mb-5 px-0.5">
+                  <div className="mb-4 px-0.5">
                     <div className="flex items-center gap-2 text-[var(--noq-ink)]">
                       <h1 className="truncate text-[25px] font-semibold leading-tight tracking-[-0.02em]">{greeting.text}</h1>
                       <GreetingIcon className="h-5 w-5 shrink-0 stroke-[2] text-[var(--noq-accent)]" aria-hidden="true" />

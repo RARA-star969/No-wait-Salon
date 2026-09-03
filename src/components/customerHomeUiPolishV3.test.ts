@@ -30,12 +30,13 @@ test('Home header avatar renders the real photo when a photoObjectUrl is provide
   assert.match(html, /<img src="blob:fake-object-url"/);
 });
 
-test('the Home header avatar is wired to the existing customer profile screen and photo source, not a duplicate flow', () => {
-  assert.match(appSource, /<HomeProfileAvatar[\s\S]*?photoObjectUrl=\{headerAvatarPhotoUrl\}[\s\S]*?onClick=\{\(\) => setScreen\('profile'\)\}/);
+test('the Home header avatar opens the existing Edit Profile flow directly, reusing the same profile screen and photo source, not a duplicate flow', () => {
+  assert.match(appSource, /<HomeProfileAvatar[\s\S]*?photoObjectUrl=\{headerAvatarPhotoUrl\}[\s\S]*?onClick=\{\(\) => setScreen\('edit-profile'\)\}/);
   assert.match(appSource, /customerAccountService\.getPhotoObjectUrl\(\)\.then\(\(url\) => \{ objectUrl = url; setHeaderAvatarPhotoUrl\(url\); \}\)/);
   // Reuses the same CustomerAccountService/CustomerProfileScreen the bottom
   // dock's Profile tab already opens — no second profile route is added.
   assert.match(appSource, /currentScreen === 'profile' \|\| currentScreen === 'edit-profile'/);
+  assert.match(appSource, /mode=\{currentScreen === 'edit-profile' \? 'edit' : 'profile'\}/);
 });
 
 test('the search bar mic writes recognized speech into the same query state typing uses', () => {
@@ -78,12 +79,21 @@ test('the Filter control keeps the exact existing category-preferences workflow 
   assert.match(appSource, /preferredCategoryCount=\{Math\.min\(5, resolvedPreferenceIds\.length\)\}/);
 });
 
-test('relocated Filter control keeps a compact neumorphic pill, not a full-width bar', () => {
+test('relocated Filter control is a compact icon-only utility button, not a full-width bar and not a raised category-card pill', () => {
   const html = renderToStaticMarkup(
     React.createElement(SalonSearchBar, { value: '', onChange: () => {}, categories: sampleCategories }),
   );
   assert.doesNotMatch(html, /aria-label="Choose preferred Home categories"/, 'the search capsule itself must no longer render the filter button');
-  assert.match(homeComponentsSource, /customer-filter-chip relative inline-flex h-9/);
+  // Icon-only: no visible "Filter" text label, a flat/subtle surface (shared
+  // recipe with the header's Location/Profile buttons), square utility
+  // footprint, and a small corner badge rather than an inline pill badge.
+  const filterButtonSource = homeComponentsSource.slice(
+    homeComponentsSource.indexOf('export const CategoryFilterButton'),
+    homeComponentsSource.indexOf('export type CategoryTheme'),
+  );
+  assert.doesNotMatch(filterButtonSource, />\s*Filter\s*</, 'no visible "Filter" text label');
+  assert.match(filterButtonSource, /customer-filter-chip relative grid h-9 w-9/);
+  assert.match(filterButtonSource, /absolute -right-1 -top-1/);
 });
 
 test('carousel title/subtitle get a Netflix-style readable overlay only when there is text, never a flat blanket', () => {

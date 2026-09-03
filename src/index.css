@@ -100,20 +100,26 @@ body {
   filter: blur(46px);
 }
 
+/* Flat, crisp utility-button surface — deliberately NOT the raised
+   dual-shadow neumorphic treatment category tiles use (that dual soft-light
+   shadow is what read as a hazy/washed-out glow on small circular/square
+   icon buttons). Location and Profile share this exact surface so they read
+   as one identical, subtle pairing; Filter below uses the same recipe so
+   none of the three utility controls ever look like a raised category card. */
 .customer-location-button {
-  border-color: rgba(255,255,255,.9);
-  background: linear-gradient(145deg, #fff, #eef2ff);
-  box-shadow: var(--noq-shadow-raised-sm), inset 0 1px 0 #fff;
+  border-color: var(--noq-border);
+  background: var(--noq-surface);
+  box-shadow: 0 1px 2px rgba(13,22,118,.08);
 }
 
 .customer-filter-chip {
-  border-color: rgba(255,255,255,.9);
-  background: linear-gradient(145deg, #fff, #eef2ff);
-  box-shadow: var(--noq-shadow-raised-sm), inset 0 1px 0 #fff;
+  border-color: var(--noq-border);
+  background: var(--noq-surface);
+  box-shadow: 0 1px 2px rgba(13,22,118,.08);
 }
 
 .customer-filter-chip:active {
-  box-shadow: var(--noq-shadow-inset);
+  box-shadow: inset 0 1px 2px rgba(13,22,118,.12);
 }
 
 .customer-search-glass {

@@ -43,7 +43,7 @@ export const HomeProfileAvatar: React.FC<{ name?: string | null; photoObjectUrl?
     type="button"
     onClick={onClick}
     aria-label="Open your profile"
-    className="customer-location-button grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border text-[var(--noq-accent-light)] transition active:translate-y-0.5 active:scale-95"
+    className="customer-location-button grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border text-[var(--noq-accent)] transition active:translate-y-0.5 active:scale-95"
   >
     {photoObjectUrl ? (
       <img src={photoObjectUrl} alt="" className="h-full w-full object-cover" />
@@ -56,7 +56,10 @@ export const HomeProfileAvatar: React.FC<{ name?: string | null; photoObjectUrl?
 /** The exact Filter control that used to live inside the search capsule,
  *  relocated to sit above the category grid. Same workflow/state
  *  (`onClick` still opens the one Home-category-preferences sheet) — only
- *  its position and outer shell changed. */
+ *  its position and outer shell changed. Icon-only utility button (the
+ *  "Filter" label is a11y-only via aria-label) with a small corner count
+ *  badge, on the same flat/subtle surface as the header's Location and
+ *  Profile buttons — never the raised neumorphic card treatment. */
 export const CategoryFilterButton: React.FC<{ onClick?: () => void; preferredCategoryCount?: number }> = ({
   onClick,
   preferredCategoryCount = 0,
@@ -64,13 +67,12 @@ export const CategoryFilterButton: React.FC<{ onClick?: () => void; preferredCat
   <button
     type="button"
     onClick={onClick}
-    aria-label="Choose preferred Home categories"
-    className="customer-filter-chip relative inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[13px] border px-3 text-[11px] font-bold text-[var(--noq-accent)] transition active:scale-95"
+    aria-label={preferredCategoryCount > 0 ? `Choose preferred Home categories, ${preferredCategoryCount} selected` : 'Choose preferred Home categories'}
+    className="customer-filter-chip relative grid h-9 w-9 shrink-0 place-items-center rounded-[12px] border text-[var(--noq-accent)] transition active:scale-95"
   >
-    <SlidersHorizontal className="h-3.5 w-3.5" />
-    Filter
+    <SlidersHorizontal className="h-4 w-4" />
     {preferredCategoryCount > 0 && (
-      <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[var(--noq-accent)] px-1 text-[8px] font-bold text-white">
+      <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[var(--noq-accent)] px-1 text-[8px] font-bold text-white ring-2 ring-[var(--noq-base)]">
         {preferredCategoryCount}
       </span>
     )}
