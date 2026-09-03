@@ -4,6 +4,7 @@ import type { NearbySalon } from '../types';
 import type { SignalColor } from '../shared/signalColor';
 import { resolveGymOccupancyPercentage } from '../shared/gymCrowdResolver';
 import { NOQ_BRAND, NOQ_BRAND_CSS_VARS } from '../shared/noqBrand';
+import { resolveSalonAudienceLabel } from '../shared/salonAudienceLabel';
 
 export const WalletButton: React.FC<{ balance?: string; onClick?: () => void }> = ({ balance = '₹0', onClick }) => (
   <button
@@ -355,54 +356,92 @@ export type SalonAudience = 'men' | 'women';
 
 /**
  * Salon-only Men/Women discovery switch shown on the Salon category page,
- * below its admin carousel. Premium, light, NOQ blue-accented to match the
- * rest of the liquid-glass customer surface — never shown on any other
- * category. Selecting a side drives real Salon listing filtering by the
- * persisted `audience` field, not just a visual toggle.
+ * below its admin carousel. Compact, right-aligned segmented utility control
+ * (~40-44px tall, never a full-width card) — premium, light, NOQ
+ * blue-accented to match the rest of the liquid-glass customer surface, and
+ * never shown on any other category. Selecting a side drives real Salon
+ * listing filtering by the persisted `audience` field, not just a visual
+ * toggle. Unisex is a business capability (see resolveSalonAudienceLabel),
+ * never a third tab here.
  */
 export const SalonAudienceSwitch: React.FC<{
   value: SalonAudience;
   onChange: (value: SalonAudience) => void;
 }> = ({ value, onChange }) => {
-  const options: Array<{ id: SalonAudience; label: string; sublabel: string; Icon: React.FC<{ className?: string }> }> = [
-    { id: 'men', label: 'Men', sublabel: 'Barbershops', Icon: (props) => <Mars {...props} /> },
-    { id: 'women', label: 'Women', sublabel: 'Parlours & Salons', Icon: (props) => <Venus {...props} /> },
+  const options: Array<{ id: SalonAudience; label: string; Icon: React.FC<{ className?: string }> }> = [
+    { id: 'men', label: 'Men', Icon: (props) => <Mars {...props} /> },
+    { id: 'women', label: 'Women', Icon: (props) => <Venus {...props} /> },
   ];
 
   return (
-    <div className="customer-search-glass flex items-stretch gap-1 rounded-[18px] border border-white/10 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
-      {options.map((option) => {
-        const isSelected = value === option.id;
-        return (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onChange(option.id)}
-            aria-pressed={isSelected}
-            className="relative flex flex-1 items-center justify-center gap-2.5 rounded-[14px] px-3 py-3 transition-all duration-200 active:scale-[0.98]"
-            style={isSelected ? {
-              backgroundColor: 'var(--noq-tint-10)',
-              boxShadow: 'inset 0 0 0 1.5px var(--noq-glass-border)',
-            } : undefined}
-          >
-            <option.Icon
-              className="h-5 w-5 shrink-0"
-              style={{ color: isSelected ? 'var(--noq-accent)' : 'var(--noq-muted)' }}
-            />
-            <span className="flex flex-col items-start leading-tight">
-              <span className="text-[13px] font-bold" style={{ color: isSelected ? 'var(--noq-accent)' : 'var(--noq-ink)' }}>
-                {option.label}
-              </span>
-              <span className="text-[10px] font-medium" style={{ color: isSelected ? 'var(--noq-accent-light)' : 'var(--noq-muted)' }}>
-                {option.sublabel}
-              </span>
-            </span>
-          </button>
-        );
-      })}
+    <div className="flex justify-end">
+      <div className="customer-search-glass inline-flex items-center gap-1 rounded-full border border-white/10 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+        {options.map((option) => {
+          const isSelected = value === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onChange(option.id)}
+              aria-pressed={isSelected}
+              className="relative flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-bold transition-all duration-200 active:scale-[0.97]"
+              style={isSelected ? {
+                backgroundColor: 'var(--noq-tint-10)',
+                color: 'var(--noq-accent)',
+                boxShadow: 'inset 0 0 0 1.5px var(--noq-accent)',
+              } : {
+                color: 'var(--noq-muted)',
+              }}
+            >
+              <option.Icon className="h-3.5 w-3.5 shrink-0" />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 };
+
+/**
+ * Premium "Try hairstyle with AI" discovery entry point shown on the Salon
+ * category page between the Men/Women switch and the listings. Tappable
+ * only — it opens an honest "coming soon" surface rather than fabricating a
+ * generative-AI backend that doesn't exist yet.
+ */
+export const SalonHairstyleAICard: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    id="salon-hairstyle-ai-card"
+    className="customer-search-glass flex w-full items-center gap-3 rounded-[20px] border border-white/10 p-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl transition active:scale-[0.99]"
+  >
+    <span
+      className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-md"
+      style={{ background: 'linear-gradient(145deg, var(--noq-accent), var(--noq-accent-deep))' }}
+    >
+      <UserRound className="h-6 w-6" />
+      <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-white text-[8px] font-black text-[var(--noq-accent)] ring-2 ring-white shadow">
+        AI
+      </span>
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="flex items-center gap-1.5 text-[13px] font-bold text-[var(--noq-ink)]">
+        Try hairstyle with AI
+        <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--noq-accent)' }} />
+      </span>
+      <span className="mt-0.5 block truncate text-[11px] font-medium text-[var(--noq-muted)]">Preview styles before you visit</span>
+    </span>
+    <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="grid h-8 w-8 place-items-center rounded-full border-2 border-white bg-[var(--noq-tint-10)] text-[var(--noq-accent)]">
+          <UserRound className="h-4 w-4" />
+        </span>
+      ))}
+    </span>
+    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--noq-muted)]" />
+  </button>
+);
 
 const HERO_COPY: Record<string, { headline: string; subheadline: string }> = {
   salon: { headline: 'Better grooming, less waiting.', subheadline: 'Discover trusted salons and reserve your chair before leaving home.' },
@@ -607,11 +646,14 @@ export const CategoryLandingState: React.FC<{
   );
 };
 
-const SIGNAL_STYLES: Record<SignalColor, { bar: string; text: string; bg: string }> = {
-  green: { bar: '#34D399', text: 'text-emerald-300', bg: 'bg-emerald-400/15' },
-  yellow: { bar: '#FBBF24', text: 'text-amber-300', bg: 'bg-amber-400/15' },
-  orange: { bar: '#FB923C', text: 'text-orange-300', bg: 'bg-orange-400/15' },
-  red: { bar: '#F87171', text: 'text-red-300', bg: 'bg-red-400/15' },
+const SIGNAL_STYLES: Record<SignalColor, { bar: string; text: string; bg: string; ring: string }> = {
+  // Richer, higher-contrast presentation than the earlier pastel pass — the
+  // resolver-driven color/label pairing itself (from resolveSalonQueueSignal
+  // and friends) is untouched, only how each signal reads visually.
+  green: { bar: '#10B981', text: 'text-emerald-800', bg: 'bg-emerald-100', ring: 'ring-emerald-600/25' },
+  yellow: { bar: '#D97706', text: 'text-amber-800', bg: 'bg-amber-100', ring: 'ring-amber-600/25' },
+  orange: { bar: '#EA580C', text: 'text-orange-800', bg: 'bg-orange-100', ring: 'ring-orange-600/25' },
+  red: { bar: '#DC2626', text: 'text-red-800', bg: 'bg-red-100', ring: 'ring-red-600/25' },
 };
 
 /** How many of the three bars light up per signal color — a busier state
@@ -629,7 +671,7 @@ const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
         <span
           key={height}
           className="w-[2.5px] rounded-sm"
-          style={{ height: `${height}px`, backgroundColor: index < active ? barColor : 'rgba(255,255,255,0.18)' }}
+          style={{ height: `${height}px`, backgroundColor: index < active ? barColor : 'rgba(0,0,0,0.14)' }}
         />
       ))}
     </span>
@@ -640,7 +682,10 @@ const SignalBars: React.FC<{ color: SignalColor }> = ({ color }) => {
 export const SignalStatusChip: React.FC<{ color: SignalColor; label: string }> = ({ color, label }) => {
   const style = SIGNAL_STYLES[color];
   return (
-    <span className={`customer-operational-pill inline-flex items-center whitespace-nowrap rounded-full px-2 py-[3px] text-[8px] font-black uppercase tracking-[0.04em] ${style.bg} ${style.text}`}>
+    <span
+      className={`customer-operational-pill inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-[8px] font-black uppercase tracking-[0.04em] shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-inset ${style.bg} ${style.text} ${style.ring}`}
+    >
+      <SignalBars color={color} />
       {label}
     </span>
   );
@@ -786,7 +831,9 @@ export const PremiumBusinessCard: React.FC<{
               </span>
             )}
           </div>
-          <span className="mt-0.5 block truncate text-[9px] font-medium text-[var(--noq-muted)]">{salon.category || localityLabel} · {salon.distanceKm} km</span>
+          <span className="mt-0.5 block truncate text-[9px] font-medium text-[var(--noq-muted)]">
+            {isSalon ? resolveSalonAudienceLabel(salon.audience) : (salon.category || localityLabel)} · {salon.distanceKm} km
+          </span>
           <span className="mt-1 flex min-w-0 items-center gap-1 text-[9px] font-medium text-[var(--noq-muted)]">
             {hasReviews ? (
               <>
@@ -803,7 +850,7 @@ export const PremiumBusinessCard: React.FC<{
           {isGym && liveFloorMeter ? (
             <><b className="block text-[13px] font-black tabular-nums text-[var(--noq-ink)]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">inside now</span></>
           ) : isSalon ? (
-            <><b className="block text-[13px] font-black text-[var(--noq-ink)]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">{salon.waitingCustomers === 0 ? 'walk in' : 'estimated wait'}</span></>
+            <><b className="block text-[13px] font-black text-[var(--noq-ink)]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">{salon.waitingCustomers === 0 ? 'walk in' : 'est. wait'}</span></>
           ) : (
             <><b className="block text-[12px] font-black text-[var(--noq-ink)]">{salon.isOpen ? 'Open now' : 'Closed'}</b>{salon.openingHours && <span className="block truncate text-[8px] font-semibold text-[var(--noq-muted)]">{salon.openingHours}</span>}</>
           )}

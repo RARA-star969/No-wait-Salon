@@ -42,7 +42,7 @@ import { LandingScreen } from './LandingScreen';
 import { LocationDiscovery } from './LocationDiscovery';
 import { NotificationPermissionStep } from './NotificationPermissionStep';
 import { AccountOnboarding } from './AccountOnboarding';
-import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, SalonAudienceSwitch, SalonAudience } from './CustomerHomeComponents';
+import { SalonSearchBar, CategoryLandingState, DEFAULT_MAIN_CATEGORIES, CategoryItemConfig, SalonAudienceSwitch, SalonAudience, SalonHairstyleAICard } from './CustomerHomeComponents';
 import { CustomerHomeCarousel, CustomerCategoryCarousel, CustomerHomePromoBoxRow } from './CustomerHomeCarousel';
 import { HomeContentSections } from './HomeContentSections';
 import { resolveAIQueueInsight } from '../shared/aiQueueInsight';
@@ -92,6 +92,10 @@ import { customerLocalGreeting } from '../shared/customerHomePersonalization';
 import { homeCategoryPreference, normalizeHomeCategoryPreference } from '../services/homeCategoryPreferenceService';
 import { customerAccountService } from '../services/customerAccountService';
 import officialNoqLogo from '../assets/brand/noq-official.png';
+
+// Salon category search placeholder only ever rotates through these two
+// terms — never the generic per-category name list Home's search uses.
+const SALON_SEARCH_ROTATING_TERMS = ['Salon', 'Parlour'];
 
 const CUSTOMER_ONBOARDING_STORAGE_KEY = 'no_wait_salon_customer_onboarding_v1';
 const NOTIFICATION_PROMPT_STORAGE_KEY = 'no_wait_salon_customer_notification_prompt_v1';
@@ -263,8 +267,21 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
   // reference design's initial selected state; irrelevant to every other
   // category, which never renders SalonAudienceSwitch at all.
   const [salonAudience, setSalonAudience] = useState<SalonAudience>('men');
-  const [salonSort, setSalonSort] = useState<'nearest' | 'rating'>('nearest');
+  const [salonSort, setSalonSort] = useState<'nearest' | 'wait' | 'rating'>('nearest');
   const [isSalonFilterOpen, setIsSalonFilterOpen] = useState(false);
+  // Salon category search placeholder rotates between "Salon" and "Parlour"
+  // (never the generic per-category rotation Home uses) — paused while the
+  // customer has actually typed something, resumed the moment it's cleared.
+  const [salonSearchPlaceholderIndex, setSalonSearchPlaceholderIndex] = useState(0);
+  const [isHairstyleAIOpen, setIsHairstyleAIOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeCategoryId !== 'salon' || salonSearch) return undefined;
+    const id = window.setInterval(() => {
+      setSalonSearchPlaceholderIndex((index) => (index + 1) % SALON_SEARCH_ROTATING_TERMS.length);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [activeCategoryId, salonSearch]);
   const [preferredCategoryIds, setPreferredCategoryIds] = useState<string[]>(() =>
     homeCategoryPreference.read([
       ...DEFAULT_MAIN_CATEGORIES.map((category) => category.id),
@@ -746,7 +763,11 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
       if (audience !== 'unisex' && audience !== salonAudience) return false;
     }
     return true;
-  }).sort((a, b) => (salonSort === 'rating' ? b.rating - a.rating : a.distanceKm - b.distanceKm));
+  }).sort((a, b) => {
+    if (salonSort === 'rating') return b.rating - a.rating;
+    if (salonSort === 'wait') return a.liveWaitMinutes - b.liveWaitMinutes;
+    return a.distanceKm - b.distanceKm;
+  });
   const homeBrowsableCategories = [
     ...mainCategories,
     ...APPROVED_EMPTY_HOME_CATEGORIES.filter((placeholder) => !mainCategories.some((category) => category.id.toLowerCase() === placeholder.id)),
@@ -1576,35 +1597,36 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                 </div>
               </div>
 
-              {/* 2) Admin-controlled category carousel — reusable across every
-                  category; scoped server-side to this categoryId + any
-                  'category'-wide banners. */}
-              <CustomerCategoryCarousel categoryId={activeCategoryId} />
-
-              {/* 3) Category-specific controls — Salon only. */}
-              {activeCategoryId === 'salon' && (
-                <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
-              )}
-
-              {/* 4) Category search row */}
+              {/* 2) Category search row + filter */}
               <div className="relative flex items-center gap-2">
                 <div className="customer-search-glass noq-search-capsule flex h-[44px] w-full min-w-0 flex-1 items-center rounded-[16px] border border-white/10 px-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:ring-2" style={{ '--tw-ring-color': 'rgba(52,84,253,.22)' } as React.CSSProperties}>
                   <Search className="h-[16px] w-[16px] shrink-0 text-[var(--noq-accent-light)]" />
-                  <input
-                    value={salonSearch}
-                    onChange={(event) => setSalonSearch(event.target.value)}
-                    type="search"
-                    enterKeyHint="search"
-                    aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
-                    placeholder={
-                      activeCategoryId === 'salon'
-                        ? salonAudience === 'men'
-                          ? "Search men's salons near you"
-                          : "Search women's salons near you"
-                        : `Search ${activeCategoryObj.name.toLowerCase()}s...`
-                    }
-                    className="noq-search-input-wrap h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
-                  />
+                  <div className="noq-search-input-wrap relative min-w-0 flex-1">
+                    {activeCategoryId === 'salon' && !salonSearch && (
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-y-0 left-0 flex min-w-0 items-center truncate text-[13px] font-medium text-[var(--noq-muted)]"
+                      >
+                        <span className="shrink-0">Search for &ldquo;</span>
+                        <span
+                          key={salonSearchPlaceholderIndex}
+                          className="customer-search-rotating-token inline-block min-w-0 max-w-[110px] truncate font-semibold text-[var(--noq-muted)]"
+                        >
+                          {SALON_SEARCH_ROTATING_TERMS[salonSearchPlaceholderIndex % SALON_SEARCH_ROTATING_TERMS.length]}
+                        </span>
+                        <span className="shrink-0">&rdquo;</span>
+                      </span>
+                    )}
+                    <input
+                      value={salonSearch}
+                      onChange={(event) => setSalonSearch(event.target.value)}
+                      type="search"
+                      enterKeyHint="search"
+                      aria-label={`Search ${activeCategoryObj.name.toLowerCase()}s`}
+                      placeholder={activeCategoryId === 'salon' ? '' : `Search ${activeCategoryObj.name.toLowerCase()}s...`}
+                      className="h-[44px] w-full min-w-0 bg-transparent text-[13px] font-semibold text-[var(--noq-ink)] outline-none placeholder:font-medium placeholder:text-[var(--noq-muted)]"
+                    />
+                  </div>
                   {salonSearch && (
                     <button
                       type="button"
@@ -1620,20 +1642,32 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                   type="button"
                   onClick={() => setIsSalonFilterOpen((open) => !open)}
                   aria-label="Filter results"
-                  aria-pressed={isSalonFilterOpen}
-                  className="customer-search-glass relative grid h-[44px] w-[44px] shrink-0 place-items-center rounded-[16px] border border-white/10 text-[var(--noq-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition active:scale-95"
+                  aria-haspopup="menu"
+                  aria-expanded={isSalonFilterOpen}
+                  className="customer-search-glass relative z-30 grid h-[44px] w-[44px] shrink-0 place-items-center rounded-[16px] border border-white/10 text-[var(--noq-accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition active:scale-95"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                 </button>
                 {isSalonFilterOpen && (
-                  <div className="customer-search-glass absolute right-0 top-[calc(100%+0.5rem)] z-20 w-48 rounded-2xl border border-white/10 p-1.5 shadow-lg">
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close filter menu"
+                      tabIndex={-1}
+                      onClick={() => setIsSalonFilterOpen(false)}
+                      className="fixed inset-0 z-30 cursor-default bg-transparent"
+                    />
+                    <div role="menu" aria-label="Sort businesses" className="customer-search-glass absolute right-0 top-[calc(100%+0.5rem)] z-40 w-48 rounded-2xl border border-white/10 p-1.5 shadow-lg">
                     {([
                       { id: 'nearest', label: 'Nearest first' },
+                      { id: 'wait', label: 'Lowest wait' },
                       { id: 'rating', label: 'Top rated' },
                     ] as const).map((option) => (
                       <button
                         key={option.id}
                         type="button"
+                        role="menuitemradio"
+                        aria-checked={salonSort === option.id}
                         onClick={() => { setSalonSort(option.id); setIsSalonFilterOpen(false); }}
                         className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition"
                         style={salonSort === option.id ? { backgroundColor: 'var(--noq-tint-10)', color: 'var(--noq-accent)' } : { color: 'var(--noq-muted)' }}
@@ -1641,9 +1675,27 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
                         {option.label}
                       </button>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </div>
+
+              {/* 3) Admin-controlled category carousel — reusable across every
+                  category; scoped server-side to this categoryId + any
+                  'category'-wide banners. */}
+              <CustomerCategoryCarousel categoryId={activeCategoryId} />
+
+              {/* 4) Category-specific controls — Salon only: compact,
+                  right-aligned Men/Women discovery switch. */}
+              {activeCategoryId === 'salon' && (
+                <SalonAudienceSwitch value={salonAudience} onChange={setSalonAudience} />
+              )}
+
+              {/* 5) Try hairstyle with AI — Salon-only entry point, honest
+                  "coming soon" until a real generative workflow exists. */}
+              {activeCategoryId === 'salon' && (
+                <SalonHairstyleAICard onClick={() => setIsHairstyleAIOpen(true)} />
+              )}
             </div>
           )}
 
@@ -1660,6 +1712,47 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({
             userToken={customerAuth?.token}
             onUseGps={() => setIsChangingLocation(true)}
           />
+
+          {/* Honest "coming soon" for the AI hairstyle entry point — never
+              fabricates a generated hairstyle result. */}
+          {isHairstyleAIOpen && (
+            <div
+              id="salon-hairstyle-ai-coming-soon"
+              className="fixed inset-0 z-[95] flex items-end justify-center bg-black/55 sm:items-center"
+              onClick={(event) => { if (event.target === event.currentTarget) setIsHairstyleAIOpen(false); }}
+            >
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-label="AI hairstyle preview"
+                className="w-full rounded-t-3xl bg-[var(--noq-base)] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-4 sm:max-w-sm sm:rounded-3xl sm:pb-6"
+              >
+                <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-[var(--noq-border)] sm:hidden" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl text-white" style={{ background: 'linear-gradient(145deg, var(--noq-accent), var(--noq-accent-deep))' }}>
+                      <Sparkles className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-lg font-bold text-[var(--noq-ink)]">AI hairstyle preview</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsHairstyleAIOpen(false)}
+                    aria-label="Close"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[var(--noq-border)]"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-[var(--noq-muted)]">
+                  Previewing hairstyles with AI before your visit isn&rsquo;t live yet — coming soon. We&rsquo;re building selfie capture and style templates so you can see a look before you book.
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-[var(--noq-tint-10)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[var(--noq-accent)]">
+                  <Sparkles className="h-3 w-3" /> Coming soon
+                </span>
+              </section>
+            </div>
+          )}
 
           {userEntry && (
             <div

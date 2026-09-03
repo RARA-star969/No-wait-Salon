@@ -47,28 +47,38 @@ test('category screen does not render the Home header, logo, location, search or
   assert.match(appSource, /id="category-listing-header"/);
 });
 
+const categoryHeaderBlock = () => appSource.slice(
+  appSource.indexOf('id="category-listing-header"'),
+  appSource.indexOf('{/* Full Address Management Modal */}'),
+);
+
 test('category listing has its own compact back + search, scoped to the open category', () => {
-  const categoryHeader = appSource.slice(appSource.indexOf('id="category-listing-header"'), appSource.indexOf('id="category-listing-header"') + 3600);
+  const categoryHeader = categoryHeaderBlock();
   assert.match(categoryHeader, /Back to Home categories/);
   assert.match(categoryHeader, /aria-label=\{`Search \$\{activeCategoryObj\.name\.toLocaleLowerCase|aria-label=\{`Search \$\{activeCategoryObj\.name\.toLowerCase/);
   // Every non-Salon category keeps the original generic placeholder; Salon's
-  // placeholder instead names the active Men/Women audience (scoped task).
+  // search instead rotates an animated "Salon"/"Parlour" token (Master
+  // Prompt salon-page pass), matching the Home search's crossfade concept.
   assert.match(categoryHeader, /`Search \$\{activeCategoryObj\.name\.toLowerCase\(\)\}s\.\.\.`/);
-  assert.match(categoryHeader, /Search men's salons near you/);
-  assert.match(categoryHeader, /Search women's salons near you/);
+  assert.match(categoryHeader, /SALON_SEARCH_ROTATING_TERMS/);
+  assert.match(categoryHeader, /Search for &ldquo;/);
 });
 
-test('category page top section renders the admin carousel and, Salon-only, the Men/Women switch above the search row', () => {
-  const categoryHeader = appSource.slice(appSource.indexOf('id="category-listing-header"'), appSource.indexOf('id="category-listing-header"') + 3600);
+test('category page top section renders search+filter above the admin carousel, then, Salon-only, the compact Men/Women switch and AI hairstyle card', () => {
+  const categoryHeader = categoryHeaderBlock();
+  const searchIndex = categoryHeader.indexOf('noq-search-capsule');
   const carouselIndex = categoryHeader.indexOf('<CustomerCategoryCarousel');
   const switchIndex = categoryHeader.indexOf('<SalonAudienceSwitch');
-  const searchIndex = categoryHeader.indexOf('noq-search-capsule');
+  const aiCardIndex = categoryHeader.indexOf('<SalonHairstyleAICard');
+  assert.ok(searchIndex > -1, 'category page should keep its search row');
   assert.ok(carouselIndex > -1, 'category page should render CustomerCategoryCarousel');
   assert.ok(switchIndex > -1, 'category page should conditionally render SalonAudienceSwitch');
-  assert.ok(searchIndex > -1, 'category page should keep its search row');
+  assert.ok(aiCardIndex > -1, 'category page should conditionally render SalonHairstyleAICard');
+  assert.ok(searchIndex < carouselIndex, 'search row must render above the carousel');
   assert.ok(carouselIndex < switchIndex, 'carousel must render above the Salon Men/Women switch');
-  assert.ok(switchIndex < searchIndex, 'Salon Men/Women switch must render above the search row');
+  assert.ok(switchIndex < aiCardIndex, 'Salon Men/Women switch must render above the AI hairstyle card');
   assert.match(categoryHeader, /activeCategoryId === 'salon' &&\s*\(\s*<SalonAudienceSwitch/);
+  assert.match(categoryHeader, /activeCategoryId === 'salon' &&\s*\(\s*<SalonHairstyleAICard/);
 });
 
 test('category-specific search filters only businesses inside the open category', () => {
