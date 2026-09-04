@@ -21,17 +21,26 @@ import {
   Scissors,
   Plus,
   Phone,
-  Clock,
   CheckCircle,
   XCircle,
   AlertTriangle,
   UserPlus,
-  Sparkles,
   History,
   Trash2,
   Tag,
-  Dumbbell,
+  Menu,
+  X,
+  ChevronRight,
   LayoutDashboard,
+  Zap,
+  CalendarDays,
+  UsersRound,
+  Receipt,
+  ChartNoAxesCombined,
+  Building2,
+  Settings,
+  ShieldCheck,
+  LogOut,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
@@ -43,13 +52,7 @@ import { ui } from './ui';
 // /api/staff/business/* endpoints, scoped by the caller's own session), so
 // nothing Gym-specific runs when a Salon owner opens it.
 import { GymManageProfile } from './GymManageProfile';
-import {
-  resolveCategoryModules,
-  resolveCategoryCapabilities,
-  StaffRole,
-  MainCategoryType,
-  CategoryModuleConfig,
-} from '../shared/categoryDashboardResolver';
+import { resolveCategoryModules, StaffRole } from '../shared/categoryDashboardResolver';
 
 interface StaffDashboardProps {
   salon: Salon;
@@ -73,7 +76,55 @@ interface StaffDashboardProps {
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
   onSaveOffers: (offers: SalonOffer[]) => void;
+  /** Authenticated staff role from session.staff.role — never a local default.
+   *  Drives every module's visibility and every sensitive action gate. */
+  role: StaffRole;
+  /** Lifted into StaffAppShell, same pattern as Gym's `gymModule`, so the
+   *  selected screen survives independent of this component's own state. */
+  activeModule: string;
+  onModuleSelect: (moduleId: string) => void;
+  onSignOut?: () => void;
+  onSetup?: () => void;
+  profileIncomplete?: boolean;
+  /** Rendered inside the hosted TEST Staff preview panel rather than as the
+   *  full-screen business surface — layout only, no behavior change. */
+  embedded?: boolean;
 }
+
+const moduleIcons: Record<string, React.ElementType> = {
+  overview: LayoutDashboard,
+  live: Zap,
+  bookings: CalendarDays,
+  customers: UsersRound,
+  staff: Users,
+  services: Receipt,
+  offers: Tag,
+  reports: ChartNoAxesCombined,
+  profile: Building2,
+  settings: Settings,
+};
+
+/** Screens with no backend support yet — listed in the drawer (so the IA is
+ *  visible and the resolver/clamp logic is real) but never fake data or a
+ *  working write. */
+const CONCEPT_MODULES: Record<string, { title: string; body: string }> = {
+  customers: {
+    title: 'Customers',
+    body: 'A staff-scoped customer directory needs its own endpoint — today only an admin-only listing exists. This screen activates once that ships.',
+  },
+  services: {
+    title: 'Services & Pricing',
+    body: 'Services are read-only from the staff side today — there is no save path yet for editing them here. This screen activates once that ships.',
+  },
+  reports: {
+    title: 'Reports',
+    body: "Today's activity counts already live in Bookings. A dedicated Reports module with real revenue needs per-booking pricing first.",
+  },
+  settings: {
+    title: 'Settings',
+    body: 'No salon-facing settings endpoint exists yet — this screen activates once its scope is defined and built.',
+  },
+};
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   salon,
@@ -86,32 +137,63 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   queueAlert,
   onSaveStaff,
   onSaveOffers,
+  role,
+  activeModule,
+  onModuleSelect,
+  onSignOut,
+  onSetup,
+  profileIncomplete,
+  embedded,
 }) => {
   // Single ticking clock so every CALLED countdown re-renders each second.
   const [now, setNow] = useState(() => Date.now());
   const [cancelTarget, setCancelTarget] = useState<QueueItem | null>(null);
   const [bookingTab, setBookingTab] = useState<BookingTab>('live');
   const [filters, setFilters] = useState<BookingFilters>({ range: 'today', source: 'all', search: '' });
-  const [staffRole, setStaffRole] = useState<StaffRole>('owner');
-  const [gymModule, setGymModule] = useState<string>('overview');
+  const [navOpen, setNavOpen] = useState(false);
+  const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'live' | 'history' | 'staff' | 'offers' | 'profile'>('live');
+  // Android hardware Back closes the drawer first, never the dashboard.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    const onPopState = () => setNavOpen(false);
+    window.history.pushState({ salonDrawer: true }, '');
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, [navOpen]);
 
-  const mainCategoryId = (salon.mainCategoryId || 'salon').toLowerCase();
-  const isGymCategory = mainCategoryId === 'gym';
-  const categoryModules = resolveCategoryModules(mainCategoryId, staffRole);
+  const categoryModules = resolveCategoryModules('salon', role);
+  // Never trust an out-of-registry / no-longer-authorized module id — a role
+  // downgrade mid-session or stale nav state falls back to Overview, exactly
+  // like GymDashboardView's clamp.
+  const active = categoryModules.some((m) => m.id === activeModule) ? activeModule : 'overview';
+  const isOwner = role === 'owner';
+  const isOwnerOrManager = isOwner || role === 'manager';
+
+  const navigate = (moduleId: string) => {
+    onModuleSelect(moduleId);
+    setNavOpen(false);
+  };
 
   const waitingCount = queue.filter((x) => x.status === 'Waiting').length;
   const servingCount = queue.filter((x) => x.status === 'Serving').length;
   const calledCount = queue.filter((x) => x.status === 'Called').length;
   const activeBarbers = barbers.filter((b) => b.status !== 'unavailable').length;
   const availableBarbers = barbers.filter((b) => b.status === 'available').length;
+  const offDutyCount = barbers.filter((b) => b.status === 'unavailable').length;
+  const summary = grossSummary(queue, completedList, now);
 
   const isDeactivated = salon.platformStatus === 'deactivated';
 
@@ -144,258 +226,376 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     );
   }
 
-  return (
-    <div className="flex h-full flex-col overflow-y-auto bg-[#F8FAFA] text-[#17201F]">
-      <div className="space-y-5 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className={ui.eyebrow}>{isGymCategory ? 'Fitness & Strength Facility' : 'Today at the salon'}</span>
-            <h2 className="mt-1 text-xl font-bold tracking-[-0.025em] text-[#17201F]">{salon.name}</h2>
-            <p className="mt-0.5 text-[11px] text-[#6F7C7A]">
-              {isGymCategory
-                ? 'Manage live capacity, member check-ins, classes, and trainers in one place.'
-                : 'Manage chairs, arrivals and the live queue in one place.'}
-            </p>
-          </div>
-          <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#E7F5F2] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#0F766E]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" />
-            {isGymCategory ? 'Gym Active' : 'Open'}
-          </span>
-        </div>
+  const needsAttention: { id: string; label: string; sub: string; tone: 'warn' | 'danger' | 'neutral'; onClick: () => void }[] = [];
+  if (calledCount > 0) {
+    needsAttention.push({
+      id: 'called',
+      label: `${calledCount} customer${calledCount > 1 ? 's' : ''} called, awaiting arrival`,
+      sub: 'Tap to open Live Salon',
+      tone: 'warn',
+      onClick: () => navigate('live'),
+    });
+  }
+  if (offDutyCount > 0) {
+    needsAttention.push({
+      id: 'offduty',
+      label: `${offDutyCount} staff off duty`,
+      sub: 'Resolve in Staff & Chairs',
+      tone: 'danger',
+      onClick: () => navigate('staff'),
+    });
+  }
+  if (summary.noShow > 0) {
+    needsAttention.push({
+      id: 'noshow',
+      label: `${summary.noShow} no-show${summary.noShow > 1 ? 's' : ''} recorded`,
+      sub: 'View in Bookings',
+      tone: 'danger',
+      onClick: () => {
+        setBookingTab('cancelled');
+        navigate('bookings');
+      },
+    });
+  }
+  if (queueAlert) {
+    needsAttention.push({
+      id: 'alert',
+      label: 'Live sync needs attention',
+      sub: queueAlert,
+      tone: 'warn',
+      onClick: () => navigate('live'),
+    });
+  }
 
-        {/* Dynamic Category Navigation Bar */}
-        {false && isGymCategory && (
-          <div className="flex snap-x gap-1.5 overflow-x-auto border-b border-[#E1E7E6] pb-2 pt-1">
-            {categoryModules.map((mod) => (
+  const attentionTone: Record<string, string> = {
+    warn: 'bg-amber-500/15 text-amber-400',
+    danger: 'bg-rose-500/15 text-rose-400',
+    neutral: 'bg-[#2A7BFF]/15 text-[#7EB4FF]',
+  };
+
+  return (
+    <div className={`relative flex w-full flex-col bg-[#0D1118] text-[#E6E8F0] ${embedded ? 'h-full' : 'h-full min-h-screen'}`}>
+      {/* Off-canvas navigation drawer — same interaction pattern as Gym's
+          sidebar: overlays/dims the active screen, lists every module the
+          authenticated role is allowed, closes on selection / backdrop / X. */}
+      {navOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+          className="absolute inset-0 z-40 bg-black/60"
+        />
+      )}
+      <aside
+        id="salon-navigation"
+        className={`absolute inset-y-0 left-0 z-50 flex w-[78%] max-w-[280px] flex-col border-r border-white/10 bg-[#141A24] shadow-2xl transition-transform duration-200 ease-out ${
+          navOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-start justify-between px-4 pt-5 pb-3">
+          <div>
+            <div className="font-sans text-base font-extrabold tracking-tight text-[#E6E8F0]">
+              NOQ<span className="text-[#2A7BFF]">BUSINESS</span>
+            </div>
+            <div className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#5E6779]">
+              Workspace &middot; Salon
+            </div>
+          </div>
+          <button
+            id="salon-drawer-close"
+            aria-label="Close navigation"
+            onClick={() => setNavOpen(false)}
+            className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#97A0B5]"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <nav aria-label="Salon dashboard" className="flex-1 min-h-0 overflow-y-auto px-2.5 pb-2">
+          {categoryModules.map((mod) => {
+            const Icon = moduleIcons[mod.id] || LayoutDashboard;
+            const isActive = active === mod.id;
+            const isConcept = Boolean(CONCEPT_MODULES[mod.id]);
+            return (
               <button
                 key={mod.id}
-                id={`gym-module-tab-${mod.id}`}
-                onClick={() => setGymModule(mod.id)}
-                className={`snap-start shrink-0 rounded-xl px-3.5 py-2 text-xs font-bold transition ${
-                  gymModule === mod.id
-                    ? 'bg-[#0F766E] text-white shadow-sm'
-                    : 'border border-[#DDE5E3] bg-white text-[#5C6E6B] hover:bg-[#F4F7F6]'
+                id={`salon-drawer-item-${mod.id}`}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => navigate(mod.id)}
+                className={`mb-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition ${
+                  isActive ? 'bg-[#2A7BFF]/15 text-[#8EBBFF]' : 'text-[#97A0B5] hover:bg-white/5'
                 }`}
               >
-                {mod.label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Metrics Row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className={`${ui.card} p-3.5`}>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <Users className="w-3.5 h-3.5 text-[#0F766E]" />
-              <span>Waiting</span>
-            </div>
-            <b id="staff-waiting-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1">
-              {waitingCount}
-            </b>
-            {calledCount > 0 && (
-              <span className="text-[10px] font-bold text-[#A66020] block mt-0.5">
-                +{calledCount} called
-              </span>
-            )}
-          </div>
-
-          <div className={`${ui.card} p-3.5`}>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <Scissors className="w-3.5 h-3.5 text-[#0F766E]" />
-              <span>In Chair</span>
-            </div>
-            <b id="staff-serving-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1">
-              {servingCount}
-            </b>
-            <span className="text-[10px] text-[#6F7C7A] block mt-0.5">Serving now</span>
-          </div>
-
-          <div className={`${ui.card} p-3.5`}>
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-[#6F7C7A]">
-              <UserCheck className="w-3.5 h-3.5 text-[#0F766E]" />
-              <span>Barbers</span>
-            </div>
-            <b id="staff-barber-count" className="block font-sans text-2xl font-bold text-[#17201F] mt-1 truncate">
-              {availableBarbers}/{activeBarbers} <span className="text-xs font-sans font-medium text-[#6F7C7A]">free</span>
-            </b>
-            <span className="text-[10px] text-[#6F7C7A] block mt-0.5">Shop capacity</span>
-          </div>
-        </div>
-
-        {/* Barber Availability Section */}
-        <div className={`${ui.card} p-4`}>
-          <div className="flex items-center justify-between mb-2.5">
-            <div>
-              <span className="block text-xs font-bold text-[#17201F]">Team &amp; chairs</span>
-              <span className="mt-0.5 block text-[10px] text-[#6F7C7A]">Tap an available barber to change duty status</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {barbers.map((barber, index) => {
-              const isBusy = barber.status === 'busy';
-              const isAvailable = barber.status === 'available';
-
-              return (
-                <button
-                  key={barber.id}
-                  id={`barber-btn-${barber.id}`}
-                  onClick={() => onBarberToggle(index)}
-                  disabled={isBusy}
-                  className={`px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition cursor-pointer ${
-                    isBusy
-                      ? 'bg-[#FAF0E6] text-[#A66020] border-[#A66020]/30 cursor-not-allowed opacity-90'
-                      : isAvailable
-                        ? 'bg-[#E7F5F2] text-[#0F766E] border-[#0F766E]/30 hover:bg-[#DDECE0]'
-                        : 'bg-[#F8FAFA] text-[#6F7C7A] border-[#E1E7E6] hover:bg-[#EAEAE5]'
-                  }`}
-                  title={isBusy ? `Currently serving: ${barber.currentCustomerName || 'Customer'}` : 'Toggle available/off-duty'}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isBusy ? 'bg-[#A66020] animate-pulse' : isAvailable ? 'bg-[#0F766E]' : 'bg-[#6F7C7A]'
-                    }`}
-                  />
-                  <span>{barber.name}</span>
-                  <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-white/70">
-                    {isBusy ? 'In Chair' : isAvailable ? 'Available' : 'Off-duty'}
+                <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#2A7BFF]' : ''}`} />
+                <span className="flex-1">{mod.label}</span>
+                {isConcept && (
+                  <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-[#5E6779]">
+                    Soon
                   </span>
-                </button>
-              );
-            })}
+                )}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="flex items-center gap-2.5 border-t border-white/10 px-4 py-3.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-[#5E6779]" />
+          <div className="min-w-0 text-[9.5px] font-semibold leading-relaxed text-[#5E6779]">
+            Business ID &middot; {salon.id}
+            <br />
+            Modules shown for role: <b className="text-[#97A0B5]">{role}</b>
           </div>
         </div>
+      </aside>
 
-        {/* Queue Header & Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E1E7E6] pb-3 pt-1">
-          <div className="inline-flex rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
-            <button
-              id="staff-tab-live"
-              onClick={() => setActiveTab('live')}
-              className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                activeTab === 'live'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
-                  : 'text-[#6F7C7A] hover:text-[#17201F]'
-              }`}
-            >
-              Today's Live Queue ({queue.length})
-            </button>
-            <button
-              id="staff-tab-history"
-              onClick={() => setActiveTab('history')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                activeTab === 'history'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
-                  : 'text-[#6F7C7A] hover:text-[#17201F]'
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              <span>Bookings</span>
-            </button>
-            <button
-              id="staff-tab-manage-staff"
-              onClick={() => setActiveTab('staff')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                activeTab === 'staff'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
-                  : 'text-[#6F7C7A] hover:text-[#17201F]'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Manage Staff</span>
-            </button>
-            <button
-              id="staff-tab-offers"
-              onClick={() => setActiveTab('offers')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                activeTab === 'offers'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
-                  : 'text-[#6F7C7A] hover:text-[#17201F]'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              <span>Offers</span>
-            </button>
-            <button
-              id="staff-tab-profile"
-              onClick={() => setActiveTab('profile')}
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                activeTab === 'profile'
-                  ? 'bg-white text-[#0F766E] ring-1 ring-[#D8E4E2]'
-                  : 'text-[#6F7C7A] hover:text-[#17201F]'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Manage Profile</span>
-            </button>
-          </div>
-
-          {activeTab !== 'staff' && activeTab !== 'offers' && activeTab !== 'profile' && (
-            <button
-              id="add-walkin-popup-btn"
-              onClick={() => setIsWalkinModalOpen(true)}
-              className={`${ui.primaryButton} flex items-center gap-1.5 px-3 py-2 text-xs`}
-            >
-              <UserPlus className="w-3.5 h-3.5" />
-              <span>+ ADD WALK-IN</span>
-            </button>
-          )}
+      {/* Top header — hamburger, business identity, live status. */}
+      <header className="flex shrink-0 items-center gap-2.5 border-b border-white/10 bg-[#0D1118] px-3.5 py-3">
+        <button
+          id="salon-hamburger"
+          aria-label="Open navigation"
+          aria-expanded={navOpen}
+          aria-controls="salon-navigation"
+          onClick={() => setNavOpen(true)}
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#E6E8F0]"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#2A7BFF] to-[#1857B8] font-sans text-xs font-extrabold text-white">
+          {salon.name.charAt(0).toUpperCase()}
         </div>
-
-        {/* Alert message */}
-        {queueAlert && (
-          <div
-            id="staff-queue-alert"
-            className="p-3 bg-[#FAF0E6] border border-[#A66020]/40 rounded-2xl text-xs font-semibold text-[#A66020] flex items-center gap-2"
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-bold text-[#E6E8F0]">{salon.name}</div>
+          <div className="truncate text-[10px] font-semibold text-[#5E6779]">Salon workspace &middot; {role}</div>
+        </div>
+        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-emerald-400">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          Live
+        </span>
+        {onSignOut && (
+          <button
+            id="salon-signout"
+            aria-label="Sign out"
+            onClick={onSignOut}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#97A0B5]"
           >
-            <AlertTriangle className="w-4 h-4 text-[#A66020] shrink-0" />
-            <span>{queueAlert}</span>
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </header>
+
+      {profileIncomplete && (
+        <div id="salon-profile-incomplete-banner" className="flex shrink-0 items-center justify-between gap-3 bg-amber-500/10 px-4 py-2 text-[11px] font-semibold text-amber-300">
+          <span>Business profile incomplete</span>
+          <button onClick={onSetup} className="font-bold underline">Complete setup</button>
+        </div>
+      )}
+
+      <main className="flex-1 min-h-0 overflow-y-auto">
+        {/* ---------------- OVERVIEW ---------------- */}
+        {active === 'overview' && (
+          <div className="space-y-5 p-4 pb-8">
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Overview</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">Your salon command center</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div id="overview-kpi-inservice" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+                  <Scissors className="h-3 w-3 text-[#2A7BFF]" /> Inside Service
+                </div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{servingCount}</div>
+              </div>
+              <div id="overview-kpi-waiting" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+                  <Users className="h-3 w-3 text-[#2A7BFF]" /> Waiting
+                </div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{waitingCount}</div>
+                {calledCount > 0 && <div className="mt-0.5 text-[9.5px] font-bold text-amber-400">+{calledCount} called</div>}
+              </div>
+              <div id="overview-kpi-staff" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+                  <UserCheck className="h-3 w-3 text-[#2A7BFF]" /> Staff Available
+                </div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{availableBarbers}/{activeBarbers}</div>
+              </div>
+              <div id="overview-kpi-bookings" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+                  <CalendarDays className="h-3 w-3 text-[#2A7BFF]" /> Today&apos;s Bookings
+                </div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{summary.total}</div>
+              </div>
+              {/* Today's Collection is intentionally omitted: the queue has no
+                  reliable per-booking price yet, so no revenue KPI is shown
+                  rather than a fabricated or placeholder figure. */}
+            </div>
+
+            <div>
+              <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#5E6779]">Quick actions</div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  id="overview-qa-walkin"
+                  onClick={() => setIsWalkinModalOpen(true)}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-[#2A7BFF] px-3 py-3 text-xs font-bold text-white active:scale-[0.98]"
+                >
+                  <UserPlus className="h-4 w-4" /> Add Walk-in
+                </button>
+                <button
+                  id="overview-qa-live"
+                  onClick={() => navigate('live')}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                >
+                  <Zap className="h-4 w-4 text-[#2A7BFF]" /> Open Live Salon
+                </button>
+                <button
+                  id="overview-qa-bookings"
+                  onClick={() => navigate('bookings')}
+                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                >
+                  <CalendarDays className="h-4 w-4 text-[#2A7BFF]" /> Bookings
+                </button>
+                {isOwnerOrManager && (
+                  <button
+                    id="overview-qa-staff"
+                    onClick={() => navigate('staff')}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                  >
+                    <Users className="h-4 w-4 text-[#2A7BFF]" /> Staff & Chairs
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#5E6779]">Needs attention</span>
+                {needsAttention.length > 0 && (
+                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold text-[#97A0B5]">{needsAttention.length}</span>
+                )}
+              </div>
+              {needsAttention.length === 0 ? (
+                <div id="overview-attention-empty" className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-center text-[11px] font-semibold text-[#5E6779]">
+                  All caught up — nothing needs attention right now.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {needsAttention.map((item) => (
+                    <button
+                      key={item.id}
+                      id={`overview-attention-${item.id}`}
+                      onClick={item.onClick}
+                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-[#141A24] px-3 py-2.5 text-left"
+                    >
+                      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${attentionTone[item.tone]}`}>
+                        <AlertTriangle className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[12px] font-bold text-[#E6E8F0]">{item.label}</span>
+                        <span className="block truncate text-[10px] font-semibold text-[#5E6779]">{item.sub}</span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#5E6779]" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Tab 1: Live Queue Entries */}
-        {activeTab === 'live' && (
-          <div className="space-y-2.5">
-            {queue.length === 0 ? (
-              <div className="p-8 text-center bg-white rounded-2xl border border-dashed border-[#E1E7E6]">
-                <Users className="w-8 h-8 text-[#6F7C7A] mx-auto mb-2" />
-                <p className="text-sm font-bold text-[#17201F]">Queue is currently empty</p>
-                <p className="text-xs text-[#6F7C7A] mt-0.5 mb-3">
-                  Click "+ ADD WALK-IN" or join via Customer App to test live queue flow.
-                </p>
-                <button
-                  onClick={() => setIsWalkinModalOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-[#0F766E] hover:bg-[#0B665F] text-white text-xs font-semibold transition cursor-pointer"
-                >
-                  + Add Walk-In Customer
-                </button>
+        {/* ---------------- LIVE SALON ---------------- */}
+        {active === 'live' && (
+          <div className="space-y-4 p-4 pb-8">
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Live Salon</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">Real-time queue &amp; chair floor</p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#E6E8F0]">Team &amp; chairs</span>
+                <span className="text-[10px] font-semibold text-[#5E6779]">Tap to toggle duty status</span>
               </div>
-            ) : (
-              queue.map((item, index) => (
-                <QueueBookingCard
-                  key={item.id}
-                  item={item}
-                  position={index + 1}
-                  now={now}
-                  onAction={onQueueAction}
-                  onCancelChair={setCancelTarget}
-                />
-              ))
+              <div className="flex flex-wrap gap-2">
+                {barbers.map((barber, index) => {
+                  const isBusy = barber.status === 'busy';
+                  const isAvailable = barber.status === 'available';
+                  return (
+                    <button
+                      key={barber.id}
+                      id={`barber-btn-${barber.id}`}
+                      onClick={() => onBarberToggle(index)}
+                      disabled={isBusy}
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        isBusy
+                          ? 'cursor-not-allowed border-amber-500/30 bg-amber-500/10 text-amber-300 opacity-90'
+                          : isAvailable
+                            ? 'border-[#2A7BFF]/30 bg-[#2A7BFF]/10 text-[#8EBBFF] hover:bg-[#2A7BFF]/15'
+                            : 'border-white/10 bg-white/5 text-[#97A0B5] hover:bg-white/10'
+                      }`}
+                      title={isBusy ? `Currently serving: ${barber.currentCustomerName || 'Customer'}` : 'Toggle available/off-duty'}
+                    >
+                      <span className={`h-2 w-2 rounded-full ${isBusy ? 'animate-pulse bg-amber-400' : isAvailable ? 'bg-[#2A7BFF]' : 'bg-[#5E6779]'}`} />
+                      <span>{barber.name}</span>
+                      <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold uppercase">
+                        {isBusy ? 'In Chair' : isAvailable ? 'Available' : 'Off-duty'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-[#E6E8F0]">Today&apos;s Live Queue ({queue.length})</span>
+              <button
+                id="add-walkin-popup-btn"
+                onClick={() => setIsWalkinModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-[#2A7BFF] px-3 py-2 text-xs font-bold text-white active:scale-[0.98]"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                <span>+ Add Walk-in</span>
+              </button>
+            </div>
+
+            {queueAlert && (
+              <div id="staff-queue-alert" className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-300">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+                <span>{queueAlert}</span>
+              </div>
             )}
 
-            <p className="pt-2 text-center text-[11px] leading-relaxed text-[#6F7C7A] sm:text-left">
-              💡 <b>Start</b> seats the customer in the chair; <b>Complete</b> finishes the service and frees the barber in real time.
-              <b> Cancel Chair</b> records why the salon dropped a booking, while <b>No-show</b> means the customer was called and never arrived.
-            </p>
+            <div className="space-y-2.5">
+              {queue.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
+                  <Users className="mx-auto mb-2 h-8 w-8 text-[#5E6779]" />
+                  <p className="text-sm font-bold text-[#E6E8F0]">Queue is currently empty</p>
+                  <p className="mb-3 mt-0.5 text-xs text-[#97A0B5]">Add a walk-in or wait for a Customer App / QR join.</p>
+                  <button
+                    onClick={() => setIsWalkinModalOpen(true)}
+                    className="rounded-xl bg-[#2A7BFF] px-3.5 py-2 text-xs font-semibold text-white"
+                  >
+                    + Add Walk-In Customer
+                  </button>
+                </div>
+              ) : (
+                queue.map((item, index) => (
+                  <QueueBookingCard key={item.id} item={item} position={index + 1} now={now} onAction={onQueueAction} onCancelChair={setCancelTarget} />
+                ))
+              )}
+              <p className="pt-1 text-[11px] leading-relaxed text-[#5E6779]">
+                <b className="text-[#97A0B5]">Start</b> seats the customer; <b className="text-[#97A0B5]">Complete</b> frees the chair.
+                <b className="text-[#97A0B5]"> Cancel Chair</b> records why the salon dropped a booking, <b className="text-[#97A0B5]">No-show</b> means they never arrived.
+              </p>
+            </div>
           </div>
         )}
 
-        {/* Tab 2: Completed History */}
-        {activeTab === 'history' && (
-          <div className="space-y-3">
-            {/* Bookings tabs. Classification comes from shared/bookingBuckets so
-                Completed can only ever mean a real completed service. */}
+        {/* ---------------- BOOKINGS ---------------- */}
+        {active === 'bookings' && (
+          <div className="space-y-3 p-4 pb-8">
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Bookings</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">All queue activity &amp; history</p>
+            </div>
+
             <div className="flex flex-wrap gap-1.5">
               {BOOKING_TABS.map((tab) => (
                 <button
@@ -403,9 +603,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   id={`bookings-tab-${tab.id}`}
                   onClick={() => setBookingTab(tab.id)}
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
-                    bookingTab === tab.id
-                      ? 'bg-[#0F766E] text-white'
-                      : 'bg-white text-[#6F7C7A] border border-[#E1E7E6] hover:text-[#17201F]'
+                    bookingTab === tab.id ? 'bg-[#2A7BFF] text-white' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
                   }`}
                 >
                   {tab.label}
@@ -420,7 +618,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={range}
                     onClick={() => setFilters((current) => ({ ...current, range }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.range === range ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                      filters.range === range ? 'bg-[#2A7BFF]/15 text-[#8EBBFF]' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
                     }`}
                   >
                     {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
@@ -431,7 +629,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={source}
                     onClick={() => setFilters((current) => ({ ...current, source }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.source === source ? 'bg-[#E7F5F2] text-[#0F766E]' : 'bg-white text-[#6F7C7A] border border-[#E1E7E6]'
+                      filters.source === source ? 'bg-[#2A7BFF]/15 text-[#8EBBFF]' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
                     }`}
                   >
                     {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : 'App'}
@@ -441,14 +639,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   value={filters.search}
                   onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
                   placeholder="Search customer or service"
-                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-[#E1E7E6] px-2 text-[11px] outline-none focus:border-[#62AAA3]"
+                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] text-[#E6E8F0] outline-none placeholder:text-[#5E6779] focus:border-[#2A7BFF]/50"
                 />
               </div>
             )}
 
             {bookingTab === 'gross' ? (
               (() => {
-                const summary = grossSummary(queue, completedList, now);
                 const tiles = [
                   ['Total bookings', String(summary.total)],
                   ['Live now', String(summary.live)],
@@ -466,15 +663,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   <div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {tiles.map(([label, value]) => (
-                        <div key={label} className="rounded-xl border border-[#E1E7E6] bg-white p-3">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">{label}</p>
-                          <p className="mt-1 text-lg font-bold text-[#17201F]">{value}</p>
+                        <div key={label} className="rounded-xl border border-white/10 bg-[#141A24] p-3">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#5E6779]">{label}</p>
+                          <p className="mt-1 text-lg font-bold text-[#E6E8F0]">{value}</p>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-[10px] leading-4 text-[#6F7C7A]">
-                      Activity counts only. Revenue is not shown because the queue does not carry a reliable
-                      per-booking price yet.
+                    <p className="mt-2 text-[10px] leading-4 text-[#5E6779]">
+                      Activity counts only. Revenue is not shown because the queue does not carry a reliable per-booking price yet.
                     </p>
                   </div>
                 );
@@ -494,12 +690,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 const rows = applyFilters(source, filters, now);
                 if (rows.length === 0) {
                   return (
-                    <div className="p-8 text-center bg-white rounded-2xl border border-[#E1E7E6]">
-                      <CheckCircle className="w-8 h-8 text-[#0F766E] mx-auto mb-2 opacity-60" />
-                      <p className="text-xs text-[#6F7C7A]">
-                        {bookingTab === 'reserved'
-                          ? 'Reserved bookings are not supported yet.'
-                          : 'Nothing in this view for the selected filters.'}
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+                      <CheckCircle className="mx-auto mb-2 h-8 w-8 text-[#2A7BFF] opacity-60" />
+                      <p className="text-xs text-[#97A0B5]">
+                        {bookingTab === 'reserved' ? 'Reserved bookings are not supported yet.' : 'Nothing in this view for the selected filters.'}
                       </p>
                     </div>
                   );
@@ -511,35 +705,30 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       const closed = bookingTab === 'completed' || bookingTab === 'cancelled';
                       const tone =
                         badge.tone === 'good'
-                          ? 'text-[#0F766E] bg-[#E7F5F2]'
+                          ? 'text-emerald-400 bg-emerald-500/10'
                           : badge.tone === 'bad'
-                            ? 'text-rose-700 bg-rose-50 border border-rose-200/60'
-                            : 'text-[#8A6516] bg-[#FFF8EC] border border-[#F0DFBE]';
+                            ? 'text-rose-300 bg-rose-500/10 border border-rose-500/20'
+                            : 'text-amber-300 bg-amber-500/10 border border-amber-500/20';
                       return (
-                        <div
-                          key={`${item.id}-${idx}`}
-                          className="p-3.5 rounded-2xl bg-white border border-[#E1E7E6] flex items-center justify-between gap-3"
-                        >
+                        <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
-                              <span className="text-[9px] font-bold uppercase bg-[#0F766E]/10 text-[#0F766E] px-1.5 py-0.5 rounded">
+                              <b className="font-sans text-sm font-bold text-[#E6E8F0]">{item.name}</b>
+                              <span className="rounded bg-[#2A7BFF]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#8EBBFF]">
                                 {sourceLabel(item)}
                                 {(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                               </span>
                             </div>
-                            <div className="text-[11px] text-[#6F7C7A] mt-0.5">
+                            <div className="mt-0.5 text-[11px] text-[#97A0B5]">
                               {item.service}
                               {item.barberName ? ` · ${item.barberName}` : ''}
                               {item.cancelReasonCode ? ` · ${item.cancelReasonCode.replace(/_/g, ' ')}` : ''}
                             </div>
                           </div>
                           {closed ? (
-                            <span className={`shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full ${tone}`}>{badge.label}</span>
+                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}>{badge.label}</span>
                           ) : (
-                            <span className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E1E7E6]/60 text-[#6F7C7A]">
-                              {item.status}
-                            </span>
+                            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-[#97A0B5]">{item.status}</span>
                           )}
                         </div>
                       );
@@ -551,15 +740,47 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           </div>
         )}
 
-        {activeTab === 'staff' && (
-          <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
+        {/* ---------------- STAFF & CHAIRS ---------------- */}
+        {active === 'staff' && isOwnerOrManager && (
+          <div className="p-4 pb-8">
+            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#E6E8F0]">Staff &amp; Chairs</h2>
+            <p className="mb-3 text-[11px] font-semibold text-[#97A0B5]">Same records Customer App reads</p>
+            <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
+          </div>
         )}
-        {activeTab === 'offers' && (
-          <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+
+        {/* ---------------- OFFERS & CAMPAIGNS ---------------- */}
+        {active === 'offers' && isOwnerOrManager && (
+          <div className="p-4 pb-8">
+            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#E6E8F0]">Offers &amp; Campaigns</h2>
+            <p className="mb-3 text-[11px] font-semibold text-[#97A0B5]">Same records Price Breakdown reads</p>
+            <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
+            <p className="mt-3 text-[10px] leading-relaxed text-[#5E6779]">
+              <b className="text-[#97A0B5]">Campaigns</b> (scheduled, multi-step promos) has no backend yet — only the Offers above are real and interactive.
+            </p>
+          </div>
         )}
-        {activeTab === 'profile' && (
-          <GymManageProfile gymId={salon.id} gymName={salon.name} onClose={() => setActiveTab('live')} />
+
+        {/* ---------------- BUSINESS PROFILE (shared profile editor) ---------------- */}
+        {active === 'profile' && isOwnerOrManager && (
+          <GymManageProfile gymId={salon.id} gymName={salon.name} onClose={() => navigate('overview')} />
         )}
+
+        {/* ---------------- CONCEPT / BACKEND-DEPENDENT MODULES ---------------- */}
+        {CONCEPT_MODULES[active] && (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-[#5E6779]">
+              {React.createElement(moduleIcons[active] || LayoutDashboard, { className: 'h-6 w-6' })}
+            </div>
+            <b className="text-sm text-[#E6E8F0]">{CONCEPT_MODULES[active].title}</b>
+            <p className="max-w-[34ch] text-[11.5px] leading-relaxed text-[#97A0B5]">{CONCEPT_MODULES[active].body}</p>
+            <span className="mt-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-wide text-[#5E6779]">
+              Coming next
+            </span>
+          </div>
+        )}
+      </main>
+
       <CancelBookingSheet
         open={Boolean(cancelTarget)}
         audience="staff"
@@ -570,16 +791,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           setCancelTarget(null);
         }}
       />
-      </div>
 
-      {/* Dedicated Walk-in Popup Modal */}
-      <WalkInModal
-        isOpen={isWalkinModalOpen}
-        onClose={() => setIsWalkinModalOpen(false)}
-        salon={salon}
-        barbers={barbers}
-        onAddWalkin={onAddWalkin}
-      />
+      <WalkInModal isOpen={isWalkinModalOpen} onClose={() => setIsWalkinModalOpen(false)} salon={salon} barbers={barbers} onAddWalkin={onAddWalkin} />
     </div>
   );
 };

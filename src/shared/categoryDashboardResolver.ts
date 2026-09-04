@@ -57,9 +57,17 @@ export function resolveCategoryCapabilities(mainCategoryId: MainCategoryType, ro
 
   // Default: Salon
   if (isOwnerOrManager) {
-    return ['queue_manage', 'chairs_manage', 'staff_manage', 'offers_manage', 'salon_settings'];
+    return [
+      'queue_manage',
+      'chairs_manage',
+      'bookings_view',
+      'staff_manage',
+      'offers_manage',
+      'salon_profile_manage',
+      ...(role === 'owner' ? ['salon_settings'] : []),
+    ];
   }
-  return ['queue_manage', 'chairs_manage'];
+  return ['queue_manage', 'chairs_manage', 'bookings_view'];
 }
 
 export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: StaffRole): CategoryModuleConfig[] {
@@ -84,12 +92,21 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
     return modules.filter((m) => m.allowedRoles.includes(role));
   }
 
-  // Salon modules
+  // Salon modules — mirrors the Gym registry shape: one flat list, filtered
+  // by allowedRoles. Customers / Services & Pricing / Reports / Settings are
+  // registered (so they render in the drawer and clamp/fallback correctly)
+  // even though their screens are concept-only until backend support lands.
   const salonModules: CategoryModuleConfig[] = [
-    { id: 'queue', label: 'Live Queue', icon: 'ListOrdered', allowedRoles: ['owner', 'manager', 'staff'] },
-    { id: 'chairs', label: 'Chairs & Stylists', icon: 'Scissors', allowedRoles: ['owner', 'manager', 'staff'] },
-    { id: 'staff', label: 'Manage Staff', icon: 'Users', allowedRoles: ['owner', 'manager'] },
-    { id: 'offers', label: 'Offers & Coupons', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
+    { id: 'overview', label: 'Overview', icon: 'LayoutDashboard', allowedRoles: ['owner', 'manager', 'staff'] },
+    { id: 'live', label: 'Live Salon', icon: 'Zap', allowedRoles: ['owner', 'manager', 'staff'] },
+    { id: 'bookings', label: 'Bookings', icon: 'CalendarDays', allowedRoles: ['owner', 'manager', 'staff'] },
+    { id: 'customers', label: 'Customers', icon: 'UsersRound', allowedRoles: ['owner', 'manager'] },
+    { id: 'staff', label: 'Staff & Chairs', icon: 'Users', allowedRoles: ['owner', 'manager'] },
+    { id: 'services', label: 'Services & Pricing', icon: 'Receipt', allowedRoles: ['owner', 'manager'] },
+    { id: 'offers', label: 'Offers & Campaigns', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
+    { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },
+    { id: 'profile', label: 'Business Profile', icon: 'Building2', allowedRoles: ['owner', 'manager'] },
+    { id: 'settings', label: 'Settings', icon: 'Settings', allowedRoles: ['owner'] },
   ];
   return salonModules.filter((m) => m.allowedRoles.includes(role));
 }

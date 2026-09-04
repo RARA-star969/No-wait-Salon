@@ -32,6 +32,7 @@ interface StaffAppShellProps {
 
 export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
   const [gymModule, setGymModule] = useState('overview');
+  const [salonModule, setSalonModule] = useState('overview');
   const [session, setSession] = useState<StaffSession | null>(null);
   const [loading, setLoading] = useState(true);
   
@@ -362,46 +363,30 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     mainCategoryId: session!.business.mainCategoryId,
   };
 
+  // Same shape as the Gym branch above: the dashboard component owns the
+  // whole screen (its own header, drawer, nav) — StaffAppShell only supplies
+  // session-derived data (role, business, sign-out) and doesn't wrap it in a
+  // second header.
   return (
-    <div className="flex h-full min-h-screen w-full flex-col bg-[#F4F7F6]">
-      {isProfileIncomplete && (
-        <div className="bg-[#FFF8E6] px-4 py-2 text-center text-sm font-medium text-[#B45309] flex justify-between items-center">
-          <span>Business profile incomplete</span>
-          <button onClick={() => setShowSetup(true)} className="underline font-bold">Complete setup</button>
-        </div>
-      )}
-      {/* Top Header Shell */}
-      <header className="flex shrink-0 items-center justify-between border-b border-[#DDE5E3] bg-white px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-white font-bold uppercase">
-            {session!.business.name.charAt(0)}
-          </div>
-          <div>
-            <h1 className="text-sm font-bold text-[#17201F]">{session!.business.name}</h1>
-            <p className="text-[10px] text-[#5C6E6B]">{session!.staff.name} ({session!.staff.role})</p>
-          </div>
-        </div>
-        <button onClick={handleLogout} className="rounded-lg bg-gray-100 px-3 py-1.5 text-[11px] font-bold text-gray-700">
-          Sign Out
-        </button>
-      </header>
-      
-      {/* Dynamic Category Render */}
-      <main className="flex-1 overflow-y-auto">
-          <StaffDashboard 
-            salon={activeBusinessSalon}
-            queue={props.queue}
-            barbers={props.barbers}
-            completedList={props.completedList}
-            onBarberToggle={props.onBarberToggle}
-            onAddWalkin={props.onAddWalkin}
-            onQueueAction={props.onQueueAction}
-            queueAlert={props.queueAlert}
-            onSaveStaff={props.onSaveStaff}
-            onSaveOffers={props.onSaveOffers}
-          />
-
-      </main>
-    </div>
+    <StaffDashboard
+      key={session!.business.id}
+      salon={activeBusinessSalon}
+      queue={props.queue}
+      barbers={props.barbers}
+      completedList={props.completedList}
+      onBarberToggle={props.onBarberToggle}
+      onAddWalkin={props.onAddWalkin}
+      onQueueAction={props.onQueueAction}
+      queueAlert={props.queueAlert}
+      onSaveStaff={props.onSaveStaff}
+      onSaveOffers={props.onSaveOffers}
+      role={session!.staff.role as any}
+      activeModule={salonModule}
+      onModuleSelect={setSalonModule}
+      onSignOut={handleLogout}
+      onSetup={() => setShowSetup(true)}
+      profileIncomplete={isProfileIncomplete}
+      embedded={props.embedded}
+    />
   );
 };
