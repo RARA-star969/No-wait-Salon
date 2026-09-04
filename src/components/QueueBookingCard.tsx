@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, PhoneForwarded, Play, Trash2 } from 'lucide-react';
+import { Check, Clock, PhoneForwarded, Play, Trash2 } from 'lucide-react';
 import type { QueueItem } from '../types';
 import { bookingCardState, maskedPhone, sourceBadge, type CardAction, type CardKind } from '../shared/queueCardState';
 
@@ -75,6 +75,12 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
               {item.createdAt && (
                 <span>Joined {new Date(item.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
               )}
+              {/* Only ever shown for Waiting / Called — never for a customer
+                  already in the chair (see bookingCardState, which omits
+                  waitingLabel for 'serving'). */}
+              {state.waitingLabel && (
+                <span className="font-bold text-[var(--noq-ink)]">&middot; {state.waitingLabel}</span>
+              )}
               {item.calledAt && (
                 <span>&middot; Called {new Date(item.calledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
               )}
@@ -92,7 +98,11 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
               <div className="mt-2.5 rounded-xl border border-[var(--noq-accent)]/25 bg-white p-2.5 shadow-sm space-y-1.5 text-[11px]">
                 <div className="flex items-center justify-between font-bold text-[var(--noq-ink)]">
                   <span className="text-[#5E6C6A]">Bill Total</span>
-                  <span className="font-mono text-sm font-black text-[var(--noq-accent)]">₹{item.totalPriceInr || 250}</span>
+                  {/* No fabricated placeholder amount: an honest "Not set"
+                      when the booking carries no real price yet. */}
+                  <span className="font-mono text-sm font-black text-[var(--noq-accent)]">
+                    {typeof item.totalPriceInr === 'number' ? `₹${item.totalPriceInr}` : 'Not set'}
+                  </span>
                 </div>
                 {item.discountInr ? (
                   <div className="flex items-center justify-between text-[10px] text-emerald-700 font-semibold">
@@ -144,8 +154,9 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
               <span
                 id={`arrival-countdown-${item.id}`}
                 title="Arrival window remaining"
-                className="rounded-lg border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-xs font-bold tabular-nums text-amber-800"
+                className="inline-flex items-center gap-1 rounded-lg border border-amber-200/70 bg-amber-50 px-2.5 py-1 text-xs font-bold tabular-nums text-amber-800"
               >
+                <Clock className="h-3 w-3" />
                 {state.timerLabel}
               </span>
             )}
@@ -161,7 +172,7 @@ export const QueueBookingCard: React.FC<Props> = ({ item, position, now, onActio
                 className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl bg-amber-600 text-white px-3 text-xs font-bold hover:bg-amber-700 shadow-sm transition active:scale-95 cursor-pointer"
               >
                 <Check className="h-3.5 w-3.5" />
-                Confirm Cash (₹{item.totalPriceInr || 250})
+                {typeof item.totalPriceInr === 'number' ? `Confirm Cash (₹${item.totalPriceInr})` : 'Confirm Cash Payment'}
               </button>
             )}
             {labelled.map((action) => (

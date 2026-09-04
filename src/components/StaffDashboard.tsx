@@ -630,6 +630,37 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
               </button>
             </div>
 
+            {/* Queue summary strip — the owner's one-glance operational
+                counts. Purely derived from `queue`, same source the cards
+                below render from, so it can never disagree with them. */}
+            <div id="live-queue-summary" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#3454FD]/10 text-[#3454FD]">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Total in Queue</div>
+                    <div className="mt-0.5 truncate text-sm font-extrabold text-[#17201F]">
+                      {queue.length} {queue.length === 1 ? 'customer' : 'customers'}
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">In Service</div>
+                  <div className="mt-1 text-lg font-extrabold text-[#3454FD]">{servingCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Called</div>
+                  <div className="mt-1 text-lg font-extrabold text-amber-600">{calledCount}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Waiting</div>
+                  <div className="mt-1 text-lg font-extrabold text-[#17201F]">{waitingCount}</div>
+                </div>
+              </div>
+            </div>
+
             {queueAlert && (
               <div id="staff-queue-alert" className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-700">
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />

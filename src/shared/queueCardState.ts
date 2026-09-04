@@ -8,7 +8,7 @@
  */
 
 import type { QueueItem } from '../types';
-import { callPhase, formatCountdown, remainingMs } from './queueTiming';
+import { callPhase, formatCountdown, remainingMs, waitingMinutes } from './queueTiming';
 
 export type CardKind =
   | 'waiting'
@@ -37,6 +37,9 @@ export type BookingCardState = {
   statusLabel: string;
   /** Countdown or similar, shown on its own line under the chip. */
   timerLabel?: string;
+  /** "Waiting N min" since join — only for a customer still in the live
+   *  queue (Waiting or Called). Never set once seated (Serving). */
+  waitingLabel?: string;
   /** Supporting lines such as "Call attempt 2" or "Called for: Arjun". */
   detailLines: string[];
   actions: CardAction[];
@@ -54,6 +57,7 @@ const CHECK_IN: CardAction = { id: 'call', label: 'Check In', tone: 'primary', t
 
 export function bookingCardState(item: QueueItem, now = Date.now()): BookingCardState {
   const phase = callPhase(item, now);
+  const waitingLabel = `Waiting ${waitingMinutes(item, now)} min`;
 
   if (item.status === 'Serving') {
     return {
@@ -74,6 +78,7 @@ export function bookingCardState(item: QueueItem, now = Date.now()): BookingCard
         kind: 'called_active',
         statusLabel: 'CALLED',
         timerLabel: `${formatCountdown(remainingMs(item, now))} remaining`,
+        waitingLabel,
         detailLines: stylist,
         // Call Again and No-show stay locked until the deadline passes.
         actions: [START_SERVICE, CANCEL_CHAIR],
@@ -85,6 +90,7 @@ export function bookingCardState(item: QueueItem, now = Date.now()): BookingCard
     return {
       kind: 'call_expired',
       statusLabel: 'ARRIVAL WINDOW ENDED',
+      waitingLabel,
       detailLines: [
         ...(item.callAttempt ? [`Call attempt ${item.callAttempt}`] : []),
         ...stylist,
@@ -105,6 +111,7 @@ export function bookingCardState(item: QueueItem, now = Date.now()): BookingCard
   return {
     kind: 'waiting',
     statusLabel: 'WAITING',
+    waitingLabel,
     detailLines: [],
     // The trash action already covers removal here, so Cancel Chair — which
     // exists to record WHY a called booking was dropped — would only duplicate

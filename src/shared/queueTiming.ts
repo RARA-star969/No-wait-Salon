@@ -56,6 +56,11 @@ export function remainingMs(item: Pick<QueueItem, 'graceExpiresAt'>, now = Date.
   return Math.max(0, item.graceExpiresAt - now);
 }
 
+/** Minutes elapsed since the customer joined the queue. Never negative. */
+export function waitingMinutes(item: Pick<QueueItem, 'createdAt'>, now = Date.now()): number {
+  return Math.max(0, Math.floor((now - item.createdAt) / 60_000));
+}
+
 /** mm:ss for display. Rounds up so a live countdown never shows 00:00 early. */
 export function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
