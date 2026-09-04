@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { App as CapacitorApp } from '@capacitor/app';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { QueueBookingCard } from './QueueBookingCard';
 import {
@@ -158,21 +159,42 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     return () => clearInterval(id);
   }, []);
 
-  // Android hardware Back closes the drawer first, never the dashboard.
+  // Escape closes the drawer for web/TEST keyboard use — unrelated to the
+  // native Android hardware-back handling below.
   useEffect(() => {
     if (!navOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setNavOpen(false);
     };
     window.addEventListener('keydown', onKeyDown);
-    const onPopState = () => setNavOpen(false);
-    window.history.pushState({ salonDrawer: true }, '');
-    window.addEventListener('popstate', onPopState);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('popstate', onPopState);
-    };
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [navOpen]);
+
+  // Android/Capacitor hardware back button — same established pattern as
+  // CustomerApp's `handleHardwareBack`: deepest overlay closes first and
+  // consumes the event, nothing else is handled here since this is the
+  // dashboard's own root. On web/iOS the 'backButton' event never fires, so
+  // browser Escape/back above stays the only web/TEST behavior; this never
+  // touches browser history, so repeatedly opening/closing the drawer never
+  // accumulates history entries.
+  const handleHardwareBack = useCallback((): boolean => {
+    if (cancelTarget) { setCancelTarget(null); return true; }
+    if (isWalkinModalOpen) { setIsWalkinModalOpen(false); return true; }
+    if (navOpen) { setNavOpen(false); return true; }
+    return false;
+  }, [cancelTarget, isWalkinModalOpen, navOpen]);
+
+  // Always call the latest handler without resubscribing the native listener
+  // on every state change.
+  const handleHardwareBackRef = useRef(handleHardwareBack);
+  useEffect(() => { handleHardwareBackRef.current = handleHardwareBack; }, [handleHardwareBack]);
+  useEffect(() => {
+    const listenerHandle = CapacitorApp.addListener('backButton', () => {
+      const handled = handleHardwareBackRef.current();
+      if (!handled) void CapacitorApp.exitApp();
+    });
+    return () => { void listenerHandle.then((handle) => handle.remove()); };
+  }, []);
 
   const categoryModules = resolveCategoryModules('salon', role);
   // Never trust an out-of-registry / no-longer-authorized module id — a role

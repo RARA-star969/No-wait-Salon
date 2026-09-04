@@ -62,6 +62,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     let active = true;
     setLoading(true);
     setGymModule('overview');
+    setSalonModule('overview');
     setSkipSetup(false);
     if (!props.testBusinessId) { void checkSession(); return; }
     void fetch(      `${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')}/api/staff/test-login`,
@@ -165,6 +166,7 @@ export const StaffAppShell: React.FC<StaffAppShellProps> = (props) => {
     setSession(null);
     setResolvedBusiness(null);
     setGymModule('overview');
+    setSalonModule('overview');
     setSkipSetup(false);
   };
 
