@@ -1960,11 +1960,14 @@ app.get('/api/staff/resolve-business/:code', (request, response) => {
 
 app.post('/api/staff/test-login', (request, response) => {
   if (process.env.NO_WAIT_TEST_DEPLOYMENT !== 'true') return response.status(403).json({ error: 'Not available.' });
-  // The existing test switcher may select a Gym by its internal ID. This path
-  // remains test-only; regular staff login still requires Business ID + password.
+  // The hosted TEST business switcher may select any business (Gym or
+  // Salon) by its internal ID, so the split preview panel can auto-login
+  // exactly like Gym instead of showing the real Business ID login gate.
+  // This path remains test-only (gated above); regular staff login on the
+  // real NOQ Business surface still always requires Business ID + password.
   let bRow: any;
   if (request.body?.businessId) {
-    bRow = db.prepare("SELECT * FROM salon WHERE id = ? AND main_category_id = 'gym'").get(String(request.body.businessId));
+    bRow = db.prepare("SELECT * FROM salon WHERE id = ?").get(String(request.body.businessId));
   } else {
     let businessCode;
     try { businessCode = validateBusinessCode(request.body?.businessCode as string); } catch (e) { return response.status(400).json({ error: e.message }); }

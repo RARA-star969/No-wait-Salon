@@ -88,6 +88,16 @@ export default function App() {
   const [completedList, setCompletedList] = useState<QueueItem[]>([]);
   const selectedCustomerSalonIdRef = useRef(customerSalon.id);
   const latestSalonSnapshotRef = useRef<{ salonId: string; version: number } | null>(null);
+  // The Staff/Owner panel's OWN live state, scoped to `staffSalon.id` — kept
+  // entirely separate from the Customer panel's `queue`/`barbers`/`completedList`
+  // above (which are scoped to `customerSalon.id`). Before this split, Staff
+  // reads and writes silently ran against whichever business the Customer
+  // panel happened to have open — see CRITICAL FIX #1 / business-isolation
+  // regression test in realtimeQueueService.test.ts.
+  const [staffQueue, setStaffQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
+  const [staffBarbers, setStaffBarbers] = useState<Barber[]>(INITIAL_BARBERS);
+  const [staffCompletedList, setStaffCompletedList] = useState<QueueItem[]>([]);
+  const [staffQueueAlert, setStaffQueueAlert] = useState<string>('');
   const customerSessionId = useRef<string>(loadCustomerSessionId());
 
   // Updated during render so even an already-resolving request from the
@@ -239,6 +249,66 @@ export default function App() {
     };
   }, [customerSalon.id]);
 
+  const selectedStaffSalonIdRef = useRef(staffSalon.id);
+  const latestStaffSalonSnapshotRef = useRef<{ salonId: string; version: number } | null>(null);
+  selectedStaffSalonIdRef.current = staffSalon.id;
+
+  const applyStaffSnapshot = (snapshot: SalonSnapshot) => {
+    const latest = latestStaffSalonSnapshotRef.current;
+    if (!shouldApplySalonSnapshot(selectedStaffSalonIdRef.current, latest, snapshot)) return;
+    latestStaffSalonSnapshotRef.current = { salonId: snapshot.salonId, version: snapshot.version };
+    setStaffQueue(snapshot.queue);
+    setStaffBarbers(snapshot.barbers);
+    setStaffCompletedList(snapshot.completedList);
+    setStaffQueueAlert('');
+    if (snapshot.platformStatus) {
+      setStaffSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
+    }
+  };
+
+  // Scoped to the Staff/Owner panel's own selected business — never affected
+  // by the Customer panel switching salons, and vice versa. Mirrors the
+  // Customer effect above: the same out-of-order-snapshot guard, and the
+  // same authoritative-refresh safety net for proxies/suspended WebViews/
+  // mobile networks that silently stall SSE, keyed on `staffSalon.id`.
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+    latestStaffSalonSnapshotRef.current = null;
+
+    const refresh = async () => {
+      if (disposed || inFlight) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+      inFlight = true;
+      try {
+        const snapshot = await realtimeQueueService.getState(staffSalon.id);
+        if (!disposed) applyStaffSnapshot(snapshot);
+      } catch (error) {
+        if (!disposed) setStaffQueueAlert(error instanceof Error ? error.message : 'Unable to load the live queue.');
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void refresh();
+    const unsubscribe = realtimeQueueService.subscribe(
+      staffSalon.id,
+      (snapshot) => !disposed && applyStaffSnapshot(snapshot),
+      (connected) => {
+        if (!disposed && !connected) setStaffQueueAlert('Live connection interrupted. Reconnecting…');
+      }
+    );
+    const intervalId = window.setInterval(refresh, 3000);
+    const onVisibilityChange = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      disposed = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      unsubscribe();
+    };
+  }, [staffSalon.id]);
+
   // Keep the selected salon's profile identical to what the public web page
   // would show for it: re-read the server record whenever the salon changes.
   useEffect(() => {
@@ -253,6 +323,23 @@ export default function App() {
       disposed = true;
     };
   }, [customerSalon.id]);
+
+  // Same profile read, scoped to the Staff panel's own business — Staff &
+  // Chairs / Offers & Campaigns / Business Profile need the real services
+  // and offers list for the business the signed-in staff member is actually
+  // in, never the Customer panel's currently-open salon.
+  useEffect(() => {
+    let disposed = false;
+    fetchSalonProfile(staffSalon.id)
+      .then((fresh) => {
+        if (disposed || !fresh) return;
+        setStaffSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+      })
+      .catch(() => undefined);
+    return () => {
+      disposed = true;
+    };
+  }, [staffSalon.id]);
 
   // Sync notifications to localStorage
   useEffect(() => {
@@ -387,6 +474,22 @@ export default function App() {
     }
   };
 
+  // The Staff/Owner panel's own command path — scoped to `staffSalon.id`,
+  // never `customerSalon.id`. Every staff-originated write (queue actions,
+  // Add Walk-in, barber toggle, save_staff, save_offers) must go through
+  // this, not `runCommand` above, or it silently mutates whatever business
+  // the Customer panel happens to have open. See CRITICAL FIX #1.
+  const runStaffCommand = async (command: Parameters<typeof realtimeQueueService.command>[1]) => {
+    try {
+      const snapshot = await realtimeQueueService.command(staffSalon.id, command);
+      applyStaffSnapshot(snapshot);
+      return snapshot;
+    } catch (error) {
+      setStaffQueueAlert(error instanceof Error ? error.message : 'Unable to update the live queue.');
+      return null;
+    }
+  };
+
   const handleReset = async () => {
     const snapshot = await runCommand({ type: 'reset' });
     if (!snapshot) return;
@@ -397,16 +500,16 @@ export default function App() {
   };
 
   const handleBarberToggle = async (barberIndex: number) => {
-    const barber = barbers[barberIndex];
+    const barber = staffBarbers[barberIndex];
     if (!barber) return;
-    await runCommand({ type: 'toggle_barber', barberId: barber.id });
+    await runStaffCommand({ type: 'toggle_barber', barberId: barber.id });
   };
 
   // Manage Staff writes the whole roster through save_staff, same shape
   // Admin's salon editor already sends — the server reconciles it into live
   // state immediately, so this reaches Customer App without a queue reset.
   const handleSaveStaff = async (staff: Barber[]) => {
-    await runCommand({
+    await runStaffCommand({
       type: 'save_staff',
       staff: staff.map((member) => ({
         id: member.id.startsWith('new-') ? undefined : member.id,
@@ -430,7 +533,7 @@ export default function App() {
   // endpoint only returns queue/barber state (not the salon record), so a
   // fresh salon profile is re-read afterwards to pick up the new offers.
   const handleSaveOffers = async (offers: SalonOffer[]) => {
-    await runCommand({
+    await runStaffCommand({
       type: 'save_offers',
       offers: offers.map((offer) => ({
         id: offer.id.startsWith('new-') ? undefined : offer.id,
@@ -450,8 +553,8 @@ export default function App() {
         eligible_service_ids: offer.eligibleServiceIds ?? [],
       })),
     });
-    const fresh = await fetchSalonProfile(customerSalon.id);
-    if (fresh) setCustomerSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
+    const fresh = await fetchSalonProfile(staffSalon.id);
+    if (fresh) setStaffSalon((current) => (current.id === fresh.id ? { ...current, ...fresh } : current));
   };
 
   // Client-side selection only — App.tsx's `join` command sends this id as a
@@ -467,8 +570,8 @@ export default function App() {
     startImmediately = false,
     selectedBarberIndex?: number
   ) => {
-    const preferredBarber = selectedBarberIndex !== undefined ? barbers[selectedBarberIndex] : undefined;
-    void runCommand({
+    const preferredBarber = selectedBarberIndex !== undefined ? staffBarbers[selectedBarberIndex] : undefined;
+    void runStaffCommand({
       type: 'add_walkin',
       item: { id: '', name, phone, service, status: 'Waiting', isUser: false, createdAt: Date.now(), estimatedDurationMin: 30 },
       startImmediately,
@@ -505,6 +608,29 @@ export default function App() {
         setCurrentScreen('complete');
         triggerPushNotification(`🎉 ${customerSalon.name}: Service Complete!`, `Your ${item.service} is finished. Thank you for visiting!`, 'general');
       }
+    });
+  };
+
+  // The Staff/Owner panel's own queue-action path — the counterpart to
+  // `handleQueueAction` above (which stays customer-scoped for the
+  // customer's own Acknowledge tap). Every Staff dashboard action (Call,
+  // Start, Complete, No-show, Remove, Cancel Chair) goes through here so it
+  // always targets `staffSalon.id`, never whichever business the Customer
+  // panel happens to have open.
+  const handleStaffQueueAction = (
+    item: QueueItem,
+    action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
+    reason?: { code: string; text: string },
+    specificBarberIndex?: number
+  ) => {
+    const barberId = specificBarberIndex !== undefined ? staffBarbers[specificBarberIndex]?.id : undefined;
+    void runStaffCommand({
+      type: 'queue_action',
+      itemId: item.id,
+      action,
+      barberId,
+      reasonCode: reason?.code,
+      reasonText: reason?.text,
     });
   };
 
@@ -724,13 +850,13 @@ export default function App() {
     return (
       <StaffAppShell
         salon={staffSalon}
-        queue={queue}
-        barbers={barbers}
-        completedList={completedList}
+        queue={staffQueue}
+        barbers={staffBarbers}
+        completedList={staffCompletedList}
         onBarberToggle={handleBarberToggle}
         onAddWalkin={handleAddWalkin}
-        onQueueAction={handleQueueAction}
-        queueAlert={queueAlert}
+        onQueueAction={handleStaffQueueAction}
+        queueAlert={staffQueueAlert}
         onSaveStaff={handleSaveStaff}
         onSaveOffers={handleSaveOffers}
         onBusinessResolved={(business) => {
@@ -757,6 +883,13 @@ export default function App() {
   }
 
   const gymStaffSelected = staffSalon.mainCategoryId === 'gym' && viewMode !== 'customer';
+  const salonStaffSelected = staffSalon.mainCategoryId === 'salon' && viewMode !== 'customer';
+  // Hosted TEST split-panel only: Salon auto-logs in exactly like Gym via
+  // /api/staff/test-login (testBusinessId/testRole below) instead of showing
+  // the real Business ID login gate — that gate is preserved everywhere else
+  // (the real NOQ Business APK and the real /business web surface, neither
+  // of which ever pass testBusinessId).
+  const testAutoLoginSelected = gymStaffSelected || salonStaffSelected;
   const gymTestSwitcher = import.meta.env.DEV || ['localhost', '127.0.0.1', 'no-wait-salon-web-test.onrender.com'].includes(window.location.hostname);
   // PACKAGED_MODE === 'staff' already returned above via the universal
   // StaffAppShell login gate; this only covers the web '/business' route.
@@ -781,7 +914,7 @@ export default function App() {
   );
   if (isBusinessSurface) {
     return <div className="min-h-screen bg-[#f6f8fa]">
-      <StaffAppShell key={gymStaffSelected ? staffSalon.id + ':' + gymTestRole : 'business'} testRole={gymTestRole} salon={staffSalon} queue={queue} barbers={barbers} completedList={completedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleQueueAction} queueAlert={queueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
+      <StaffAppShell key={gymStaffSelected ? staffSalon.id + ':' + gymTestRole : 'business'} testRole={gymTestRole} salon={staffSalon} queue={staffQueue} barbers={staffBarbers} completedList={staffCompletedList} onBarberToggle={handleBarberToggle} onAddWalkin={handleAddWalkin} onQueueAction={handleStaffQueueAction} queueAlert={staffQueueAlert} onSaveStaff={handleSaveStaff} onSaveOffers={handleSaveOffers} />
     </div>;
   }
 
@@ -951,40 +1084,43 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Staff Body — the hosted TEST wrapper keeps the Gym business
-                  dashboard inside this same preview panel (real authenticated
-                  StaffAppShell -> GymDashboardView, rendered in its compact
-                  embedded layout) instead of taking over the browser viewport.
-                  Non-gym businesses use the same universal authenticated
+              {/* Staff Body — the hosted TEST wrapper keeps Gym AND Salon
+                  business dashboards inside this same preview panel (the
+                  real authenticated StaffAppShell, auto-logged in via
+                  testBusinessId/testRole -> /api/staff/test-login) instead
+                  of showing the real Business ID login gate or taking over
+                  the browser viewport. Any other/unrecognized category still
+                  falls through to the same universal authenticated
                   StaffAppShell login flow as the real NOQ Business surface. */}
               <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                {gymStaffSelected ? (
+                {testAutoLoginSelected ? (
                   <StaffAppShell
                     key={staffSalon.id + ':' + gymTestRole}
                     embedded
                     testBusinessId={staffSalon.id}
                     testRole={gymTestRole}
                     salon={staffSalon}
-                    queue={queue}
-                    barbers={barbers}
-                    completedList={completedList}
+                    queue={staffQueue}
+                    barbers={staffBarbers}
+                    completedList={staffCompletedList}
                     onBarberToggle={handleBarberToggle}
                     onAddWalkin={handleAddWalkin}
-                    onQueueAction={handleQueueAction}
-                    queueAlert={queueAlert}
+                    onQueueAction={handleStaffQueueAction}
+                    queueAlert={staffQueueAlert}
                     onSaveStaff={handleSaveStaff}
                     onSaveOffers={handleSaveOffers}
                   />
                 ) : (
                   <StaffAppShell
+                    embedded
                     salon={staffSalon}
-                    queue={queue}
-                    barbers={barbers}
-                    completedList={completedList}
+                    queue={staffQueue}
+                    barbers={staffBarbers}
+                    completedList={staffCompletedList}
                     onBarberToggle={handleBarberToggle}
                     onAddWalkin={handleAddWalkin}
-                    onQueueAction={handleQueueAction}
-                    queueAlert={queueAlert}
+                    onQueueAction={handleStaffQueueAction}
+                    queueAlert={staffQueueAlert}
                     onSaveStaff={handleSaveStaff}
                     onSaveOffers={handleSaveOffers}
                     onBusinessResolved={(business) => {

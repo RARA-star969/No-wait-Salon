@@ -148,16 +148,23 @@ test("Gym business v1 real APIs, persistence and analytics", async (t) => {
           .status,
         403,
       );
+      // The hosted TEST business switcher now auto-logs Salon in exactly
+      // like Gym (so its split-panel preview never shows the real Business
+      // ID login gate) — test-login itself is category-agnostic. Real
+      // isolation is enforced by each endpoint's own category guard below,
+      // not by which categories test-login accepts.
+      const salonSwitched = await api(
+        "POST",
+        "/api/staff/test-login",
+        { businessId: "salon-1" },
+        "",
+      );
+      assert.equal(salonSwitched.status, 200);
+      assert.equal(salonSwitched.data.business.mainCategoryId, "salon");
       assert.equal(
-        (
-          await api(
-            "POST",
-            "/api/staff/test-login",
-            { businessId: "salon-1" },
-            "",
-          )
-        ).status,
-        404,
+        (await api("GET", gym("overview"), undefined, salonSwitched.data.token))
+          .status,
+        403,
       );
       const anonymous = await api("POST", gym("checkin"), {});
       assert.equal(anonymous.data.state.currentOccupancy, 1);
