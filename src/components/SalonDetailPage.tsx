@@ -425,10 +425,15 @@ export const SalonDetailPage: React.FC<Props> = ({ salon, nearbySalons, queue, b
         <button
           id="join-live-queue-btn"
           onClick={onJoin}
-          className={`relative flex min-h-14 min-w-0 items-center justify-center overflow-hidden rounded-[18px] bg-[var(--noq-accent)] px-4 text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition active:scale-[0.98] ${dockBounce ? 'dock-bounce' : ''}`}
+          disabled={!userEntry && salon.isOpen === false}
+          className={`relative flex min-h-14 min-w-0 items-center justify-center overflow-hidden rounded-[18px] px-4 text-sm font-bold text-white shadow-[0_14px_28px_-14px_var(--noq-glow)] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100 ${
+            !userEntry && salon.isOpen === false ? 'bg-slate-400' : 'bg-[var(--noq-accent)]'
+          } ${dockBounce ? 'dock-bounce' : ''}`}
         >
           <span className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent" aria-hidden="true" />
-          <span className="relative min-w-0 truncate">{userEntry ? 'View live queue' : 'Join Queue'}</span>
+          <span className="relative min-w-0 truncate">
+            {userEntry ? 'View live queue' : salon.isOpen === false ? 'Closed · Offline now' : 'Join Queue'}
+          </span>
         </button>
       </CategoryActionBar>
 

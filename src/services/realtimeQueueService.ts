@@ -12,6 +12,9 @@ export interface SalonSnapshot {
   completedList: QueueItem[];
   updatedAt: number;
   platformStatus?: string;
+  /** Owner-controlled live Open Now / Closed Now status — separate from
+   *  platformStatus (the Admin active/inactive/suspended listing control). */
+  isOpen?: boolean;
 }
 
 export type QueueCommand =

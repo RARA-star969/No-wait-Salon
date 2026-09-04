@@ -61,8 +61,9 @@
 .gym-sidebar {
   width: 224px;
   flex: 0 0 224px;
-  background: linear-gradient(155deg, #223641, #142730);
-  color: #dce8ed;
+  background: #fff;
+  border-right: 1px solid var(--gym-border);
+  color: var(--gym-ink);
   position: sticky;
   top: 0;
   height: 100dvh;
@@ -93,7 +94,7 @@
 .gym-nav-label {
   font-size: 9px;
   letter-spacing: 1.5px;
-  color: #98aeb8;
+  color: var(--gym-muted);
   padding: 24px 23px 14px;
 }
 .gym-sidebar nav {
@@ -109,7 +110,7 @@
   border: 0;
   background: none;
   text-align: left;
-  color: #dce8ed;
+  color: var(--gym-ink);
   border-radius: 9px;
   margin: 3px 0;
   padding: 11px 13px;
@@ -117,38 +118,64 @@
   font-weight: 550;
 }
 .gym-sidebar nav button.active {
-  background: linear-gradient(90deg, #0a858a, #08636b);
-  color: white;
-  box-shadow: 0 4px 16px #05272c44;
+  background: #eef8f7;
+  color: var(--gym-teal);
+  box-shadow: none;
 }
 .gym-sidebar nav button:hover {
-  background: #ffffff12;
+  background: #f5f9f9;
 }
 .gym-sidebar nav button.active:hover {
-  background: #08767d;
+  background: #e6f2f1;
 }
 .gym-sidebar nav b {
   margin-left: auto;
   border-radius: 5px;
   padding: 0 6px;
-  background: #ffffff20;
+  background: #eef2f6;
+  color: #68768a;
   font-size: 10px;
 }
 .gym-sidebar-footer {
   margin-top: auto;
-  padding: 24px 20px;
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-top: 1px solid var(--gym-border);
+}
+.gym-sidebar-footer-identity {
   display: flex;
   gap: 10px;
   align-items: center;
-  color: #bfd6db;
+  color: var(--gym-muted);
   font-size: 10px;
 }
 .gym-sidebar-footer small {
   display: block;
-  color: #849fa9;
+  color: var(--gym-muted);
   font-size: 9px;
   margin-top: 4px;
   overflow-wrap: anywhere;
+}
+.gym-sidebar-signout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--gym-border);
+  border-radius: 10px;
+  background: #f5f9f9;
+  color: #566b74;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+.gym-sidebar-signout:hover {
+  background: #fdf1ef;
+  border-color: #f3d4cd;
+  color: #b23a24;
 }
 .gym-workspace {
   flex: 1;
@@ -1393,10 +1420,10 @@ button.gym-floor-summary-card:focus-visible {
   left: 50%;
   transform: translateX(-50%);
   z-index: 70;
-  background: #173c40;
-  box-shadow: 0 8px 30px #10252e30;
-  border: 1px solid #42676b;
-  color: white;
+  background: #fff;
+  box-shadow: 0 8px 30px #17394218;
+  border: 1px solid #bcdedc;
+  color: #0c7980;
   border-radius: 12px;
   padding: 14px 20px;
   display: flex;

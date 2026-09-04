@@ -67,16 +67,21 @@ test('Gym dashboard scrolling regression guard — its own layout still defines 
 
 test('NOQ blue is the Salon dashboard drawer/dashboard accent, not legacy teal', () => {
   assert.match(dashboardSource, /text-\[#3454FD\]">BUSINESS/);
-  assert.match(dashboardSource, /isActive \? 'bg-\[#3454FD\]\/15 text-\[#7890FF\]'/);
+  assert.match(dashboardSource, /isActive \? 'bg-\[#3454FD\]\/10 text-\[#3454FD\]'/);
   assert.match(dashboardSource, /bg-\[#3454FD\] px-3 py-3 text-xs font-bold text-white active:scale-\[0\.98\]/); // Add Walk-in quick action
   assert.doesNotMatch(dashboardSource, /#2A7BFF/);
   assert.doesNotMatch(dashboardSource, /#0F766E/);
 });
 
+test('the bright shared theme removed the header LIVE badge and top-right Sign Out — Sign Out lives in the drawer/Settings instead', () => {
+  assert.doesNotMatch(dashboardSource, />\s*Live\s*<\/span>/);
+  assert.doesNotMatch(dashboardSource, /id="salon-signout"/);
+  assert.match(dashboardSource, /id="salon-drawer-signout"/);
+});
+
 test('semantic Live/Available/busy status colors stay in the green/amber/rose family, never migrated to blue', () => {
-  assert.match(dashboardSource, /bg-emerald-500\/15 px-2\.5 py-1 text-\[9px\] font-extrabold uppercase tracking-wider text-emerald-400/); // header "Live" pill
-  assert.match(dashboardSource, /border-emerald-500\/30 bg-emerald-500\/10 text-emerald-300 hover:bg-emerald-500\/15/); // Available barber pill
-  assert.match(dashboardSource, /isBusy \? 'animate-pulse bg-amber-400' : isAvailable \? 'bg-emerald-400'/); // barber status dot
+  assert.match(dashboardSource, /border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100/); // Available barber pill
+  assert.match(dashboardSource, /isBusy \? 'animate-pulse bg-amber-500' : isAvailable \? 'bg-emerald-500'/); // barber status dot
 });
 
 test('resolver-driven modules, authenticated role, and staff-scoped business isolation are wired through', () => {

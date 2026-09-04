@@ -846,7 +846,11 @@ export const PremiumBusinessCard: React.FC<{
           {isGym && liveFloorMeter ? (
             <><b className="block text-[13px] font-black tabular-nums text-[var(--noq-ink)]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">inside now</span></>
           ) : isSalon ? (
-            <><b className="block text-[13px] font-black text-[var(--noq-ink)]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">{salon.waitingCustomers === 0 ? 'walk in' : 'est. wait'}</span></>
+            salon.isOpen === false ? (
+              <><b className="block text-[12px] font-black text-rose-600">Closed</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">Offline now</span></>
+            ) : (
+              <><b className="block text-[13px] font-black text-[var(--noq-ink)]">{salon.waitingCustomers === 0 ? 'Ready now' : `${salon.liveWaitMinutes} min`}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">{salon.waitingCustomers === 0 ? 'walk in' : 'est. wait'}</span></>
+            )
           ) : (
             <><b className="block text-[12px] font-black text-[var(--noq-ink)]">{salon.isOpen ? 'Open now' : 'Closed'}</b>{salon.openingHours && <span className="block truncate text-[8px] font-semibold text-[var(--noq-muted)]">{salon.openingHours}</span>}</>
           )}
@@ -870,11 +874,17 @@ export const PremiumBusinessCard: React.FC<{
             <SignalStatusChip color={signalColor} label={signalLabel} />
           </>
         ) : isSalon ? (
-          <>
-            <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><UsersRound className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine1}</span>
-            {positionLabel && <span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><CalendarDays className="mr-1 inline h-3 w-3" />{positionLabel}</span>}
-            <SignalStatusChip color={signalColor} label={signalLabel} />
-          </>
+          salon.isOpen === false ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-rose-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Closed &middot; Offline now
+            </span>
+          ) : (
+            <>
+              <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><UsersRound className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine1}</span>
+              {positionLabel && <span className="min-w-0 flex-1 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><CalendarDays className="mr-1 inline h-3 w-3" />{positionLabel}</span>}
+              <SignalStatusChip color={signalColor} label={signalLabel} />
+            </>
+          )
         ) : categoryId === 'shop' ? (
           <>
             <span className="inline-flex min-w-0 flex-1 items-center gap-1.5 truncate text-[8px] font-semibold text-[var(--noq-muted)]"><Clock className="h-3 w-3 shrink-0" style={{ color: theme.accent }} />{liveLine2}</span>

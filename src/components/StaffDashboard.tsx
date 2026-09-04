@@ -42,10 +42,12 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  Power,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui } from './ui';
+import { setBusinessOpenStatus } from '../services/businessOpenStatusService';
 // Shared owner Manage Profile surface (business logo, basic info, gallery,
 // amenities, quick actions, social links) — historically Gym-only, now
 // reused here so Salon owners get the same single profile-editing system
@@ -121,10 +123,6 @@ const CONCEPT_MODULES: Record<string, { title: string; body: string }> = {
     title: 'Reports',
     body: "Today's activity counts already live in Bookings. A dedicated Reports module with real revenue needs per-booking pricing first.",
   },
-  settings: {
-    title: 'Settings',
-    body: 'No salon-facing settings endpoint exists yet — this screen activates once its scope is defined and built.',
-  },
 };
 
 export const StaffDashboard: React.FC<StaffDashboardProps> = ({
@@ -153,6 +151,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   const [filters, setFilters] = useState<BookingFilters>({ range: 'today', source: 'all', search: '' });
   const [navOpen, setNavOpen] = useState(false);
   const [isWalkinModalOpen, setIsWalkinModalOpen] = useState(false);
+  const [openStatusPending, setOpenStatusPending] = useState(false);
+  const [openStatusError, setOpenStatusError] = useState('');
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -219,16 +219,33 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
   const isDeactivated = salon.platformStatus === 'deactivated';
 
+  // Owner/manager Open Now / Closed Now control. `salon.isOpen` is the real,
+  // server-persisted source of truth (synced over the same SSE snapshot the
+  // live queue already rides) — never local-only state. Admin's platform
+  // status (deactivated, above) already overrides this: a deactivated
+  // business never reaches this control at all.
+  const handleToggleOpenStatus = async () => {
+    setOpenStatusPending(true);
+    setOpenStatusError('');
+    try {
+      await setBusinessOpenStatus(!salon.isOpen);
+    } catch (error) {
+      setOpenStatusError(error instanceof Error ? error.message : 'Could not update business status.');
+    } finally {
+      setOpenStatusPending(false);
+    }
+  };
+
   if (isDeactivated) {
     return (
-      <div id="staff-deactivated-blocking-overlay" className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/90 p-5 backdrop-blur-md animate-in fade-in duration-200">
-        <div className="w-full max-w-md rounded-3xl border border-red-500/20 bg-[#121A19] p-7 text-center shadow-2xl space-y-5">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-400 ring-1 ring-rose-500/20">
+      <div id="staff-deactivated-blocking-overlay" className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-5 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="w-full max-w-md rounded-3xl border border-rose-200 bg-white p-7 text-center shadow-2xl space-y-5">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-200">
             <XCircle className="h-9 w-9" />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-white tracking-tight">Your account has been deactivated</h2>
-            <p className="mt-2 text-sm leading-relaxed text-slate-400">
+            <h2 className="text-2xl font-extrabold text-[#17201F] tracking-tight">Your account has been deactivated</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#6F7C7A]">
               Your business dashboard is currently unavailable. Please contact Support to resume your account.
             </p>
           </div>
@@ -290,9 +307,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   }
 
   const attentionTone: Record<string, string> = {
-    warn: 'bg-amber-500/15 text-amber-400',
-    danger: 'bg-rose-500/15 text-rose-400',
-    neutral: 'bg-[#3454FD]/15 text-[#7890FF]',
+    warn: 'bg-amber-50 text-amber-600',
+    danger: 'bg-rose-50 text-rose-600',
+    neutral: 'bg-[#3454FD]/10 text-[#3454FD]',
   };
 
   return (
@@ -300,7 +317,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     // one real scroll container (see the Salon scroll-bug note in git
     // history): h-dvh when this owns the whole screen, or plain h-full when
     // `embedded` inside the hosted TEST panel's already-bounded wrapper.
-    <div className={`relative flex w-full flex-col bg-[#0D1118] text-[#E6E8F0] ${embedded ? 'h-full' : 'h-dvh'}`}>
+    <div className={`relative flex w-full flex-col bg-[#F8FAFA] text-[#17201F] ${embedded ? 'h-full' : 'h-dvh'}`}>
       {/* Off-canvas navigation drawer — same interaction pattern as Gym's
           sidebar: overlays/dims the active screen, lists every module the
           authenticated role is allowed, closes on selection / backdrop / X. */}
@@ -309,21 +326,21 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           type="button"
           aria-label="Close navigation"
           onClick={() => setNavOpen(false)}
-          className="absolute inset-0 z-40 bg-black/60"
+          className="absolute inset-0 z-40 bg-black/40"
         />
       )}
       <aside
         id="salon-navigation"
-        className={`absolute inset-y-0 left-0 z-50 flex w-[78%] max-w-[280px] flex-col border-r border-white/10 bg-[#141A24] shadow-2xl transition-transform duration-200 ease-out ${
+        className={`absolute inset-y-0 left-0 z-50 flex w-[78%] max-w-[280px] flex-col border-r border-[#E1E7E6] bg-white shadow-2xl transition-transform duration-200 ease-out ${
           navOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <div className="flex items-start justify-between px-4 pt-5 pb-3">
           <div>
-            <div className="font-sans text-base font-extrabold tracking-tight text-[#E6E8F0]">
+            <div className="font-sans text-base font-extrabold tracking-tight text-[#17201F]">
               NOQ<span className="text-[#3454FD]">BUSINESS</span>
             </div>
-            <div className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#5E6779]">
+            <div className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#7A8785]">
               Workspace &middot; Salon
             </div>
           </div>
@@ -331,7 +348,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             id="salon-drawer-close"
             aria-label="Close navigation"
             onClick={() => setNavOpen(false)}
-            className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#97A0B5]"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-[#E1E7E6] bg-[#F4F7F6] text-[#6F7C7A]"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -348,13 +365,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => navigate(mod.id)}
                 className={`mb-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[13px] font-bold transition ${
-                  isActive ? 'bg-[#3454FD]/15 text-[#7890FF]' : 'text-[#97A0B5] hover:bg-white/5'
+                  isActive ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'text-[#6F7C7A] hover:bg-[#F4F7F6]'
                 }`}
               >
                 <Icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-[#3454FD]' : ''}`} />
                 <span className="flex-1">{mod.label}</span>
                 {isConcept && (
-                  <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-[#5E6779]">
+                  <span className="shrink-0 rounded-md border border-[#E1E7E6] bg-[#F4F7F6] px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-[#7A8785]">
                     Soon
                   </span>
                 )}
@@ -362,53 +379,67 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             );
           })}
         </nav>
-        <div className="flex items-center gap-2.5 border-t border-white/10 px-4 py-3.5">
-          <ShieldCheck className="h-4 w-4 shrink-0 text-[#5E6779]" />
-          <div className="min-w-0 text-[9.5px] font-semibold leading-relaxed text-[#5E6779]">
-            Business ID &middot; {salon.id}
-            <br />
-            Modules shown for role: <b className="text-[#97A0B5]">{role}</b>
+        <div className="border-t border-[#E1E7E6] px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-[#7A8785]" />
+            <div className="min-w-0 text-[9.5px] font-semibold leading-relaxed text-[#7A8785]">
+              Business ID &middot; {salon.id}
+              <br />
+              Modules shown for role: <b className="text-[#6F7C7A]">{role}</b>
+            </div>
           </div>
+          {/* Reachable by every authenticated role regardless of which
+              modules their role can see — Settings itself stays owner-only,
+              so this is what keeps a manager/staff session from ever being
+              trapped without a way to sign out. */}
+          {onSignOut && (
+            <button
+              id="salon-drawer-signout"
+              onClick={onSignOut}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-[#F4F7F6] py-2.5 text-[11.5px] font-bold text-[#6F7C7A] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sign Out
+            </button>
+          )}
         </div>
       </aside>
 
-      {/* Top header — hamburger, business identity, live status. */}
-      <header className="flex shrink-0 items-center gap-2.5 border-b border-white/10 bg-[#0D1118] px-3.5 py-3">
+      {/* Top header — hamburger (left), business identity (middle),
+          business logo/avatar (right). No LIVE badge, no Sign Out here —
+          Sign Out lives in the navigation drawer (every role) and, for the
+          owner, in Settings too. */}
+      <header className="flex shrink-0 items-center gap-2.5 border-b border-[#E1E7E6] bg-white px-3.5 py-3">
         <button
           id="salon-hamburger"
           aria-label="Open navigation"
           aria-expanded={navOpen}
           aria-controls="salon-navigation"
           onClick={() => setNavOpen(true)}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#E6E8F0]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] bg-[#F4F7F6] text-[#17201F]"
         >
           <Menu className="h-4 w-4" />
         </button>
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#3454FD] to-[#1D36C9] font-sans text-xs font-extrabold text-white">
-          {salon.name.charAt(0).toUpperCase()}
-        </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-bold text-[#E6E8F0]">{salon.name}</div>
-          <div className="truncate text-[10px] font-semibold text-[#5E6779]">Salon workspace &middot; {role}</div>
+          <div className="truncate text-[13px] font-bold text-[#17201F]">{salon.name}</div>
+          <div className="truncate text-[10px] font-semibold text-[#7A8785]">Salon workspace &middot; {role}</div>
         </div>
-        <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-emerald-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          Live
-        </span>
-        {onSignOut && (
-          <button
-            id="salon-signout"
-            aria-label="Sign out"
-            onClick={onSignOut}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-[#97A0B5]"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </button>
+        {salon.logoImageUrl ? (
+          <img
+            id="salon-header-logo"
+            src={salon.logoImageUrl}
+            alt=""
+            className="h-8 w-8 shrink-0 rounded-lg object-cover"
+          />
+        ) : (
+          <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#3454FD] to-[#1D36C9] font-sans text-xs font-extrabold text-white">
+            {salon.name.charAt(0).toUpperCase()}
+          </div>
         )}
       </header>
 
       {profileIncomplete && (
-        <div id="salon-profile-incomplete-banner" className="flex shrink-0 items-center justify-between gap-3 bg-amber-500/10 px-4 py-2 text-[11px] font-semibold text-amber-300">
+        <div id="salon-profile-incomplete-banner" className="flex shrink-0 items-center justify-between gap-3 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-700">
           <span>Business profile incomplete</span>
           <button onClick={onSetup} className="font-bold underline">Complete setup</button>
         </div>
@@ -419,35 +450,70 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {active === 'overview' && (
           <div className="space-y-5 p-4 pb-8">
             <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Overview</h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">Your salon command center</p>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Overview</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Your salon command center</p>
+            </div>
+
+            {/* Real owner Open Now / Closed Now control — the physical,
+                live-operations status, never the Admin platform Active/
+                Inactive listing control. `salon.isOpen` is the persisted,
+                server-synced source of truth. */}
+            <div id="overview-open-status" className={`rounded-2xl border p-3.5 ${salon.isOpen ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${salon.isOpen ? 'bg-emerald-500/15 text-emerald-600' : 'bg-rose-500/15 text-rose-600'}`}>
+                    <Power className="h-4.5 w-4.5" />
+                  </span>
+                  <div>
+                    <div className={`text-xs font-extrabold uppercase tracking-wide ${salon.isOpen ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {salon.isOpen ? 'Open now' : 'Closed now'}
+                    </div>
+                    <div className="mt-0.5 text-[10.5px] font-semibold text-[#6F7C7A]">
+                      {salon.isOpen ? 'Customers can join the live queue.' : 'New queue joins are blocked. Existing bookings stay untouched.'}
+                    </div>
+                  </div>
+                </div>
+                {isOwnerOrManager && (
+                  <button
+                    id="overview-open-status-toggle"
+                    onClick={handleToggleOpenStatus}
+                    disabled={openStatusPending}
+                    className={`shrink-0 rounded-xl px-3.5 py-2.5 text-xs font-bold text-white transition active:scale-[0.98] disabled:opacity-50 ${
+                      salon.isOpen ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'
+                    }`}
+                  >
+                    {openStatusPending ? 'Saving…' : salon.isOpen ? 'Close Business' : 'Open Business'}
+                  </button>
+                )}
+              </div>
+              {openStatusError && <p className="mt-2 text-[10.5px] font-semibold text-rose-700">{openStatusError}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-2.5">
-              <div id="overview-kpi-inservice" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
-                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+              <div id="overview-kpi-inservice" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#7A8785]">
                   <Scissors className="h-3 w-3 text-[#3454FD]" /> Inside Service
                 </div>
-                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{servingCount}</div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#17201F]">{servingCount}</div>
               </div>
-              <div id="overview-kpi-waiting" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
-                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+              <div id="overview-kpi-waiting" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#7A8785]">
                   <Users className="h-3 w-3 text-[#3454FD]" /> Waiting
                 </div>
-                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{waitingCount}</div>
-                {calledCount > 0 && <div className="mt-0.5 text-[9.5px] font-bold text-amber-400">+{calledCount} called</div>}
+                <div className="mt-1.5 text-2xl font-extrabold text-[#17201F]">{waitingCount}</div>
+                {calledCount > 0 && <div className="mt-0.5 text-[9.5px] font-bold text-amber-600">+{calledCount} called</div>}
               </div>
-              <div id="overview-kpi-staff" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
-                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+              <div id="overview-kpi-staff" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#7A8785]">
                   <UserCheck className="h-3 w-3 text-[#3454FD]" /> Staff Available
                 </div>
-                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{availableBarbers}/{activeBarbers}</div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#17201F]">{availableBarbers}/{activeBarbers}</div>
               </div>
-              <div id="overview-kpi-bookings" className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
-                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#5E6779]">
+              <div id="overview-kpi-bookings" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                <div className="flex items-center gap-1.5 text-[9.5px] font-extrabold uppercase tracking-wider text-[#7A8785]">
                   <CalendarDays className="h-3 w-3 text-[#3454FD]" /> Today&apos;s Bookings
                 </div>
-                <div className="mt-1.5 text-2xl font-extrabold text-[#E6E8F0]">{summary.total}</div>
+                <div className="mt-1.5 text-2xl font-extrabold text-[#17201F]">{summary.total}</div>
               </div>
               {/* Today's Collection is intentionally omitted: the queue has no
                   reliable per-booking price yet, so no revenue KPI is shown
@@ -455,7 +521,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </div>
 
             <div>
-              <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#5E6779]">Quick actions</div>
+              <div className="mb-2 text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Quick actions</div>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   id="overview-qa-walkin"
@@ -467,14 +533,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 <button
                   id="overview-qa-live"
                   onClick={() => navigate('live')}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-xs font-bold text-[#17201F] active:scale-[0.98]"
                 >
                   <Zap className="h-4 w-4 text-[#3454FD]" /> Open Live Salon
                 </button>
                 <button
                   id="overview-qa-bookings"
                   onClick={() => navigate('bookings')}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-xs font-bold text-[#17201F] active:scale-[0.98]"
                 >
                   <CalendarDays className="h-4 w-4 text-[#3454FD]" /> Bookings
                 </button>
@@ -482,7 +548,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   <button
                     id="overview-qa-staff"
                     onClick={() => navigate('staff')}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs font-bold text-[#E6E8F0] active:scale-[0.98]"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-xs font-bold text-[#17201F] active:scale-[0.98]"
                   >
                     <Users className="h-4 w-4 text-[#3454FD]" /> Staff & Chairs
                   </button>
@@ -492,13 +558,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#5E6779]">Needs attention</span>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Needs attention</span>
                 {needsAttention.length > 0 && (
-                  <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-bold text-[#97A0B5]">{needsAttention.length}</span>
+                  <span className="rounded-full bg-[#F4F7F6] px-2 py-0.5 text-[10px] font-bold text-[#6F7C7A]">{needsAttention.length}</span>
                 )}
               </div>
               {needsAttention.length === 0 ? (
-                <div id="overview-attention-empty" className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-4 text-center text-[11px] font-semibold text-[#5E6779]">
+                <div id="overview-attention-empty" className="rounded-2xl border border-dashed border-[#E1E7E6] bg-[#F8FAFA] p-4 text-center text-[11px] font-semibold text-[#7A8785]">
                   All caught up — nothing needs attention right now.
                 </div>
               ) : (
@@ -508,16 +574,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       key={item.id}
                       id={`overview-attention-${item.id}`}
                       onClick={item.onClick}
-                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-[#141A24] px-3 py-2.5 text-left"
+                      className="flex w-full items-center gap-3 rounded-xl border border-[#E1E7E6] bg-white px-3 py-2.5 text-left"
                     >
                       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${attentionTone[item.tone]}`}>
                         <AlertTriangle className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[12px] font-bold text-[#E6E8F0]">{item.label}</span>
-                        <span className="block truncate text-[10px] font-semibold text-[#5E6779]">{item.sub}</span>
+                        <span className="block truncate text-[12px] font-bold text-[#17201F]">{item.label}</span>
+                        <span className="block truncate text-[10px] font-semibold text-[#7A8785]">{item.sub}</span>
                       </span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[#5E6779]" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[#7A8785]" />
                     </button>
                   ))}
                 </div>
@@ -530,14 +596,14 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {active === 'live' && (
           <div className="space-y-4 p-4 pb-8">
             <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Live Salon</h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">Real-time queue &amp; chair floor</p>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Live Salon</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Real-time queue &amp; chair floor</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+            <div className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
               <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-[11px] font-bold text-[#E6E8F0]">Team &amp; chairs</span>
-                <span className="text-[10px] font-semibold text-[#5E6779]">Tap to toggle duty status</span>
+                <span className="text-[11px] font-bold text-[#17201F]">Team &amp; chairs</span>
+                <span className="text-[10px] font-semibold text-[#7A8785]">Tap to toggle duty status</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {barbers.map((barber, index) => {
@@ -551,16 +617,16 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       disabled={isBusy}
                       className={`flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                         isBusy
-                          ? 'cursor-not-allowed border-amber-500/30 bg-amber-500/10 text-amber-300 opacity-90'
+                          ? 'cursor-not-allowed border-amber-300 bg-amber-50 text-amber-700 opacity-90'
                           : isAvailable
-                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
-                            : 'border-white/10 bg-white/5 text-[#97A0B5] hover:bg-white/10'
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            : 'border-[#E1E7E6] bg-[#F8FAFA] text-[#6F7C7A] hover:bg-[#EEF3F2]'
                       }`}
                       title={isBusy ? `Currently serving: ${barber.currentCustomerName || 'Customer'}` : 'Toggle available/off-duty'}
                     >
-                      <span className={`h-2 w-2 rounded-full ${isBusy ? 'animate-pulse bg-amber-400' : isAvailable ? 'bg-emerald-400' : 'bg-[#5E6779]'}`} />
+                      <span className={`h-2 w-2 rounded-full ${isBusy ? 'animate-pulse bg-amber-500' : isAvailable ? 'bg-emerald-500' : 'bg-[#7A8785]'}`} />
                       <span>{barber.name}</span>
-                      <span className="rounded bg-black/20 px-1.5 py-0.5 text-[9px] font-bold uppercase">
+                      <span className="rounded bg-black/10 px-1.5 py-0.5 text-[9px] font-bold uppercase">
                         {isBusy ? 'In Chair' : isAvailable ? 'Available' : 'Off-duty'}
                       </span>
                     </button>
@@ -570,7 +636,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-[#E6E8F0]">Today&apos;s Live Queue ({queue.length})</span>
+              <span className="text-[11px] font-bold text-[#17201F]">Today&apos;s Live Queue ({queue.length})</span>
               <button
                 id="add-walkin-popup-btn"
                 onClick={() => setIsWalkinModalOpen(true)}
@@ -582,18 +648,18 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </div>
 
             {queueAlert && (
-              <div id="staff-queue-alert" className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs font-semibold text-amber-300">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400" />
+              <div id="staff-queue-alert" className="flex items-center gap-2 rounded-2xl border border-amber-300 bg-amber-50 p-3 text-xs font-semibold text-amber-700">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
                 <span>{queueAlert}</span>
               </div>
             )}
 
             <div className="space-y-2.5">
               {queue.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
-                  <Users className="mx-auto mb-2 h-8 w-8 text-[#5E6779]" />
-                  <p className="text-sm font-bold text-[#E6E8F0]">Queue is currently empty</p>
-                  <p className="mb-3 mt-0.5 text-xs text-[#97A0B5]">Add a walk-in or wait for a Customer App / QR join.</p>
+                <div className="rounded-2xl border border-dashed border-[#E1E7E6] bg-[#F8FAFA] p-8 text-center">
+                  <Users className="mx-auto mb-2 h-8 w-8 text-[#7A8785]" />
+                  <p className="text-sm font-bold text-[#17201F]">Queue is currently empty</p>
+                  <p className="mb-3 mt-0.5 text-xs text-[#6F7C7A]">Add a walk-in or wait for a Customer App / QR join.</p>
                   <button
                     onClick={() => setIsWalkinModalOpen(true)}
                     className="rounded-xl bg-[#3454FD] px-3.5 py-2 text-xs font-semibold text-white"
@@ -606,9 +672,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   <QueueBookingCard key={item.id} item={item} position={index + 1} now={now} onAction={onQueueAction} onCancelChair={setCancelTarget} />
                 ))
               )}
-              <p className="pt-1 text-[11px] leading-relaxed text-[#5E6779]">
-                <b className="text-[#97A0B5]">Start</b> seats the customer; <b className="text-[#97A0B5]">Complete</b> frees the chair.
-                <b className="text-[#97A0B5]"> Cancel Chair</b> records why the salon dropped a booking, <b className="text-[#97A0B5]">No-show</b> means they never arrived.
+              <p className="pt-1 text-[11px] leading-relaxed text-[#7A8785]">
+                <b className="text-[#6F7C7A]">Start</b> seats the customer; <b className="text-[#6F7C7A]">Complete</b> frees the chair.
+                <b className="text-[#6F7C7A]"> Cancel Chair</b> records why the salon dropped a booking, <b className="text-[#6F7C7A]">No-show</b> means they never arrived.
               </p>
             </div>
           </div>
@@ -618,8 +684,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {active === 'bookings' && (
           <div className="space-y-3 p-4 pb-8">
             <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-[#E6E8F0]">Bookings</h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#97A0B5]">All queue activity &amp; history</p>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Bookings</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">All queue activity &amp; history</p>
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -629,7 +695,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   id={`bookings-tab-${tab.id}`}
                   onClick={() => setBookingTab(tab.id)}
                   className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${
-                    bookingTab === tab.id ? 'bg-[#3454FD] text-white' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
+                    bookingTab === tab.id ? 'bg-[#3454FD] text-white' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
                   }`}
                 >
                   {tab.label}
@@ -644,7 +710,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={range}
                     onClick={() => setFilters((current) => ({ ...current, range }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.range === range ? 'bg-[#3454FD]/15 text-[#7890FF]' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
+                      filters.range === range ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
                     }`}
                   >
                     {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
@@ -655,7 +721,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     key={source}
                     onClick={() => setFilters((current) => ({ ...current, source }))}
                     className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.source === source ? 'bg-[#3454FD]/15 text-[#7890FF]' : 'border border-white/10 bg-white/5 text-[#97A0B5]'
+                      filters.source === source ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
                     }`}
                   >
                     {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : 'App'}
@@ -665,7 +731,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   value={filters.search}
                   onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
                   placeholder="Search customer or service"
-                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] text-[#E6E8F0] outline-none placeholder:text-[#5E6779] focus:border-[#3454FD]/50"
+                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-[#E1E7E6] bg-white px-2 text-[11px] text-[#17201F] outline-none placeholder:text-[#7A8785] focus:border-[#3454FD]/50"
                 />
               </div>
             )}
@@ -689,13 +755,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   <div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {tiles.map(([label, value]) => (
-                        <div key={label} className="rounded-xl border border-white/10 bg-[#141A24] p-3">
-                          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#5E6779]">{label}</p>
-                          <p className="mt-1 text-lg font-bold text-[#E6E8F0]">{value}</p>
+                        <div key={label} className="rounded-xl border border-[#E1E7E6] bg-white p-3">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#7A8785]">{label}</p>
+                          <p className="mt-1 text-lg font-bold text-[#17201F]">{value}</p>
                         </div>
                       ))}
                     </div>
-                    <p className="mt-2 text-[10px] leading-4 text-[#5E6779]">
+                    <p className="mt-2 text-[10px] leading-4 text-[#7A8785]">
                       Activity counts only. Revenue is not shown because the queue does not carry a reliable per-booking price yet.
                     </p>
                   </div>
@@ -716,9 +782,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 const rows = applyFilters(source, filters, now);
                 if (rows.length === 0) {
                   return (
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center">
+                    <div className="rounded-2xl border border-[#E1E7E6] bg-[#F8FAFA] p-8 text-center">
                       <CheckCircle className="mx-auto mb-2 h-8 w-8 text-[#3454FD] opacity-60" />
-                      <p className="text-xs text-[#97A0B5]">
+                      <p className="text-xs text-[#6F7C7A]">
                         {bookingTab === 'reserved' ? 'Reserved bookings are not supported yet.' : 'Nothing in this view for the selected filters.'}
                       </p>
                     </div>
@@ -731,21 +797,21 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                       const closed = bookingTab === 'completed' || bookingTab === 'cancelled';
                       const tone =
                         badge.tone === 'good'
-                          ? 'text-emerald-400 bg-emerald-500/10'
+                          ? 'text-emerald-700 bg-emerald-50'
                           : badge.tone === 'bad'
-                            ? 'text-rose-300 bg-rose-500/10 border border-rose-500/20'
-                            : 'text-amber-300 bg-amber-500/10 border border-amber-500/20';
+                            ? 'text-rose-700 bg-rose-50 border border-rose-200'
+                            : 'text-amber-700 bg-amber-50 border border-amber-200';
                       return (
-                        <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#141A24] p-3.5">
+                        <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <b className="font-sans text-sm font-bold text-[#E6E8F0]">{item.name}</b>
-                              <span className="rounded bg-[#3454FD]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#7890FF]">
+                              <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
+                              <span className="rounded bg-[#3454FD]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#3454FD]">
                                 {sourceLabel(item)}
                                 {(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
                               </span>
                             </div>
-                            <div className="mt-0.5 text-[11px] text-[#97A0B5]">
+                            <div className="mt-0.5 text-[11px] text-[#6F7C7A]">
                               {item.service}
                               {item.barberName ? ` · ${item.barberName}` : ''}
                               {item.cancelReasonCode ? ` · ${item.cancelReasonCode.replace(/_/g, ' ')}` : ''}
@@ -764,7 +830,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                               <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}>{badge.label}</span>
                             </div>
                           ) : (
-                            <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-[#97A0B5]">{item.status}</span>
+                            <span className="shrink-0 rounded-full bg-[#F4F7F6] px-2.5 py-1 text-[10px] font-bold text-[#6F7C7A]">{item.status}</span>
                           )}
                         </div>
                       );
@@ -779,8 +845,8 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {/* ---------------- STAFF & CHAIRS ---------------- */}
         {active === 'staff' && isOwnerOrManager && (
           <div className="p-4 pb-8">
-            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#E6E8F0]">Staff &amp; Chairs</h2>
-            <p className="mb-3 text-[11px] font-semibold text-[#97A0B5]">Same records Customer App reads</p>
+            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#17201F]">Staff &amp; Chairs</h2>
+            <p className="mb-3 text-[11px] font-semibold text-[#6F7C7A]">Same records Customer App reads</p>
             <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
           </div>
         )}
@@ -788,11 +854,11 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {/* ---------------- OFFERS & CAMPAIGNS ---------------- */}
         {active === 'offers' && isOwnerOrManager && (
           <div className="p-4 pb-8">
-            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#E6E8F0]">Offers &amp; Campaigns</h2>
-            <p className="mb-3 text-[11px] font-semibold text-[#97A0B5]">Same records Price Breakdown reads</p>
+            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#17201F]">Offers &amp; Campaigns</h2>
+            <p className="mb-3 text-[11px] font-semibold text-[#6F7C7A]">Same records Price Breakdown reads</p>
             <ManageOffers offers={salon.offers || []} allServices={salon.services} onSave={onSaveOffers} />
-            <p className="mt-3 text-[10px] leading-relaxed text-[#5E6779]">
-              <b className="text-[#97A0B5]">Campaigns</b> (scheduled, multi-step promos) has no backend yet — only the Offers above are real and interactive.
+            <p className="mt-3 text-[10px] leading-relaxed text-[#7A8785]">
+              <b className="text-[#6F7C7A]">Campaigns</b> (scheduled, multi-step promos) has no backend yet — only the Offers above are real and interactive.
             </p>
           </div>
         )}
@@ -802,15 +868,46 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           <GymManageProfile gymId={salon.id} gymName={salon.name} onClose={() => navigate('overview')} />
         )}
 
+        {/* ---------------- SETTINGS (owner-only; Sign Out also lives in the
+             drawer footer above for every role, so no session is ever
+             trapped without it) ---------------- */}
+        {active === 'settings' && (
+          <div className="space-y-4 p-4 pb-8">
+            <div>
+              <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Settings</h2>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Account &amp; workspace</p>
+            </div>
+            <div className="rounded-2xl border border-[#E1E7E6] bg-white p-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Signed in as</div>
+              <div className="mt-1 text-sm font-bold text-[#17201F]">{salon.name}</div>
+              <div className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Role &middot; {role}</div>
+              <div className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Business ID &middot; {salon.id}</div>
+            </div>
+            <div className="rounded-2xl border border-dashed border-[#E1E7E6] bg-[#F8FAFA] p-4 text-[11.5px] leading-relaxed text-[#6F7C7A]">
+              No salon-facing settings endpoint exists yet beyond what Business Profile already covers — this section activates further once its scope is defined and built.
+            </div>
+            {onSignOut && (
+              <button
+                id="salon-settings-signout"
+                onClick={onSignOut}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 py-3 text-sm font-bold text-white transition hover:bg-rose-500 active:scale-[0.98]"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </button>
+            )}
+          </div>
+        )}
+
         {/* ---------------- CONCEPT / BACKEND-DEPENDENT MODULES ---------------- */}
         {CONCEPT_MODULES[active] && (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/5 text-[#5E6779]">
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border border-[#E1E7E6] bg-[#F4F7F6] text-[#7A8785]">
               {React.createElement(moduleIcons[active] || LayoutDashboard, { className: 'h-6 w-6' })}
             </div>
-            <b className="text-sm text-[#E6E8F0]">{CONCEPT_MODULES[active].title}</b>
-            <p className="max-w-[34ch] text-[11.5px] leading-relaxed text-[#97A0B5]">{CONCEPT_MODULES[active].body}</p>
-            <span className="mt-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-wide text-[#5E6779]">
+            <b className="text-sm text-[#17201F]">{CONCEPT_MODULES[active].title}</b>
+            <p className="max-w-[34ch] text-[11.5px] leading-relaxed text-[#6F7C7A]">{CONCEPT_MODULES[active].body}</p>
+            <span className="mt-1 rounded-full border border-[#E1E7E6] bg-[#F4F7F6] px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-wide text-[#7A8785]">
               Coming next
             </span>
           </div>
@@ -862,7 +959,7 @@ const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
   };
 
   if (state === 'sent') {
-    return <span className="text-[10px] font-bold text-emerald-400">Review requested</span>;
+    return <span className="text-[10px] font-bold text-emerald-700">Review requested</span>;
   }
 
   return (
@@ -871,12 +968,12 @@ const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
         type="button"
         onClick={send}
         disabled={state === 'sending'}
-        className="rounded-full border border-[#3454FD]/30 bg-[#3454FD]/5 px-2.5 py-1 text-[10px] font-bold text-[#7890FF] transition disabled:opacity-60"
+        className="rounded-full border border-[#3454FD]/30 bg-[#3454FD]/5 px-2.5 py-1 text-[10px] font-bold text-[#3454FD] transition disabled:opacity-60"
       >
         {state === 'sending' ? 'Sending…' : 'Request review'}
       </button>
       {state === 'blocked' && message && (
-        <span className="max-w-[180px] text-right text-[9px] leading-tight text-amber-300">{message}</span>
+        <span className="max-w-[180px] text-right text-[9px] leading-tight text-amber-700">{message}</span>
       )}
     </span>
   );

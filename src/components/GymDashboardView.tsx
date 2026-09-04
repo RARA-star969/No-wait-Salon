@@ -15,6 +15,7 @@ import {
   Megaphone,
   Menu,
   Plus,
+  Power,
   RefreshCw,
   Search,
   Settings,
@@ -77,6 +78,7 @@ import {
 import { GymCustomerAvatar } from "./GymCustomerAvatar";
 import { GymManageProfile } from "./GymManageProfile";
 import { GymReviewsDashboard } from "./GymReviewsDashboard";
+import { setBusinessOpenStatus } from "../services/businessOpenStatusService";
 import {
   GymMembersPanel,
   type GymMembersFilter,
@@ -651,6 +653,30 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
   ) => {
     void mutate(work, message).catch(() => {});
   };
+  // Real owner Open Now / Closed Now control — the physical, live-operations
+  // status, never the Admin platform Active/Inactive listing control.
+  // `state.isOpen` is the persisted, server-synced source of truth (merged
+  // into GymState from salon.is_open on every overview poll).
+  const toggleOpenStatus = async () => {
+    if (!state || mutating.current) return;
+    mutating.current = true;
+    generation.current++;
+    setBusy(true);
+    setError("");
+    try {
+      const result = await setBusinessOpenStatus(!state.isOpen);
+      if (mounted.current) {
+        setState((prev) => (prev ? { ...prev, isOpen: result.isOpen } : prev));
+        setUpdated(Date.now());
+        setNotice(result.isOpen ? "Business is now open" : "Business is now closed");
+      }
+    } catch (e) {
+      if (mounted.current) setError(e instanceof Error ? e.message : "Unable to update business status.");
+    } finally {
+      mutating.current = false;
+      setBusy(false);
+    }
+  };
   const operate = (kind: string, body: Record<string, unknown>) =>
     mutate(() => gymStaffService.operate(gymId, kind, body));
   const openCheckin = () =>
@@ -1215,10 +1241,27 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
           })}
         </nav>
         <div className="gym-sidebar-footer">
-          <ShieldCheck size={20} />
-          <div>
-            One business. One live view.<small>Business ID · {gymId}</small>
+          <div className="gym-sidebar-footer-identity">
+            <ShieldCheck size={20} />
+            <div>
+              One business. One live view.<small>Business ID · {gymId}</small>
+            </div>
           </div>
+          {/* Reachable by every authenticated role regardless of which
+              modules their role can see — Gym Settings itself stays
+              owner-only, so this is what keeps a manager/staff/trainer/
+              reception session from ever being trapped without a way to
+              sign out. */}
+          {onSignOut && (
+            <button
+              className="gym-sidebar-signout"
+              aria-label="Sign out"
+              onClick={onSignOut}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+          )}
         </div>
       </aside>
       {navOpen && (
@@ -1275,15 +1318,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
               <small>{role}</small>
             </div>
           </div>
-          {onSignOut && (
-            <button
-              className="gym-icon-button"
-              aria-label="Sign out / switch business"
-              onClick={onSignOut}
-            >
-              <LogOut size={18} />
-            </button>
-          )}
         </header>
         <main className="gym-main">
           {showManageProfile ? (
@@ -1349,6 +1383,52 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             </Panel>
           ) : (
             <>
+              {active === "overview" && (
+                <div
+                  className="gym-panel"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    borderColor: state.isOpen ? "#a7e3cf" : "#f3c9c0",
+                    background: state.isOpen ? "#effaf8" : "#fdf1ef",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <span
+                      style={{
+                        display: "grid",
+                        placeItems: "center",
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        color: state.isOpen ? "#187a52" : "#b23a24",
+                        background: state.isOpen ? "#d8f3e6" : "#fbe4de",
+                      }}
+                    >
+                      <Power size={17} />
+                    </span>
+                    <div>
+                      <strong style={{ display: "block", fontSize: 13, color: state.isOpen ? "#187a52" : "#b23a24" }}>
+                        {state.isOpen ? "Open now" : "Closed now"}
+                      </strong>
+                      <span className="gym-muted">
+                        {state.isOpen ? "Members and visitors can check in." : "New check-ins are blocked. Existing visits stay untouched."}
+                      </span>
+                    </div>
+                  </div>
+                  {manager && (
+                    <button
+                      className={`gym-button ${state.isOpen ? "danger" : ""}`}
+                      disabled={busy}
+                      onClick={() => void toggleOpenStatus()}
+                    >
+                      {state.isOpen ? "Close Business" : "Open Business"}
+                    </button>
+                  )}
+                </div>
+              )}
               {active === "overview" && insideNow && checkinsToday && collectionToday && membersSummary && memberActivity && monthActivity && (
                 <>
                   <div className="gym-metrics">
@@ -2279,6 +2359,16 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     Settings apply only to this Gym business. Your existing
                     Business-ID login and session remain unchanged.
                   </p>
+                  {onSignOut && (
+                    <button
+                      className="gym-button secondary danger"
+                      style={{ marginTop: 14 }}
+                      onClick={onSignOut}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  )}
                 </Panel>
               )}
               {active === "settings" && manager && (

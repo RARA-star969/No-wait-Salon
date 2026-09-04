@@ -197,6 +197,9 @@ export default function App() {
     if (snapshot.platformStatus) {
       setCustomerSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
     }
+    if (typeof snapshot.isOpen === 'boolean') {
+      setCustomerSalon((prev) => (prev.id === snapshot.salonId ? (prev.isOpen === snapshot.isOpen ? prev : { ...prev, isOpen: snapshot.isOpen as boolean }) : prev));
+    }
   };
 
   // Scoped to the Customer panel's own selected business — never affected
@@ -263,6 +266,9 @@ export default function App() {
     setStaffQueueAlert('');
     if (snapshot.platformStatus) {
       setStaffSalon((prev) => (prev.id === snapshot.salonId ? (prev.platformStatus === snapshot.platformStatus ? prev : { ...prev, platformStatus: snapshot.platformStatus as any }) : prev));
+    }
+    if (typeof snapshot.isOpen === 'boolean') {
+      setStaffSalon((prev) => (prev.id === snapshot.salonId ? (prev.isOpen === snapshot.isOpen ? prev : { ...prev, isOpen: snapshot.isOpen as boolean }) : prev));
     }
   };
 

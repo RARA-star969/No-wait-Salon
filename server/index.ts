@@ -38,6 +38,11 @@ type SalonState = {
   tokenSeq: number;
   tokenDate: string;
   platformStatus?: string;
+  /** Owner-controlled live open/closed status — distinct from platformStatus
+   *  (the Admin active/inactive/suspended listing control). Mirrored from
+   *  salon.is_open on every readState() so it rides the same SSE snapshot
+   *  everything else here already uses. */
+  isOpen?: boolean;
 };
 
 /**
@@ -1423,17 +1428,20 @@ function isBusinessActive(businessId: string): boolean {
 }
 
 function readState(salonId: string): SalonState {
-  const salonRow = db.prepare('SELECT platform_status FROM salon WHERE id = ?').get(salonId) as { platform_status: string } | undefined;
+  const salonRow = db.prepare('SELECT platform_status, is_open FROM salon WHERE id = ?').get(salonId) as { platform_status: string; is_open: number } | undefined;
   const platformStatus = salonRow?.platform_status || 'active';
+  const isOpen = salonRow ? salonRow.is_open === 1 : true;
   const row = db.prepare('SELECT state_json FROM salon_state WHERE salon_id = ?').get(salonId) as { state_json: string } | undefined;
   if (row) {
     const state = ensureTokens(JSON.parse(row.state_json) as SalonState);
     state.platformStatus = platformStatus;
+    state.isOpen = isOpen;
     if (reconcileBarbers(state)) db.prepare('UPDATE salon_state SET state_json = ? WHERE salon_id = ?').run(JSON.stringify(state), state.salonId);
     return state;
   }
   const state = seedState(salonId);
   state.platformStatus = platformStatus;
+  state.isOpen = isOpen;
   db.prepare('INSERT INTO salon_state (salon_id, version, state_json, updated_at) VALUES (?, ?, ?, ?)')
     .run(salonId, state.version, JSON.stringify(state), state.updatedAt);
   return state;
@@ -1916,7 +1924,10 @@ function saveGymState(gymId: string, state: any) {
 
 function getGymState(gymId: string) {
   const row = db.prepare('SELECT state_json FROM gym_state WHERE gym_id = ?').get(gymId) as { state_json: string } | undefined;
-  return normalizeGymState(row ? JSON.parse(row.state_json) : {}, gymId);
+  const state = normalizeGymState(row ? JSON.parse(row.state_json) : {}, gymId);
+  const salonRow = db.prepare('SELECT is_open FROM salon WHERE id = ?').get(gymId) as { is_open: number } | undefined;
+  state.isOpen = salonRow ? salonRow.is_open === 1 : true;
+  return state;
 }
 
 // Identity bridge: resolve an already-normalized phone number to a verified
@@ -2169,6 +2180,26 @@ app.put('/api/staff/business/logo', (request, response) => {
     return response.status(400).json({ error: error instanceof Error ? error.message : 'Could not save logo.' });
   }
   response.json({ ok: true, pending, logoImageUrl: raw });
+});
+
+/** Owner/manager live Open Now / Closed Now control — distinct from the
+ *  Admin platform status (draft/active/inactive/suspended/deactivated),
+ *  which stays admin-only via /api/admin/salons/:id/status. This only ever
+ *  flips salon.is_open, then republishes the same SSE snapshot every other
+ *  queue mutation already uses, so Owner dashboard, Admin Panel and every
+ *  open Customer App tab on this business converge immediately. */
+app.put('/api/staff/business/open-status', async (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') return response.status(403).json({ error: 'Only owners and managers can change the live business status.' });
+  if (!isBusinessActive(session.businessId)) return response.status(403).json({ error: 'Your business account has been deactivated. Operational actions are unavailable.', deactivated: true });
+
+  const isOpen = Boolean(request.body?.isOpen);
+  db.prepare('UPDATE salon SET is_open = ?, updated_at = ? WHERE id = ?').run(isOpen ? 1 : 0, Date.now(), session.businessId);
+  const state = readState(session.businessId);
+  publish(state);
+  await postgresPersistence?.flushNow(['salon']);
+  response.json({ ok: true, isOpen });
 });
 
 /** Owner-only structured amenities save (Phase 4C) — a strict sibling of the
@@ -3894,7 +3925,7 @@ app.post('/api/admin/salons', requireAdmin, async (request, response) => {
     db.prepare(`INSERT INTO salon (id,name,address,latitude,longitude,rating,review_count,is_open,opening_hours,services_json,barbers_json,onboarded,created_at,
       category,main_category_id,phone_number,description,cover_image_url,logo_image_url,amenities_json,offers_json,gallery_json,brand_key,short_description,email,website_url,area,city,state,pin_code,promotional_banner_url,platform_status,updated_at,business_code,profile_completed_at,audience)
       VALUES (?,?,?,?,?,0,0,?,?, '[]','[]',1, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
+      .run(id,name,cleanText(body.address,500),latitude,longitude,asBoolean(body.isOpen ?? true)?1:0,cleanText(body.opening_hours,100)||'9:00 AM–9:00 PM',now,
         cleanText(body.category,100),mainCategoryId,cleanText(body.phone_number,30),cleanText(body.description,3000),cleanText(body.cover_image_url,1000),cleanText(body.logo_image_url,1000),JSON.stringify(Array.isArray(body.amenities)?body.amenities:[]),'[]','[]',cleanText(body.brand_key,100),cleanText(body.short_description,300),cleanText(body.email,200),cleanText(body.website_url,1000),cleanText(body.area,100),cleanText(body.city,100),cleanText(body.state,100),cleanText(body.pin_code,10),cleanText(body.promotional_banner_url,1000),cleanText(body.status,20)||'draft',now,businessCode,null,resolveAudience(body));
     saveSalonRelations(id, body, now); ensureBusinessQr(db,id,'salon'); db.exec('COMMIT');
     await postgresPersistence?.flushNow(['salon','salon_hours','salon_service','salon_staff','salon_offer','salon_media','business_qr']);
@@ -4246,6 +4277,16 @@ app.post('/api/salons/:salonId/commands', async (request, response) => {
     db.exec('BEGIN IMMEDIATE');
     const current = readState(request.params.salonId);
     const command = structuredClone(request.body) as QueueCommand;
+    // A customer self-serve join is blocked while the owner has marked the
+    // business closed. 'join' is always a customer-initiated command in this
+    // codebase — the Staff Dashboard's own Add Walk-in goes through the
+    // separate 'add_walkin' command type below, so a staff/owner-entered
+    // walk-in is never affected by this check. Existing bookings already in
+    // the queue are never touched here.
+    if (command.type === 'join' && current.isOpen === false) {
+      db.exec('ROLLBACK');
+      return response.status(409).json({ error: 'This business is not accepting new queue joins right now.', code: 'QUEUE_CLOSED' });
+    }
     const authenticatedCustomerId = resolveCustomerId(request);
     if (command.type === 'join' && authenticatedCustomerId) command.item.customerId = authenticatedCustomerId;
     const previousItems = new Map(current.queue.map((item) => [item.id, item]));

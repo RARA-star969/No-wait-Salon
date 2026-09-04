@@ -287,6 +287,11 @@ export type GymState = {
   memberships: GymMembership[];
   membershipClaims: GymMembershipClaim[];
   payments: GymPayment[];
+  /** Owner-controlled live Open Now / Closed Now status — mirrored from the
+   *  same `salon.is_open` column Salon's SalonState reads, merged in at
+   *  read time server-side. Separate from the Admin platform Active/
+   *  Inactive listing control. */
+  isOpen?: boolean;
 };
 export type GymReportCategory = "all" | GymEvent["category"];
 export function campaignIsLive(c: GymCampaign, now = Date.now()) {

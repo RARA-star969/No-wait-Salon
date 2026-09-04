@@ -1533,15 +1533,30 @@ function SalonList({ onEdit }: { onEdit: (id: string | 'new') => void }) {
                         {s.area ? `${s.area}, ${s.city}` : s.city || '—'}
                       </td>
                       <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                            isDeactivated
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}
-                        >
-                          {isDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                              isDeactivated
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            }`}
+                          >
+                            {isDeactivated ? 'DEACTIVATED' : 'ACTIVE'}
+                          </span>
+                          {/* Owner's live Open Now / Closed Now status — separate
+                              from the platform status above. Shown alongside it,
+                              never merged into it, so Admin can always tell the
+                              two apart at a glance. */}
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              s.isOpen ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700'
+                            }`}
+                            title="Owner-controlled live status, independent of platform status"
+                          >
+                            <span className={`h-1.5 w-1.5 rounded-full ${s.isOpen ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            Live: {s.isOpen ? 'Open' : 'Closed'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-4 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">

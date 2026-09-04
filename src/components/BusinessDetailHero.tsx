@@ -156,7 +156,7 @@ export const BusinessDetailHero: React.FC<Props> = ({
       <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] font-semibold text-[var(--noq-muted)]">
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ${isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${isOpen ? 'bg-emerald-500 open-dot-bounce' : 'bg-rose-500'}`} />
-          {isOpen ? 'Open now' : 'Closed'}
+          {isOpen ? 'Open now' : 'Closed · Offline now'}
         </span>
         <span className="h-3 w-px bg-[var(--noq-border)]" aria-hidden="true" />
         {rating}
