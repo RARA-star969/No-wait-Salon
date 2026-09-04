@@ -844,7 +844,11 @@ export const PremiumBusinessCard: React.FC<{
         </div>
         <div className="w-[74px] shrink-0 self-start pt-1 text-right">
           {isGym && liveFloorMeter ? (
-            <><b className="block text-[13px] font-black tabular-nums text-[var(--noq-ink)]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">inside now</span></>
+            salon.isOpen === false ? (
+              <><b className="block text-[12px] font-black text-rose-600">Closed</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">Offline now</span></>
+            ) : (
+              <><b className="block text-[13px] font-black tabular-nums text-[var(--noq-ink)]">{liveFloorMeter.occupancy} / {liveFloorMeter.maxCapacity}</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">inside now</span></>
+            )
           ) : isSalon ? (
             salon.isOpen === false ? (
               <><b className="block text-[12px] font-black text-rose-600">Closed</b><span className="block text-[8px] font-semibold text-[var(--noq-muted)]">Offline now</span></>
@@ -859,20 +863,26 @@ export const PremiumBusinessCard: React.FC<{
 
       <div className="flex h-[34px] items-center justify-between gap-3 border-t border-[var(--noq-border)] bg-[var(--noq-surface-soft)] px-3">
         {isGym && liveFloorMeter ? (
-          <>
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-wide" style={{ color: theme.accent }}><span className="text-[11px]">⌁</span> Live floor</span>
-            <span
-              role="progressbar"
-              aria-label={`Gym occupancy ${liveFloorMeter.occupancy} of ${liveFloorMeter.maxCapacity}`}
-              aria-valuemin={0}
-              aria-valuemax={liveFloorMeter.maxCapacity}
-              aria-valuenow={liveFloorMeter.occupancy}
-              className="mx-auto h-1.5 w-[64px] overflow-hidden rounded-full bg-white/[0.16] ring-1 ring-inset ring-white/[0.09] shadow-[inset_0_1px_2px_rgba(0,0,0,.7)]"
-            >
-              <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} />
+          salon.isOpen === false ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-rose-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> Closed &middot; Offline now
             </span>
-            <SignalStatusChip color={signalColor} label={signalLabel} />
-          </>
+          ) : (
+            <>
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-wide" style={{ color: theme.accent }}><span className="text-[11px]">⌁</span> Live floor</span>
+              <span
+                role="progressbar"
+                aria-label={`Gym occupancy ${liveFloorMeter.occupancy} of ${liveFloorMeter.maxCapacity}`}
+                aria-valuemin={0}
+                aria-valuemax={liveFloorMeter.maxCapacity}
+                aria-valuenow={liveFloorMeter.occupancy}
+                className="mx-auto h-1.5 w-[64px] overflow-hidden rounded-full bg-white/[0.16] ring-1 ring-inset ring-white/[0.09] shadow-[inset_0_1px_2px_rgba(0,0,0,.7)]"
+              >
+                <span className="block h-full rounded-full transition-[width] duration-500" style={{ width: `${occupancyPercent}%`, backgroundColor: SIGNAL_STYLES[signalColor].bar }} />
+              </span>
+              <SignalStatusChip color={signalColor} label={signalLabel} />
+            </>
+          )
         ) : isSalon ? (
           salon.isOpen === false ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-rose-600">

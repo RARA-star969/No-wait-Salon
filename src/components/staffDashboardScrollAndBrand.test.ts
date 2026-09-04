@@ -73,10 +73,11 @@ test('NOQ blue is the Salon dashboard drawer/dashboard accent, not legacy teal',
   assert.doesNotMatch(dashboardSource, /#0F766E/);
 });
 
-test('the bright shared theme removed the header LIVE badge and top-right Sign Out — Sign Out lives in the drawer/Settings instead', () => {
+test('the bright shared theme removed the header LIVE badge and top-right Sign Out, and the drawer footer Sign Out — Sign Out lives only in Settings, reachable by every role', () => {
   assert.doesNotMatch(dashboardSource, />\s*Live\s*<\/span>/);
   assert.doesNotMatch(dashboardSource, /id="salon-signout"/);
-  assert.match(dashboardSource, /id="salon-drawer-signout"/);
+  assert.doesNotMatch(dashboardSource, /id="salon-drawer-signout"/);
+  assert.match(dashboardSource, /id="salon-settings-signout"/);
 });
 
 test('semantic Live/Available/busy status colors stay in the green/amber/rose family, never migrated to blue', () => {

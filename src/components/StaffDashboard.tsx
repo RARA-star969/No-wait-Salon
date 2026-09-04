@@ -379,36 +379,19 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             );
           })}
         </nav>
-        <div className="border-t border-[#E1E7E6] px-4 py-3.5">
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-[#7A8785]" />
-            <div className="min-w-0 text-[9.5px] font-semibold leading-relaxed text-[#7A8785]">
-              Business ID &middot; {salon.id}
-              <br />
-              Modules shown for role: <b className="text-[#6F7C7A]">{role}</b>
-            </div>
+        <div className="flex items-center gap-2.5 border-t border-[#E1E7E6] px-4 py-3.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-[#7A8785]" />
+          <div className="min-w-0 text-[9.5px] font-semibold leading-relaxed text-[#7A8785]">
+            Business ID &middot; {salon.id}
+            <br />
+            Modules shown for role: <b className="text-[#6F7C7A]">{role}</b>
           </div>
-          {/* Reachable by every authenticated role regardless of which
-              modules their role can see — Settings itself stays owner-only,
-              so this is what keeps a manager/staff session from ever being
-              trapped without a way to sign out. */}
-          {onSignOut && (
-            <button
-              id="salon-drawer-signout"
-              onClick={onSignOut}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-[#F4F7F6] py-2.5 text-[11.5px] font-bold text-[#6F7C7A] transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              Sign Out
-            </button>
-          )}
         </div>
       </aside>
 
       {/* Top header — hamburger (left), business identity (middle),
           business logo/avatar (right). No LIVE badge, no Sign Out here —
-          Sign Out lives in the navigation drawer (every role) and, for the
-          owner, in Settings too. */}
+          Sign Out lives only in Settings, reachable by every role. */}
       <header className="flex shrink-0 items-center gap-2.5 border-b border-[#E1E7E6] bg-white px-3.5 py-3">
         <button
           id="salon-hamburger"
@@ -868,9 +851,12 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           <GymManageProfile gymId={salon.id} gymName={salon.name} onClose={() => navigate('overview')} />
         )}
 
-        {/* ---------------- SETTINGS (owner-only; Sign Out also lives in the
-             drawer footer above for every role, so no session is ever
-             trapped without it) ---------------- */}
+        {/* ---------------- SETTINGS (reachable by every authenticated
+             role — see resolveCategoryModules — so Sign Out, the one
+             control this screen carries, is never out of reach. Carries
+             no privileged control: sensitive owner/manager settings stay
+             on their own owner/manager-gated modules elsewhere in this
+             drawer.) ---------------- */}
         {active === 'settings' && (
           <div className="space-y-4 p-4 pb-8">
             <div>

@@ -1925,8 +1925,9 @@ function saveGymState(gymId: string, state: any) {
 function getGymState(gymId: string) {
   const row = db.prepare('SELECT state_json FROM gym_state WHERE gym_id = ?').get(gymId) as { state_json: string } | undefined;
   const state = normalizeGymState(row ? JSON.parse(row.state_json) : {}, gymId);
-  const salonRow = db.prepare('SELECT is_open FROM salon WHERE id = ?').get(gymId) as { is_open: number } | undefined;
+  const salonRow = db.prepare('SELECT is_open, logo_image_url FROM salon WHERE id = ?').get(gymId) as { is_open: number; logo_image_url: string } | undefined;
   state.isOpen = salonRow ? salonRow.is_open === 1 : true;
+  state.logoImageUrl = salonRow?.logo_image_url || undefined;
   return state;
 }
 
@@ -2854,6 +2855,13 @@ app.post('/api/gym/:gymId/checkin/scan', requireCustomer, async (request: Authen
     return response.status(403).json({ error: "This QR isn't a valid entry code for this gym.", code: 'INVALID_ENTRY_QR' });
   }
   const state = getGymState(gymId);
+  // A new physical entry is blocked while the owner has marked the gym
+  // closed — this is server-side enforcement so the UI disabling the
+  // scan action can never be bypassed. Self-checkout (below) and every
+  // existing visit/membership/booking are untouched by this check.
+  if (state.isOpen === false) {
+    return response.status(409).json({ error: 'This gym is not accepting new check-ins right now.', code: 'GYM_CLOSED' });
+  }
   const customerId = request.customerId!;
   if (state.visits.some((v) => v.customerId === customerId && !v.checkedOutAt)) {
     return response.status(409).json({ error: "You're already checked in here.", code: 'ALREADY_CHECKED_IN' });

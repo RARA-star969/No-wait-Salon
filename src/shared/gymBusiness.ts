@@ -292,6 +292,10 @@ export type GymState = {
    *  read time server-side. Separate from the Admin platform Active/
    *  Inactive listing control. */
   isOpen?: boolean;
+  /** The business's real logo, mirrored from `salon.logo_image_url` at read
+   *  time — lets the shared dashboard header show the real business
+   *  logo/avatar instead of a generic category icon, same as Salon. */
+  logoImageUrl?: string;
 };
 export type GymReportCategory = "all" | GymEvent["category"];
 export function campaignIsLive(c: GymCampaign, now = Date.now()) {

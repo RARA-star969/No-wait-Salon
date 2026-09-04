@@ -16,7 +16,6 @@ import {
   Menu,
   Plus,
   Power,
-  RefreshCw,
   Search,
   Settings,
   ShieldCheck,
@@ -1247,21 +1246,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
               One business. One live view.<small>Business ID · {gymId}</small>
             </div>
           </div>
-          {/* Reachable by every authenticated role regardless of which
-              modules their role can see — Gym Settings itself stays
-              owner-only, so this is what keeps a manager/staff/trainer/
-              reception session from ever being trapped without a way to
-              sign out. */}
-          {onSignOut && (
-            <button
-              className="gym-sidebar-signout"
-              aria-label="Sign out"
-              onClick={onSignOut}
-            >
-              <LogOut size={16} />
-              Sign Out
-            </button>
-          )}
         </div>
       </aside>
       {navOpen && (
@@ -1272,6 +1256,12 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
         />
       )}
       <div className="gym-workspace" inert={navOpen ? true : undefined}>
+        {/* Shared Business Dashboard header — same layout as Salon: left
+            hamburger, middle business name + workspace context, right the
+            real business logo/avatar only. No sync indicator, no refresh
+            button, no staff identity here — realtime sync itself (the 5s
+            poll + retry below) is untouched, only this header chrome is
+            gone. Sign Out lives in Settings only, for every role. */}
         <header className="gym-topbar">
           <button
             ref={menuRef}
@@ -1284,40 +1274,23 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
             <Menu size={23} />
           </button>
           <div className="gym-business">
-            <span className="gym-business-icon">
-              <Dumbbell size={20} />
-            </span>
             <div>
               <strong>{gymName}</strong>
-              <small>Gym workspace</small>
+              <small>Gym workspace &middot; {role}</small>
             </div>
           </div>
-          <div
-            className={`gym-sync ${error ? "offline" : ""}`}
-            title={updated ? `Last synced ${dateTime(updated)}` : "Connecting"}
-          >
-            <span />
-            {error
-              ? "Sync needs attention"
-              : updated
-                ? "Live sync"
-                : "Connecting"}
-          </div>
-          <button
-            className="gym-icon-button"
-            disabled={busy}
-            onClick={() => void refresh()}
-            aria-label="Refresh dashboard"
-          >
-            <RefreshCw size={17} />
-          </button>
-          <div className="gym-user">
-            <span className="gym-avatar">{staffName.charAt(0)}</span>
-            <div>
-              <strong>{staffName}</strong>
-              <small>{role}</small>
-            </div>
-          </div>
+          {state?.logoImageUrl ? (
+            <img
+              id="gym-header-logo"
+              src={state.logoImageUrl}
+              alt=""
+              className="gym-header-logo"
+            />
+          ) : (
+            <span className="gym-header-logo gym-header-logo--fallback">
+              {gymName.charAt(0).toUpperCase()}
+            </span>
+          )}
         </header>
         <main className="gym-main">
           {showManageProfile ? (
@@ -2322,8 +2295,21 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   }
                 />
               )}
+              {/* Reachable by every authenticated role Settings itself is
+                  reachable by (see resolveCategoryModules) — this is the
+                  one place Sign Out lives now that the top header no
+                  longer carries it, so no role can end up trapped without
+                  a way to log out. Carries no privileged control. */}
               {active === "settings" && (
-                <Panel title="Facility settings">
+                <Panel title="Account">
+                  <div className="gym-summary-line">
+                    <span>Signed in as</span>
+                    <strong>{staffName}</strong>
+                  </div>
+                  <div className="gym-summary-line">
+                    <span>Role</span>
+                    <strong style={{ textTransform: "capitalize" }}>{role}</strong>
+                  </div>
                   <div className="gym-summary-line">
                     <span>Business</span>
                     <strong>{gymName}</strong>
@@ -2332,6 +2318,24 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     <span>Business ID</span>
                     <strong>{gymId}</strong>
                   </div>
+                  {onSignOut && (
+                    <button
+                      className="gym-button secondary danger"
+                      style={{ marginTop: 14, width: "100%" }}
+                      onClick={onSignOut}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  )}
+                </Panel>
+              )}
+              {/* Facility capacity/trainer-count controls stay manager-only
+                  — a sensitive operational control, not exposed to
+                  staff/trainer/reception even though they can now reach
+                  Settings for Sign Out. */}
+              {active === "settings" && manager && (
+                <Panel title="Facility settings">
                   <div className="gym-summary-line">
                     <span>Maximum capacity</span>
                     <strong>{state.maxCapacity}</strong>
@@ -2359,16 +2363,6 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                     Settings apply only to this Gym business. Your existing
                     Business-ID login and session remain unchanged.
                   </p>
-                  {onSignOut && (
-                    <button
-                      className="gym-button secondary danger"
-                      style={{ marginTop: 14 }}
-                      onClick={onSignOut}
-                    >
-                      <LogOut size={16} />
-                      Sign Out
-                    </button>
-                  )}
                 </Panel>
               )}
               {active === "settings" && manager && (
@@ -2397,7 +2391,9 @@ export const GymDashboardView: React.FC<GymDashboardViewProps> = ({
                   </button>
                 </Panel>
               )}
-              {active === "settings" && (
+              {/* Business QR provisioning is a privileged control too —
+                  manager-gated, same as Facility settings above. */}
+              {active === "settings" && manager && (
                 <EntryQrPanel gymId={gymId} gymName={gymName} />
               )}
             </>

@@ -578,6 +578,10 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
       bottomCtaState === 'unavailable'
     ) return;
     if (bottomCtaState === 'scan') {
+      // Server-side enforcement (checkin/scan already refuses a closed
+      // gym) is the real gate — this is just the friendlier UI path so a
+      // customer never scans into a guaranteed 409.
+      if (salon.isOpen === false) return;
       requireReady('scan', () => setQrScannerOpen(true));
       return;
     }
@@ -657,11 +661,13 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             : myMembership?.paidPass
             ? {
                 id: 'primary',
-                label: 'Visit Pass',
+                label: salon.isOpen === false ? 'Closed' : 'Visit Pass',
                 icon: <QrCode />,
                 onClick: () => {
+                  if (salon.isOpen === false) return;
                   requireReady('scan', () => setQrScannerOpen(true));
                 },
+                disabled: salon.isOpen === false,
                 primary: true,
                 variant: 'standard' as const,
               }
@@ -1259,6 +1265,7 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
             bottomCtaState === 'awaiting_payment' ||
             bottomCtaState === 'loading_access' ||
             bottomCtaState === 'unavailable' ||
+            (bottomCtaState === 'scan' && salon.isOpen === false) ||
             scanBusy ||
             (bottomCtaState === 'checked_in' && checkoutBusy)
           }
@@ -1271,10 +1278,12 @@ export const GymDetailPage: React.FC<GymDetailPageProps> = ({
                 ? 'Checking in…'
                 : bottomCtaState === 'checked_in' && checkoutBusy
                 ? 'Checking out…'
+                : bottomCtaState === 'scan' && salon.isOpen === false
+                ? 'Closed · Offline now'
                 : accessBarCopy.action}
             </span>
             <span className="mt-0.5 max-w-[240px] truncate text-[11px] font-medium leading-tight text-white/80">
-              {accessBarCopy.main}
+              {bottomCtaState === 'scan' && salon.isOpen === false ? 'New check-ins are paused' : accessBarCopy.main}
             </span>
           </span>
           <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] bg-white/20 text-white backdrop-blur-md border border-white/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_2px_8px_rgba(0,0,0,0.1)]">

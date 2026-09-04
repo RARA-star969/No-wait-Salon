@@ -37,7 +37,11 @@ test('Backend Cross-Business Isolation & Staff Session Authorization', async (t)
     const trainerLabels = trainerModules.map((m) => m.label);
     assert.ok(trainerLabels.includes('Overview'));
     assert.ok(trainerLabels.includes('Classes'));
-    assert.equal(trainerLabels.includes('Gym Settings'), false);
+    // Gym Settings navigation is reachable by every role — it is the only
+    // place Sign Out lives now that the header/sidebar no longer carry it.
+    // The `gym_settings` capability above (which gates the privileged
+    // facility controls inside that screen) stays false for a trainer.
+    assert.ok(trainerLabels.includes('Gym Settings'));
     assert.equal(trainerLabels.includes('Trainers'), false);
   });
 

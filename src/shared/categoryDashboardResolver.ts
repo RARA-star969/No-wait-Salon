@@ -87,7 +87,12 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
       { id: 'pt_bookings', label: 'PT Bookings', icon: 'Dumbbell', allowedRoles: ['owner', 'manager', 'trainer', 'reception'] },
       { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },
       { id: 'campaigns', label: 'Campaigns', icon: 'Megaphone', allowedRoles: ['owner'] },
-      { id: 'settings', label: 'Gym Settings', icon: 'Settings', allowedRoles: ['owner'] },
+      // Every authenticated role reaches Settings — it is the only place
+      // Sign Out lives now that the top header and sidebar footer no
+      // longer carry it, so no role can end up trapped without a way to
+      // log out. Owner/manager-only controls inside the screen (facility
+      // settings, entry QR) still gate themselves.
+      { id: 'settings', label: 'Gym Settings', icon: 'Settings', allowedRoles: ['owner', 'manager', 'staff', 'trainer', 'reception'] },
     ];
     return modules.filter((m) => m.allowedRoles.includes(role));
   }
@@ -106,7 +111,10 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
     { id: 'offers', label: 'Offers & Campaigns', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
     { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },
     { id: 'profile', label: 'Business Profile', icon: 'Building2', allowedRoles: ['owner', 'manager'] },
-    { id: 'settings', label: 'Settings', icon: 'Settings', allowedRoles: ['owner'] },
+    // Every authenticated role reaches Settings — it is the only place
+    // Sign Out lives now that the top header and drawer footer no longer
+    // carry it, so no role can end up trapped without a way to log out.
+    { id: 'settings', label: 'Settings', icon: 'Settings', allowedRoles: ['owner', 'manager', 'staff'] },
   ];
   return salonModules.filter((m) => m.allowedRoles.includes(role));
 }
