@@ -192,6 +192,21 @@ const migrations=[{
     CREATE INDEX IF NOT EXISTS staff_account_business_idx ON staff_account(business_id,role);
     CREATE INDEX IF NOT EXISTS staff_session_business_idx ON staff_session(business_id,expires_at);
   `
+}, {
+  version: 12,
+  name: 'staff_profile_and_booking_attribution',
+  sql: `
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION NOT NULL DEFAULT 4.8;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS experience_years INTEGER NOT NULL DEFAULT 3;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS specialties_json TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS barber_id TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS payment_status TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS paid_at BIGINT;
+    CREATE INDEX IF NOT EXISTS customer_booking_barber_idx ON customer_booking(salon_id,barber_id,service_completed_at DESC);
+  `
 }];
 
 export async function runMigrations(db:Database){

@@ -663,6 +663,13 @@ for (const [column, ddl] of [
   ['cancelled_at', 'cancelled_at INTEGER'],
   ['services_json', "services_json TEXT NOT NULL DEFAULT '[]'"],
   ['total_price_inr', 'total_price_inr INTEGER'],
+  // Stable staff attribution for real per-staff performance aggregation —
+  // barberIndex/barberName on QueueItem are transient/display-only, so this
+  // is the durable, ID-based column used for revenue/booking rollups.
+  ['barber_id', 'barber_id TEXT'],
+  ['payment_status', 'payment_status TEXT'],
+  ['payment_method', 'payment_method TEXT'],
+  ['paid_at', 'paid_at INTEGER'],
 ] as const) {
   if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
 }
@@ -999,9 +1006,10 @@ function upsertBooking(salonId: string, item: QueueItem) {
     INSERT INTO customer_booking (
       id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
       outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at,
-      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at, services_json, total_price_inr
+      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at, services_json, total_price_inr,
+      barber_id, payment_status, payment_method, paid_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(queue_entry_id) DO UPDATE SET
       status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
       outcome = COALESCE(excluded.outcome, customer_booking.outcome),
@@ -1017,7 +1025,11 @@ function upsertBooking(salonId: string, item: QueueItem) {
       cancel_reason_text = COALESCE(excluded.cancel_reason_text, customer_booking.cancel_reason_text),
       cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at),
       services_json = excluded.services_json,
-      total_price_inr = COALESCE(excluded.total_price_inr, customer_booking.total_price_inr)
+      total_price_inr = COALESCE(excluded.total_price_inr, customer_booking.total_price_inr),
+      barber_id = COALESCE(excluded.barber_id, customer_booking.barber_id),
+      payment_status = COALESCE(excluded.payment_status, customer_booking.payment_status),
+      payment_method = COALESCE(excluded.payment_method, customer_booking.payment_method),
+      paid_at = COALESCE(excluded.paid_at, customer_booking.paid_at)
   `).run(
     randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
     item.source || 'customer_app', item.createdAt, now,
@@ -1025,6 +1037,7 @@ function upsertBooking(salonId: string, item: QueueItem) {
     item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
     item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
     JSON.stringify(item.services || []), item.totalPriceInr ?? null,
+    item.barberId || null, item.paymentStatus || null, item.paymentMethod || null, item.paidAt || null,
   );
 }
 
@@ -1239,7 +1252,7 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       if (barberIndex < 0) throw new Error('No barber is currently available.');
       const barber = state.barbers[barberIndex];
       state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
-      state.queue.push({ ...item, status: 'Serving', barberIndex, barberName: barber.name });
+      state.queue.push({ ...item, status: 'Serving', barberIndex, barberName: barber.name, barberId: barber.id });
     } else {
       const preferred = state.barbers.find((barber) => barber.id === command.preferredBarberId);
       state.queue.push({ ...item, status: 'Waiting', barberName: preferred?.name });
@@ -1313,6 +1326,7 @@ function applyCommand(state: SalonState, command: QueueCommand) {
       status: 'Called',
       barberIndex,
       barberName: barber.name,
+      barberId: barber.id,
       calledAt: now,
       graceExpiresAt: now + GRACE_WINDOW_MS,
       callAttempt: (item.callAttempt || 0) + 1,
@@ -1336,7 +1350,7 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     state.barbers[barberIndex] = { ...barber, status: 'busy', currentCustomerName: item.name };
     // Clearing the deadline makes expiry idempotent: an in-service booking can
     // never later flip to CALL AGAIN or NO SHOW because of a stale timer.
-    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name, graceExpiresAt: undefined, serviceStartedAt: item.serviceStartedAt || Date.now() };
+    state.queue[itemIndex] = { ...item, status: 'Serving', barberIndex, barberName: barber.name, barberId: barber.id, graceExpiresAt: undefined, serviceStartedAt: item.serviceStartedAt || Date.now() };
   } else if (command.action === 'Complete') {
     if (item.status !== 'Serving') throw new Error('Only an in-service customer can be completed.');
     releaseBarber(state, item);
@@ -2600,6 +2614,108 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(withCustomerPhotos(readState(request.params.salonId)));
+});
+
+/**
+ * Per-staff performance for the "Staff Members" dashboard — real data only.
+ * Revenue/completed counts/top services come from the durable customer_booking
+ * table, attributed by the stable barber_id column (set at Call/Start/walk-in
+ * time). Bookings without a customerId (e.g. some walk-ins) are never written
+ * to customer_booking, so this can undercount walk-in-heavy salons — an
+ * existing persistence gap, not something this endpoint papers over.
+ * There is no verified per-staff review table today, so rating/review count
+ * are always returned as null (unavailable) rather than the owner-editable
+ * salon_staff.rating/review_count vanity fields.
+ */
+app.get('/api/salons/:salonId/staff-performance', (request, response) => {
+  const salonId = request.params.salonId;
+  const salonExists = db.prepare('SELECT 1 FROM salon WHERE id = ?').get(salonId);
+  if (!salonExists) return response.status(404).json({ error: 'Salon not found.' });
+
+  const range = (['today', '7d', '30d', 'all'] as const).includes(request.query.range as any)
+    ? (request.query.range as 'today' | '7d' | '30d' | 'all')
+    : '30d';
+  const now = Date.now();
+  const rangeStart =
+    range === 'all'
+      ? 0
+      : range === 'today'
+        ? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); })()
+        : now - (range === '7d' ? 7 : 30) * 24 * 60 * 60_000;
+
+  const staffRows = db.prepare('SELECT * FROM salon_staff WHERE salon_id = ? ORDER BY sort_order, created_at').all(salonId) as Array<Record<string, string | number>>;
+
+  const bookingRows = db.prepare(`
+    SELECT barber_id, service, services_json, total_price_inr, payment_status, status, outcome,
+           COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) AS stamp
+    FROM customer_booking
+    WHERE salon_id = ? AND barber_id IS NOT NULL
+      AND COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) >= ?
+  `).all(salonId, rangeStart) as Array<Record<string, string | number | null>>;
+
+  type StaffBucket = { completed: number; paidCompleted: number; revenueInr: number; cancelledCount: number; noShowCount: number; serviceCounts: Map<string, number> };
+  const byStaff = new Map<string, StaffBucket>();
+  for (const row of bookingRows) {
+    const staffId = String(row.barber_id);
+    if (!byStaff.has(staffId)) {
+      byStaff.set(staffId, { completed: 0, paidCompleted: 0, revenueInr: 0, cancelledCount: 0, noShowCount: 0, serviceCounts: new Map() });
+    }
+    const bucket = byStaff.get(staffId)!;
+    const isBookingCompleted = row.outcome === 'completed' || (row.status === 'Completed' && !row.outcome);
+    const isBookingCancelled = row.outcome === 'cancelled_customer' || row.outcome === 'cancelled_staff' || row.status === 'Cancelled';
+    const isBookingNoShow = row.outcome === 'no_show' || row.status === 'NoShow';
+    if (isBookingCompleted) {
+      bucket.completed += 1;
+      if (row.payment_status === 'paid' && row.total_price_inr != null) {
+        bucket.paidCompleted += 1;
+        bucket.revenueInr += Number(row.total_price_inr) || 0;
+      }
+      let names: string[] = [];
+      try { names = JSON.parse(String(row.services_json || '[]')); } catch { names = []; }
+      if (!names.length && row.service) names = String(row.service).split('+').map((part) => part.trim()).filter(Boolean);
+      for (const name of names) bucket.serviceCounts.set(name, (bucket.serviceCounts.get(name) || 0) + 1);
+    } else if (isBookingCancelled) {
+      bucket.cancelledCount += 1;
+    } else if (isBookingNoShow) {
+      bucket.noShowCount += 1;
+    }
+  }
+
+  const staff = staffRows.map((row) => {
+    const bucket = byStaff.get(String(row.id));
+    const completedBookings = bucket?.completed || 0;
+    const paidCompletedBookings = bucket?.paidCompleted || 0;
+    const revenueInr = completedBookings === 0 ? 0 : paidCompletedBookings > 0 ? bucket!.revenueInr : null;
+    const averageTicketInr = paidCompletedBookings > 0 ? Math.round(bucket!.revenueInr / paidCompletedBookings) : null;
+    const topServices = bucket
+      ? Array.from(bucket.serviceCounts.entries()).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
+      : [];
+    return {
+      staffId: String(row.id),
+      name: String(row.name),
+      role: String(row.role || 'Barber'),
+      status: String(row.working_status || 'available'),
+      active: Number(row.active) === 1,
+      photoUrl: String(row.photo_url || ''),
+      experienceYears: row.experience_years != null ? Number(row.experience_years) : null,
+      specialties: (() => { try { return JSON.parse(String(row.specialties_json || '[]')); } catch { return []; } })(),
+      serviceIds: (() => { try { return JSON.parse(String(row.service_ids_json || '[]')); } catch { return []; } })(),
+      completedBookings,
+      paidCompletedBookings,
+      revenueInr,
+      averageTicketInr,
+      topServices,
+      cancelledCount: bucket?.cancelledCount || 0,
+      noShowCount: bucket?.noShowCount || 0,
+      // No verified per-staff review system exists yet — never surface the
+      // owner-editable salon_staff.rating/review_count as "verified".
+      verifiedRating: null as number | null,
+      verifiedReviewCount: null as number | null,
+    };
+  });
+
+  response.set('Cache-Control', 'no-store');
+  response.json({ range, staff });
 });
 
 app.get('/api/salons/:salonId/events', (request, response) => {
