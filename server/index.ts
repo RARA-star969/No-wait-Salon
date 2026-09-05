@@ -67,7 +67,7 @@ type QueueCommand =
   | { type: 'toggle_barber'; barberId: string }
   | { type: 'join'; item: QueueItem }
   | { type: 'add_walkin'; item: QueueItem; startImmediately?: boolean; preferredBarberId?: string }
-  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair' | 'Pay-online' | 'Pay-cash' | 'Confirm-cash-payment' | 'Submit-rating'; barberId?: string; reasonCode?: string; reasonText?: string; rating?: number; feedbackTags?: string[]; feedbackComment?: string }
+  | { type: 'queue_action'; itemId: string; action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair' | 'Pay-online' | 'Pay-cash' | 'Confirm-cash-payment' | 'Submit-rating'; barberId?: string; reasonCode?: string; reasonText?: string; rating?: number; feedbackTags?: string[]; feedbackComment?: string; paymentMethod?: 'cash' | 'online' }
   | { type: 'cancel_customer'; sessionId: string; reasonCode?: string; reasonText?: string }
   | { type: 'save_staff'; staff: unknown[] }
   | { type: 'save_offers'; offers: unknown[] };
@@ -793,6 +793,16 @@ for (const [column, ddl] of [
   ['cancelled_at', 'cancelled_at INTEGER'],
   ['services_json', "services_json TEXT NOT NULL DEFAULT '[]'"],
   ['total_price_inr', 'total_price_inr INTEGER'],
+  // Durable payment + reporting fields for the Live Salon Payment
+  // Confirmation flow (Complete Service -> Cash/Online -> Confirm Payment &
+  // Complete). Additive, same pattern as every column above: an old row
+  // simply reads these as null/unset rather than a fabricated value.
+  ['payment_status', 'payment_status TEXT'],
+  ['payment_method', 'payment_method TEXT'],
+  ['paid_at', 'paid_at INTEGER'],
+  ['discount_inr', 'discount_inr INTEGER'],
+  ['token', 'token TEXT'],
+  ['barber_name', 'barber_name TEXT'],
 ] as const) {
   if (!customerBookingColumns.has(column)) db.exec(`ALTER TABLE customer_booking ADD COLUMN ${ddl}`);
 }
@@ -1229,9 +1239,10 @@ function upsertBooking(salonId: string, item: QueueItem) {
     INSERT INTO customer_booking (
       id, queue_entry_id, customer_id, salon_id, service, status, reserved_for, source, created_at, updated_at,
       outcome, first_called_at, call_attempts, acknowledged_at, grace_expires_at, no_show_at, service_started_at, service_completed_at,
-      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at, services_json, total_price_inr
+      cancelled_by, cancel_reason_code, cancel_reason_text, cancelled_at, services_json, total_price_inr,
+      payment_status, payment_method, paid_at, discount_inr, token, barber_name
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(queue_entry_id) DO UPDATE SET
       status = excluded.status, source = excluded.source, updated_at = excluded.updated_at,
       outcome = COALESCE(excluded.outcome, customer_booking.outcome),
@@ -1247,7 +1258,13 @@ function upsertBooking(salonId: string, item: QueueItem) {
       cancel_reason_text = COALESCE(excluded.cancel_reason_text, customer_booking.cancel_reason_text),
       cancelled_at = COALESCE(excluded.cancelled_at, customer_booking.cancelled_at),
       services_json = excluded.services_json,
-      total_price_inr = COALESCE(excluded.total_price_inr, customer_booking.total_price_inr)
+      total_price_inr = COALESCE(excluded.total_price_inr, customer_booking.total_price_inr),
+      payment_status = COALESCE(excluded.payment_status, customer_booking.payment_status),
+      payment_method = COALESCE(excluded.payment_method, customer_booking.payment_method),
+      paid_at = COALESCE(excluded.paid_at, customer_booking.paid_at),
+      discount_inr = COALESCE(excluded.discount_inr, customer_booking.discount_inr),
+      token = COALESCE(excluded.token, customer_booking.token),
+      barber_name = COALESCE(excluded.barber_name, customer_booking.barber_name)
   `).run(
     randomUUID(), item.id, item.customerId, salonId, item.service, item.status, item.reservedFor || null,
     item.source || 'customer_app', item.createdAt, now,
@@ -1255,6 +1272,8 @@ function upsertBooking(salonId: string, item: QueueItem) {
     item.graceExpiresAt || null, item.noShowAt || null, item.serviceStartedAt || null, item.serviceCompletedAt || null,
     item.cancelledBy || null, item.cancelReasonCode || null, item.cancelReasonText || null, item.cancelledAt || null,
     JSON.stringify(item.services || []), item.totalPriceInr ?? null,
+    item.paymentStatus || null, item.paymentMethod || null, item.paidAt || null, item.discountInr ?? null,
+    item.token || null, item.barberName || null,
   );
 }
 
@@ -1684,8 +1703,14 @@ function applyCommand(state: SalonState, command: QueueCommand) {
     if (item.status !== 'Serving') throw new Error('Only an in-service customer can be completed.');
     releaseBarber(state, item);
     state.queue.splice(itemIndex, 1);
-    const finalPaymentStatus = item.paymentStatus === 'cash_pending' ? 'paid' : (item.paymentStatus || 'paid');
-    const finalPaymentMethod = item.paymentMethod || 'cash';
+    // A method chosen at Payment Confirmation time (client's Live Salon
+    // "Confirm Payment & Complete") is authoritative for this transition.
+    // Absent that — an older client, or a booking already marked paid earlier
+    // in its lifecycle — fall back to the previous behaviour untouched.
+    const finalPaymentMethod = command.paymentMethod || item.paymentMethod || 'cash';
+    const finalPaymentStatus = command.paymentMethod
+      ? ('paid' as const)
+      : item.paymentStatus === 'cash_pending' ? 'paid' : (item.paymentStatus || 'paid');
     state.completedList = [
       {
         ...item,

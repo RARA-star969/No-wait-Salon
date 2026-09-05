@@ -627,7 +627,12 @@ export default function App() {
     item: QueueItem,
     action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
     reason?: { code: string; text: string },
-    specificBarberIndex?: number
+    specificBarberIndex?: number,
+    /** Only ever set on 'Complete', by the Live Salon Payment Confirmation
+     *  sheet — the server treats it as the authoritative payment method for
+     *  that transition instead of guessing from whatever state the booking
+     *  already carried. */
+    paymentMethod?: 'cash' | 'online'
   ) => {
     const barberId = specificBarberIndex !== undefined ? staffBarbers[specificBarberIndex]?.id : undefined;
     void runStaffCommand({
@@ -637,6 +642,7 @@ export default function App() {
       barberId,
       reasonCode: reason?.code,
       reasonText: reason?.text,
+      paymentMethod,
     });
   };
 

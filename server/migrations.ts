@@ -379,6 +379,17 @@ const migrations=[{
     )
     ON CONFLICT (id) DO NOTHING;
   `
+}, {
+  version: 21,
+  name: 'customer_booking_payment_fields',
+  sql: `
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS payment_status TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS payment_method TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS paid_at BIGINT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS discount_inr INTEGER;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS token TEXT;
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS barber_name TEXT;
+  `
 }];
 
 export async function runMigrations(db:Database){

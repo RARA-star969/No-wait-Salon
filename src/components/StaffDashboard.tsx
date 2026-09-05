@@ -74,7 +74,10 @@ interface StaffDashboardProps {
     item: QueueItem,
     action: 'Call' | 'Acknowledge' | 'Start' | 'Complete' | 'No-show' | 'Remove' | 'Cancel-chair',
     reason?: { code: string; text: string },
-    specificBarberIndex?: number
+    specificBarberIndex?: number,
+    /** Chosen only by the Live Salon Payment Confirmation sheet, on 'Complete'.
+     *  Absent for every other action and every other call site. */
+    paymentMethod?: 'cash' | 'online'
   ) => void;
   queueAlert: string;
   onSaveStaff: (staff: Barber[]) => void;
@@ -619,7 +622,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-[#17201F]">Today&apos;s Live Queue ({queue.length})</span>
+              {/* No count in the heading: the total already lives in the
+                  summary strip directly below, derived from the same queue. */}
+              <span className="text-[11px] font-bold text-[#17201F]">Today&apos;s Live Queue</span>
               <button
                 id="add-walkin-popup-btn"
                 onClick={() => setIsWalkinModalOpen(true)}
@@ -634,28 +639,25 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 counts. Purely derived from `queue`, same source the cards
                 below render from, so it can never disagree with them. */}
             <div id="live-queue-summary" className="rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
-              <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#3454FD]/10 text-[#3454FD]">
-                    <Users className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Total in Queue</div>
-                    <div className="mt-0.5 truncate text-sm font-extrabold text-[#17201F]">
-                      {queue.length} {queue.length === 1 ? 'customer' : 'customers'}
-                    </div>
-                  </div>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="min-w-0 text-center">
+                  <div className="truncate text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Total in Queue</div>
+                  {/* Bare number only, and always the sum of the three
+                      operational counts below — all four are derived from
+                      this same `queue` array the cards render from, so the
+                      total can never disagree with them. */}
+                  <div className="mt-1 text-lg font-extrabold text-[#17201F]">{servingCount + calledCount + waitingCount}</div>
                 </div>
-                <div>
-                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">In Service</div>
+                <div className="min-w-0 text-center">
+                  <div className="truncate text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">In Service</div>
                   <div className="mt-1 text-lg font-extrabold text-[#3454FD]">{servingCount}</div>
                 </div>
-                <div>
-                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Called</div>
+                <div className="min-w-0 text-center">
+                  <div className="truncate text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Called</div>
                   <div className="mt-1 text-lg font-extrabold text-amber-600">{calledCount}</div>
                 </div>
-                <div>
-                  <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Waiting</div>
+                <div className="min-w-0 text-center">
+                  <div className="truncate text-[9px] font-extrabold uppercase tracking-wider text-[#7A8785]">Waiting</div>
                   <div className="mt-1 text-lg font-extrabold text-[#17201F]">{waitingCount}</div>
                 </div>
               </div>
@@ -683,7 +685,15 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                 </div>
               ) : (
                 queue.map((item, index) => (
-                  <QueueBookingCard key={item.id} item={item} position={index + 1} now={now} onAction={onQueueAction} onCancelChair={setCancelTarget} />
+                  <QueueBookingCard
+                    key={item.id}
+                    item={item}
+                    position={index + 1}
+                    now={now}
+                    onAction={(actionItem, action, paymentMethod) => onQueueAction(actionItem, action, undefined, undefined, paymentMethod)}
+                    onCancelChair={setCancelTarget}
+                    catalog={salon.services}
+                  />
                 ))
               )}
               <p className="pt-1 text-[11px] leading-relaxed text-[#7A8785]">

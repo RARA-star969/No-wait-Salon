@@ -19,7 +19,7 @@ export type CardKind =
   | 'serving'
   | 'reserved';
 
-export type ActionTone = 'primary' | 'secondary' | 'destructive' | 'ghost';
+export type ActionTone = 'primary' | 'secondary' | 'destructive' | 'ghost' | 'outline';
 
 export type CardAction = {
   /** The queue action to dispatch, or 'cancel_chair' to open the reason sheet. */
@@ -45,7 +45,10 @@ export type BookingCardState = {
   actions: CardAction[];
 };
 
-const CALL: CardAction = { id: 'call', label: 'Call', tone: 'primary', title: 'Call customer and assign an available barber' };
+// Plain outline, not the primary blue: on a WAITING card, Start is the one
+// button that actually commits the customer to a chair, so Call stays visually
+// secondary to it rather than competing for the same "primary action" weight.
+const CALL: CardAction = { id: 'call', label: 'Call', tone: 'outline', title: 'Call customer and assign an available barber' };
 const CALL_AGAIN: CardAction = { id: 'call_again', label: 'Call Again', tone: 'primary', title: 'Call this customer again and restart the arrival window' };
 const START: CardAction = { id: 'start', label: 'Start', tone: 'primary', title: 'Start service directly in the chair' };
 const START_SERVICE: CardAction = { id: 'start', label: 'Start Service', tone: 'primary', title: 'Seat the customer and begin service' };
@@ -135,3 +138,15 @@ export const maskedPhone = (phone?: string): string => {
   const digits = (phone || '').replace(/\D/g, '');
   return digits.length >= 4 ? `•••• ${digits.slice(-4)}` : '';
 };
+
+/**
+ * Compact service/package summary for a card that must stay a constant
+ * height whether the booking has one service or six. `services` (the real
+ * selected list) is preferred; `service` (the legacy display string) is the
+ * fallback for a booking recorded before that field existed.
+ */
+export function serviceSummary(item: Pick<QueueItem, 'services' | 'service'>): { primary: string; moreCount: number } {
+  const list = item.services && item.services.length > 0 ? item.services : item.service ? [item.service] : [];
+  if (list.length <= 1) return { primary: list[0] || item.service || '', moreCount: 0 };
+  return { primary: list[0], moreCount: list.length - 1 };
+}

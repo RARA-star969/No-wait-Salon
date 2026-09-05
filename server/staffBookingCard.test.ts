@@ -132,11 +132,16 @@ test('phone numbers are masked to the last four digits', () => {
 
 /* ----------------------- Layout guarantees in markup --------------------- */
 
-test('the card is a responsive grid, not one fixed horizontal row', () => {
+test('the card is a fixed stacked column, not a viewport-breakpoint-driven grid', () => {
   const card = source('src/components/QueueBookingCard.tsx');
-  assert.match(card, /grid gap-3 sm:grid-cols-\[minmax\(0,1fr\)_auto\]/, 'identity column can shrink, actions keep their width');
+  // The hosted test panel can report a wide viewport while actually rendering
+  // narrow, so the main card structure must never rely on sm:/md: breakpoints.
+  assert.doesNotMatch(card, /sm:grid-cols-\[minmax/, 'no breakpoint-driven identity/actions grid');
   assert.match(card, /flex flex-wrap items-center gap-2/, 'actions wrap rather than overlap');
-  assert.match(card, /h-9/, 'buttons share one height');
+  assert.match(card, /h-10/, 'buttons share one height with a comfortable touch target');
+  // Arrival-window-ended is the one state whose action row must not squeeze
+  // four buttons into a single cramped column.
+  assert.match(card, /call_expired.*grid grid-cols-2 gap-2/, 'the expired-window action row is a clean 2x2 grid');
 });
 
 test('long names and services are truncated instead of breaking the layout', () => {
@@ -144,6 +149,18 @@ test('long names and services are truncated instead of breaking the layout', () 
   const truncations = card.match(/truncate/g) || [];
   assert.ok(truncations.length >= 3, 'name, service and detail lines all truncate');
   assert.match(card, /min-w-0/, 'flex children may shrink below their content width');
+});
+
+test('the token chip is visually neutral, not the bright accent blue', () => {
+  const card = source('src/components/QueueBookingCard.tsx');
+  assert.match(card, /#EEF1F0/, 'token chip uses a neutral light-grey background');
+  assert.match(card, /\{item\.token\}/, 'the token value itself still renders');
+});
+
+test('Complete is gated behind a Payment Confirmation sheet, never freeing the chair on tap alone', () => {
+  const card = source('src/components/QueueBookingCard.tsx');
+  assert.match(card, /PaymentConfirmationSheet/);
+  assert.match(card, /Confirm Payment/);
 });
 
 test('the live queue renders through the shared card, with no inline copy left behind', () => {
