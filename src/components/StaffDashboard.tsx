@@ -52,7 +52,7 @@ import {
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui, ModalShell } from './ui';
-import { realtimeQueueService, type StaffPerformanceRow, type StaffPerformanceRange } from '../services/realtimeQueueService';
+import { fetchStaffPerformance, type StaffPerformanceRow, type StaffPerformanceRange } from '../services/staffPerformanceService';
 import { setBusinessOpenStatus } from '../services/businessOpenStatusService';
 // Shared owner Manage Profile surface (business logo, basic info, gallery,
 // amenities, quick actions, social links) — historically Gym-only, now
@@ -888,7 +888,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
         {/* ---------------- STAFF MEMBERS ---------------- */}
         {active === 'staff' && isOwnerOrManager && (
           <div className="p-4 pb-8">
-            <StaffMembersPanel salonId={salon.id} barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
+            <StaffMembersPanel barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
           </div>
         )}
 
@@ -1063,7 +1063,7 @@ const formatInr = (amount: number): string => `₹${amount.toLocaleString('en-IN
  * come from the durable customer_booking table via GET staff-performance,
  * never from owner-typed fields.
  */
-const StaffMembersPanel: React.FC<{ salonId: string; barbers: Barber[]; allServices: ServiceItem[]; onSave: (staff: Barber[]) => void }> = ({ salonId, barbers, allServices, onSave }) => {
+const StaffMembersPanel: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onSave: (staff: Barber[]) => void }> = ({ barbers, allServices, onSave }) => {
   const [filter, setFilter] = useState<DutyFilter>('all');
   const [search, setSearch] = useState('');
   const [performance, setPerformance] = useState<StaffPerformanceRow[] | null>(null);
@@ -1074,12 +1074,11 @@ const StaffMembersPanel: React.FC<{ salonId: string; barbers: Barber[]; allServi
 
   useEffect(() => {
     let cancelled = false;
-    realtimeQueueService
-      .getStaffPerformance(salonId, '30d')
+    fetchStaffPerformance('30d')
       .then((res) => { if (!cancelled) setPerformance(res.staff); })
       .catch((error) => { if (!cancelled) setPerformanceError(error.message || 'Could not load performance data.'); });
     return () => { cancelled = true; };
-  }, [salonId, barbers.length]);
+  }, [barbers.length]);
 
   const total = barbers.length;
   const availableNow = barbers.filter((b) => b.status === 'available').length;
@@ -1195,7 +1194,6 @@ const StaffMembersPanel: React.FC<{ salonId: string; barbers: Barber[]; allServi
 
       {viewPerformanceStaff && (
         <ViewPerformanceSheet
-          salonId={salonId}
           staff={viewPerformanceStaff}
           onClose={() => setViewPerformanceId(null)}
         />
@@ -1323,7 +1321,7 @@ const PERFORMANCE_RANGES: Array<{ id: StaffPerformanceRange; label: string }> = 
   { id: 'all', label: 'All' },
 ];
 
-const ViewPerformanceSheet: React.FC<{ salonId: string; staff: Barber; onClose: () => void }> = ({ salonId, staff, onClose }) => {
+const ViewPerformanceSheet: React.FC<{ staff: Barber; onClose: () => void }> = ({ staff, onClose }) => {
   const [range, setRange] = useState<StaffPerformanceRange>('30d');
   const [row, setRow] = useState<StaffPerformanceRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1333,8 +1331,7 @@ const ViewPerformanceSheet: React.FC<{ salonId: string; staff: Barber; onClose: 
     let cancelled = false;
     setLoading(true);
     setError(null);
-    realtimeQueueService
-      .getStaffPerformance(salonId, range)
+    fetchStaffPerformance(range)
       .then((res) => {
         if (cancelled) return;
         setRow(res.staff.find((s) => s.staffId === staff.id) || null);
@@ -1346,7 +1343,7 @@ const ViewPerformanceSheet: React.FC<{ salonId: string; staff: Barber; onClose: 
         setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [salonId, staff.id, range]);
+  }, [staff.id, range]);
 
   return (
     <ModalShell onClose={onClose} labelledBy="view-performance-title" className="max-w-md max-h-[85vh] overflow-y-auto p-5">

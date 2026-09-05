@@ -3267,6 +3267,117 @@ app.get('/api/staff/business/customers', (request, response) => {
   });
 });
 
+/**
+ * Per-staff performance for the "Staff Members" dashboard — real data only,
+ * business-scoped to the caller's own authenticated staff session (never a
+ * client-supplied salon/business id — same isolation model as
+ * /api/staff/business/customers above). Revenue/completed counts/top
+ * services come from the durable customer_booking table, attributed by the
+ * stable barber_id column (set at Call/Start/walk-in time). Bookings without
+ * a customerId (e.g. some walk-ins) are never written to customer_booking,
+ * so this can undercount walk-in-heavy salons — an existing persistence
+ * gap, not something this endpoint papers over.
+ * business_review is a real, customer-verified review table, but it is
+ * scoped to business+customer only (no staff_id) — there is still no way to
+ * attribute a review to a specific staff member, so rating/review count are
+ * always returned as null (unavailable) rather than the owner-editable
+ * salon_staff.rating/review_count vanity fields.
+ */
+app.get('/api/staff/business/staff-performance', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') {
+    return response.status(403).json({ error: 'Only owners and managers can view staff performance.' });
+  }
+  const businessId = session.businessId;
+
+  const range = (['today', '7d', '30d', 'all'] as const).includes(request.query.range as any)
+    ? (request.query.range as 'today' | '7d' | '30d' | 'all')
+    : '30d';
+  const now = Date.now();
+  const rangeStart =
+    range === 'all'
+      ? 0
+      : range === 'today'
+        ? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); })()
+        : now - (range === '7d' ? 7 : 30) * 24 * 60 * 60_000;
+
+  const staffRows = db.prepare('SELECT * FROM salon_staff WHERE salon_id = ? ORDER BY sort_order, created_at').all(businessId) as Array<Record<string, string | number>>;
+
+  const bookingRows = db.prepare(`
+    SELECT barber_id, service, services_json, total_price_inr, payment_status, status, outcome,
+           COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) AS stamp
+    FROM customer_booking
+    WHERE salon_id = ? AND barber_id IS NOT NULL
+      AND COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) >= ?
+  `).all(businessId, rangeStart) as Array<Record<string, string | number | null>>;
+
+  type StaffBucket = { completed: number; paidCompleted: number; revenueInr: number; cancelledCount: number; noShowCount: number; serviceCounts: Map<string, number> };
+  const byStaff = new Map<string, StaffBucket>();
+  for (const row of bookingRows) {
+    const staffId = String(row.barber_id);
+    if (!byStaff.has(staffId)) {
+      byStaff.set(staffId, { completed: 0, paidCompleted: 0, revenueInr: 0, cancelledCount: 0, noShowCount: 0, serviceCounts: new Map() });
+    }
+    const bucket = byStaff.get(staffId)!;
+    const isBookingCompleted = row.outcome === 'completed' || (row.status === 'Completed' && !row.outcome);
+    const isBookingCancelled = row.outcome === 'cancelled_customer' || row.outcome === 'cancelled_staff' || row.status === 'Cancelled';
+    const isBookingNoShow = row.outcome === 'no_show' || row.status === 'NoShow';
+    if (isBookingCompleted) {
+      bucket.completed += 1;
+      if (row.payment_status === 'paid' && row.total_price_inr != null) {
+        bucket.paidCompleted += 1;
+        bucket.revenueInr += Number(row.total_price_inr) || 0;
+      }
+      let names: string[] = [];
+      try { names = JSON.parse(String(row.services_json || '[]')); } catch { names = []; }
+      if (!names.length && row.service) names = String(row.service).split('+').map((part) => part.trim()).filter(Boolean);
+      for (const name of names) bucket.serviceCounts.set(name, (bucket.serviceCounts.get(name) || 0) + 1);
+    } else if (isBookingCancelled) {
+      bucket.cancelledCount += 1;
+    } else if (isBookingNoShow) {
+      bucket.noShowCount += 1;
+    }
+  }
+
+  const staff = staffRows.map((row) => {
+    const bucket = byStaff.get(String(row.id));
+    const completedBookings = bucket?.completed || 0;
+    const paidCompletedBookings = bucket?.paidCompleted || 0;
+    const revenueInr = completedBookings === 0 ? 0 : paidCompletedBookings > 0 ? bucket!.revenueInr : null;
+    const averageTicketInr = paidCompletedBookings > 0 ? Math.round(bucket!.revenueInr / paidCompletedBookings) : null;
+    const topServices = bucket
+      ? Array.from(bucket.serviceCounts.entries()).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
+      : [];
+    return {
+      staffId: String(row.id),
+      name: String(row.name),
+      role: String(row.role || 'Barber'),
+      status: String(row.working_status || 'available'),
+      active: Number(row.active) === 1,
+      photoUrl: String(row.photo_url || ''),
+      experienceYears: row.experience_years != null ? Number(row.experience_years) : null,
+      specialties: (() => { try { return JSON.parse(String(row.specialties_json || '[]')); } catch { return []; } })(),
+      serviceIds: (() => { try { return JSON.parse(String(row.service_ids_json || '[]')); } catch { return []; } })(),
+      completedBookings,
+      paidCompletedBookings,
+      revenueInr,
+      averageTicketInr,
+      topServices,
+      cancelledCount: bucket?.cancelledCount || 0,
+      noShowCount: bucket?.noShowCount || 0,
+      // No review is currently attributable to a specific staff member (see
+      // comment above the route) — never surface the owner-editable
+      // salon_staff.rating/review_count as "verified".
+      verifiedRating: null as number | null,
+      verifiedReviewCount: null as number | null,
+    };
+  });
+
+  response.set('Cache-Control', 'no-store');
+  response.json({ range, staff });
+});
+
 /** Admin Reviews management (Phase 7): view/filter/search everything, edit
  *  review text directly (no customer approval needed — this is an explicit
  *  product requirement), hide/unhide, and remove. Original text and edit
@@ -4412,111 +4523,6 @@ app.get('/api/salons/:salonId/profile', (request, response) => {
 app.get('/api/salons/:salonId/state', (request, response) => {
   response.set('Cache-Control', 'no-store');
   response.json(withCustomerPhotos(readState(request.params.salonId)));
-});
-
-/**
- * Per-staff performance for the "Staff Members" dashboard — real data only.
- * Revenue/completed counts/top services come from the durable customer_booking
- * table, attributed by the stable barber_id column (set at Call/Start/walk-in
- * time). Bookings without a customerId (e.g. some walk-ins) are never written
- * to customer_booking, so this can undercount walk-in-heavy salons — an
- * existing persistence gap, not something this endpoint papers over.
- * business_review is a real, customer-verified review table, but it is
- * scoped to business+customer only (no staff_id) — there is still no way to
- * attribute a review to a specific staff member, so rating/review count are
- * always returned as null (unavailable) rather than the owner-editable
- * salon_staff.rating/review_count vanity fields.
- */
-app.get('/api/salons/:salonId/staff-performance', (request, response) => {
-  const salonId = request.params.salonId;
-  const salonExists = db.prepare('SELECT 1 FROM salon WHERE id = ?').get(salonId);
-  if (!salonExists) return response.status(404).json({ error: 'Salon not found.' });
-
-  const range = (['today', '7d', '30d', 'all'] as const).includes(request.query.range as any)
-    ? (request.query.range as 'today' | '7d' | '30d' | 'all')
-    : '30d';
-  const now = Date.now();
-  const rangeStart =
-    range === 'all'
-      ? 0
-      : range === 'today'
-        ? (() => { const d = new Date(now); d.setHours(0, 0, 0, 0); return d.getTime(); })()
-        : now - (range === '7d' ? 7 : 30) * 24 * 60 * 60_000;
-
-  const staffRows = db.prepare('SELECT * FROM salon_staff WHERE salon_id = ? ORDER BY sort_order, created_at').all(salonId) as Array<Record<string, string | number>>;
-
-  const bookingRows = db.prepare(`
-    SELECT barber_id, service, services_json, total_price_inr, payment_status, status, outcome,
-           COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) AS stamp
-    FROM customer_booking
-    WHERE salon_id = ? AND barber_id IS NOT NULL
-      AND COALESCE(service_completed_at, cancelled_at, no_show_at, updated_at) >= ?
-  `).all(salonId, rangeStart) as Array<Record<string, string | number | null>>;
-
-  type StaffBucket = { completed: number; paidCompleted: number; revenueInr: number; cancelledCount: number; noShowCount: number; serviceCounts: Map<string, number> };
-  const byStaff = new Map<string, StaffBucket>();
-  for (const row of bookingRows) {
-    const staffId = String(row.barber_id);
-    if (!byStaff.has(staffId)) {
-      byStaff.set(staffId, { completed: 0, paidCompleted: 0, revenueInr: 0, cancelledCount: 0, noShowCount: 0, serviceCounts: new Map() });
-    }
-    const bucket = byStaff.get(staffId)!;
-    const isBookingCompleted = row.outcome === 'completed' || (row.status === 'Completed' && !row.outcome);
-    const isBookingCancelled = row.outcome === 'cancelled_customer' || row.outcome === 'cancelled_staff' || row.status === 'Cancelled';
-    const isBookingNoShow = row.outcome === 'no_show' || row.status === 'NoShow';
-    if (isBookingCompleted) {
-      bucket.completed += 1;
-      if (row.payment_status === 'paid' && row.total_price_inr != null) {
-        bucket.paidCompleted += 1;
-        bucket.revenueInr += Number(row.total_price_inr) || 0;
-      }
-      let names: string[] = [];
-      try { names = JSON.parse(String(row.services_json || '[]')); } catch { names = []; }
-      if (!names.length && row.service) names = String(row.service).split('+').map((part) => part.trim()).filter(Boolean);
-      for (const name of names) bucket.serviceCounts.set(name, (bucket.serviceCounts.get(name) || 0) + 1);
-    } else if (isBookingCancelled) {
-      bucket.cancelledCount += 1;
-    } else if (isBookingNoShow) {
-      bucket.noShowCount += 1;
-    }
-  }
-
-  const staff = staffRows.map((row) => {
-    const bucket = byStaff.get(String(row.id));
-    const completedBookings = bucket?.completed || 0;
-    const paidCompletedBookings = bucket?.paidCompleted || 0;
-    const revenueInr = completedBookings === 0 ? 0 : paidCompletedBookings > 0 ? bucket!.revenueInr : null;
-    const averageTicketInr = paidCompletedBookings > 0 ? Math.round(bucket!.revenueInr / paidCompletedBookings) : null;
-    const topServices = bucket
-      ? Array.from(bucket.serviceCounts.entries()).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count }))
-      : [];
-    return {
-      staffId: String(row.id),
-      name: String(row.name),
-      role: String(row.role || 'Barber'),
-      status: String(row.working_status || 'available'),
-      active: Number(row.active) === 1,
-      photoUrl: String(row.photo_url || ''),
-      experienceYears: row.experience_years != null ? Number(row.experience_years) : null,
-      specialties: (() => { try { return JSON.parse(String(row.specialties_json || '[]')); } catch { return []; } })(),
-      serviceIds: (() => { try { return JSON.parse(String(row.service_ids_json || '[]')); } catch { return []; } })(),
-      completedBookings,
-      paidCompletedBookings,
-      revenueInr,
-      averageTicketInr,
-      topServices,
-      cancelledCount: bucket?.cancelledCount || 0,
-      noShowCount: bucket?.noShowCount || 0,
-      // No review is currently attributable to a specific staff member (see
-      // comment above the route) — never surface the owner-editable
-      // salon_staff.rating/review_count as "verified".
-      verifiedRating: null as number | null,
-      verifiedReviewCount: null as number | null,
-    };
-  });
-
-  response.set('Cache-Control', 'no-store');
-  response.json({ range, staff });
 });
 
 app.get('/api/salons/:salonId/events', (request, response) => {
