@@ -60,7 +60,7 @@ export const sourceLabel = (item: QueueItem): string =>
 
 export type BookingFilters = {
   range: 'today' | '7d' | '30d' | 'all';
-  source: 'all' | 'customer_app' | 'qr_web';
+  source: 'all' | 'customer_app' | 'qr_web' | 'walk_in';
   search: string;
 };
 
@@ -82,8 +82,10 @@ export function applyFilters(items: QueueItem[], filters: BookingFilters, now = 
   const search = filters.search.trim().toLocaleLowerCase();
   return items.filter((item) => {
     if (stamp(item) < from) return false;
-    if (filters.source !== 'all' && (item.source || 'customer_app') !== filters.source) return false;
-    if (search && ![item.name, item.service].some((value) => value?.toLocaleLowerCase().includes(search))) return false;
+    const itemSource = item.source || 'customer_app';
+    if (filters.source === 'walk_in' && itemSource !== 'staff_walk_in' && itemSource !== 'qr_walk_in') return false;
+    if (filters.source !== 'all' && filters.source !== 'walk_in' && itemSource !== filters.source) return false;
+    if (search && ![item.name, item.service, item.token].some((value) => value?.toLocaleLowerCase().includes(search))) return false;
     return true;
   });
 }

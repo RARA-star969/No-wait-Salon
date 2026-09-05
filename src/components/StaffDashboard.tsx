@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { App as CapacitorApp } from '@capacitor/app';
 import { CancelBookingSheet } from './CancelBookingSheet';
 import { QueueBookingCard } from './QueueBookingCard';
+import { BookingRecordCard } from './BookingRecordCard';
 import {
   BOOKING_TABS,
   applyFilters,
@@ -11,8 +12,6 @@ import {
   isLive,
   isReserved,
   isUpcoming,
-  outcomeBadge,
-  sourceLabel,
   type BookingFilters,
   type BookingTab,
 } from '../shared/bookingBuckets';
@@ -43,6 +42,8 @@ import {
   ShieldCheck,
   LogOut,
   Power,
+  Search,
+  CalendarClock,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
@@ -219,6 +220,12 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
   const availableBarbers = barbers.filter((b) => b.status === 'available').length;
   const offDutyCount = barbers.filter((b) => b.status === 'unavailable').length;
   const summary = grossSummary(queue, completedList, now);
+  // Bookings tile counts — same buckets the tabs below already render from,
+  // so a tile can never disagree with the list under it.
+  const liveTileCount = queue.filter((item) => isLive(item, now)).length;
+  const upcomingTileCount = queue.filter(isUpcoming).length;
+  const completedTileCount = completedList.filter(isCompleted).length;
+  const cancelledTileCount = completedList.filter(isCancelled).length;
 
   const isDeactivated = salon.platformStatus === 'deactivated';
 
@@ -709,7 +716,38 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           <div className="space-y-3 p-4 pb-8">
             <div>
               <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Bookings</h2>
-              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">All queue activity &amp; history</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Track customer bookings, queue activity &amp; history</p>
+            </div>
+
+            {/* Four lightweight operational tiles — activity counts only,
+                same source data the tabs below already render from, never a
+                Reports-style analytics figure. */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(
+                [
+                  { id: 'live' as const, label: 'Live', count: liveTileCount, icon: Users },
+                  { id: 'upcoming' as const, label: 'Upcoming', count: upcomingTileCount, icon: CalendarClock },
+                  { id: 'completed' as const, label: 'Completed', count: completedTileCount, icon: CheckCircle },
+                  { id: 'cancelled' as const, label: 'Cancelled', count: cancelledTileCount, icon: XCircle },
+                ]
+              ).map((tile) => {
+                const isActive = bookingTab === tile.id;
+                const Icon = tile.icon;
+                return (
+                  <button
+                    key={tile.id}
+                    id={`bookings-tile-${tile.id}`}
+                    onClick={() => setBookingTab(tile.id)}
+                    className={`rounded-2xl border p-3 text-left transition ${
+                      isActive ? 'border-[#3454FD]/40 bg-[#3454FD]/10' : 'border-[#E1E7E6] bg-white'
+                    }`}
+                  >
+                    <Icon className={`h-4 w-4 ${isActive ? 'text-[#3454FD]' : 'text-[#7A8785]'}`} />
+                    <div className={`mt-1.5 text-[10.5px] font-bold ${isActive ? 'text-[#3454FD]' : 'text-[#6F7C7A]'}`}>{tile.label}</div>
+                    <div className="text-xl font-extrabold text-[#17201F]">{tile.count}</div>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex flex-wrap gap-1.5">
@@ -728,35 +766,42 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </div>
 
             {bookingTab !== 'gross' && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(['today', '7d', '30d', 'all'] as const).map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => setFilters((current) => ({ ...current, range }))}
-                    className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.range === range ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
-                    }`}
-                  >
-                    {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
-                  </button>
-                ))}
-                {(['all', 'customer_app', 'qr_web'] as const).map((source) => (
-                  <button
-                    key={source}
-                    onClick={() => setFilters((current) => ({ ...current, source }))}
-                    className={`rounded-lg px-2 py-1 text-[10px] font-bold transition ${
-                      filters.source === source ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
-                    }`}
-                  >
-                    {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : 'App'}
-                  </button>
-                ))}
-                <input
-                  value={filters.search}
-                  onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
-                  placeholder="Search customer or service"
-                  className="h-7 min-w-[10rem] flex-1 rounded-lg border border-[#E1E7E6] bg-white px-2 text-[11px] text-[#17201F] outline-none placeholder:text-[#7A8785] focus:border-[#3454FD]/50"
-                />
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['today', '7d', '30d', 'all'] as const).map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => setFilters((current) => ({ ...current, range }))}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
+                        filters.range === range ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
+                      }`}
+                    >
+                      {range === 'today' ? 'Today' : range === 'all' ? 'All' : range}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(['all', 'customer_app', 'qr_web', 'walk_in'] as const).map((source) => (
+                    <button
+                      key={source}
+                      onClick={() => setFilters((current) => ({ ...current, source }))}
+                      className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition ${
+                        filters.source === source ? 'bg-[#3454FD]/10 text-[#3454FD]' : 'border border-[#E1E7E6] bg-white text-[#6F7C7A]'
+                      }`}
+                    >
+                      {source === 'all' ? 'All sources' : source === 'qr_web' ? 'Web QR' : source === 'walk_in' ? 'Walk-in' : 'App'}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A8785]" />
+                  <input
+                    value={filters.search}
+                    onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))}
+                    placeholder="Search customer, token or service"
+                    className="h-9 w-full rounded-xl border border-[#E1E7E6] bg-white pl-8 pr-3 text-[12px] text-[#17201F] outline-none placeholder:text-[#7A8785] focus:border-[#3454FD]/50"
+                  />
+                </div>
               </div>
             )}
 
@@ -815,50 +860,22 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                   );
                 }
                 return (
-                  <div className="space-y-2">
-                    {rows.map((item, idx) => {
-                      const badge = outcomeBadge(item);
-                      const closed = bookingTab === 'completed' || bookingTab === 'cancelled';
-                      const tone =
-                        badge.tone === 'good'
-                          ? 'text-emerald-700 bg-emerald-50'
-                          : badge.tone === 'bad'
-                            ? 'text-rose-700 bg-rose-50 border border-rose-200'
-                            : 'text-amber-700 bg-amber-50 border border-amber-200';
-                      return (
-                        <div key={`${item.id}-${idx}`} className="flex items-center justify-between gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <b className="font-sans text-sm font-bold text-[#17201F]">{item.name}</b>
-                              <span className="rounded bg-[#3454FD]/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#3454FD]">
-                                {sourceLabel(item)}
-                                {(item.callAttempt || 0) > 1 ? ` · Call ${item.callAttempt}` : ''}
-                              </span>
-                            </div>
-                            <div className="mt-0.5 text-[11px] text-[#6F7C7A]">
-                              {item.service}
-                              {item.barberName ? ` · ${item.barberName}` : ''}
-                              {item.cancelReasonCode ? ` · ${item.cancelReasonCode.replace(/_/g, ' ')}` : ''}
-                            </div>
+                  <div className="space-y-2.5">
+                    {rows.map((item, idx) => (
+                      <div key={`${item.id}-${idx}`} className="space-y-1">
+                        <BookingRecordCard item={item} tab={bookingTab} now={now} catalog={salon.services} />
+                        {/* Only a genuinely completed visit can be asked for a
+                            review. The server re-proves that (and that it was
+                            not already asked or already reviewed) before
+                            anything is sent, so this button is an affordance,
+                            never the check. */}
+                        {bookingTab === 'completed' && isCompleted(item) && (
+                          <div className="flex justify-end px-1">
+                            <RequestReviewButton item={item} />
                           </div>
-                          {closed ? (
-                            <div className="flex shrink-0 items-center gap-2">
-                              {/* Only a genuinely completed visit can be asked
-                                  for a review. The server re-proves that (and
-                                  that it was not already asked or already
-                                  reviewed) before anything is sent, so this
-                                  button is an affordance, never the check. */}
-                              {bookingTab === 'completed' && isCompleted(item) && (
-                                <RequestReviewButton item={item} />
-                              )}
-                              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}>{badge.label}</span>
-                            </div>
-                          ) : (
-                            <span className="shrink-0 rounded-full bg-[#F4F7F6] px-2.5 py-1 text-[10px] font-bold text-[#6F7C7A]">{item.status}</span>
-                          )}
-                        </div>
-                      );
-                    })}
+                        )}
+                      </div>
+                    ))}
                   </div>
                 );
               })()
