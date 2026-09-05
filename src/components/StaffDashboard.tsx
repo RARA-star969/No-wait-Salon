@@ -48,11 +48,21 @@ import {
   Eye,
   EyeOff,
   BarChart3,
+  Clock,
+  Pencil,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
 import { ui, ModalShell } from './ui';
 import { fetchStaffPerformance, type StaffPerformanceRow, type StaffPerformanceRange } from '../services/staffPerformanceService';
+import {
+  fetchOwnerServices,
+  createOwnerService,
+  updateOwnerService,
+  setOwnerServiceVisibility,
+  type OwnerService,
+  type ServiceDraft,
+} from '../services/staffServicesService';
 import { setBusinessOpenStatus } from '../services/businessOpenStatusService';
 // Shared owner Manage Profile surface (business logo, basic info, gallery,
 // amenities, quick actions, social links) — historically Gym-only, now
@@ -121,10 +131,6 @@ const moduleIcons: Record<string, React.ElementType> = {
  *  visible and the resolver/clamp logic is real) but never fake data or a
  *  working write. */
 const CONCEPT_MODULES: Record<string, { title: string; body: string }> = {
-  services: {
-    title: 'Services & Pricing',
-    body: 'Services are read-only from the staff side today — there is no save path yet for editing them here. This screen activates once that ships.',
-  },
   reports: {
     title: 'Reports',
     body: "Today's activity counts already live in Bookings. A dedicated Reports module with real revenue needs per-booking pricing first.",
@@ -892,6 +898,13 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           </div>
         )}
 
+        {/* ---------------- SERVICES & PRICING ---------------- */}
+        {active === 'services' && isOwnerOrManager && (
+          <div className="p-4 pb-8">
+            <ServicesPricingPanel />
+          </div>
+        )}
+
         {/* ---------------- OFFERS & CAMPAIGNS ---------------- */}
         {active === 'offers' && isOwnerOrManager && (
           <div className="p-4 pb-8">
@@ -1054,6 +1067,331 @@ const matchesStaffSearch = (barber: Barber, query: string, allServices: ServiceI
 };
 
 const formatInr = (amount: number): string => `₹${amount.toLocaleString('en-IN')}`;
+
+type ServiceVisibilityFilter = 'all' | 'active' | 'hidden';
+
+const emptyServiceDraft = (category?: string): ServiceDraft => ({
+  name: '',
+  category: category || '',
+  description: '',
+  priceInr: 0,
+  durationMin: 30,
+  imageUrl: '',
+});
+
+/**
+ * "Services & Pricing" — a real owner/manager CRUD module over the exact
+ * salon_service rows Customer App, Join Queue and Staff Members already
+ * read. There is no second service catalog: adding, editing or hiding a
+ * service here is immediately what customers can (or can't) book. Session
+ * Time is treated as a first-class field because it directly feeds the NOQ
+ * queue ETA — never cosmetic metadata.
+ */
+const ServicesPricingPanel: React.FC = () => {
+  const [services, setServices] = useState<OwnerService[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [visibilityFilter, setVisibilityFilter] = useState<ServiceVisibilityFilter>('all');
+  const [category, setCategory] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<OwnerService | 'new' | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    fetchOwnerServices()
+      .then((rows) => setServices(rows))
+      .catch((error) => setLoadError(error.message || 'Could not load services.'));
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const categories = Array.from(new Set((services || []).map((s) => s.category).filter(Boolean))).sort();
+
+  const visible = (services || []).filter((service) => {
+    if (visibilityFilter === 'active' && !service.active) return false;
+    if (visibilityFilter === 'hidden' && service.active) return false;
+    if (category !== 'all' && service.category !== category) return false;
+    if (search && !`${service.name} ${service.category} ${service.description}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
+
+  const total = services?.length || 0;
+  const activeCount = (services || []).filter((s) => s.active).length;
+  const hiddenCount = total - activeCount;
+
+  const handleToggleVisibility = async (service: OwnerService) => {
+    setBusyId(service.id);
+    setActionError(null);
+    try {
+      await setOwnerServiceVisibility(service.id, !service.active);
+      setServices((prev) => (prev || []).map((s) => (s.id === service.id ? { ...s, active: !s.active } : s)));
+    } catch (error: any) {
+      setActionError(error.message || 'Could not update visibility.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleSave = async (id: string | null, draft: ServiceDraft) => {
+    const saved = id ? await updateOwnerService(id, draft) : await createOwnerService(draft);
+    setServices((prev) => {
+      const rows = prev || [];
+      return id ? rows.map((s) => (s.id === id ? saved : s)) : [...rows, saved];
+    });
+    setEditing(null);
+  };
+
+  return (
+    <div className="space-y-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Services &amp; Pricing</h2>
+          <p className="mt-0.5 max-w-[38ch] text-[11px] font-semibold text-[#6F7C7A]">
+            Manage what customers can book, how much it costs, and how long it takes.
+          </p>
+        </div>
+        <button
+          id="add-service-btn"
+          onClick={() => setEditing('new')}
+          className={`${ui.primaryButton} flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs`}
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Service
+        </button>
+      </div>
+
+      {loadError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{loadError}</div>
+      )}
+      {actionError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{actionError}</div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {([
+          ['all', 'Total Services', total],
+          ['active', 'Active', activeCount],
+          ['hidden', 'Hidden', hiddenCount],
+        ] as const).map(([key, label, value]) => (
+          <button
+            key={key}
+            onClick={() => setVisibilityFilter(key)}
+            className={`${ui.card} p-3 text-left transition ${visibilityFilter === key ? 'ring-2 ring-[#3454FD]/50' : ''}`}
+          >
+            <div className="text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">{label}</div>
+            <b className="mt-1 block font-sans text-xl font-bold text-[#17201F]">{value}</b>
+          </button>
+        ))}
+        <div className={`${ui.card} p-3 text-left`}>
+          <div className="text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Categories</div>
+          <b className="mt-1 block font-sans text-xl font-bold text-[#17201F]">{categories.length}</b>
+        </div>
+      </div>
+
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A8785]" />
+        <input
+          id="service-search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search services..."
+          className="h-9 w-full rounded-xl border border-[#E1E7E6] bg-white pl-8 pr-2.5 text-xs font-medium text-[#17201F] outline-none focus:border-[#3454FD]/50"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
+          {([
+            ['all', 'All'],
+            ['active', 'Active'],
+            ['hidden', 'Hidden'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setVisibilityFilter(key)}
+              className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${visibilityFilter === key ? 'bg-white text-[#3454FD] ring-1 ring-[#D8E4E2]' : 'text-[#6F7C7A] hover:text-[#17201F]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {categories.length > 0 && (
+          <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
+            <button
+              onClick={() => setCategory('all')}
+              className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${category === 'all' ? 'bg-white text-[#3454FD] ring-1 ring-[#D8E4E2]' : 'text-[#6F7C7A] hover:text-[#17201F]'}`}
+            >
+              All categories
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c}
+                onClick={() => setCategory(c)}
+                className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${category === c ? 'bg-white text-[#3454FD] ring-1 ring-[#D8E4E2]' : 'text-[#6F7C7A] hover:text-[#17201F]'}`}
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2.5">
+        {services === null && !loadError ? (
+          <div className="rounded-2xl border border-dashed border-[#E1E7E6] bg-white p-8 text-center text-xs text-[#6F7C7A]">Loading services…</div>
+        ) : visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#E1E7E6] bg-white p-8 text-center">
+            <Receipt className="mx-auto mb-2 h-8 w-8 text-[#6F7C7A]" />
+            <p className="text-xs text-[#6F7C7A]">No services match this view.</p>
+          </div>
+        ) : (
+          visible.map((service) => (
+            <div key={service.id} className={`${ui.card} p-3.5 ${!service.active ? 'opacity-70' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <b className="truncate text-sm font-bold text-[#17201F]">{service.name}</b>
+                    {service.category && (
+                      <span className="shrink-0 rounded-md border border-[#E1E7E6] bg-[#F4F7F6] px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide text-[#7A8785]">
+                        {service.category}
+                      </span>
+                    )}
+                    <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide ${service.active ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F4F7F6] text-[#7A8785]'}`}>
+                      {service.active ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+                  {service.description && (
+                    <p className="mt-1 line-clamp-2 text-[11px] text-[#6F7C7A]">{service.description}</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[11.5px] font-bold text-[#17201F]">
+                    <span>{formatInr(service.priceInr)}</span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-[#6F7C7A]">
+                      <Clock className="h-3.5 w-3.5" /> {service.durationMin} min
+                    </span>
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <button
+                    onClick={() => setEditing(service)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#E1E7E6] px-2 py-1 text-[10.5px] font-bold text-[#3454FD] hover:bg-[#EEF1FE]"
+                  >
+                    <Pencil className="h-3 w-3" /> Edit
+                  </button>
+                  <button
+                    disabled={busyId === service.id}
+                    onClick={() => handleToggleVisibility(service)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-[#E1E7E6] px-2 py-1 text-[10.5px] font-bold text-[#6F7C7A] hover:bg-[#F4F7F6] disabled:opacity-50"
+                  >
+                    {service.active ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                    {service.active ? 'Hide' : 'Restore'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {editing && (
+        <ServiceEditorModal
+          service={editing === 'new' ? null : editing}
+          defaultCategory={category !== 'all' ? category : ''}
+          onClose={() => setEditing(null)}
+          onSave={handleSave}
+        />
+      )}
+    </div>
+  );
+};
+
+const ServiceEditorModal: React.FC<{
+  service: OwnerService | null;
+  defaultCategory: string;
+  onClose: () => void;
+  onSave: (id: string | null, draft: ServiceDraft) => Promise<void>;
+}> = ({ service, defaultCategory, onClose, onSave }) => {
+  const [draft, setDraft] = useState<ServiceDraft>(
+    service
+      ? { name: service.name, category: service.category, description: service.description, priceInr: service.priceInr, durationMin: service.durationMin, imageUrl: service.imageUrl }
+      : emptyServiceDraft(defaultCategory)
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(service?.id || null, draft);
+    } catch (err: any) {
+      setError(err.message || 'Could not save service.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell onClose={onClose} labelledBy="service-editor-title" className="max-w-md">
+      <div className="max-h-[85vh] overflow-y-auto p-5">
+        <h3 id="service-editor-title" className="text-base font-extrabold text-[#17201F]">
+          {service ? 'Edit Service' : 'Add Service'}
+        </h3>
+
+        <div className="mt-4 space-y-3">
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Service Details</div>
+          <div>
+            <label className={ui.label}>Name</label>
+            <input className={ui.field} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Haircut" />
+          </div>
+          <div>
+            <label className={ui.label}>Category</label>
+            <input className={ui.field} value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} placeholder="e.g. Hair Care" />
+          </div>
+          <div>
+            <label className={ui.label}>Description</label>
+            <textarea className={ui.field} rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} placeholder="Optional" />
+          </div>
+
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Pricing &amp; Timing</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={ui.label}>Price (₹)</label>
+              <input
+                type="number"
+                min={0}
+                className={ui.field}
+                value={draft.priceInr}
+                onChange={(e) => setDraft({ ...draft, priceInr: Number(e.target.value) })}
+              />
+            </div>
+            <div>
+              <label className={ui.label}>Session Time (min)</label>
+              <input
+                type="number"
+                min={5}
+                max={600}
+                className={ui.field}
+                value={draft.durationMin}
+                onChange={(e) => setDraft({ ...draft, durationMin: Number(e.target.value) })}
+              />
+            </div>
+          </div>
+          <p className="text-[10.5px] leading-relaxed text-[#7A8785]">
+            Used to calculate live customer wait time and predicted chair availability.
+          </p>
+
+          {error && <p className="text-xs font-semibold text-rose-700">{error}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={onClose} className={`${ui.secondaryButton} flex-1 py-2.5 text-xs`}>Cancel</button>
+            <button disabled={saving || !draft.name.trim()} onClick={submit} className={`${ui.primaryButton} flex-1 py-2.5 text-xs`}>
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalShell>
+  );
+};
 
 /**
  * "Staff Members" — real team + individual performance management for the

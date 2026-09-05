@@ -1950,6 +1950,122 @@ function saveSalonRelations(salonId: string, body: Record<string, unknown>, now:
   });
 }
 
+/** Single mapping from a salon_service row to the owner-facing Services &
+ *  Pricing view — the same salon_service rows the customer app and Join
+ *  Queue already read, so this module can never drift into a second
+ *  service catalog. Unlike rowToSalon's customer-facing services list, this
+ *  includes hidden (active = 0) rows so owners can find and restore them. */
+function serviceRowToView(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    category: String(row.category || ''),
+    name: String(row.name),
+    description: String(row.description || ''),
+    priceInr: Number(row.price_inr),
+    durationMin: Number(row.duration_min),
+    imageUrl: String(row.image_url || ''),
+    active: Number(row.active) === 1,
+    sortOrder: Number(row.sort_order),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+/** Session time is a core ETA input, not cosmetic metadata — the same 5-600
+ *  minute bound already enforced by Admin's bulk salon editor above, so a
+ *  service can never be saved with a duration too small or large to trust
+ *  for queue wait calculations. */
+function validateServiceFields(body: Record<string, unknown>) {
+  const name = cleanText(body.name, 100);
+  if (!name) throw new Error('Service name is required.');
+  const category = cleanText(body.category, 80) || 'General';
+  const description = cleanText(body.description, 1000);
+  const imageUrl = cleanText(body.imageUrl ?? body.image_url, 1000);
+  const price = Number(body.priceInr ?? body.price_inr);
+  if (!Number.isFinite(price) || price < 0) throw new Error(`Price for ${name} cannot be negative.`);
+  const duration = Number(body.durationMin ?? body.duration_min);
+  if (!Number.isInteger(duration) || duration < 5 || duration > 600) {
+    throw new Error(`Session time for ${name} must be between 5 and 600 minutes.`);
+  }
+  return { name, category, description, imageUrl, price, duration };
+}
+
+function requireOwnerOrManagerSession(request: express.Request, response: express.Response) {
+  const session = resolveStaffSession(request);
+  if (!session) { response.status(401).json({ error: 'Valid staff session required.' }); return undefined; }
+  if (session.role !== 'owner' && session.role !== 'manager') {
+    response.status(403).json({ error: 'Only owners and managers can manage services and pricing.' });
+    return undefined;
+  }
+  return session;
+}
+
+/**
+ * Services & Pricing (owner/manager only): a real CRUD surface over the same
+ * salon_service table Customer App and Join Queue already read — one source
+ * of truth, no second service catalog. businessId is always derived from the
+ * authenticated staff session, never trusted from the client. Hiding a
+ * service (active = 0) removes it from customer booking without touching
+ * any historical booking/revenue row or staff service_ids_json mapping, and
+ * can always be reversed.
+ */
+app.get('/api/staff/business/services', (request, response) => {
+  const session = requireOwnerOrManagerSession(request, response);
+  if (!session) return;
+  const rows = db.prepare('SELECT * FROM salon_service WHERE salon_id = ? ORDER BY sort_order, created_at')
+    .all(session.businessId) as Record<string, unknown>[];
+  response.json({ services: rows.map(serviceRowToView) });
+});
+
+app.post('/api/staff/business/services', (request, response) => {
+  const session = requireOwnerOrManagerSession(request, response);
+  if (!session) return;
+  try {
+    const fields = validateServiceFields(request.body || {});
+    const now = Date.now();
+    const id = `service_${randomUUID()}`;
+    const { maxOrder } = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as maxOrder FROM salon_service WHERE salon_id = ?')
+      .get(session.businessId) as { maxOrder: number };
+    db.prepare(`INSERT INTO salon_service (id, salon_id, name, category, price_inr, duration_min, description, image_url, active, sort_order, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
+      .run(id, session.businessId, fields.name, fields.category, fields.price, fields.duration, fields.description, fields.imageUrl, maxOrder + 1, now, now);
+    postgresPersistence?.flushNow(['salon_service']);
+    response.status(201).json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(id) as Record<string, unknown>) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
+  }
+});
+
+app.put('/api/staff/business/services/:id', (request, response) => {
+  const session = requireOwnerOrManagerSession(request, response);
+  if (!session) return;
+  const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
+  if (!existing) return response.status(404).json({ error: 'Service not found.' });
+  try {
+    const fields = validateServiceFields(request.body || {});
+    const now = Date.now();
+    db.prepare('UPDATE salon_service SET name = ?, category = ?, price_inr = ?, duration_min = ?, description = ?, image_url = ?, updated_at = ? WHERE id = ?')
+      .run(fields.name, fields.category, fields.price, fields.duration, fields.description, fields.imageUrl, now, request.params.id);
+    postgresPersistence?.flushNow(['salon_service']);
+    response.json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
+  }
+});
+
+/** Hide/restore only — never a hard delete, so historical bookings, revenue
+ *  reports, and staff service_ids_json mappings are always preserved. */
+app.put('/api/staff/business/services/:id/visibility', (request, response) => {
+  const session = requireOwnerOrManagerSession(request, response);
+  if (!session) return;
+  const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
+  if (!existing) return response.status(404).json({ error: 'Service not found.' });
+  const active = asBoolean(request.body?.active);
+  db.prepare('UPDATE salon_service SET active = ?, updated_at = ? WHERE id = ?').run(active ? 1 : 0, Date.now(), request.params.id);
+  postgresPersistence?.flushNow(['salon_service']);
+  response.json({ ok: true });
+});
+
 function saveGymState(gymId: string, state: any) {
   db.prepare('INSERT INTO gym_state (gym_id, state_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(gym_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at').run(gymId, JSON.stringify(state), Date.now());
 }
