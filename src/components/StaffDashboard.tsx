@@ -56,6 +56,7 @@ import { setBusinessOpenStatus } from '../services/businessOpenStatusService';
 // /api/staff/business/* endpoints, scoped by the caller's own session), so
 // nothing Gym-specific runs when a Salon owner opens it.
 import { GymManageProfile } from './GymManageProfile';
+import { CustomersModule } from './CustomersModule';
 import { resolveCategoryModules, StaffRole } from '../shared/categoryDashboardResolver';
 
 interface StaffDashboardProps {
@@ -115,10 +116,6 @@ const moduleIcons: Record<string, React.ElementType> = {
  *  visible and the resolver/clamp logic is real) but never fake data or a
  *  working write. */
 const CONCEPT_MODULES: Record<string, { title: string; body: string }> = {
-  customers: {
-    title: 'Customers',
-    body: 'A staff-scoped customer directory needs its own endpoint — today only an admin-only listing exists. This screen activates once that ships.',
-  },
   services: {
     title: 'Services & Pricing',
     body: 'Services are read-only from the staff side today — there is no save path yet for editing them here. This screen activates once that ships.',
@@ -903,6 +900,9 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
             </p>
           </div>
         )}
+
+        {/* ---------------- CUSTOMERS ---------------- */}
+        {active === 'customers' && isOwnerOrManager && <CustomersModule role={role} />}
 
         {/* ---------------- BUSINESS PROFILE (shared profile editor) ---------------- */}
         {active === 'profile' && isOwnerOrManager && (

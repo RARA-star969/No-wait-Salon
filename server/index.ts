@@ -3135,6 +3135,131 @@ app.put('/api/staff/business/reviews/:id/reply', (request, response) => {
   response.json({ ok: true });
 });
 
+/**
+ * Owner/manager Customers directory. Aggregates this business's own
+ * `customer_booking` history — the durable per-visit record already written
+ * by `upsertBooking` for every linked-account booking — into one real-data
+ * customer list. Walk-ins with no customer account carry no cross-visit
+ * identity to aggregate against, so they are not part of this directory;
+ * nothing here is estimated or backfilled to compensate for that gap.
+ * Every count/spend figure is computed from completed rows only, so a
+ * cancelled or no-show booking never inflates a customer's visit history.
+ */
+app.get('/api/staff/business/customers', (request, response) => {
+  const session = resolveStaffSession(request);
+  if (!session) return response.status(401).json({ error: 'Valid staff session required.' });
+  if (session.role !== 'owner' && session.role !== 'manager') {
+    return response.status(403).json({ error: 'Only owners and managers can view the customer directory.' });
+  }
+
+  const rows = db.prepare(`
+    SELECT cb.customer_id, cb.service, cb.services_json, cb.barber_name, cb.total_price_inr,
+           cb.payment_status, cb.payment_method, cb.created_at, cb.service_completed_at,
+           ca.phone_number, COALESCE(cp.name, '') as name
+    FROM customer_booking cb
+    JOIN customer_account ca ON ca.id = cb.customer_id
+    LEFT JOIN customer_profile cp ON cp.customer_id = cb.customer_id
+    WHERE cb.salon_id = ?
+      AND (cb.outcome = 'completed' OR (cb.status = 'Completed' AND cb.outcome IS NULL))
+  `).all(session.businessId) as Array<{
+    customer_id: string; service: string; services_json: string; barber_name: string | null;
+    total_price_inr: number | null; payment_status: string | null; payment_method: string | null;
+    created_at: number; service_completed_at: number | null; phone_number: string; name: string;
+  }>;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+
+  const byCustomer = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byCustomer.get(row.customer_id) || [];
+    list.push(row);
+    byCustomer.set(row.customer_id, list);
+  }
+
+  /** Most frequent non-empty value — used for "usually served by" and
+   *  "most-used service", so a one-off substitute stylist or a single
+   *  add-on service never outranks what the customer actually keeps coming
+   *  back for. */
+  const mode = (values: string[]): string | null => {
+    const counts = new Map<string, number>();
+    for (const value of values) {
+      if (!value) continue;
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    let best: string | null = null;
+    let bestCount = 0;
+    for (const [value, count] of counts) {
+      if (count > bestCount) { best = value; bestCount = count; }
+    }
+    return best;
+  };
+
+  const serviceLabel = (row: { service: string; services_json: string }): string => {
+    try {
+      const parsed = JSON.parse(row.services_json || '[]');
+      if (Array.isArray(parsed) && parsed.length) return parsed.join(' + ');
+    } catch { /* fall through to the plain field below */ }
+    return row.service || 'Service';
+  };
+
+  let visitedToday = 0;
+  let repeatCustomers = 0;
+  let newCustomers = 0;
+
+  const customers = [...byCustomer.entries()].map(([customerId, visits]) => {
+    const stamped = visits
+      .map((visit) => ({ ...visit, visitAt: visit.service_completed_at || visit.created_at }))
+      .sort((a, b) => b.visitAt - a.visitAt);
+    const latest = stamped[0];
+    const totalVisits = stamped.length;
+    if (stamped.some((visit) => visit.visitAt >= todayStartMs)) visitedToday += 1;
+    const tag: 'new' | 'repeat' = totalVisits > 1 ? 'repeat' : 'new';
+    if (tag === 'repeat') repeatCustomers += 1; else newCustomers += 1;
+
+    const paidVisits = stamped.filter((visit) => visit.payment_status === 'paid' && visit.total_price_inr != null);
+    const totalSpendInr = paidVisits.length
+      ? paidVisits.reduce((sum, visit) => sum + Number(visit.total_price_inr), 0)
+      : null;
+
+    return {
+      customerId,
+      name: latest.name || 'NOQ Customer',
+      phone: latest.phone_number,
+      totalVisits,
+      firstVisitAt: stamped[stamped.length - 1].visitAt,
+      lastVisitAt: latest.visitAt,
+      lastService: serviceLabel(latest),
+      mostUsedService: mode(stamped.map(serviceLabel)),
+      usualStaff: mode(stamped.map((visit) => visit.barber_name || '')),
+      totalSpendInr,
+      lastPaymentMethod: paidVisits[0]?.payment_method || null,
+      tag,
+      visits: stamped.map((visit) => ({
+        date: visit.visitAt,
+        service: serviceLabel(visit),
+        staff: visit.barber_name || null,
+        amountInr: visit.total_price_inr,
+        paymentStatus: visit.payment_status,
+        paymentMethod: visit.payment_method,
+      })),
+    };
+  });
+
+  customers.sort((a, b) => b.lastVisitAt - a.lastVisitAt);
+
+  response.json({
+    summary: {
+      totalCustomers: customers.length,
+      visitedToday,
+      repeatCustomers,
+      newCustomers,
+    },
+    customers,
+  });
+});
+
 /** Admin Reviews management (Phase 7): view/filter/search everything, edit
  *  review text directly (no customer approval needed — this is an explicit
  *  product requirement), hide/unhide, and remove. Original text and edit
