@@ -106,7 +106,7 @@ export function resolveCategoryModules(mainCategoryId: MainCategoryType, role: S
     { id: 'live', label: 'Live Salon', icon: 'Zap', allowedRoles: ['owner', 'manager', 'staff'] },
     { id: 'bookings', label: 'Bookings', icon: 'CalendarDays', allowedRoles: ['owner', 'manager', 'staff'] },
     { id: 'customers', label: 'Customers', icon: 'UsersRound', allowedRoles: ['owner', 'manager'] },
-    { id: 'staff', label: 'Staff & Chairs', icon: 'Users', allowedRoles: ['owner', 'manager'] },
+    { id: 'staff', label: 'Staff Members', icon: 'Users', allowedRoles: ['owner', 'manager'] },
     { id: 'services', label: 'Services & Pricing', icon: 'Receipt', allowedRoles: ['owner', 'manager'] },
     { id: 'offers', label: 'Offers & Campaigns', icon: 'Tag', allowedRoles: ['owner', 'manager'] },
     { id: 'reports', label: 'Reports', icon: 'ChartNoAxesCombined', allowedRoles: ['owner', 'manager'] },

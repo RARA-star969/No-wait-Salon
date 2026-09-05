@@ -22,6 +22,8 @@ export interface QueueItem {
   isUser?: boolean;
   barberIndex?: number;
   barberName?: string;
+  /** Stable salon_staff id of the assigned stylist, set alongside barberIndex/barberName at Call/Start/walk-in-start. Unlike barberIndex (a transient array position), this is safe to persist for per-staff performance attribution. */
+  barberId?: string;
   calledAt?: number;
   /** Server-stamped arrival deadline. Clients count down to this, never to a local timer. */
   graceExpiresAt?: number;

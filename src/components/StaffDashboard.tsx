@@ -44,10 +44,15 @@ import {
   Power,
   Search,
   CalendarClock,
+  Star,
+  Eye,
+  EyeOff,
+  BarChart3,
 } from 'lucide-react';
 import { QueueItem, Barber, Salon, SalonOffer, ServiceItem } from '../types';
 import { WalkInModal } from './WalkInModal';
-import { ui } from './ui';
+import { ui, ModalShell } from './ui';
+import { realtimeQueueService, type StaffPerformanceRow, type StaffPerformanceRange } from '../services/realtimeQueueService';
 import { setBusinessOpenStatus } from '../services/businessOpenStatusService';
 // Shared owner Manage Profile surface (business logo, basic info, gallery,
 // amenities, quick actions, social links) — historically Gym-only, now
@@ -286,7 +291,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
     needsAttention.push({
       id: 'offduty',
       label: `${offDutyCount} staff off duty`,
-      sub: 'Resolve in Staff & Chairs',
+      sub: 'Resolve in Staff Members',
       tone: 'danger',
       onClick: () => navigate('staff'),
     });
@@ -540,7 +545,7 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
                     onClick={() => navigate('staff')}
                     className="flex items-center justify-center gap-2 rounded-xl border border-[#E1E7E6] bg-white px-3 py-3 text-xs font-bold text-[#17201F] active:scale-[0.98]"
                   >
-                    <Users className="h-4 w-4 text-[#3454FD]" /> Staff & Chairs
+                    <Users className="h-4 w-4 text-[#3454FD]" /> Staff Members
                   </button>
                 )}
               </div>
@@ -880,12 +885,10 @@ export const StaffDashboard: React.FC<StaffDashboardProps> = ({
           </div>
         )}
 
-        {/* ---------------- STAFF & CHAIRS ---------------- */}
+        {/* ---------------- STAFF MEMBERS ---------------- */}
         {active === 'staff' && isOwnerOrManager && (
           <div className="p-4 pb-8">
-            <h2 className="mb-0.5 text-lg font-extrabold tracking-tight text-[#17201F]">Staff &amp; Chairs</h2>
-            <p className="mb-3 text-[11px] font-semibold text-[#6F7C7A]">Same records Customer App reads</p>
-            <ManageStaff barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
+            <StaffMembersPanel salonId={salon.id} barbers={barbers} allServices={salon.services} onSave={onSaveStaff} />
           </div>
         )}
 
@@ -1023,197 +1026,522 @@ const RequestReviewButton: React.FC<{ item: QueueItem }> = ({ item }) => {
   );
 };
 
-let manageStaffDraftId = 0;
+type DutyFilter = 'all' | 'available' | 'in_service' | 'off_duty';
+
+const DUTY_META: Record<Barber['status'], { label: string; dot: string; pill: string }> = {
+  available: { label: 'Available', dot: 'bg-emerald-500', pill: 'bg-emerald-50 text-emerald-700' },
+  busy: { label: 'In Service', dot: 'bg-amber-500', pill: 'bg-amber-50 text-amber-700' },
+  unavailable: { label: 'Off Duty', dot: 'bg-rose-500', pill: 'bg-rose-50 text-rose-600' },
+};
+
+const matchesDutyFilter = (barber: Barber, filter: DutyFilter): boolean => {
+  if (filter === 'all') return true;
+  if (filter === 'available') return barber.status === 'available';
+  if (filter === 'in_service') return barber.status === 'busy';
+  return barber.status === 'unavailable';
+};
+
+const matchesStaffSearch = (barber: Barber, query: string, allServices: ServiceItem[]): boolean => {
+  const term = query.trim().toLowerCase();
+  if (!term) return true;
+  if ((barber.name || '').toLowerCase().includes(term)) return true;
+  if ((barber.role || '').toLowerCase().includes(term)) return true;
+  if ((barber.specialties || []).some((s) => s.toLowerCase().includes(term))) return true;
+  const serviceNames = (barber.serviceIds || [])
+    .map((id) => allServices.find((service) => service.id === id)?.name || '')
+    .filter(Boolean);
+  return serviceNames.some((name) => name.toLowerCase().includes(term));
+};
+
+const formatInr = (amount: number): string => `₹${amount.toLocaleString('en-IN')}`;
 
 /**
- * Operational staff management for the SAME salon_staff records the
- * customer-facing stylist list reads — writes go through the save_staff
- * command, which reconciles into the live queue state immediately, so a
- * change here reaches Customer App without a queue reset.
+ * "Staff Members" — real team + individual performance management for the
+ * SAME salon_staff records the customer-facing stylist list reads. Roster
+ * writes (add/edit/remove) go through the save_staff command, same as
+ * before; performance metrics (revenue, completed bookings, top services)
+ * come from the durable customer_booking table via GET staff-performance,
+ * never from owner-typed fields.
  */
-const ManageStaff: React.FC<{ barbers: Barber[]; allServices: ServiceItem[]; onSave: (staff: Barber[]) => void }> = ({ barbers, allServices, onSave }) => {
-  const [draft, setDraft] = useState<Barber[]>(barbers);
-  const [dirty, setDirty] = useState(false);
+const StaffMembersPanel: React.FC<{ salonId: string; barbers: Barber[]; allServices: ServiceItem[]; onSave: (staff: Barber[]) => void }> = ({ salonId, barbers, allServices, onSave }) => {
+  const [filter, setFilter] = useState<DutyFilter>('all');
+  const [search, setSearch] = useState('');
+  const [performance, setPerformance] = useState<StaffPerformanceRow[] | null>(null);
+  const [performanceError, setPerformanceError] = useState<string | null>(null);
+  const [viewPerformanceId, setViewPerformanceId] = useState<string | null>(null);
+  const [manageProfileId, setManageProfileId] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   useEffect(() => {
-    if (!dirty) setDraft(barbers);
-  }, [barbers, dirty]);
+    let cancelled = false;
+    realtimeQueueService
+      .getStaffPerformance(salonId, '30d')
+      .then((res) => { if (!cancelled) setPerformance(res.staff); })
+      .catch((error) => { if (!cancelled) setPerformanceError(error.message || 'Could not load performance data.'); });
+    return () => { cancelled = true; };
+  }, [salonId, barbers.length]);
 
-  const update = (id: string, patch: Partial<Barber>) => {
-    setDraft((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-    setDirty(true);
-  };
+  const total = barbers.length;
+  const availableNow = barbers.filter((b) => b.status === 'available').length;
+  const inService = barbers.filter((b) => b.status === 'busy').length;
+  const offDuty = barbers.filter((b) => b.status === 'unavailable').length;
 
-  const toggleSkill = (id: string, serviceId: string) => {
-    setDraft((rows) => rows.map((row) => {
-      if (row.id !== id) return row;
-      const current = row.serviceIds || [];
-      const next = current.includes(serviceId) ? current.filter((sid) => sid !== serviceId) : [...current, serviceId];
-      return { ...row, serviceIds: next };
-    }));
-    setDirty(true);
-  };
+  const visibleStaff = barbers.filter((b) => matchesDutyFilter(b, filter) && matchesStaffSearch(b, search, allServices));
+  const viewPerformanceStaff = viewPerformanceId ? barbers.find((b) => b.id === viewPerformanceId) || null : null;
+  const manageProfileStaff = manageProfileId ? barbers.find((b) => b.id === manageProfileId) || null : null;
 
-  const addStaff = () => {
-    manageStaffDraftId += 1;
-    setDraft((rows) => [...rows, { id: `new-${Date.now()}-${manageStaffDraftId}`, name: '', role: 'Barber', status: 'available', active: true, serviceIds: [] }]);
-    setDirty(true);
+  const saveStaff = (nextStaff: Barber) => {
+    const exists = barbers.some((b) => b.id === nextStaff.id);
+    onSave(exists ? barbers.map((b) => (b.id === nextStaff.id ? nextStaff : b)) : [...barbers, nextStaff]);
   };
 
   const removeStaff = (id: string) => {
-    setDraft((rows) => rows.filter((row) => row.id !== id));
-    setDirty(true);
-  };
-
-  const save = () => {
-    onSave(draft);
-    setDirty(false);
+    onSave(barbers.filter((b) => b.id !== id));
   };
 
   return (
-    <div className="space-y-3">
-      <div className={`${ui.card} p-4`}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <span className="block text-xs font-bold text-[#17201F]">Staff profiles</span>
-            <span className="mt-0.5 block text-[10px] text-[#6F7C7A]">Same records customers see in Join Queue &middot; photo, role, skills, duty status</span>
-          </div>
+    <div className="space-y-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold tracking-tight text-[#17201F]">Staff Members</h2>
+          <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Manage your team, roles, services &amp; performance</p>
+        </div>
+        <button
+          id="add-staff-btn"
+          onClick={() => setShowAdd(true)}
+          className={`${ui.primaryButton} flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs`}
+        >
+          <Plus className="h-3.5 w-3.5" /> Add Staff
+        </button>
+      </div>
+
+      {/* Summary tiles — click to filter */}
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {([
+          ['all', 'Total Staff', total, Users, '#17201F'],
+          ['available', 'Available Now', availableNow, UserCheck, '#059669'],
+          ['in_service', 'In Service', inService, Zap, '#D97706'],
+          ['off_duty', 'Off Duty', offDuty, XCircle, '#E11D48'],
+        ] as const).map(([key, label, value, Icon, color]) => (
           <button
-            id="manage-staff-save-btn"
-            onClick={save}
-            disabled={!dirty}
-            className={`${ui.primaryButton} px-3 py-2 text-xs disabled:opacity-40`}
+            key={key}
+            id={`staff-summary-${key}`}
+            onClick={() => setFilter(key)}
+            className={`${ui.card} p-3 text-left transition ${filter === key ? 'ring-2 ring-[#3454FD]/50' : ''}`}
           >
-            {dirty ? 'Save changes' : 'Saved'}
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
+              <Icon className="h-3.5 w-3.5" style={{ color }} />
+              <span className="truncate">{label}</span>
+            </div>
+            <b className="mt-1 block font-sans text-xl font-bold text-[#17201F]">{value}</b>
           </button>
+        ))}
+      </div>
+
+      {/* Filters + search */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex flex-wrap gap-1 rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
+          {([
+            ['all', 'All'],
+            ['available', 'Available'],
+            ['in_service', 'In Service'],
+            ['off_duty', 'Off Duty'],
+          ] as const).map(([key, label]) => (
+            <button
+              key={key}
+              id={`staff-filter-${key}`}
+              onClick={() => setFilter(key)}
+              className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${filter === key ? 'bg-white text-[#3454FD] ring-1 ring-[#D8E4E2]' : 'text-[#6F7C7A] hover:text-[#17201F]'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="relative min-w-[10rem] flex-1">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#7A8785]" />
+          <input
+            id="staff-search-input"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search staff member"
+            className="h-9 w-full rounded-xl border border-[#E1E7E6] bg-white pl-8 pr-2.5 text-xs font-medium text-[#17201F] outline-none focus:border-[#3454FD]/50"
+          />
         </div>
       </div>
 
+      {performanceError && (
+        <p className="text-[10px] text-amber-700">{performanceError}</p>
+      )}
+
+      {/* Staff cards */}
       <div className="space-y-2.5">
-        {draft.map((staff) => (
-          <div key={staff.id} id={`manage-staff-row-${staff.id}`} className={`${ui.card} p-3.5 ${staff.active === false ? 'opacity-55' : ''}`}>
-            <div className="flex items-start gap-3">
-              {staff.photoUrl ? (
-                <img src={staff.photoUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
-              ) : (
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#173B38] to-[#3F746D] text-sm font-bold text-white">
-                  {(staff.name || '?').slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
-                  Name
-                  <input value={staff.name} onChange={(e) => update(staff.id, { name: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Full name" />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
-                  Role / title
-                  <input value={staff.role || ''} onChange={(e) => update(staff.id, { role: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="Senior Barber" />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
-                  Photo URL
-                  <input value={staff.photoUrl || ''} onChange={(e) => update(staff.id, { photoUrl: e.target.value })} className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case" placeholder="https://…" />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
-                  Duty status
-                  <select value={staff.status} onChange={(e) => update(staff.id, { status: e.target.value as Barber['status'] })} className="h-9 rounded-lg border border-[#E1E7E6] px-2 text-xs font-bold text-[#17201F] normal-case">
-                    <option value="available">Available</option>
-                    <option value="busy">Busy</option>
-                    <option value="unavailable">Off duty</option>
-                  </select>
-                </label>
-                <div className="flex items-center justify-between gap-2">
-                  <label className="flex items-center gap-2 text-[11px] font-bold text-[#17201F]">
-                    <input type="checkbox" checked={staff.active !== false} onChange={(e) => update(staff.id, { active: e.target.checked })} className="h-4 w-4 accent-[#3454FD]" />
-                    Visible to customers
-                  </label>
-                  <button id={`manage-staff-remove-${staff.id}`} onClick={() => removeStaff(staff.id)} aria-label={`Remove ${staff.name || 'staff member'}`} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#E1E7E6] text-rose-600">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
-                  Rating (1.0 - 5.0)
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="1"
-                    max="5"
-                    value={staff.rating ?? 4.8}
-                    onChange={(e) => update(staff.id, { rating: parseFloat(e.target.value) || 4.8 })}
-                    className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case"
-                    placeholder="4.8"
-                  />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">
-                  Review Count
-                  <input
-                    type="number"
-                    min="0"
-                    value={staff.reviewCount ?? 0}
-                    onChange={(e) => update(staff.id, { reviewCount: parseInt(e.target.value, 10) || 0 })}
-                    className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case"
-                    placeholder="98"
-                  />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
-                  Experience (Years)
-                  <input
-                    type="number"
-                    min="0"
-                    value={staff.experienceYears ?? 3}
-                    onChange={(e) => update(staff.id, { experienceYears: parseInt(e.target.value, 10) || 0 })}
-                    className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case"
-                    placeholder="5"
-                  />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
-                  Specialties (comma-separated)
-                  <input
-                    value={(staff.specialties || []).join(', ')}
-                    onChange={(e) =>
-                      update(staff.id, {
-                        specialties: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                      })
-                    }
-                    className="h-9 rounded-lg border border-[#E1E7E6] px-2.5 text-xs font-medium text-[#17201F] normal-case"
-                    placeholder="Skin Fade Specialist, Beard Sculpting, Hot Towel"
-                  />
-                </label>
-                <label className="grid gap-1 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A] sm:col-span-2">
-                  About / Bio
-                  <textarea
-                    rows={2}
-                    value={staff.bio || ''}
-                    onChange={(e) => update(staff.id, { bio: e.target.value })}
-                    className="rounded-lg border border-[#E1E7E6] p-2.5 text-xs font-medium text-[#17201F] normal-case"
-                    placeholder="Short bio describing expertise and styling focus..."
-                  />
-                </label>
-              </div>
-            </div>
-            {allServices.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[#EEF3F2] pt-3">
-                {allServices.map((service) => {
-                  const on = (staff.serviceIds || []).includes(service.id);
-                  return (
-                    <button
-                      key={service.id}
-                      type="button"
-                      onClick={() => toggleSkill(staff.id, service.id)}
-                      className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#3454FD] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}
-                    >
-                      {service.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+        {visibleStaff.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#E1E7E6] bg-white p-8 text-center">
+            <Users className="mx-auto mb-2 h-8 w-8 text-[#6F7C7A]" />
+            <p className="text-xs text-[#6F7C7A]">No staff members match this view.</p>
           </div>
-        ))}
-        <button id="manage-staff-add-btn" onClick={addStaff} className="flex w-full items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[#3454FD]/40 py-3 text-xs font-bold text-[#3454FD]">
-          <Plus className="h-3.5 w-3.5" /> Add staff member
+        ) : (
+          visibleStaff.map((staff) => (
+            <StaffCard
+              key={staff.id}
+              staff={staff}
+              perf={performance?.find((p) => p.staffId === staff.id) || null}
+              onViewPerformance={() => setViewPerformanceId(staff.id)}
+              onManageProfile={() => setManageProfileId(staff.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {viewPerformanceStaff && (
+        <ViewPerformanceSheet
+          salonId={salonId}
+          staff={viewPerformanceStaff}
+          onClose={() => setViewPerformanceId(null)}
+        />
+      )}
+
+      {manageProfileStaff && (
+        <ManageProfileModal
+          staff={manageProfileStaff}
+          allServices={allServices}
+          onClose={() => setManageProfileId(null)}
+          onSave={(updated) => { saveStaff(updated); setManageProfileId(null); }}
+          onRemove={() => { removeStaff(manageProfileStaff.id); setManageProfileId(null); }}
+        />
+      )}
+
+      {showAdd && (
+        <ManageProfileModal
+          staff={null}
+          allServices={allServices}
+          onClose={() => setShowAdd(false)}
+          onSave={(created) => { saveStaff(created); setShowAdd(false); }}
+        />
+      )}
+    </div>
+  );
+};
+
+const StaffCard: React.FC<{
+  staff: Barber;
+  perf: StaffPerformanceRow | null;
+  onViewPerformance: () => void;
+  onManageProfile: () => void;
+}> = ({ staff, perf, onViewPerformance, onManageProfile }) => {
+  const meta = DUTY_META[staff.status] || DUTY_META.available;
+  const topServices = perf?.topServices || [];
+  const shownServices = topServices.slice(0, 3);
+  const extraCount = Math.max(0, topServices.length - shownServices.length);
+
+  return (
+    <div id={`staff-card-${staff.id}`} className={`${ui.card} p-3.5 ${staff.active === false ? 'opacity-70' : ''}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          {staff.photoUrl ? (
+            <img src={staff.photoUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#173B38] to-[#3F746D] text-sm font-bold text-white">
+              {(staff.name || '?').slice(0, 1).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0">
+            <b className="block truncate font-sans text-sm font-bold text-[#17201F]">{staff.name || 'Unnamed staff'}</b>
+            <span className="block text-[11px] text-[#6F7C7A]">{staff.role || 'Barber'}</span>
+            <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.pill}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />
+              {meta.label}
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          {perf?.verifiedRating != null ? (
+            <div className="flex items-center justify-end gap-1 text-xs font-bold text-[#17201F]">
+              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+              {perf.verifiedRating.toFixed(1)}
+              <span className="font-medium text-[#6F7C7A]">&middot; {perf.verifiedReviewCount ?? 0} reviews</span>
+            </div>
+          ) : null}
+          <div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-[#6F7C7A]">
+            {staff.active === false ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+            {staff.active === false ? 'Hidden from customers' : 'Visible to customers'}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2 border-t border-[#EEF3F2] pt-3">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Revenue</p>
+          <p className="text-sm font-bold text-[#17201F]">
+            {perf ? (perf.revenueInr != null ? formatInr(perf.revenueInr) : 'Unavailable') : '…'}
+          </p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Bookings</p>
+          <p className="text-sm font-bold text-[#17201F]">{perf ? perf.completedBookings : '…'}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Experience</p>
+          <p className="text-sm font-bold text-[#17201F]">{staff.experienceYears != null ? `${staff.experienceYears} yrs` : '—'}</p>
+        </div>
+      </div>
+
+      {shownServices.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+          <span className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Top services</span>
+          {shownServices.map((s) => (
+            <span key={s.name} className="rounded-full bg-[#EEF3F2] px-2 py-0.5 text-[10px] font-semibold text-[#43504E]">{s.name}</span>
+          ))}
+          {extraCount > 0 && <span className="text-[10px] font-semibold text-[#8A9895]">+{extraCount} more</span>}
+        </div>
+      )}
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          id={`staff-view-performance-${staff.id}`}
+          onClick={onViewPerformance}
+          className={`${ui.secondaryButton} flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs`}
+        >
+          <BarChart3 className="h-3.5 w-3.5" /> View Performance
+        </button>
+        <button
+          id={`staff-manage-profile-${staff.id}`}
+          onClick={onManageProfile}
+          className={`${ui.primaryButton} flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs`}
+        >
+          <UserCheck className="h-3.5 w-3.5" /> Manage Profile
         </button>
       </div>
     </div>
+  );
+};
+
+const PERFORMANCE_RANGES: Array<{ id: StaffPerformanceRange; label: string }> = [
+  { id: 'today', label: 'Today' },
+  { id: '7d', label: '7d' },
+  { id: '30d', label: '30d' },
+  { id: 'all', label: 'All' },
+];
+
+const ViewPerformanceSheet: React.FC<{ salonId: string; staff: Barber; onClose: () => void }> = ({ salonId, staff, onClose }) => {
+  const [range, setRange] = useState<StaffPerformanceRange>('30d');
+  const [row, setRow] = useState<StaffPerformanceRow | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    realtimeQueueService
+      .getStaffPerformance(salonId, range)
+      .then((res) => {
+        if (cancelled) return;
+        setRow(res.staff.find((s) => s.staffId === staff.id) || null);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.message || 'Could not load performance data.');
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [salonId, staff.id, range]);
+
+  return (
+    <ModalShell onClose={onClose} labelledBy="view-performance-title" className="max-w-md max-h-[85vh] overflow-y-auto p-5">
+      <h3 id="view-performance-title" className="pr-6 text-base font-bold text-[#17201F]">{staff.name}</h3>
+      <p className="text-[11px] text-[#6F7C7A]">{staff.role || 'Barber'} &middot; Individual performance</p>
+
+      <div className="mt-3 inline-flex gap-1 rounded-xl border border-[#E1E7E6] bg-[#EEF3F2] p-1">
+        {PERFORMANCE_RANGES.map((r) => (
+          <button
+            key={r.id}
+            id={`performance-range-${r.id}`}
+            onClick={() => setRange(r.id)}
+            className={`cursor-pointer rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition ${range === r.id ? 'bg-white text-[#3454FD] ring-1 ring-[#D8E4E2]' : 'text-[#6F7C7A] hover:text-[#17201F]'}`}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {error && <p className="mt-3 text-xs text-rose-600">{error}</p>}
+
+      {loading ? (
+        <p className="mt-4 text-xs text-[#6F7C7A]">Loading performance…</p>
+      ) : row ? (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className={`${ui.card} p-3`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Completed Services</p>
+              <p className="mt-1 text-lg font-bold text-[#17201F]">{row.completedBookings}</p>
+            </div>
+            <div className={`${ui.card} p-3`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Revenue Generated</p>
+              <p className="mt-1 text-lg font-bold text-[#17201F]">{row.revenueInr != null ? formatInr(row.revenueInr) : 'Unavailable'}</p>
+            </div>
+            <div className={`${ui.card} p-3`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Average Ticket</p>
+              <p className="mt-1 text-lg font-bold text-[#17201F]">{row.averageTicketInr != null ? formatInr(row.averageTicketInr) : 'Unavailable'}</p>
+            </div>
+            <div className={`${ui.card} p-3`}>
+              <p className="text-[9px] font-bold uppercase tracking-wide text-[#8A9895]">Customer Rating</p>
+              <p className="mt-1 text-sm font-bold text-[#17201F]">
+                {row.verifiedRating != null ? `★ ${row.verifiedRating.toFixed(1)} · ${row.verifiedReviewCount ?? 0} reviews` : 'No verified staff reviews yet'}
+              </p>
+            </div>
+          </div>
+
+          {(row.cancelledCount > 0 || row.noShowCount > 0) && (
+            <div className="flex gap-4 text-[11px] text-[#6F7C7A]">
+              <span><b className="text-[#17201F]">{row.cancelledCount}</b> cancelled</span>
+              <span><b className="text-[#17201F]">{row.noShowCount}</b> no-shows</span>
+            </div>
+          )}
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Top Services by Count</p>
+            {row.topServices.length === 0 ? (
+              <p className="text-xs text-[#6F7C7A]">No completed services in this period.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {row.topServices.map((s) => (
+                  <div key={s.name} className="flex items-center justify-between rounded-lg border border-[#E1E7E6] bg-white px-2.5 py-1.5 text-xs">
+                    <span className="font-semibold text-[#17201F]">{s.name}</span>
+                    <span className="font-bold text-[#3454FD]">{s.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4 text-xs text-[#6F7C7A]">No performance data for this period.</p>
+      )}
+    </ModalShell>
+  );
+};
+
+const ManageProfileModal: React.FC<{
+  staff: Barber | null;
+  allServices: ServiceItem[];
+  onClose: () => void;
+  onSave: (staff: Barber) => void;
+  onRemove?: () => void;
+}> = ({ staff, allServices, onClose, onSave, onRemove }) => {
+  const [form, setForm] = useState<Barber>(
+    staff || { id: `new-${Date.now()}`, name: '', role: 'Barber', status: 'available', active: true, serviceIds: [] }
+  );
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const isNew = !staff;
+
+  const patch = (fields: Partial<Barber>) => setForm((current) => ({ ...current, ...fields }));
+
+  const toggleService = (serviceId: string) => {
+    const current = form.serviceIds || [];
+    patch({ serviceIds: current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId] });
+  };
+
+  const canSave = form.name.trim().length > 0 && (form.role || '').trim().length > 0;
+
+  return (
+    <ModalShell onClose={onClose} labelledBy="manage-profile-title" className="max-w-lg max-h-[88vh] overflow-y-auto p-5">
+      <h3 id="manage-profile-title" className="pr-6 text-base font-bold text-[#17201F]">{isNew ? 'Add Staff' : 'Manage Profile'}</h3>
+      <p className="text-[11px] text-[#6F7C7A]">Same salon_staff record customers see in Join Queue.</p>
+
+      <div className="mt-4 space-y-4">
+        <section>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Basic Profile</p>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className={ui.label}>Name
+              <input value={form.name} onChange={(e) => patch({ name: e.target.value })} className={`${ui.field} mt-1 normal-case`} placeholder="Full name" />
+            </label>
+            <label className={ui.label}>Role / title
+              <input value={form.role || ''} onChange={(e) => patch({ role: e.target.value })} className={`${ui.field} mt-1 normal-case`} placeholder="Senior Barber" />
+            </label>
+            <label className={`${ui.label} sm:col-span-2`}>Profile Photo — Image URL
+              <input value={form.photoUrl || ''} onChange={(e) => patch({ photoUrl: e.target.value })} className={`${ui.field} mt-1 normal-case`} placeholder="https://…" />
+            </label>
+            <label className={ui.label}>Experience (years)
+              <input type="number" min={0} value={form.experienceYears ?? ''} onChange={(e) => patch({ experienceYears: e.target.value ? parseInt(e.target.value, 10) : undefined })} className={`${ui.field} mt-1`} placeholder="5" />
+            </label>
+          </div>
+        </section>
+
+        <section className="border-t border-[#EEF3F2] pt-3.5">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Availability</p>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <label className={ui.label}>Duty status
+              <select value={form.status} onChange={(e) => patch({ status: e.target.value as Barber['status'] })} className={`${ui.field} mt-1 normal-case`}>
+                <option value="available">Available</option>
+                <option value="busy">In Service</option>
+                <option value="unavailable">Off duty</option>
+              </select>
+            </label>
+            <label className="mt-1 flex items-center gap-2 self-end text-[12px] font-bold text-[#17201F]">
+              <input type="checkbox" checked={form.active !== false} onChange={(e) => patch({ active: e.target.checked })} className="h-4 w-4 accent-[#3454FD]" />
+              Visible to customers
+            </label>
+          </div>
+        </section>
+
+        <section className="border-t border-[#EEF3F2] pt-3.5">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Skills &amp; Services</p>
+          {allServices.length > 0 && (
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              {allServices.map((service) => {
+                const on = (form.serviceIds || []).includes(service.id);
+                return (
+                  <button key={service.id} type="button" onClick={() => toggleService(service.id)} className={`rounded-full px-2.5 py-1 text-[10px] font-semibold transition ${on ? 'bg-[#3454FD] text-white' : 'bg-[#EEF3F2] text-[#6F7C7A]'}`}>
+                    {service.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <label className={ui.label}>Specialties (comma-separated)
+            <input
+              value={(form.specialties || []).join(', ')}
+              onChange={(e) => patch({ specialties: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+              className={`${ui.field} mt-1 normal-case`}
+              placeholder="Skin Fade Specialist, Beard Sculpting, Hot Towel"
+            />
+          </label>
+        </section>
+
+        <section className="border-t border-[#EEF3F2] pt-3.5">
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-[#6F7C7A]">Public Profile</p>
+          <label className={ui.label}>Bio
+            <textarea rows={3} value={form.bio || ''} onChange={(e) => patch({ bio: e.target.value })} className={`${ui.field} mt-1 normal-case`} placeholder="Short bio describing expertise and styling focus..." />
+          </label>
+        </section>
+      </div>
+
+      <div className="mt-5 flex gap-2">
+        <button onClick={onClose} className={`${ui.secondaryButton} flex-1 px-3 py-2.5 text-xs`}>Cancel</button>
+        <button
+          id="manage-profile-save-btn"
+          disabled={!canSave}
+          onClick={() => onSave(form)}
+          className={`${ui.primaryButton} flex-1 px-3 py-2.5 text-xs disabled:opacity-40`}
+        >
+          Save Changes
+        </button>
+      </div>
+
+      {!isNew && onRemove && (
+        <div className="mt-4 border-t border-[#EEF3F2] pt-4">
+          <button
+            id="remove-staff-member-btn"
+            onClick={() => (confirmingRemove ? onRemove() : setConfirmingRemove(true))}
+            className="w-full rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-700 transition hover:bg-rose-100"
+          >
+            {confirmingRemove ? 'Tap again to confirm removal' : 'Remove Staff Member'}
+          </button>
+        </div>
+      )}
+    </ModalShell>
   );
 };
 

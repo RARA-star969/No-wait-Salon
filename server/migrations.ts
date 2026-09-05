@@ -390,6 +390,18 @@ const migrations=[{
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS token TEXT;
     ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS barber_name TEXT;
   `
+}, {
+  version: 22,
+  name: 'staff_profile_metadata_and_booking_staff_attribution',
+  sql: `
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS rating DOUBLE PRECISION NOT NULL DEFAULT 4.8;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS experience_years INTEGER NOT NULL DEFAULT 3;
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS bio TEXT NOT NULL DEFAULT '';
+    ALTER TABLE salon_staff ADD COLUMN IF NOT EXISTS specialties_json TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE customer_booking ADD COLUMN IF NOT EXISTS barber_id TEXT;
+    CREATE INDEX IF NOT EXISTS customer_booking_barber_idx ON customer_booking(salon_id,barber_id,service_completed_at DESC);
+  `
 }];
 
 export async function runMigrations(db:Database){

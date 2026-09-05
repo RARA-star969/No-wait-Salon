@@ -4,6 +4,29 @@ import { authHeaders } from './customerAccountService';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const apiUrl = (path: string) => `${API_BASE_URL}${path}`;
 
+export interface StaffPerformanceRow {
+  staffId: string;
+  name: string;
+  role: string;
+  status: string;
+  active: boolean;
+  photoUrl: string;
+  experienceYears: number | null;
+  specialties: string[];
+  serviceIds: string[];
+  completedBookings: number;
+  paidCompletedBookings: number;
+  revenueInr: number | null;
+  averageTicketInr: number | null;
+  topServices: Array<{ name: string; count: number }>;
+  cancelledCount: number;
+  noShowCount: number;
+  verifiedRating: number | null;
+  verifiedReviewCount: number | null;
+}
+
+export type StaffPerformanceRange = 'today' | '7d' | '30d' | 'all';
+
 export interface SalonSnapshot {
   salonId: string;
   version: number;
@@ -56,6 +79,11 @@ export const realtimeQueueService = {
       headers: authHeaders(),
       body: JSON.stringify(command),
     }),
+
+  getStaffPerformance: (salonId: string, range: StaffPerformanceRange) =>
+    request<{ range: StaffPerformanceRange; staff: StaffPerformanceRow[] }>(
+      apiUrl(`/api/salons/${encodeURIComponent(salonId)}/staff-performance?range=${encodeURIComponent(range)}`)
+    ),
 
   subscribe(salonId: string, onState: (snapshot: SalonSnapshot) => void, onConnectionChange: (connected: boolean) => void) {
     const source = new EventSource(apiUrl(`/api/salons/${encodeURIComponent(salonId)}/events`));
