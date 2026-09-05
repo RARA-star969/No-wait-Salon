@@ -2017,26 +2017,48 @@ app.get('/api/staff/business/services', (request, response) => {
   response.json({ services: rows.map(serviceRowToView) });
 });
 
-app.post('/api/staff/business/services', (request, response) => {
+/** Awaits the Postgres flush before the caller reports success, so the API
+ *  never claims a durable save that hasn't actually landed. A rejected
+ *  flush is caught here (rather than left to reject unhandled — Express 4
+ *  does not forward an async handler's rejection to error middleware on
+ *  its own) and surfaces as a 500, distinct from a 400 validation error:
+ *  the SQLite write already committed, but durability is not yet certain,
+ *  so the client must not be told the save fully succeeded. */
+async function flushServiceOrFail(response: express.Response, onPersisted: () => void): Promise<void> {
+  try {
+    await postgresPersistence?.flushNow(['salon_service']);
+    onPersisted();
+  } catch (error) {
+    console.error('Failed to persist service change', error);
+    response.status(500).json({ error: 'Service was saved locally but could not be durably persisted. Please try again.' });
+  }
+}
+
+app.post('/api/staff/business/services', async (request, response) => {
   const session = requireOwnerOrManagerSession(request, response);
   if (!session) return;
+  let id: string;
   try {
     const fields = validateServiceFields(request.body || {});
     const now = Date.now();
-    const id = `service_${randomUUID()}`;
+    id = `service_${randomUUID()}`;
     const { maxOrder } = db.prepare('SELECT COALESCE(MAX(sort_order), -1) as maxOrder FROM salon_service WHERE salon_id = ?')
       .get(session.businessId) as { maxOrder: number };
     db.prepare(`INSERT INTO salon_service (id, salon_id, name, category, price_inr, duration_min, description, image_url, active, sort_order, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
       .run(id, session.businessId, fields.name, fields.category, fields.price, fields.duration, fields.description, fields.imageUrl, maxOrder + 1, now, now);
-    postgresPersistence?.flushNow(['salon_service']);
-    response.status(201).json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(id) as Record<string, unknown>) });
   } catch (error) {
-    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
   }
+  // Never report success before the write is durably persisted — same
+  // await-before-respond pattern as every other staff/business mutation in
+  // this file (e.g. open-status above).
+  await flushServiceOrFail(response, () => {
+    response.status(201).json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(id) as Record<string, unknown>) });
+  });
 });
 
-app.put('/api/staff/business/services/:id', (request, response) => {
+app.put('/api/staff/business/services/:id', async (request, response) => {
   const session = requireOwnerOrManagerSession(request, response);
   if (!session) return;
   const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
@@ -2046,24 +2068,26 @@ app.put('/api/staff/business/services/:id', (request, response) => {
     const now = Date.now();
     db.prepare('UPDATE salon_service SET name = ?, category = ?, price_inr = ?, duration_min = ?, description = ?, image_url = ?, updated_at = ? WHERE id = ?')
       .run(fields.name, fields.category, fields.price, fields.duration, fields.description, fields.imageUrl, now, request.params.id);
-    postgresPersistence?.flushNow(['salon_service']);
-    response.json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
   } catch (error) {
-    response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
+    return response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
   }
+  await flushServiceOrFail(response, () => {
+    response.json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
+  });
 });
 
 /** Hide/restore only — never a hard delete, so historical bookings, revenue
  *  reports, and staff service_ids_json mappings are always preserved. */
-app.put('/api/staff/business/services/:id/visibility', (request, response) => {
+app.put('/api/staff/business/services/:id/visibility', async (request, response) => {
   const session = requireOwnerOrManagerSession(request, response);
   if (!session) return;
   const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
   if (!existing) return response.status(404).json({ error: 'Service not found.' });
   const active = asBoolean(request.body?.active);
   db.prepare('UPDATE salon_service SET active = ?, updated_at = ? WHERE id = ?').run(active ? 1 : 0, Date.now(), request.params.id);
-  postgresPersistence?.flushNow(['salon_service']);
-  response.json({ ok: true });
+  await flushServiceOrFail(response, () => {
+    response.json({ ok: true });
+  });
 });
 
 function saveGymState(gymId: string, state: any) {

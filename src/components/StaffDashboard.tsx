@@ -1096,6 +1096,7 @@ const ServicesPricingPanel: React.FC = () => {
   const [editing, setEditing] = useState<OwnerService | 'new' | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const load = useCallback(() => {
     fetchOwnerServices()
@@ -1150,13 +1151,23 @@ const ServicesPricingPanel: React.FC = () => {
             Manage what customers can book, how much it costs, and how long it takes.
           </p>
         </div>
-        <button
-          id="add-service-btn"
-          onClick={() => setEditing('new')}
-          className={`${ui.primaryButton} flex shrink-0 items-center gap-1.5 px-3 py-2 text-xs`}
-        >
-          <Plus className="h-3.5 w-3.5" /> Add Service
-        </button>
+        <div className="flex shrink-0 flex-col items-stretch gap-2 sm:flex-row">
+          <button
+            id="preview-customer-menu-btn"
+            onClick={() => setPreviewOpen(true)}
+            disabled={!services}
+            className={`${ui.secondaryButton} flex items-center justify-center gap-1.5 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            <Eye className="h-3.5 w-3.5" /> Preview Customer Menu
+          </button>
+          <button
+            id="add-service-btn"
+            onClick={() => setEditing('new')}
+            className={`${ui.primaryButton} flex items-center justify-center gap-1.5 px-3 py-2 text-xs`}
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Service
+          </button>
+        </div>
       </div>
 
       {loadError && (
@@ -1299,7 +1310,70 @@ const ServicesPricingPanel: React.FC = () => {
           onSave={handleSave}
         />
       )}
+
+      {previewOpen && (
+        <CustomerMenuPreviewModal services={services || []} onClose={() => setPreviewOpen(false)} />
+      )}
     </div>
+  );
+};
+
+/**
+ * "Preview Customer Menu" — a read-only mirror of what Customer App's own
+ * service menu will show, built from the exact same owner-fetched
+ * salon_service records (never fake/hardcoded data). Only active/visible
+ * services appear, grouped by category the same way the customer-facing
+ * menu groups them — no Join Queue action, no booking, preview only.
+ */
+const CustomerMenuPreviewModal: React.FC<{ services: OwnerService[]; onClose: () => void }> = ({ services, onClose }) => {
+  const visibleServices = services.filter((s) => s.active);
+  const grouped: Record<string, OwnerService[]> = {};
+  visibleServices.forEach((service) => {
+    const key = service.category || 'General';
+    (grouped[key] = grouped[key] || []).push(service);
+  });
+  const groupNames = Object.keys(grouped).sort();
+
+  return (
+    <ModalShell onClose={onClose} labelledBy="customer-menu-preview-title" className="max-w-md">
+      <div className="max-h-[85vh] overflow-y-auto p-5">
+        <div className="mb-1 text-[10px] font-extrabold uppercase tracking-wider text-[#7A8785]">Preview only &middot; not visible to customers as a booking screen</div>
+        <h3 id="customer-menu-preview-title" className="text-base font-extrabold text-[#17201F]">What customers see</h3>
+        <p className="mt-0.5 text-[11px] font-semibold text-[#6F7C7A]">Choose your service</p>
+
+        {visibleServices.length === 0 ? (
+          <div className="mt-4 rounded-2xl border border-dashed border-[#E1E7E6] bg-white p-6 text-center text-xs text-[#6F7C7A]">
+            No active services — customers won&apos;t see a bookable menu until at least one service is visible.
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {groupNames.map((groupName) => (
+              <div key={groupName}>
+                <div className="mb-1.5 text-[10px] font-extrabold uppercase tracking-wide text-[#7A8785]">{groupName}</div>
+                <div className="space-y-2">
+                  {grouped[groupName].map((service) => (
+                    <div key={service.id} className="flex items-start gap-3 rounded-2xl border border-[#E1E7E6] bg-white p-3.5">
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-[#17201F]">{service.name}</span>
+                        {service.description && (
+                          <p className="mt-1 line-clamp-2 text-[10.5px] leading-4 text-[#6F7C7A]">{service.description}</p>
+                        )}
+                        <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-[#F4F7F6] px-2 py-0.5 text-[10px] font-bold text-[#6F7C7A]">
+                          <Clock className="h-3 w-3" /> Session time: {service.durationMin} min
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-sm font-bold text-[#17201F]">{formatInr(service.priceInr)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <button onClick={onClose} className={`${ui.secondaryButton} mt-4 w-full py-2.5 text-xs`}>Close Preview</button>
+      </div>
+    </ModalShell>
   );
 };
 
