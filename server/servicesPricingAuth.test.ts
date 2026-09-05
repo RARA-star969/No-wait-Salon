@@ -28,17 +28,24 @@ let ownerBToken = '';
 let managerAToken = '';
 let staffAToken = '';
 
-const api = async (method: string, url: string, body?: unknown, token = '') => {
+const api = async (method: string, url: string, body?: unknown, token = '', extraHeaders: Record<string, string> = {}) => {
   const response = await fetch(`${base}${url}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...extraHeaders,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   return { status: response.status, body: await response.json().catch(() => ({})) };
 };
+
+// Forces flushServiceOrFail's Postgres flush to reject, without needing a
+// live Postgres instance — the same test-only-header technique
+// resolveStaffSession already uses for x-test-business-id/x-test-staff-role,
+// gated the same way behind NODE_ENV !== 'production'.
+const FORCE_PERSISTENCE_FAILURE = { 'x-test-force-service-persistence-failure': '1' };
 
 function mintStaffSession(businessId: string, role: string): string {
   const dbFile = new DatabaseSync(path.join(dataDir, 'no-wait-salon.db'));
@@ -219,4 +226,80 @@ test('a hidden service cannot be newly booked through Join Queue validation', as
   const profile = await api('GET', `/api/salons/${SALON_A}/profile`);
   assert.ok(!profile.body.salon.services.some((s: { name: string }) => s.name === 'Hidden For Booking'));
   void join;
+});
+
+// Retry-safety: a failed durable persistence attempt must roll back the
+// local SQLite write so a retry can never create a duplicate, and a failed
+// edit/visibility change must never linger as a silently-committed change.
+test('a create that fails to durably persist is rolled back, and retrying creates exactly one service', async () => {
+  const failed = await api(
+    'POST',
+    '/api/staff/business/services',
+    { name: 'Retry Safety Service', priceInr: 350, durationMin: 30 },
+    ownerAToken,
+    FORCE_PERSISTENCE_FAILURE,
+  );
+  assert.equal(failed.status, 500);
+  assert.ok(failed.body.error);
+
+  const afterFailure = await api('GET', '/api/staff/business/services', undefined, ownerAToken);
+  assert.equal(
+    afterFailure.body.services.filter((s: { name: string }) => s.name === 'Retry Safety Service').length,
+    0,
+    'A create whose durable persistence failed must leave no row behind',
+  );
+
+  // A normal retry (no failure injection this time) must succeed and create
+  // exactly one row — never a duplicate of a half-persisted attempt.
+  const retried = await api('POST', '/api/staff/business/services', { name: 'Retry Safety Service', priceInr: 350, durationMin: 30 }, ownerAToken);
+  assert.equal(retried.status, 201);
+
+  const afterRetry = await api('GET', '/api/staff/business/services', undefined, ownerAToken);
+  assert.equal(
+    afterRetry.body.services.filter((s: { name: string }) => s.name === 'Retry Safety Service').length,
+    1,
+    'Exactly one service must exist after the failed attempt plus one successful retry',
+  );
+});
+
+test('an edit that fails to durably persist is rolled back to its prior values', async () => {
+  const created = await api('POST', '/api/staff/business/services', { name: 'Edit Rollback Target', priceInr: 200, durationMin: 20 }, ownerAToken);
+  const id = created.body.service.id;
+
+  const failedEdit = await api(
+    'PUT',
+    `/api/staff/business/services/${id}`,
+    { name: 'Edit Rollback Target — Changed', category: 'Changed Category', description: 'changed', priceInr: 999, durationMin: 90 },
+    ownerAToken,
+    FORCE_PERSISTENCE_FAILURE,
+  );
+  assert.equal(failedEdit.status, 500);
+
+  const afterFailure = await api('GET', '/api/staff/business/services', undefined, ownerAToken);
+  const row = afterFailure.body.services.find((s: { id: string }) => s.id === id);
+  assert.ok(row, 'The service itself must still exist after a failed edit');
+  assert.equal(row.name, 'Edit Rollback Target', 'A failed edit must never leave the new name committed');
+  assert.equal(row.priceInr, 200, 'A failed edit must never leave the new price committed');
+  assert.equal(row.durationMin, 20, 'A failed edit must never leave the new session time committed');
+});
+
+test('a visibility change that fails to durably persist is rolled back', async () => {
+  const created = await api('POST', '/api/staff/business/services', { name: 'Visibility Rollback Target', priceInr: 150, durationMin: 15 }, ownerAToken);
+  const id = created.body.service.id;
+
+  const failedHide = await api(
+    'PUT',
+    `/api/staff/business/services/${id}/visibility`,
+    { active: false },
+    ownerAToken,
+    FORCE_PERSISTENCE_FAILURE,
+  );
+  assert.equal(failedHide.status, 500);
+
+  const afterFailure = await api('GET', '/api/staff/business/services', undefined, ownerAToken);
+  const row = afterFailure.body.services.find((s: { id: string }) => s.id === id);
+  assert.equal(row.active, true, 'A failed hide must never leave the service silently hidden');
+
+  const profile = await api('GET', `/api/salons/${SALON_A}/profile`);
+  assert.ok(profile.body.salon.services.some((s: { id: string }) => s.id === id), 'A rolled-back hide must still show the service to customers');
 });

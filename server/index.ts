@@ -2017,20 +2017,44 @@ app.get('/api/staff/business/services', (request, response) => {
   response.json({ services: rows.map(serviceRowToView) });
 });
 
-/** Awaits the Postgres flush before the caller reports success, so the API
- *  never claims a durable save that hasn't actually landed. A rejected
- *  flush is caught here (rather than left to reject unhandled — Express 4
- *  does not forward an async handler's rejection to error middleware on
- *  its own) and surfaces as a 500, distinct from a 400 validation error:
- *  the SQLite write already committed, but durability is not yet certain,
- *  so the client must not be told the save fully succeeded. */
-async function flushServiceOrFail(response: express.Response, onPersisted: () => void): Promise<void> {
+/**
+ * Awaits the Postgres flush before the caller reports success, so the API
+ * never claims a durable save that hasn't actually landed. On failure the
+ * SQLite mutation is rolled back via `onRollback` — a create leaves no row
+ * behind (so a retry can never collide with a half-persisted duplicate) and
+ * an update/visibility change is restored to its prior values — so SQLite
+ * and Postgres never disagree about what was actually committed, and a
+ * subsequent read never shows an owner an edit that silently failed to
+ * persist. A rejected flush is caught here (rather than left to reject
+ * unhandled — Express 4 does not forward an async handler's rejection to
+ * error middleware on its own) and surfaces as a 500, distinct from a 400
+ * validation error.
+ *
+ * `request` carries an opt-in, non-production-only failure-injection hook
+ * (`x-test-force-service-persistence-failure`) — the same style of test-only
+ * header already used by resolveStaffSession above — so this rollback path
+ * can be exercised by an integration test without a live Postgres instance.
+ */
+async function flushServiceOrFail(
+  request: express.Request,
+  response: express.Response,
+  onPersisted: () => void,
+  onRollback: () => void,
+): Promise<void> {
   try {
+    if (process.env.NODE_ENV !== 'production' && request.headers['x-test-force-service-persistence-failure'] === '1') {
+      throw new Error('Simulated persistence failure (test-only header)');
+    }
     await postgresPersistence?.flushNow(['salon_service']);
     onPersisted();
   } catch (error) {
-    console.error('Failed to persist service change', error);
-    response.status(500).json({ error: 'Service was saved locally but could not be durably persisted. Please try again.' });
+    console.error('Failed to persist service change — rolling back local write', error);
+    try {
+      onRollback();
+    } catch (rollbackError) {
+      console.error('Failed to roll back service mutation after failed persistence', rollbackError);
+    }
+    response.status(500).json({ error: 'This change could not be durably saved and was not kept. Please try again.' });
   }
 }
 
@@ -2052,17 +2076,25 @@ app.post('/api/staff/business/services', async (request, response) => {
   }
   // Never report success before the write is durably persisted — same
   // await-before-respond pattern as every other staff/business mutation in
-  // this file (e.g. open-status above).
-  await flushServiceOrFail(response, () => {
-    response.status(201).json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(id) as Record<string, unknown>) });
-  });
+  // this file (e.g. open-status above). On failure, delete the row we just
+  // inserted rather than leave it stranded in SQLite only: a retried Add
+  // Service then creates exactly one row, never a duplicate.
+  await flushServiceOrFail(
+    request,
+    response,
+    () => {
+      response.status(201).json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(id) as Record<string, unknown>) });
+    },
+    () => { db.prepare('DELETE FROM salon_service WHERE id = ?').run(id); },
+  );
 });
 
 app.put('/api/staff/business/services/:id', async (request, response) => {
   const session = requireOwnerOrManagerSession(request, response);
   if (!session) return;
-  const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
-  if (!existing) return response.status(404).json({ error: 'Service not found.' });
+  const existingRow = db.prepare('SELECT * FROM salon_service WHERE id = ? AND salon_id = ?')
+    .get(request.params.id, session.businessId) as Record<string, unknown> | undefined;
+  if (!existingRow) return response.status(404).json({ error: 'Service not found.' });
   try {
     const fields = validateServiceFields(request.body || {});
     const now = Date.now();
@@ -2071,9 +2103,23 @@ app.put('/api/staff/business/services/:id', async (request, response) => {
   } catch (error) {
     return response.status(400).json({ error: error instanceof Error ? error.message : 'Unable to save service.' });
   }
-  await flushServiceOrFail(response, () => {
-    response.json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
-  });
+  // On a failed durable persist, restore every column this handler can
+  // change back to its pre-mutation value, so a failed edit never lingers
+  // as a silently-committed change only SQLite knows about.
+  await flushServiceOrFail(
+    request,
+    response,
+    () => {
+      response.json({ ok: true, service: serviceRowToView(db.prepare('SELECT * FROM salon_service WHERE id = ?').get(request.params.id) as Record<string, unknown>) });
+    },
+    () => {
+      db.prepare('UPDATE salon_service SET name = ?, category = ?, price_inr = ?, duration_min = ?, description = ?, image_url = ?, updated_at = ? WHERE id = ?')
+        .run(
+          String(existingRow.name), String(existingRow.category), Number(existingRow.price_inr), Number(existingRow.duration_min),
+          String(existingRow.description), String(existingRow.image_url), Number(existingRow.updated_at), request.params.id,
+        );
+    },
+  );
 });
 
 /** Hide/restore only — never a hard delete, so historical bookings, revenue
@@ -2081,13 +2127,21 @@ app.put('/api/staff/business/services/:id', async (request, response) => {
 app.put('/api/staff/business/services/:id/visibility', async (request, response) => {
   const session = requireOwnerOrManagerSession(request, response);
   if (!session) return;
-  const existing = db.prepare('SELECT id FROM salon_service WHERE id = ? AND salon_id = ?').get(request.params.id, session.businessId);
-  if (!existing) return response.status(404).json({ error: 'Service not found.' });
+  const existingRow = db.prepare('SELECT id, active, updated_at FROM salon_service WHERE id = ? AND salon_id = ?')
+    .get(request.params.id, session.businessId) as { id: string; active: number; updated_at: number } | undefined;
+  if (!existingRow) return response.status(404).json({ error: 'Service not found.' });
   const active = asBoolean(request.body?.active);
   db.prepare('UPDATE salon_service SET active = ?, updated_at = ? WHERE id = ?').run(active ? 1 : 0, Date.now(), request.params.id);
-  await flushServiceOrFail(response, () => {
-    response.json({ ok: true });
-  });
+  await flushServiceOrFail(
+    request,
+    response,
+    () => {
+      response.json({ ok: true });
+    },
+    () => {
+      db.prepare('UPDATE salon_service SET active = ?, updated_at = ? WHERE id = ?').run(existingRow.active, existingRow.updated_at, request.params.id);
+    },
+  );
 });
 
 function saveGymState(gymId: string, state: any) {
