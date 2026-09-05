@@ -46,6 +46,42 @@ function includeReferencedTables(selected:string[]){
   return insertOrder.filter(table=>expanded.has(table));
 }
 
+/**
+ * A strictly serialized async work queue. Each `enqueue`d operation only
+ * starts once every operation enqueued before it has settled (whether it
+ * resolved or rejected) — so writes against the same Postgres connection
+ * are never issued concurrently — and the promise `enqueue` returns still
+ * rejects to its own caller exactly when `work()` rejects.
+ *
+ * The critical property this exists for: one operation's rejection must
+ * never poison the operations enqueued after it. A naive
+ * `pending = pending.then(() => work())` chain fails this — once `pending`
+ * itself becomes a rejected promise, every later `pending.then(...)` skips
+ * its callback and just re-rejects, so `work()` for every future caller
+ * silently never runs. Here, the *internal* tail used to sequence future
+ * work is recovered from any settlement (success or failure) via
+ * `.then(() => undefined, () => undefined)` before the next `enqueue` call
+ * can observe it, while the *external* promise handed back to this call's
+ * own caller is the un-recovered one, so failures are never swallowed.
+ *
+ * Exported so this ordering/recovery guarantee can be tested directly with
+ * controllable mock work functions, without a live Postgres connection.
+ */
+export function createSerialQueue() {
+  let tail: Promise<void> = Promise.resolve();
+  function enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const operation = tail.then(work);
+    // Recover the internal tail from either outcome before returning, so a
+    // rejection here can never carry forward into the next enqueue() call.
+    tail = operation.then(
+      () => undefined,
+      () => undefined,
+    );
+    return operation;
+  }
+  return { enqueue };
+}
+
 const placeholders=(count:number)=>Array.from({length:count},()=>'?').join(',');
 const sqliteRows=(db:DatabaseSync,table:string)=>db.prepare(`SELECT * FROM ${table}`).all() as Record<string,unknown>[];
 
@@ -148,27 +184,42 @@ export async function initPostgresPersistence(sqlite:DatabaseSync,dataDir:string
   const persisted=Number((await postgres.get<{count:number}>('SELECT COUNT(*) count FROM salon'))?.count||0);
   const initialCounts=persisted?await replaceSqlite(sqlite,postgres):await replacePostgres(sqlite,postgres);
   if(persisted){const missingSeedBackfills=buildMissingSeedBackfills(sqlite);await persistMissingSeedBackfills(postgres,missingSeedBackfills)}
-  let pending=Promise.resolve(initialCounts);let timer:ReturnType<typeof setTimeout>|undefined;
-  const flushNow=(selected?:string[])=>{pending=pending.then(()=>replacePostgres(sqlite,postgres,selected));return pending};
+  // All writes against `postgres` after startup go through this one shared
+  // queue, so they stay strictly serialized (never concurrent) while one
+  // rejected write can never block the ones queued after it — see
+  // createSerialQueue's own doc comment for why a plain `pending.then(...)`
+  // chain doesn't have that property.
+  const queue=createSerialQueue();
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  const flushNow=(selected?:string[])=>queue.enqueue(()=>replacePostgres(sqlite,postgres,selected));
 
-  const insertMissingSalons = async (salons: any[]) => {
-    pending = pending.then(async () => {
-      await postgres.transaction(async tx => {
-        const columns = tables['salon'];
-        for (const salon of salons) {
-          const placeholdersStr = placeholders(columns.length);
-          await tx.run(
-            `INSERT INTO salon (${columns.join(',')}) VALUES (${placeholdersStr}) ON CONFLICT(id) DO NOTHING`,
-            columns.map(column => salon[column] ?? null)
-          );
-        }
-      });
-      return {};
+  const insertMissingSalons = (salons: any[]) => queue.enqueue(async () => {
+    await postgres.transaction(async tx => {
+      const columns = tables['salon'];
+      for (const salon of salons) {
+        const placeholdersStr = placeholders(columns.length);
+        await tx.run(
+          `INSERT INTO salon (${columns.join(',')}) VALUES (${placeholdersStr}) ON CONFLICT(id) DO NOTHING`,
+          columns.map(column => salon[column] ?? null)
+        );
+      }
     });
-    return pending;
-  };
+    return {} as Record<string, number>;
+  });
 
   const scheduleFlush=()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>void flushNow().catch(error=>console.error('PostgreSQL persistence failed',error)),50)};
-  const close=async()=>{if(timer)clearTimeout(timer);await flushNow();await postgres.close()};
+  const close=async()=>{
+    if(timer)clearTimeout(timer);
+    // The final flush is attempted through the same recoverable queue as
+    // everything else, so an earlier failure never makes shutdown itself
+    // impossible. The Postgres connection is always closed regardless of
+    // whether this last flush succeeds; a genuine failure of this final
+    // flush is still surfaced to the caller (never swallowed), only after
+    // the connection has been released.
+    let flushError:unknown;
+    try{await flushNow()}catch(error){flushError=error}
+    await postgres.close();
+    if(flushError)throw flushError;
+  };
   return{backupPath,initialCounts,source:persisted?'postgres':'sqlite',scheduleFlush,flushNow,insertMissingSalons,close};
 }

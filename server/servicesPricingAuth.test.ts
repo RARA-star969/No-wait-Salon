@@ -231,6 +231,21 @@ test('a hidden service cannot be newly booked through Join Queue validation', as
 // Retry-safety: a failed durable persistence attempt must roll back the
 // local SQLite write so a retry can never create a duplicate, and a failed
 // edit/visibility change must never linger as a silently-committed change.
+//
+// IMPORTANT SCOPE NOTE: x-test-force-service-persistence-failure (below)
+// throws inside flushServiceOrFail *before* postgresPersistence.flushNow()
+// is ever called — this server runs with DATABASE_URL unset in tests, so
+// postgresPersistence is null and there is no real queue here to poison in
+// the first place. These tests prove the endpoint-level rollback (SQLite
+// never left disagreeing with what the client was told), which is a real
+// and necessary guarantee on its own, but they do NOT exercise or prove
+// recovery of postgresPersistence's shared write queue after an actual
+// queued Postgres operation rejects. That guarantee — that one rejected
+// queued write can never permanently block every write queued after it —
+// is covered separately, and independently of any endpoint, in
+// server/postgresPersistenceQueue.test.ts against the real queue
+// primitive (createSerialQueue) the flushNow/insertMissingSalons/
+// scheduleFlush/close functions all now share.
 test('a create that fails to durably persist is rolled back, and retrying creates exactly one service', async () => {
   const failed = await api(
     'POST',
